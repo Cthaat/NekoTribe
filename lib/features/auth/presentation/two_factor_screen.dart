@@ -7,16 +7,22 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../core/utils/group_invite.dart';
+import '../../../core/utils/group_post_link.dart';
 
 class TwoFactorScreen extends ConsumerStatefulWidget {
   const TwoFactorScreen({
     super.key,
     required this.challengeId,
     required this.account,
+    this.inviteCode,
+    this.groupPostLink,
   });
 
   final String challengeId;
   final String account;
+  final String? inviteCode;
+  final GroupPostLink? groupPostLink;
 
   @override
   ConsumerState<TwoFactorScreen> createState() => _TwoFactorScreenState();
@@ -34,6 +40,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
   }
 
   Future<void> _submit() async {
+    if (_busy) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -48,7 +55,11 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
       if (!mounted) return;
       ref.read(authSessionProvider.notifier).markLoggedIn();
       unawaited(ref.read(realtimeServiceProvider).connect());
-      context.go('/feed');
+      final link = widget.groupPostLink;
+      context.go(
+        groupInviteLocation(widget.inviteCode) ??
+            (link == null ? '/feed' : groupPostLocation(link)),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = ErrorView.describe(context, e));

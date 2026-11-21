@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../core/utils/auth_input.dart';
+import '../domain/otp_send_cooldown.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -20,12 +22,37 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
   String? _verificationId;
+  String? _verificationAccount;
+  String _otpAccount = '';
+  int _otpRevision = 0;
+  final _otpCooldown = OtpSendCooldown();
   bool _busy = false;
   bool _sending = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _account.addListener(_accountChanged);
+  }
+
+  void _accountChanged() {
+    final account = trimAuthInput(_account.text);
+    if (account == _otpAccount) return;
+    _otpAccount = account;
+    _otpRevision++;
+    _otpCooldown.cancel();
+    _otp.clear();
+    setState(() {
+      _verificationId = null;
+      _verificationAccount = null;
+      _sending = false;
+    });
+  }
+
+  @override
   void dispose() {
+    _otpCooldown.cancel();
     _account.dispose();
     _otp.dispose();
     _password.dispose();
@@ -34,35 +61,88 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   Future<void> _sendOtp() async {
-    if (_account.text.trim().isEmpty) return;
-    setState(() => _sending = true);
+    if (_sending || _busy || _otpCooldown.remaining > 0) return;
+    final account = trimAuthInput(_account.text);
+    if (account.isEmpty) return;
+    if (!validNewEmail(account)) {
+      setState(
+        () => _error = AppLocalizations.of(context).t('auth.email_invalid'),
+      );
+      return;
+    }
+    final previousId = _verificationAccount == account ? _verificationId : null;
+    final revision = ++_otpRevision;
+    setState(() {
+      _sending = true;
+      _verificationId = null;
+      _verificationAccount = null;
+    });
     try {
       final otp = await ref
           .read(authRepositoryProvider)
-          .requestOtp(account: _account.text.trim(), purpose: 'password_reset');
-      if (!mounted) return;
-      setState(() => _verificationId = otp.verificationId);
+          .requestOtp(account: account, purpose: 'password_reset');
+      if (!mounted || revision != _otpRevision) return;
+      if (otp.account != account || otp.verificationId.trim().isEmpty) {
+        throw const FormatException('Invalid OTP response');
+      }
+      _otp.clear();
+      setState(() {
+        _otpCooldown.start(otpSendCooldownSeconds, _refreshOtpCooldown);
+        _verificationId = otp.verificationId;
+        _verificationAccount = account;
+      });
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('auth.otp_sent'))));
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = ErrorView.describe(context, e));
+      if (!mounted || revision != _otpRevision) return;
+      final retry = otpRetryDelay(e);
+      setState(() {
+        if (retry != null) {
+          _otpCooldown.start(retry, _refreshOtpCooldown);
+          _verificationId = previousId;
+          _verificationAccount = previousId == null ? null : account;
+        }
+        _error = ErrorView.describe(context, e);
+      });
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted && revision == _otpRevision) setState(() => _sending = false);
     }
   }
 
+  void _refreshOtpCooldown() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _reset() async {
+    if (_busy) return;
+    if (!validNewEmail(_account.text)) {
+      setState(
+        () => _error = AppLocalizations.of(context).t('auth.email_invalid'),
+      );
+      return;
+    }
+    final repository = ref.read(authRepositoryProvider);
+    final sessionRevision = repository.sessionRevision;
     final l10n = AppLocalizations.of(context);
     final verificationId = _verificationId;
-    if (verificationId == null || verificationId.isEmpty) {
+    final account = trimAuthInput(_account.text),
+        code = trimAuthInput(_otp.text),
+        password = trimAuthInput(_password.text);
+    final revision = _otpRevision;
+    if (verificationId == null ||
+        verificationId.isEmpty ||
+        _verificationAccount != account) {
       setState(() => _error = l10n.t('auth.otp_required'));
       return;
     }
-    if (_password.text != _confirmPassword.text) {
+    if (password != trimAuthInput(_confirmPassword.text)) {
       setState(() => _error = l10n.t('auth.password_mismatch'));
+      return;
+    }
+    if (!validNewPassword(password)) {
+      setState(() => _error = l10n.t('auth.password_too_short'));
       return;
     }
     setState(() {
@@ -70,21 +150,27 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       _error = null;
     });
     try {
-      await ref
-          .read(authRepositoryProvider)
-          .requestPasswordReset(
-            email: _account.text.trim(),
-            verificationId: verificationId,
-            code: _otp.text.trim(),
-            newPassword: _password.text,
-          );
-      if (!mounted) return;
+      final receipt = await repository.requestPasswordReset(
+        email: account,
+        verificationId: verificationId,
+        code: code,
+        newPassword: password,
+      );
+      if (!mounted ||
+          revision != _otpRevision ||
+          !repository.isCurrentReceipt(receipt)) {
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('auth.password_reset'))));
       context.go('/auth/login');
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted ||
+          revision != _otpRevision ||
+          repository.sessionRevision != sessionRevision) {
+        return;
+      }
       setState(() => _error = ErrorView.describe(context, e));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -158,7 +244,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         final sendButton = SizedBox(
                           height: 48,
                           child: OutlinedButton(
-                            onPressed: _sending ? null : _sendOtp,
+                            onPressed: _sending || _otpCooldown.remaining > 0
+                                ? null
+                                : _sendOtp,
                             child: _sending
                                 ? const SizedBox(
                                     height: 16,
@@ -167,7 +255,17 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : Text(l10n.t('auth.send_otp')),
+                                : Text(
+                                    _otpCooldown.remaining > 0
+                                        ? l10n
+                                              .t('auth.otp_retry_seconds')
+                                              .replaceAll(
+                                                '{seconds}',
+                                                _otpCooldown.remaining
+                                                    .toString(),
+                                              )
+                                        : l10n.t('auth.send_otp'),
+                                  ),
                           ),
                         );
                         if (constraints.maxWidth < 360) {

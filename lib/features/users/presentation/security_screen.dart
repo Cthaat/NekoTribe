@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/auth_input.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,15 +8,117 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../auth/data/auth_repository.dart';
+import '../../auth/domain/otp_send_cooldown.dart';
 
 class SecurityScreen extends ConsumerStatefulWidget {
   const SecurityScreen({super.key});
 
   @override
-  ConsumerState<SecurityScreen> createState() => _SecurityScreenState();
+  ConsumerState<SecurityScreen> createState() => _SecuritySessionGateState();
 }
 
-class _SecurityScreenState extends ConsumerState<SecurityScreen> {
+class _SecuritySessionGateState extends ConsumerState<SecurityScreen> {
+  late AuthRepository _owner;
+  late int _ownerRevision;
+  AuthRepository? _observed;
+  VoidCallback? _stopObserving;
+  bool _expired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _owner = ref.read(authRepositoryProvider);
+    _ownerRevision = _owner.sessionRevision;
+    _expired = _owner.isSessionChanging;
+    _observe(_owner);
+  }
+
+  void _observe(AuthRepository auth) {
+    if (identical(_observed, auth)) return;
+    _stopObserving?.call();
+    _observed = auth;
+    _stopObserving = auth.listenSessionChanges(() {
+      if (!mounted) return;
+      setState(() {
+        if (!identical(auth, _owner) ||
+            auth.sessionRevision != _ownerRevision ||
+            auth.isSessionChanging) {
+          _expired = true;
+        }
+      });
+    });
+  }
+
+  void _reopen() {
+    final auth = ref.read(authRepositoryProvider);
+    if (auth.isSessionChanging) return;
+    setState(() {
+      _owner = auth;
+      _ownerRevision = auth.sessionRevision;
+      _expired = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _stopObserving?.call();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = ref.watch(authRepositoryProvider);
+    _observe(auth);
+    if (!identical(auth, _owner) ||
+        auth.sessionRevision != _ownerRevision ||
+        auth.isSessionChanging) {
+      _expired = true;
+    }
+    if (!_expired) {
+      return _SecurityScreenBody(onSessionCleared: _finishSessionClear);
+    }
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.t('account.security.title'))),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.t('account.security.session_changed')),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: auth.isSessionChanging ? null : _reopen,
+              child: Text(l10n.t('account.security.reopen')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _finishSessionClear(AuthRepository auth, SessionClearReceipt receipt) {
+    if (!mounted ||
+        !identical(ref.read(authRepositoryProvider), auth) ||
+        !auth.isCurrentReceipt(receipt)) {
+      return;
+    }
+    context.go('/auth/login');
+  }
+}
+
+class _SecurityScreenBody extends ConsumerStatefulWidget {
+  const _SecurityScreenBody({required this.onSessionCleared});
+  final void Function(AuthRepository auth, SessionClearReceipt receipt)
+  onSessionCleared;
+  @override
+  ConsumerState<_SecurityScreenBody> createState() => _SecurityScreenState();
+}
+
+class _SecurityScreenState extends ConsumerState<_SecurityScreenBody> {
+  late AuthRepository _owner;
+  late int _ownerRevision;
   final _setupPassword = TextEditingController();
   final _setupCode = TextEditingController();
   final _disablePassword = TextEditingController();
@@ -25,48 +128,80 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
   final _deletePassword = TextEditingController();
   final _deleteConfirmation = TextEditingController();
 
-  bool _loading = true;
+  bool _loading = false;
   bool _busy = false;
-  bool _twoFactorEnabled = false;
+  bool? _twoFactorEnabled;
   String? _error;
   String? _twoFactorSecret;
   String? _qrUri;
   String? _emailVerificationId;
+  String? _emailVerificationAccount;
+  int? _emailVerificationRevision;
+  int _emailOtpVersion = 0;
+  final _emailOtpCooldown = OtpSendCooldown();
+  int? _emailOtpPendingVersion;
+  String _emailAccount = '';
   List<String> _recoveryCodes = const [];
 
   @override
   void initState() {
     super.initState();
+    _owner = ref.read(authRepositoryProvider);
+    _ownerRevision = _owner.sessionRevision;
+    _email.addListener(_emailChanged);
     _loadStatus();
   }
 
   @override
   void dispose() {
-    _setupPassword.dispose();
-    _setupCode.dispose();
-    _disablePassword.dispose();
-    _disableCode.dispose();
-    _email.dispose();
-    _emailCode.dispose();
-    _deletePassword.dispose();
-    _deleteConfirmation.dispose();
+    _emailOtpVersion++;
+    _emailOtpCooldown.cancel();
+    _email.removeListener(_emailChanged);
+    _twoFactorSecret = null;
+    _qrUri = null;
+    _recoveryCodes = const [];
+    _emailVerificationId = null;
+    _emailVerificationAccount = null;
+    _emailVerificationRevision = null;
+    for (final controller in [
+      _setupPassword,
+      _setupCode,
+      _disablePassword,
+      _disableCode,
+      _email,
+      _emailCode,
+      _deletePassword,
+      _deleteConfirmation,
+    ]) {
+      controller.clear();
+      controller.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _loadStatus() async {
+    if (_loading || _busy || !_isSecurityCurrent(_owner, _ownerRevision)) {
+      return;
+    }
+    final auth = ref.read(authRepositoryProvider),
+        revision = ref.read(authRepositoryProvider).sessionRevision;
     setState(() {
       _loading = true;
       _error = null;
+      _twoFactorEnabled = null;
+      _twoFactorSecret = null;
+      _qrUri = null;
+      _recoveryCodes = const [];
     });
     try {
       final settings = await ref.read(usersRepositoryProvider).getSettings();
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, revision)) return;
       setState(() {
-        _twoFactorEnabled = settings.twoFactorEnabled ?? false;
+        _twoFactorEnabled = settings.twoFactorEnabled;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, revision)) return;
       setState(() {
         _error = ErrorView.describe(context, e);
         _loading = false;
@@ -75,8 +210,15 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
   }
 
   Future<void> _startSetup() async {
+    if (_twoFactorEnabled != false ||
+        _busy ||
+        !_isSecurityCurrent(_owner, _ownerRevision)) {
+      return;
+    }
+    final auth = ref.read(authRepositoryProvider),
+        revision = ref.read(authRepositoryProvider).sessionRevision;
     final l10n = AppLocalizations.of(context);
-    final password = _setupPassword.text.trim();
+    final password = trimAuthInput(_setupPassword.text);
     if (password.isEmpty) {
       setState(() => _error = l10n.t('account.security.password_required'));
       return;
@@ -84,27 +226,38 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _twoFactorSecret = null;
+      _qrUri = null;
+      _setupCode.clear();
       _recoveryCodes = const [];
     });
     try {
       final data = await ref
           .read(usersRepositoryProvider)
           .setupTwoFactor(password: password);
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, revision)) return;
       setState(() {
-        _twoFactorSecret = (data['secret'] as String?) ?? '';
-        _qrUri = data['otpauth_url'] as String?;
+        _twoFactorSecret = data.secret;
+        _qrUri = data.otpauthUrl;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, revision)) return;
       setState(() => _error = ErrorView.describe(context, e));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_isSecurityCurrent(auth, revision)) setState(() => _busy = false);
     }
   }
 
   Future<void> _confirmSetup() async {
-    final code = _setupCode.text.trim();
+    if (_twoFactorEnabled != false ||
+        _twoFactorSecret == null ||
+        _busy ||
+        !_isSecurityCurrent(_owner, _ownerRevision)) {
+      return;
+    }
+    final auth = ref.read(authRepositoryProvider),
+        revision = ref.read(authRepositoryProvider).sessionRevision;
+    final code = trimAuthInput(_setupCode.text);
     if (code.isEmpty) return;
     setState(() {
       _busy = true;
@@ -114,33 +267,38 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       final data = await ref
           .read(usersRepositoryProvider)
           .confirmTwoFactor(code: code);
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, revision)) return;
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.t('account.security.enabled'))),
       );
       setState(() {
-        _twoFactorEnabled = data['enabled'] == true;
+        _twoFactorEnabled = data.enabled;
         _twoFactorSecret = null;
         _qrUri = null;
         _setupPassword.clear();
         _setupCode.clear();
-        _recoveryCodes = (data['recovery_codes'] as List? ?? const [])
-            .whereType<String>()
-            .toList(growable: false);
+        _recoveryCodes = data.recoveryCodes;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, revision)) return;
       setState(() => _error = ErrorView.describe(context, e));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_isSecurityCurrent(auth, revision)) setState(() => _busy = false);
     }
   }
 
   Future<void> _disable2fa() async {
+    if (_twoFactorEnabled != true ||
+        _busy ||
+        !_isSecurityCurrent(_owner, _ownerRevision)) {
+      return;
+    }
+    final auth = ref.read(authRepositoryProvider),
+        revision = ref.read(authRepositoryProvider).sessionRevision;
     final l10n = AppLocalizations.of(context);
-    final password = _disablePassword.text.trim();
-    final code = _disableCode.text.trim();
+    final password = trimAuthInput(_disablePassword.text);
+    final code = trimAuthInput(_disableCode.text);
     if (password.isEmpty || code.isEmpty) {
       setState(() => _error = l10n.t('account.security.disable_required'));
       return;
@@ -153,7 +311,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       await ref
           .read(usersRepositoryProvider)
           .disableTwoFactor(password: password, code: code);
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, revision)) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.t('account.security.disabled'))),
       );
@@ -164,51 +322,156 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
         _recoveryCodes = const [];
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, revision)) return;
       setState(() => _error = ErrorView.describe(context, e));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_isSecurityCurrent(auth, revision)) setState(() => _busy = false);
     }
   }
 
+  bool _isSecurityCurrent(AuthRepository auth, int revision) =>
+      mounted &&
+      identical(_owner, auth) &&
+      _ownerRevision == revision &&
+      !auth.isSessionChanging &&
+      identical(ref.read(authRepositoryProvider), auth) &&
+      auth.sessionRevision == revision;
+
+  void _emailChanged() {
+    final account = trimAuthInput(_email.text);
+    if (account == _emailAccount) return;
+    _emailAccount = account;
+    _invalidateEmailVerification();
+  }
+
+  void _invalidateEmailVerification() {
+    _emailOtpVersion++;
+    _emailOtpCooldown.cancel();
+    _emailCode.clear();
+    setState(() {
+      _emailVerificationId = null;
+      _emailVerificationAccount = null;
+      _emailVerificationRevision = null;
+      if (_emailOtpPendingVersion != null) _busy = false;
+      _emailOtpPendingVersion = null;
+    });
+  }
+
+  bool _isEmailOtpCurrent(
+    int version,
+    String account,
+    AuthRepository auth,
+    int revision,
+  ) {
+    return _isSecurityCurrent(auth, revision) &&
+        version == _emailOtpVersion &&
+        trimAuthInput(_email.text) == account &&
+        identical(ref.read(authRepositoryProvider), auth) &&
+        auth.sessionRevision == revision;
+  }
+
   Future<void> _sendEmailOtp() async {
+    if (_busy ||
+        _emailOtpCooldown.remaining > 0 ||
+        !_isSecurityCurrent(_owner, _ownerRevision))
+      return;
+    final auth = ref.read(authRepositoryProvider),
+        revision = ref.read(authRepositoryProvider).sessionRevision;
     final l10n = AppLocalizations.of(context);
-    final email = _email.text.trim();
+    final email = trimAuthInput(_email.text);
     if (email.isEmpty) {
       setState(() => _error = l10n.t('account.security.email_required'));
       return;
     }
+    if (!validNewEmail(email)) {
+      setState(() => _error = l10n.t('auth.email_invalid'));
+      return;
+    }
+    final previousId =
+        _emailVerificationAccount == email &&
+            _emailVerificationRevision == revision
+        ? _emailVerificationId
+        : null;
+    final version = ++_emailOtpVersion;
     setState(() {
+      _emailOtpPendingVersion = version;
       _busy = true;
       _error = null;
+      _emailVerificationId = null;
+      _emailVerificationAccount = null;
+      _emailVerificationRevision = null;
     });
     try {
-      final otp = await ref
-          .read(authRepositoryProvider)
-          .requestOtp(account: email, purpose: 'change_email');
-      if (!mounted) return;
-      setState(() => _emailVerificationId = otp.verificationId);
+      final otp = await auth.requestOtp(
+        account: email,
+        purpose: 'change_email',
+      );
+      if (!_isEmailOtpCurrent(version, email, auth, revision)) return;
+      if (otp.account != email || otp.verificationId.trim().isEmpty) {
+        throw const FormatException('Invalid OTP response');
+      }
+      _emailCode.clear();
+      setState(() {
+        _emailOtpCooldown.start(
+          otpSendCooldownSeconds,
+          _refreshEmailOtpCooldown,
+        );
+        _emailVerificationId = otp.verificationId;
+        _emailVerificationAccount = email;
+        _emailVerificationRevision = revision;
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('auth.otp_sent'))));
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = ErrorView.describe(context, e));
+      if (!_isEmailOtpCurrent(version, email, auth, revision)) return;
+      final retry = otpRetryDelay(e);
+      if (retry == null) _emailCode.clear();
+      setState(() {
+        if (retry != null) {
+          _emailOtpCooldown.start(retry, _refreshEmailOtpCooldown);
+          _emailVerificationId = previousId;
+          _emailVerificationAccount = previousId == null ? null : email;
+          _emailVerificationRevision = previousId == null ? null : revision;
+        }
+        _error = ErrorView.describe(context, e);
+      });
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _emailOtpPendingVersion == version) {
+        setState(() {
+          _emailOtpPendingVersion = null;
+          _busy = false;
+        });
+      }
     }
   }
 
+  void _refreshEmailOtpCooldown() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _changeEmail() async {
+    if (_busy || !_isSecurityCurrent(_owner, _ownerRevision)) return;
+    final auth = ref.read(authRepositoryProvider),
+        sessionRevision = ref.read(authRepositoryProvider).sessionRevision;
     final l10n = AppLocalizations.of(context);
-    final email = _email.text.trim();
-    final code = _emailCode.text.trim();
+    final email = trimAuthInput(_email.text);
+    final code = trimAuthInput(_emailCode.text);
     final verificationId = _emailVerificationId;
+    final otpVersion = _emailOtpVersion;
+    if (!validNewEmail(email)) {
+      setState(() => _error = l10n.t('auth.email_invalid'));
+      return;
+    }
     if (email.isEmpty || code.isEmpty) {
       setState(() => _error = l10n.t('account.security.email_change_required'));
       return;
     }
-    if (verificationId == null || verificationId.isEmpty) {
+    if (verificationId == null ||
+        verificationId.isEmpty ||
+        _emailVerificationAccount != email ||
+        _emailVerificationRevision != sessionRevision ||
+        !_isEmailOtpCurrent(otpVersion, email, auth, sessionRevision)) {
       setState(() => _error = l10n.t('auth.otp_required'));
       return;
     }
@@ -224,13 +487,13 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
             verificationId: verificationId,
             code: code,
           );
-      if (!mounted) return;
+      if (!_isEmailOtpCurrent(otpVersion, email, auth, sessionRevision)) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.t('account.security.email_changed'))),
       );
-      await _logoutAndReturnToLogin();
+      await _logoutAndReturnToLogin(auth, sessionRevision);
     } catch (e) {
-      if (!mounted) return;
+      if (!_isEmailOtpCurrent(otpVersion, email, auth, sessionRevision)) return;
       setState(() => _error = ErrorView.describe(context, e));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -238,9 +501,12 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
   }
 
   Future<void> _deleteAccount() async {
+    if (_busy || !_isSecurityCurrent(_owner, _ownerRevision)) return;
+    final auth = ref.read(authRepositoryProvider),
+        sessionRevision = ref.read(authRepositoryProvider).sessionRevision;
     final l10n = AppLocalizations.of(context);
-    final password = _deletePassword.text.trim();
-    final confirmation = _deleteConfirmation.text.trim();
+    final password = trimAuthInput(_deletePassword.text);
+    final confirmation = trimAuthInput(_deleteConfirmation.text);
     if (password.isEmpty || confirmation.isEmpty) {
       setState(() => _error = l10n.t('account.security.delete_required'));
       return;
@@ -253,34 +519,36 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       await ref
           .read(usersRepositoryProvider)
           .deleteAccount(password: password, confirmation: confirmation);
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, sessionRevision)) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.t('account.security.account_deleted'))),
       );
-      await _logoutAndReturnToLogin();
+      final finish = widget.onSessionCleared;
+      final receipt = await auth.clearAfterCredentialMutation(sessionRevision);
+      if (receipt != null) finish(auth, receipt);
     } catch (e) {
-      if (!mounted) return;
+      if (!_isSecurityCurrent(auth, sessionRevision)) return;
       setState(() => _error = ErrorView.describe(context, e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _logoutAndReturnToLogin() async {
-    await ref.read(authRepositoryProvider).logout();
-    if (!mounted) return;
-    try {
-      await ref.read(realtimeServiceProvider).disconnect();
-    } catch (_) {}
-    ref.read(notificationsUnreadProvider.notifier).set(0);
-    ref.read(authSessionProvider.notifier).markLoggedOut();
-    context.go('/auth/login');
+  Future<void> _logoutAndReturnToLogin(
+    AuthRepository repository,
+    int expectedRevision,
+  ) async {
+    if (repository.sessionRevision != expectedRevision) return;
+    final finish = widget.onSessionCleared;
+    final receipt = await repository.logout();
+    if (receipt != null) finish(repository, receipt);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final displayedRecoveryCodes = _recoveryCodes;
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('account.security.title'))),
       body: _loading
@@ -298,16 +566,19 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
                       _ErrorBanner(message: _error!),
                       const SizedBox(height: 12),
                     ],
-                    _TwoFactorStatusCard(enabled: _twoFactorEnabled),
+                    _TwoFactorStatusCard(
+                      enabled: _twoFactorEnabled,
+                      onReload: _busy ? null : _loadStatus,
+                    ),
                     const SizedBox(height: 16),
-                    if (_twoFactorEnabled)
+                    if (_twoFactorEnabled == true)
                       _DisableTwoFactorForm(
                         password: _disablePassword,
                         code: _disableCode,
                         busy: _busy,
                         onSubmit: _disable2fa,
                       )
-                    else
+                    else if (_twoFactorEnabled == false)
                       _SetupTwoFactorForm(
                         password: _setupPassword,
                         code: _setupCode,
@@ -319,15 +590,26 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
                       ),
                     if (_recoveryCodes.isNotEmpty) ...[
                       const SizedBox(height: 24),
-                      _RecoveryCodesCard(codes: _recoveryCodes),
+                      _RecoveryCodesCard(
+                        codes: displayedRecoveryCodes,
+                        isCurrent: () =>
+                            _isSecurityCurrent(_owner, _ownerRevision) &&
+                            !_loading &&
+                            !_busy &&
+                            _twoFactorEnabled == true &&
+                            identical(_recoveryCodes, displayedRecoveryCodes),
+                      ),
                     ],
                     const SizedBox(height: 24),
-                    _SectionLabel(text: l10n.t('account.security.change_email_title')),
+                    _SectionLabel(
+                      text: l10n.t('account.security.change_email_title'),
+                    ),
                     const SizedBox(height: 8),
                     _EmailChangeForm(
                       email: _email,
                       code: _emailCode,
                       busy: _busy,
+                      sendCooldown: _emailOtpCooldown.remaining,
                       hasVerificationId: _emailVerificationId != null,
                       onSendCode: _sendEmailOtp,
                       onSubmit: _changeEmail,
@@ -385,11 +667,7 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 18,
-            color: theme.colorScheme.error,
-          ),
+          Icon(Icons.error_outline, size: 18, color: theme.colorScheme.error),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -404,14 +682,17 @@ class _ErrorBanner extends StatelessWidget {
 }
 
 class _TwoFactorStatusCard extends StatelessWidget {
-  const _TwoFactorStatusCard({required this.enabled});
-  final bool enabled;
+  const _TwoFactorStatusCard({required this.enabled, required this.onReload});
+  final bool? enabled;
+  final VoidCallback? onReload;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final tint = enabled ? theme.colorScheme.primary : theme.colorScheme.tertiary;
+    final tint = enabled == true
+        ? theme.colorScheme.primary
+        : theme.colorScheme.tertiary;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -428,7 +709,7 @@ class _TwoFactorStatusCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              enabled ? Icons.verified_user : Icons.shield_outlined,
+              enabled == true ? Icons.verified_user : Icons.shield_outlined,
               color: tint,
             ),
           ),
@@ -445,7 +726,9 @@ class _TwoFactorStatusCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  enabled
+                  enabled == null
+                      ? l10n.t('account.security.status_unknown')
+                      : enabled == true
                       ? l10n.t('account.security.two_factor_enabled')
                       : l10n.t('account.security.two_factor_disabled'),
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -455,6 +738,12 @@ class _TwoFactorStatusCard extends StatelessWidget {
               ],
             ),
           ),
+          IconButton(
+            key: const Key('security-reload-status'),
+            onPressed: onReload,
+            tooltip: l10n.t('account.security.reload_status'),
+            icon: const Icon(Icons.refresh),
+          ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -462,7 +751,9 @@ class _TwoFactorStatusCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              enabled
+              enabled == null
+                  ? l10n.t('account.security.status_unknown_short')
+                  : enabled == true
                   ? l10n.t('account.security.status_on')
                   : l10n.t('account.security.status_off'),
               style: theme.textTheme.labelSmall?.copyWith(
@@ -478,8 +769,9 @@ class _TwoFactorStatusCard extends StatelessWidget {
 }
 
 class _RecoveryCodesCard extends StatelessWidget {
-  const _RecoveryCodesCard({required this.codes});
+  const _RecoveryCodesCard({required this.codes, required this.isCurrent});
   final List<String> codes;
+  final bool Function() isCurrent;
 
   @override
   Widget build(BuildContext context) {
@@ -552,10 +844,9 @@ class _RecoveryCodesCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: OutlinedButton.icon(
               onPressed: () async {
-                await Clipboard.setData(
-                  ClipboardData(text: codes.join('\n')),
-                );
-                if (!context.mounted) return;
+                if (!context.mounted || !isCurrent()) return;
+                await Clipboard.setData(ClipboardData(text: codes.join('\n')));
+                if (!context.mounted || !isCurrent()) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
@@ -649,10 +940,7 @@ class _SetupTwoFactorForm extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest.withValues(
                   alpha: 0.5,
@@ -758,6 +1046,7 @@ class _EmailChangeForm extends StatelessWidget {
     required this.email,
     required this.code,
     required this.busy,
+    required this.sendCooldown,
     required this.hasVerificationId,
     required this.onSendCode,
     required this.onSubmit,
@@ -766,6 +1055,7 @@ class _EmailChangeForm extends StatelessWidget {
   final TextEditingController email;
   final TextEditingController code;
   final bool busy;
+  final int sendCooldown;
   final bool hasVerificationId;
   final VoidCallback onSendCode;
   final VoidCallback onSubmit;
@@ -813,9 +1103,15 @@ class _EmailChangeForm extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: busy ? null : onSendCode,
+                  onPressed: busy || sendCooldown > 0 ? null : onSendCode,
                   icon: const Icon(Icons.mark_email_read_outlined),
-                  label: Text(l10n.t('auth.send_otp')),
+                  label: Text(
+                    sendCooldown > 0
+                        ? l10n
+                              .t('auth.otp_retry_seconds')
+                              .replaceAll('{seconds}', sendCooldown.toString())
+                        : l10n.t('auth.send_otp'),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

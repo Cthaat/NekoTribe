@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/network/endpoint_probe.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
 
 class EndpointScreen extends ConsumerStatefulWidget {
-  const EndpointScreen({super.key});
+  const EndpointScreen({super.key, this.probe = probeDeploymentEndpoints});
+
+  final Future<EndpointChecks> Function(AppConfig config) probe;
 
   @override
   ConsumerState<EndpointScreen> createState() => _EndpointScreenState();
@@ -17,8 +20,13 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
   late final TextEditingController _apiCtl;
   late final TextEditingController _wsCtl;
   late final TextEditingController _storageCtl;
+  bool _followRealtime = true;
+  bool _followStorage = true;
   String? _pendingError;
   bool _saving = false;
+  bool _checking = false;
+  EndpointChecks? _readiness;
+  int _probeVersion = 0;
 
   @override
   void initState() {
@@ -27,6 +35,7 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
     _apiCtl = TextEditingController(text: cfg.apiBaseUrl);
     _wsCtl = TextEditingController(text: cfg.wsBaseUrl);
     _storageCtl = TextEditingController(text: cfg.storageBaseUrl);
+    _updateFollowing(cfg);
   }
 
   @override
@@ -41,63 +50,146 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
     _apiCtl.text = cfg.apiBaseUrl;
     _wsCtl.text = cfg.wsBaseUrl;
     _storageCtl.text = cfg.storageBaseUrl;
+    _updateFollowing(cfg);
   }
 
-  bool _validate() {
-    bool ok(String s) {
-      final t = s.trim();
-      if (t.isEmpty) return false;
-      final u = Uri.tryParse(t);
-      if (u == null) return false;
-      return u.hasScheme && u.host.isNotEmpty;
+  void _updateFollowing(AppConfig cfg) {
+    final shared = _derivedEndpoints(cfg.apiBaseUrl);
+    String clean(String address) =>
+        address.trim().replaceFirst(RegExp(r'/+$'), '');
+    _followRealtime =
+        cfg.wsBaseUrl.trim().isEmpty ||
+        clean(cfg.wsBaseUrl) == shared?.wsBaseUrl;
+    _followStorage =
+        cfg.storageBaseUrl.trim().isEmpty ||
+        clean(cfg.storageBaseUrl) == shared?.storageBaseUrl;
+  }
+
+  AppConfig? _derivedEndpoints(String api) {
+    try {
+      return AppConfig.fromCustom(apiBaseUrl: api);
+    } on FormatException {
+      return null;
     }
+  }
 
-    if (!ok(_apiCtl.text) || !ok(_wsCtl.text) || !ok(_storageCtl.text)) {
-      setState(() {
-        _pendingError = '请填写完整的 URL（包含 scheme + host），例如 http://host:port';
-      });
-      return false;
+  void _apiChanged(String api) {
+    final derived = _derivedEndpoints(api);
+    if (derived != null) {
+      if (_followRealtime) _wsCtl.text = derived.wsBaseUrl;
+      if (_followStorage) _storageCtl.text = derived.storageBaseUrl;
     }
-    setState(() => _pendingError = null);
-    return true;
+    setState(() {
+      _clearProbe();
+      _pendingError = null;
+    });
   }
 
-  Future<void> _applyPreset(String id) async {
-    setState(() => _saving = true);
-    await ref.read(appConfigProvider.notifier).selectPreset(id);
-    if (!mounted) return;
-    final cfg = ref.read(appConfigProvider);
-    _syncFieldsFrom(cfg);
-    setState(() => _saving = false);
-    _toast('已切换到 ${_presetLabel(id)}');
+  void _clearProbe() {
+    _probeVersion++;
+    _readiness = null;
+    _checking = false;
   }
 
-  Future<void> _applyCustom() async {
-    if (!_validate()) return;
-    setState(() => _saving = true);
-    await ref
+  Future<void> _checkEndpoint() async {
+    final attempt = ++_probeVersion;
+    setState(() {
+      _checking = true;
+      _readiness = null;
+      _pendingError = null;
+    });
+    try {
+      final config = AppConfig.fromCustom(
+        apiBaseUrl: _apiCtl.text,
+        wsBaseUrl: _followRealtime ? '' : _wsCtl.text,
+        storageBaseUrl: _followStorage ? '' : _storageCtl.text,
+      );
+      final browserPage = ref.read(appConfigProvider.notifier).browserPage;
+      if (hasMixedEndpointTransport(config, browserPage)) {
+        throw const BrowserEndpointTransportException();
+      }
+      final result = await widget.probe(config);
+      if (!mounted || attempt != _probeVersion) return;
+      setState(() => _readiness = result);
+    } on BrowserEndpointTransportException {
+      if (!mounted || attempt != _probeVersion) return;
+      final l10n = AppLocalizations.of(context);
+      setState(() => _pendingError = l10n.t('endpoint.mixed_transport'));
+    } on FormatException {
+      if (!mounted || attempt != _probeVersion) return;
+      final l10n = AppLocalizations.of(context);
+      setState(() => _pendingError = l10n.t('endpoint.invalid_addresses'));
+    } finally {
+      if (mounted && attempt == _probeVersion) {
+        setState(() => _checking = false);
+      }
+    }
+  }
+
+  Future<void> _applyPreset(String id) => _saveEndpoint(
+    () => ref.read(appConfigProvider.notifier).selectPreset(id),
+    '已切换到 ${_presetLabel(id)}',
+  );
+
+  Future<void> _applyCustom() => _saveEndpoint(
+    () => ref
         .read(appConfigProvider.notifier)
         .setCustom(
           apiBaseUrl: _apiCtl.text,
-          wsBaseUrl: _wsCtl.text,
-          storageBaseUrl: _storageCtl.text,
-        );
-    if (!mounted) return;
-    setState(() => _saving = false);
-    _toast('自定义端点已保存');
+          wsBaseUrl: _followRealtime ? '' : _wsCtl.text,
+          storageBaseUrl: _followStorage ? '' : _storageCtl.text,
+        ),
+    '自定义端点已保存',
+  );
+
+  void _useSameOrigin() {
+    try {
+      final config = AppConfig.fromCustom(apiBaseUrl: _apiCtl.text);
+      _syncFieldsFrom(config);
+      setState(() {
+        _clearProbe();
+        _pendingError = null;
+      });
+    } on FormatException {
+      final l10n = AppLocalizations.of(context);
+      setState(() => _pendingError = l10n.t('endpoint.invalid_addresses'));
+    }
   }
 
-  Future<void> _reset() async {
-    setState(() => _saving = true);
-    await ref.read(appConfigProvider.notifier).resetToDefaults();
-    if (!mounted) return;
-    final cfg = ref.read(appConfigProvider);
-    _syncFieldsFrom(cfg);
+  Future<void> _reset() => _saveEndpoint(
+    () => ref.read(appConfigProvider.notifier).resetToDefaults(),
+    '已恢复为默认配置',
+  );
+
+  Future<void> _saveEndpoint(
+    Future<void> Function() save,
+    String confirmation,
+  ) async {
     setState(() {
-      _saving = false;
+      _saving = true;
       _pendingError = null;
+      _clearProbe();
     });
-    _toast('已恢复为默认配置');
+    try {
+      await save();
+      if (!mounted) return;
+      _syncFieldsFrom(ref.read(appConfigProvider));
+      _toast(confirmation);
+    } catch (error) {
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      setState(
+        () => _pendingError = l10n.t(
+          switch (error) {
+            BrowserEndpointTransportException() => 'endpoint.mixed_transport',
+            FormatException() => 'endpoint.invalid_addresses',
+            _ => 'endpoint.save_failed',
+          },
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   String _presetLabel(String id) {
@@ -265,9 +357,8 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                                       style: TextStyle(
                                         fontFamily: 'monospace',
                                         fontSize: 12,
-                                        color: theme
-                                            .colorScheme
-                                            .onSurfaceVariant,
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ),
@@ -291,6 +382,7 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: _apiCtl,
+                  onChanged: _apiChanged,
                   decoration: const InputDecoration(
                     labelText: 'API Base URL',
                     hintText: 'http://host:port',
@@ -299,13 +391,53 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                   keyboardType: TextInputType.url,
                   autocorrect: false,
                 ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _useSameOrigin,
+                      child: Text(l10n.t('endpoint.use_same_origin')),
+                    ),
+                    OutlinedButton(
+                      onPressed: _checking || _saving ? null : _checkEndpoint,
+                      child: Text(l10n.t('endpoint.check_readiness')),
+                    ),
+                  ],
+                ),
+                if (_checking)
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(l10n.t('endpoint.readiness.checking')),
+                  )
+                else if (_readiness case final result?)
+                  Semantics(
+                    liveRegion: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(l10n.t('endpoint.readiness.${result.api.name}')),
+                        Text(
+                          l10n.t(
+                            'endpoint.media_readiness.${result.media.name}',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _wsCtl,
-                  decoration: const InputDecoration(
+                  onChanged: (value) => setState(() {
+                    _followRealtime = value.trim().isEmpty;
+                    _pendingError = null;
+                  }),
+                  decoration: InputDecoration(
                     labelText: 'WebSocket Base URL',
                     hintText: 'ws://host:port',
-                    prefixIcon: Icon(Icons.swap_horiz),
+                    helperText: _followRealtime
+                        ? l10n.t('endpoint.follows_api')
+                        : null,
+                    prefixIcon: const Icon(Icons.swap_horiz),
                   ),
                   keyboardType: TextInputType.url,
                   autocorrect: false,
@@ -313,10 +445,18 @@ class _EndpointScreenState extends ConsumerState<EndpointScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _storageCtl,
-                  decoration: const InputDecoration(
+                  onChanged: (value) => setState(() {
+                    _followStorage = value.trim().isEmpty;
+                    _clearProbe();
+                    _pendingError = null;
+                  }),
+                  decoration: InputDecoration(
                     labelText: 'Storage Base URL',
                     hintText: 'http://host:port',
-                    prefixIcon: Icon(Icons.storage_outlined),
+                    helperText: _followStorage
+                        ? l10n.t('endpoint.follows_api')
+                        : null,
+                    prefixIcon: const Icon(Icons.storage_outlined),
                   ),
                   keyboardType: TextInputType.url,
                   autocorrect: false,

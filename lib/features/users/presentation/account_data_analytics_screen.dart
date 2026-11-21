@@ -8,7 +8,9 @@ import '../../../shared/widgets/status_views.dart';
 import '../../posts/domain/post_models.dart';
 
 class AccountDataAnalyticsScreen extends ConsumerStatefulWidget {
-  const AccountDataAnalyticsScreen({super.key});
+  const AccountDataAnalyticsScreen({super.key, this.selectedPost});
+
+  final V2Post? selectedPost;
 
   @override
   ConsumerState<AccountDataAnalyticsScreen> createState() =>
@@ -19,59 +21,127 @@ class _AccountDataAnalyticsScreenState
     extends ConsumerState<AccountDataAnalyticsScreen> {
   List<_PostAnalyticsItem> _items = [];
   bool _loading = true;
+  bool _loadingMore = false, _hasNext = false, _expired = false;
+  int _page = 0;
+  int _request = 0;
   Object? _error;
+  late final VoidCallback _stopSessionListener;
 
   @override
   void initState() {
     super.initState();
+    final session = ref.read(tokenStoreProvider);
+    _expired = session.isSessionChanging;
+    _stopSessionListener = session.listenSessionChanges(_expire);
     _load();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _stopSessionListener();
+    super.dispose();
+  }
+
+  void _expire() {
+    if (!mounted || _expired) return;
+    _request++;
     setState(() {
-      _loading = true;
+      _expired = true;
+      _items = [];
+    });
+  }
+
+  Future<void> _load({bool append = false}) async {
+    if (_expired || (append && (_loading || _loadingMore || !_hasNext))) return;
+    final request = ++_request;
+    final nextPage = append ? _page + 1 : 1;
+    bool current() => mounted && request == _request;
+    setState(() {
+      _loading = !append;
+      _loadingMore = append;
       _error = null;
+      if (!append) {
+        _items = [];
+        _page = 0;
+        _hasNext = false;
+      }
     });
     try {
       final api = ref.read(postsApiProvider);
-      final page = await api.getMyPosts(size: 20);
+      final selected = widget.selectedPost;
+      if (selected != null) {
+        final analytics = await api.getPostAnalytics(selected.postId);
+        if (!current()) return;
+        if (analytics.postId != selected.postId) {
+          throw const FormatException('Unexpected post analytics');
+        }
+        setState(() {
+          _items = [_PostAnalyticsItem(post: selected, analytics: analytics)];
+          _loading = false;
+        });
+        return;
+      }
+      final page = await api.getMyPosts(page: nextPage, size: 20);
+      if (!current()) return;
       final items = await Future.wait(
         page.items.map((post) async {
           try {
             final analytics = await api.getPostAnalytics(post.postId);
-            return _PostAnalyticsItem(post: post, analytics: analytics);
-          } catch (_) {
             return _PostAnalyticsItem(
               post: post,
-              analytics: V2PostAnalytics.fromPost(post),
+              analytics: analytics.postId == post.postId ? analytics : null,
             );
+          } catch (_) {
+            return _PostAnalyticsItem(post: post, analytics: null);
           }
         }),
       );
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
-        _items = items;
+        _items = {
+          for (final item in _items) item.post.postId: item,
+          for (final item in items) item.post.postId: item,
+        }.values.toList();
+        _page = nextPage;
+        _hasNext = page.hasNext;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
-        _error = e;
+        if (!append) _error = e;
         _loading = false;
+        _loadingMore = false;
       });
+      if (append) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(postsApiProvider, (previous, next) {
+      if (!identical(previous, next)) _expire();
+    });
     final l10n = AppLocalizations.of(context);
+    final single = widget.selectedPost != null;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('account.data.title'))),
-      body: _loading
+      appBar: AppBar(
+        title: Text(
+          l10n.t(single ? 'account.posts.post_stats' : 'account.data.title'),
+        ),
+      ),
+      body: _expired
+          ? EmptyView(message: l10n.t('visibility.sessionChanged'))
+          : _loading
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
-          : _items.isEmpty
+          : _items.isEmpty && !_hasNext
           ? EmptyView(message: l10n.t('account.data.empty'))
           : RefreshIndicator(
               onRefresh: _load,
@@ -82,15 +152,34 @@ class _AccountDataAnalyticsScreenState
                     maxWidth: AppBreakpoints.contentMaxWidth,
                   ),
                   child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                    itemCount: _items.length + 2,
+                    itemCount: single
+                        ? 1
+                        : _items.length + 2 + (_hasNext ? 1 : 0),
                     separatorBuilder: (_, index) => index <= 1
                         ? const SizedBox(height: 14)
                         : const Divider(),
                     itemBuilder: (context, index) {
+                      if (single) {
+                        return _PostAnalyticsCard(item: _items.single);
+                      }
                       if (index == 0) return const _DataAnalyticsHeader();
                       if (index == 1) {
                         return _DataSummary(items: _items);
+                      }
+                      if (index == _items.length + 2) {
+                        return OutlinedButton(
+                          key: const Key('account-data-load-more'),
+                          onPressed: _loadingMore
+                              ? null
+                              : () => _load(append: true),
+                          child: Text(
+                            l10n.t(
+                              _loadingMore ? 'common.loading' : 'common.more',
+                            ),
+                          ),
+                        );
                       }
                       return _PostAnalyticsCard(item: _items[index - 2]);
                     },
@@ -168,51 +257,66 @@ class _DataSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final views = items.fold<int>(
+    final confirmed = items
+        .map((item) => item.analytics)
+        .whereType<V2PostAnalytics>()
+        .toList();
+    final views = confirmed.fold<int>(
       0,
-      (sum, item) => sum + item.analytics.viewsCount,
+      (sum, stats) => sum + stats.viewsCount,
     );
-    final interactions = items.fold<int>(
+    final interactions = confirmed.fold<int>(
       0,
-      (sum, item) =>
+      (sum, stats) =>
           sum +
-          item.analytics.likesCount +
-          item.analytics.commentsCount +
-          item.analytics.repliesCount +
-          item.analytics.retweetsCount,
+          stats.likesCount +
+          stats.commentsCount +
+          stats.repliesCount +
+          stats.retweetsCount,
     );
-    final likeRate = items.isEmpty
-        ? 0.0
-        : items.fold<double>(0, (sum, item) => sum + item.analytics.likeRate) /
-              items.length;
+    final coverage = l10n
+        .t('account.data.coverage')
+        .replaceAll('{confirmed}', '${confirmed.length}')
+        .replaceAll('{loaded}', '${items.length}');
+    if (confirmed.isEmpty) return Text(coverage);
+    final likeRate =
+        confirmed.fold<double>(0, (sum, stats) => sum + stats.likeRate) /
+        confirmed.length;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth >= 680
             ? (constraints.maxWidth - 36) / 4
             : (constraints.maxWidth - 12) / 2;
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SummaryCard(
-              width: width,
-              label: l10n.t('account.data.total_posts'),
-              value: '${items.length}',
-            ),
-            _SummaryCard(
-              width: width,
-              label: l10n.t('account.data.total_views'),
-              value: '$views',
-            ),
-            _SummaryCard(
-              width: width,
-              label: l10n.t('account.data.total_interactions'),
-              value: '$interactions',
-            ),
-            _SummaryCard(
-              width: width,
-              label: l10n.t('account.data.avg_like_rate'),
-              value: _formatPercent(likeRate),
+            Text(coverage),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _SummaryCard(
+                  width: width,
+                  label: l10n.t('account.data.total_posts'),
+                  value: '${confirmed.length}',
+                ),
+                _SummaryCard(
+                  width: width,
+                  label: l10n.t('account.data.total_views'),
+                  value: '$views',
+                ),
+                _SummaryCard(
+                  width: width,
+                  label: l10n.t('account.data.total_interactions'),
+                  value: '$interactions',
+                ),
+                _SummaryCard(
+                  width: width,
+                  label: l10n.t('account.data.avg_like_rate'),
+                  value: _formatPercent(likeRate),
+                ),
+              ],
             ),
           ],
         );
@@ -267,47 +371,50 @@ class _PostAnalyticsCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _MetricPill(
-                  icon: Icons.visibility_outlined,
-                  label: l10n.t('account.data.views'),
-                  value: '${analytics.viewsCount}',
-                ),
-                _MetricPill(
-                  icon: Icons.favorite_border,
-                  label: l10n.t('account.data.likes'),
-                  value: '${analytics.likesCount}',
-                ),
-                _MetricPill(
-                  icon: Icons.mode_comment_outlined,
-                  label: l10n.t('account.data.comments'),
-                  value: '${analytics.commentsCount}',
-                ),
-                _MetricPill(
-                  icon: Icons.reply_outlined,
-                  label: l10n.t('account.data.replies'),
-                  value: '${analytics.repliesCount}',
-                ),
-                _MetricPill(
-                  icon: Icons.repeat_rounded,
-                  label: l10n.t('account.data.retweets'),
-                  value: '${analytics.retweetsCount}',
-                ),
-                _MetricPill(
-                  icon: Icons.percent,
-                  label: l10n.t('account.data.like_rate'),
-                  value: _formatPercent(analytics.likeRate),
-                ),
-                _MetricPill(
-                  icon: Icons.trending_up,
-                  label: l10n.t('account.data.engagement'),
-                  value: analytics.engagementScore.toStringAsFixed(1),
-                ),
-              ],
-            ),
+            if (analytics == null)
+              Text(l10n.t('account.data.analytics_unavailable'))
+            else
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _MetricPill(
+                    icon: Icons.visibility_outlined,
+                    label: l10n.t('account.data.views'),
+                    value: '${analytics.viewsCount}',
+                  ),
+                  _MetricPill(
+                    icon: Icons.favorite_border,
+                    label: l10n.t('account.data.likes'),
+                    value: '${analytics.likesCount}',
+                  ),
+                  _MetricPill(
+                    icon: Icons.mode_comment_outlined,
+                    label: l10n.t('account.data.comments'),
+                    value: '${analytics.commentsCount}',
+                  ),
+                  _MetricPill(
+                    icon: Icons.reply_outlined,
+                    label: l10n.t('account.data.replies'),
+                    value: '${analytics.repliesCount}',
+                  ),
+                  _MetricPill(
+                    icon: Icons.repeat_rounded,
+                    label: l10n.t('account.data.retweets'),
+                    value: '${analytics.retweetsCount}',
+                  ),
+                  _MetricPill(
+                    icon: Icons.percent,
+                    label: l10n.t('account.data.like_rate'),
+                    value: _formatPercent(analytics.likeRate),
+                  ),
+                  _MetricPill(
+                    icon: Icons.trending_up,
+                    label: l10n.t('account.data.engagement'),
+                    value: analytics.engagementScore.toStringAsFixed(1),
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -408,7 +515,7 @@ class _PostAnalyticsItem {
   const _PostAnalyticsItem({required this.post, required this.analytics});
 
   final V2Post post;
-  final V2PostAnalytics analytics;
+  final V2PostAnalytics? analytics;
 }
 
 String _formatPercent(double value) => '${(value * 100).toStringAsFixed(1)}%';

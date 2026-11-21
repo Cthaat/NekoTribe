@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/ai_conversation_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/theme/theme_color_picker.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
-import '../../sentiment_flow/data/sentiment_flow_api.dart';
+import '../../auth/data/auth_repository.dart';
+import '../data/users_repository.dart';
 import '../domain/user_models.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -20,51 +22,101 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   V2UserSettings? _settings;
-  V2SentimentFlowConfig? _sentimentConfig;
-  V2SentimentModelsData? _sentimentModels;
-  V2SentimentStatsOverview? _sentimentStats;
-  Object? _sentimentError;
-  bool _loading = true;
+  bool _loading = false;
+  bool _saving = false;
+  bool _expired = false;
+  bool _saveUncertain = false;
+  int _generation = 0;
+  late AuthRepository _owner;
+  late UsersRepository _ownerRepository;
+  late int _ownerRevision;
+  AuthRepository? _observed;
+  VoidCallback? _stopObserving;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
+    _owner = ref.read(authRepositoryProvider);
+    _ownerRepository = ref.read(usersRepositoryProvider);
+    _ownerRevision = _owner.sessionRevision;
+    _expired = _owner.isSessionChanging;
+    _observe(_owner);
     _load();
   }
 
+  void _observe(AuthRepository auth) {
+    if (identical(_observed, auth)) return;
+    _stopObserving?.call();
+    _observed = auth;
+    _stopObserving = auth.listenSessionChanges(() {
+      if (!mounted) return;
+      if (!identical(auth, _owner) ||
+          auth.sessionRevision != _ownerRevision ||
+          auth.isSessionChanging) {
+        setState(_expire);
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
+  void _expire() {
+    _expired = true;
+    _saveUncertain = false;
+    _generation++;
+    _settings = null;
+    _error = null;
+    _loading = false;
+    _saving = false;
+  }
+
+  bool _isCurrent(int generation) =>
+      mounted &&
+      !_expired &&
+      generation == _generation &&
+      identical(ref.read(authRepositoryProvider), _owner) &&
+      identical(ref.read(usersRepositoryProvider), _ownerRepository) &&
+      !_owner.isSessionChanging &&
+      _owner.sessionRevision == _ownerRevision;
+
+  void _reopen() {
+    final auth = ref.read(authRepositoryProvider);
+    if (!_expired || auth.isSessionChanging) return;
+    setState(() {
+      _owner = auth;
+      _ownerRepository = ref.read(usersRepositoryProvider);
+      _ownerRevision = auth.sessionRevision;
+      _expired = false;
+    });
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _stopObserving?.call();
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    if (_loading || _saving || !_isCurrent(_generation)) return;
+    final generation = ++_generation;
     setState(() {
       _loading = true;
+      _settings = null;
       _error = null;
     });
     try {
-      final s = await ref.read(usersRepositoryProvider).getSettings();
-      V2SentimentFlowConfig? sentimentConfig;
-      V2SentimentModelsData? sentimentModels;
-      V2SentimentStatsOverview? sentimentStats;
-      Object? sentimentError;
-      try {
-        final api = ref.read(sentimentFlowApiProvider);
-        sentimentConfig = await api.config();
-        if (sentimentConfig.enabled && sentimentConfig.baseUrlConfigured) {
-          sentimentModels = await api.listModels();
-          sentimentStats = await api.statsOverview();
-        }
-      } catch (e) {
-        sentimentError = e;
-      }
-      if (!mounted) return;
+      final s = await _ownerRepository.getSettings();
+      if (!_isCurrent(generation)) return;
       setState(() {
         _settings = s;
-        _sentimentConfig = sentimentConfig;
-        _sentimentModels = sentimentModels;
-        _sentimentStats = sentimentStats;
-        _sentimentError = sentimentError;
         _loading = false;
+        _saveUncertain = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrent(generation)) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -72,40 +124,101 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _patch(Map<String, dynamic> body) async {
+  Future<void> _patch(Map<String, dynamic> body, int generation) async {
+    if (!_isCurrent(generation) ||
+        _loading ||
+        _saving ||
+        _settings == null ||
+        _error != null) {
+      return;
+    }
+    if (body.containsKey('profile_visibility') &&
+        body['profile_visibility'] != 'public' &&
+        body['profile_visibility'] != 'private') {
+      return;
+    }
+    setState(() => _saving = true);
     try {
-      final s = await ref.read(usersRepositoryProvider).updateSettings(body);
-      if (!mounted) return;
-      setState(() => _settings = s);
+      final s = await _ownerRepository.updateSettings(
+        Map<String, dynamic>.unmodifiable(body),
+      );
+      if (!_isCurrent(generation)) return;
+      setState(() {
+        _settings = s;
+        _generation++;
+        _saving = false;
+      });
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      if (!_isCurrent(generation)) return;
+      setState(() {
+        _settings = null;
+        _error = e;
+        _saveUncertain = true;
+        _generation++;
+        _saving = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final auth = ref.watch(authRepositoryProvider);
+    final repository = ref.watch(usersRepositoryProvider);
+    _observe(auth);
+    if (!identical(auth, _owner) ||
+        !identical(repository, _ownerRepository) ||
+        auth.sessionRevision != _ownerRevision ||
+        auth.isSessionChanging) {
+      _expire();
+    }
+    if (_expired) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.t('common.settings'))),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.t('settings.session_changed')),
+              const SizedBox(height: 12),
+              FilledButton(
+                key: const Key('settings-session-reopen'),
+                onPressed: auth.isSessionChanging ? null : _reopen,
+                child: Text(l10n.t('settings.reopen')),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final generation = _generation;
+    void patch(Map<String, dynamic> body) {
+      _patch(body, generation);
+    }
+
     final themePreference = ref.watch(themeProvider);
     final locale = ref.watch(localeProvider);
-    final sentimentModels =
-        _sentimentModels?.items ?? const <V2SentimentModelItem>[];
-    final configuredModelId = _settings?.aiSentimentModelId;
-    final selectedModelId =
-        sentimentModels.any((m) => m.modelId == configuredModelId)
-        ? configuredModelId!
-        : (sentimentModels.isNotEmpty ? sentimentModels.first.modelId : null);
-    final topKOptions =
-        <int>{1, 2, 3, 5, _settings?.aiSentimentTopK ?? 3}.toList()..sort();
-    final selectedTopK = topKOptions.contains(_settings?.aiSentimentTopK)
-        ? _settings!.aiSentimentTopK!
-        : 3;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('common.settings'))),
+      appBar: AppBar(
+        title: Text(l10n.t('common.settings')),
+        bottom: _saving
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(),
+              )
+            : null,
+      ),
       body: _loading
           ? const LoadingView()
+          : _saveUncertain
+          ? EmptyView(
+              key: const Key('settings-save-uncertain'),
+              message: l10n.t('settings.save_uncertain'),
+              icon: Icons.sync_problem_outlined,
+              actionLabel: l10n.t('common.retry'),
+              onAction: _load,
+            )
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : Align(
@@ -117,7 +230,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   children: [
-                    _SectionHeader(title: l10n.t('settings.section.appearance')),
+                    _SectionHeader(
+                      title: l10n.t('settings.section.appearance'),
+                    ),
                     _Group(
                       children: [
                         _NavRow(
@@ -183,9 +298,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             if (v == 'system') {
                               ref.read(localeProvider.notifier).set(null);
                             } else if (v != null) {
-                              ref
-                                  .read(localeProvider.notifier)
-                                  .set(Locale(v));
+                              ref.read(localeProvider.notifier).set(Locale(v));
                             }
                           },
                         ),
@@ -234,26 +347,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _SectionHeader(title: l10n.t('settings.section.privacy')),
                     _Group(
                       children: [
+                        _NavRow(
+                          icon: Icons.people_outline,
+                          label: l10n.t('visibility.title'),
+                          onTap: () => context.push('/settings/relationships'),
+                        ),
+                        _Divider(),
                         _SwitchRow(
                           icon: Icons.notifications_active_outlined,
                           label: l10n.t('settings.privacy.login_alerts'),
                           value: _settings?.loginAlerts ?? false,
-                          onChanged: (v) => _patch({'login_alerts': v}),
+                          onChanged: _saving
+                              ? null
+                              : (v) => patch({'login_alerts': v}),
                         ),
                         _Divider(),
                         _SwitchRow(
                           icon: Icons.visibility_outlined,
                           label: l10n.t('settings.privacy.show_online_status'),
                           value: _settings?.showOnlineStatus ?? false,
-                          onChanged: (v) => _patch({'show_online_status': v}),
+                          onChanged: _saving
+                              ? null
+                              : (v) => patch({'show_online_status': v}),
                         ),
                         _Divider(),
                         _SwitchRow(
                           icon: Icons.mail_outline,
                           label: l10n.t('settings.privacy.allow_dm_strangers'),
                           value: _settings?.allowDmFromStrangers ?? false,
-                          onChanged: (v) =>
-                              _patch({'allow_dm_from_strangers': v}),
+                          onChanged: _saving
+                              ? null
+                              : (v) => patch({'allow_dm_from_strangers': v}),
                         ),
                         _Divider(),
                         _DropdownRow(
@@ -265,18 +389,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               value: 'public',
                               child: Text(l10n.t('common.public')),
                             ),
-                            DropdownMenuItem(
-                              value: 'followers',
-                              child: Text(l10n.t('common.followers_only')),
-                            ),
+                            if (![
+                              'public',
+                              'private',
+                            ].contains(_settings?.profileVisibility))
+                              DropdownMenuItem(
+                                value: _settings?.profileVisibility ?? '',
+                                enabled: false,
+                                child: Text(
+                                  l10n.t('settings.privacy.unknown_visibility'),
+                                ),
+                              ),
                             DropdownMenuItem(
                               value: 'private',
                               child: Text(l10n.t('common.private')),
                             ),
                           ],
-                          onChanged: (v) {
-                            if (v != null) _patch({'profile_visibility': v});
-                          },
+                          onChanged: _saving
+                              ? null
+                              : (v) {
+                                  if (v != null) {
+                                    patch({'profile_visibility': v});
+                                  }
+                                },
                         ),
                       ],
                     ),
@@ -289,92 +424,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           icon: Icons.notifications_outlined,
                           label: l10n.t('settings.notifications.push'),
                           value: _settings?.pushNotificationEnabled ?? false,
-                          onChanged: (v) =>
-                              _patch({'push_notification_enabled': v}),
+                          onChanged: _saving
+                              ? null
+                              : (v) => patch({'push_notification_enabled': v}),
                         ),
                         _Divider(),
                         _SwitchRow(
                           icon: Icons.email_outlined,
                           label: l10n.t('settings.notifications.email'),
                           value: _settings?.emailNotificationEnabled ?? false,
-                          onChanged: (v) =>
-                              _patch({'email_notification_enabled': v}),
+                          onChanged: _saving
+                              ? null
+                              : (v) => patch({'email_notification_enabled': v}),
                         ),
                       ],
                     ),
-                    _SectionHeader(title: l10n.t('settings.section.sentiment')),
+                    _SectionHeader(title: l10n.t('settings.section.ai')),
                     _Group(
                       children: [
-                        _SentimentStatusPanel(
-                          config: _sentimentConfig,
-                          stats: _sentimentStats,
-                          error: _sentimentError,
-                        ),
-                        _Divider(),
-                        _SwitchRow(
+                        _NavRow(
                           icon: Icons.psychology_outlined,
-                          label: l10n.t('settings.sentiment.enable'),
-                          value: _settings?.aiSentimentEnabled ?? false,
-                          onChanged: (v) => _patch({'ai_sentiment_enabled': v}),
+                          label: l10n.t('ai.knowledge.title'),
+                          onTap: () => openAiConversation(context, knowledge: true),
                         ),
                         _Divider(),
-                        _SwitchRow(
-                          icon: Icons.analytics_outlined,
-                          label: l10n.t('settings.sentiment.probabilities'),
-                          value:
-                              _settings?.aiSentimentReturnProbabilities ??
-                              false,
-                          onChanged: (v) =>
-                              _patch({'ai_sentiment_return_probabilities': v}),
-                        ),
-                        _Divider(),
-                        _SwitchRow(
-                          icon: Icons.data_object_outlined,
-                          label: l10n.t('settings.sentiment.metadata'),
-                          value:
-                              _settings?.aiSentimentIncludeMetadata ?? false,
-                          onChanged: (v) =>
-                              _patch({'ai_sentiment_include_metadata': v}),
-                        ),
-                        if (selectedModelId != null) ...[
-                          _Divider(),
-                          _DropdownRow<String>(
-                            icon: Icons.memory_outlined,
-                            label: l10n.t('settings.sentiment.model'),
-                            value: selectedModelId,
-                            items: sentimentModels
-                                .map(
-                                  (m) => DropdownMenuItem<String>(
-                                    value: m.modelId,
-                                    child: Text(m.name),
-                                  ),
-                                )
-                                .toList(growable: false),
-                            onChanged: (v) {
-                              if (v != null) {
-                                _patch({'ai_sentiment_model_id': v});
-                              }
-                            },
-                          ),
-                        ],
-                        _Divider(),
-                        _DropdownRow<int>(
-                          icon: Icons.format_list_numbered,
-                          label: l10n.t('settings.sentiment.top_k'),
-                          value: selectedTopK,
-                          items: topKOptions
-                              .map(
-                                (v) => DropdownMenuItem<int>(
-                                  value: v,
-                                  child: Text('$v'),
-                                ),
-                              )
-                              .toList(growable: false),
-                          onChanged: (v) {
-                            if (v != null) {
-                              _patch({'ai_sentiment_top_k': v});
-                            }
-                          },
+                        _NavRow(
+                          icon: Icons.edit_note_outlined,
+                          label: l10n.t('ai.writing.title'),
+                          onTap: () => openAiConversation(context),
                         ),
                       ],
                     ),
@@ -435,66 +512,6 @@ class _SectionHeader extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
           fontWeight: FontWeight.w600,
         ),
-      ),
-    );
-  }
-}
-
-class _SentimentStatusPanel extends StatelessWidget {
-  const _SentimentStatusPanel({
-    required this.config,
-    required this.stats,
-    required this.error,
-  });
-
-  final V2SentimentFlowConfig? config;
-  final V2SentimentStatsOverview? stats;
-  final Object? error;
-
-  String _summary(BuildContext context) {
-    final isZh = AppLocalizations.of(context).locale.languageCode == 'zh';
-    final predictions = stats?.totalPredictions ?? 0;
-    final jobs = stats?.totalTrainingJobs ?? 0;
-    if (isZh) return '预测 $predictions 次 · 训练 $jobs 次';
-    return '$predictions predictions · $jobs training jobs';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    final enabled = config?.enabled == true && config?.baseUrlConfigured == true;
-    final iconColor = enabled ? theme.colorScheme.primary : theme.disabledColor;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.psychology_alt_outlined, size: 20, color: iconColor),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  enabled
-                      ? l10n.t('settings.sentiment.runtime_ready')
-                      : l10n.t('sentiment.disabled'),
-                  style: theme.textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  error == null ? _summary(context) : ErrorView.describe(context, error!),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -603,7 +620,7 @@ class _SwitchRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -641,7 +658,7 @@ class _DropdownRow<T> extends StatelessWidget {
   final String label;
   final T value;
   final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?> onChanged;
+  final ValueChanged<T?>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -660,12 +677,15 @@ class _DropdownRow<T> extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          DropdownButton<T>(
-            value: value,
-            onChanged: onChanged,
-            items: items,
-            underline: const SizedBox.shrink(),
-            isDense: true,
+          Flexible(
+            child: DropdownButton<T>(
+              isExpanded: true,
+              value: value,
+              onChanged: onChanged,
+              items: items,
+              underline: const SizedBox.shrink(),
+              isDense: true,
+            ),
           ),
         ],
       ),

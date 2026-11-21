@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_response.dart';
 import '../../../core/utils/json_utils.dart';
 import '../../users/domain/user_models.dart';
 import '../domain/auth_models.dart';
@@ -19,7 +22,8 @@ class AuthApi {
       method: 'POST',
       data: {'account': account, 'type': purpose, 'channel': channel},
       sendAuth: false,
-      decode: (data) => V2AuthOtpData.fromJson(toMap(data)),
+      decode: (data) =>
+          V2AuthOtpData.fromJson(toMap(data), expectedAccount: account),
     );
   }
 
@@ -39,7 +43,10 @@ class AuthApi {
         'code': code,
       },
       sendAuth: false,
-      decode: (data) => V2AuthOtpVerificationData.fromJson(toMap(data)),
+      decode: (data) => V2AuthOtpVerificationData.fromJson(
+        toMap(data),
+        expectedAccount: account,
+      ),
     );
   }
 
@@ -73,7 +80,8 @@ class AuthApi {
         'agree_to_terms': agreeToTerms,
       },
       sendAuth: false,
-      decode: (data) => V2SelfUser.fromJson(toMap(toMap(data)['user'])),
+      decode: (data) =>
+          parseRegistrationUser(toMap(data), email: email, username: username),
     );
   }
 
@@ -81,7 +89,10 @@ class AuthApi {
     required String account,
     required String password,
     bool rememberMe = false,
-  }) {
+  }) async {
+    final proof = kIsWeb
+        ? null
+        : await _client.tokenStore.readTrustedDevice(_client.config.apiBaseUrl);
     return _client.requestData<V2LoginResult>(
       ApiPaths.authTokens,
       method: 'POST',
@@ -91,6 +102,9 @@ class AuthApi {
         'remember_me': rememberMe,
       },
       sendAuth: false,
+      headers: proof == null
+          ? null
+          : {'Cookie': '${ApiClient.trustedDeviceCookie}=$proof'},
       decode: (data) => parseLoginResult(toMap(data)),
     );
   }
@@ -98,20 +112,28 @@ class AuthApi {
   Future<V2LoginSuccess> completeTwoFactor({
     required String challengeId,
     required String code,
-  }) {
-    return _client.requestData<V2LoginSuccess>(
+  }) async {
+    String? proof;
+    final response = await _client.request<V2LoginSuccess>(
       '${ApiPaths.authTwoFactorChallenges}/$challengeId',
       method: 'POST',
       data: {'code': code},
       sendAuth: false,
+      onTrustedDeviceProof: (value) => proof = value,
       decode: (data) {
-        final map = toMap(data);
-        final user = V2SelfUser.fromJson(toMap(map['user']));
-        final tokens = V2TokenData.fromJson(toMap(map['tokens']));
-        return V2LoginSuccess(user: user, tokens: tokens);
+        return parseLoginSuccess(toMap(data));
       },
     );
+    return V2LoginSuccess(
+      user: response.data.user,
+      tokens: response.data.tokens,
+      trustedDeviceProof: proof,
+    );
   }
+
+  Future<void> rememberTrustedDevice(String proof, int revision) => _client
+      .tokenStore
+      .rememberTrustedDevice(_client.config.apiBaseUrl, proof, revision);
 
   Future<V2TokenData> refresh({required String refreshToken}) {
     return _client.requestData<V2TokenData>(
@@ -119,7 +141,7 @@ class AuthApi {
       method: 'PATCH',
       data: {'refresh_token': refreshToken},
       sendAuth: false,
-      decode: (data) => V2TokenData.fromJson(toMap(data)),
+      decode: (data) => V2TokenData.fromSessionJson(toMap(data)),
     );
   }
 
@@ -131,15 +153,12 @@ class AuthApi {
     );
   }
 
-  Future<List<V2SessionItem>> listSessions() async {
-    final res = await _client.requestData<List<V2SessionItem>>(
+  Future<PagedResult<V2SessionItem>> listSessions({int page = 1}) {
+    return _client.requestPaged<V2SessionItem>(
       ApiPaths.authSessions,
-      decode: (data) {
-        final map = toMap(data);
-        return toList(map['items'], (e) => V2SessionItem.fromJson(toMap(e)));
-      },
+      query: {'page': page, 'page_size': 20},
+      decodeItem: (data) => V2SessionItem.fromJson(toMap(data)),
     );
-    return res;
   }
 
   Future<void> revokeSession(String sessionId) async {

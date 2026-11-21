@@ -11,7 +11,10 @@ import '../../../shared/widgets/status_views.dart';
 import '../../posts/domain/post_models.dart';
 import '../../posts/presentation/post_card.dart';
 import '../../posts/presentation/report_dialog.dart';
+import '../../auth/data/auth_repository.dart';
 import '../domain/user_models.dart';
+
+enum _VisibilityAction { block, mute, muteDay }
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, required this.userId});
@@ -25,18 +28,87 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   V2PublicUser? _user;
   List<V2Post> _posts = [];
   bool _loading = true;
+  bool _loadingPosts = false;
   bool _loadingMore = false;
   bool _hasNext = false;
   int _page = 1;
   Object? _error;
+  Object? _postsError;
+  int _scope = 0;
+  bool _relationshipBusy = false;
+  bool _locallyBlocked = false;
+  late AuthRepository _auth;
+  late int _revision;
+  late bool _changing;
+  VoidCallback? _stopObserving;
 
   @override
   void initState() {
     super.initState();
+    _observe(ref.read(authRepositoryProvider));
     _load();
   }
 
+  void _observe(AuthRepository auth) {
+    _stopObserving?.call();
+    _auth = auth;
+    _revision = auth.sessionRevision;
+    _changing = auth.isSessionChanging;
+    _stopObserving = auth.listenSessionChanges(() {
+      if (!mounted || !identical(auth, _auth)) return;
+      if (_revision == auth.sessionRevision &&
+          _changing == auth.isSessionChanging) {
+        return;
+      }
+      _revision = auth.sessionRevision;
+      _changing = auth.isSessionChanging;
+      _resetProfile();
+    });
+  }
+
+  void _resetProfile() {
+    setState(() {
+      _scope++;
+      _relationshipBusy = false;
+      _locallyBlocked = false;
+      _user = null;
+      _posts = [];
+      _error = null;
+      _postsError = null;
+      _loadingPosts = false;
+      _loading = true;
+    });
+    if (!_changing) _load();
+  }
+
+  bool _isCurrent(int scope) =>
+      mounted &&
+      scope == _scope &&
+      identical(ref.read(authRepositoryProvider), _auth) &&
+      _auth.sessionRevision == _revision &&
+      !_auth.isSessionChanging;
+
+  bool get _restricted =>
+      _locallyBlocked ||
+      (_user?.relationship.isBlocking ?? false) ||
+      (_user?.relationship.isBlocked ?? false);
+
+  @override
+  void didUpdateWidget(covariant ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) _resetProfile();
+  }
+
+  @override
+  void dispose() {
+    _stopObserving?.call();
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    final scope = _scope;
+    final target = widget.userId;
+    if (!_isCurrent(scope)) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -45,22 +117,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _loadingMore = false;
     });
     try {
-      final user = await ref
-          .read(usersRepositoryProvider)
-          .getUserById(widget.userId);
-      final posts = await ref
-          .read(postsApiProvider)
-          .getUserPostsById(widget.userId, page: 1, size: 20);
-      if (!mounted) return;
+      final user = await ref.read(usersRepositoryProvider).getUserById(target);
+      if (!_isCurrent(scope)) return;
       setState(() {
         _user = user;
-        _posts = posts.items;
-        _page = 1;
-        _hasNext = posts.hasNext;
         _loading = false;
       });
+      await _loadPosts();
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrent(scope)) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -68,15 +133,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _loadPosts() async {
+    final scope = _scope;
+    final target = widget.userId;
+    if (!_isCurrent(scope) || _loadingPosts || _user?.userId != target) return;
+    setState(() {
+      _loadingPosts = true;
+      _postsError = null;
+    });
+    try {
+      final posts = await ref
+          .read(postsApiProvider)
+          .getUserPostsById(target, page: 1, size: 20);
+      if (!_isCurrent(scope)) return;
+      setState(() {
+        _posts = posts.items;
+        _page = 1;
+        _hasNext = posts.hasNext;
+      });
+    } catch (e) {
+      if (!_isCurrent(scope)) return;
+      setState(() => _postsError = e);
+    } finally {
+      if (_isCurrent(scope)) setState(() => _loadingPosts = false);
+    }
+  }
+
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasNext || _loading) return;
+    if (_loadingMore || !_hasNext || _loading || _loadingPosts) return;
+    final scope = _scope;
+    if (!_isCurrent(scope)) return;
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
       final page = await ref
           .read(postsApiProvider)
           .getUserPostsById(widget.userId, page: next, size: 20);
-      if (!mounted) return;
+      if (!_isCurrent(scope)) return;
       setState(() {
         _posts = [..._posts, ...page.items];
         _page = next;
@@ -84,7 +177,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrent(scope)) return;
       setState(() => _loadingMore = false);
       ScaffoldMessenger.of(
         context,
@@ -93,15 +186,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _toggleFollow() async {
-    if (_user == null) return;
+    final user = _user;
+    final scope = _scope;
+    if (user == null ||
+        user.userId != widget.userId ||
+        _restricted ||
+        _relationshipBusy ||
+        !_isCurrent(scope)) {
+      return;
+    }
     if (!requireAuthenticatedAction(context, ref)) return;
-    final wasFollowing = _user!.relationship.isFollowing;
+    final wasFollowing = user.relationship.isFollowing;
+    setState(() => _relationshipBusy = true);
     try {
       final repo = ref.read(usersRepositoryProvider);
       final rel = wasFollowing
-          ? await repo.unfollow(_user!.userId)
-          : await repo.follow(_user!.userId);
-      if (!mounted) return;
+          ? await repo.unfollow(user.userId)
+          : await repo.follow(user.userId);
+      if (!_isCurrent(scope)) return;
       setState(() {
         _user = V2PublicUser(
           userId: _user!.userId,
@@ -128,33 +230,109 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrent(scope)) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (_isCurrent(scope)) setState(() => _relationshipBusy = false);
+    }
+  }
+
+  Future<void> _changeVisibility(_VisibilityAction action) async {
+    final user = _user;
+    final scope = _scope;
+    if (user == null ||
+        user.userId != widget.userId ||
+        user.relationship.isSelf ||
+        _relationshipBusy ||
+        !_isCurrent(scope)) {
+      return;
+    }
+    if (!requireAuthenticatedAction(context, ref)) return;
+    final repository = ref.read(usersRepositoryProvider);
+    final l10n = AppLocalizations.of(context);
+    setState(() => _relationshipBusy = true);
+    try {
+      if (action == _VisibilityAction.block) {
+        final name = user.displayName.isEmpty
+            ? user.username
+            : user.displayName;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialog) => AlertDialog(
+            title: Text(l10n.t('visibility.block')),
+            content: Text(
+              l10n.t('visibility.confirmBlock').replaceFirst('{name}', name),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialog, false),
+                child: Text(l10n.t('common.cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialog, true),
+                child: Text(l10n.t('visibility.block')),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true ||
+            !_isCurrent(scope) ||
+            !identical(ref.read(usersRepositoryProvider), repository)) {
+          return;
+        }
+        await repository.blockUser(user.userId);
+        if (!_isCurrent(scope)) return;
+        setState(() => _locallyBlocked = true);
+        await _load();
+      } else {
+        final expiry = action == _VisibilityAction.muteDay
+            ? DateTime.now().toUtc().add(const Duration(hours: 24))
+            : null;
+        await repository.muteUser(user.userId, expiresAt: expiry);
+      }
+      if (_isCurrent(scope)) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.t('visibility.saved'))));
+      }
+    } catch (error) {
+      if (_isCurrent(scope)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErrorView.describe(context, error))),
+        );
+      }
+    } finally {
+      if (_isCurrent(scope)) setState(() => _relationshipBusy = false);
     }
   }
 
   Future<void> _openDirectMessage() async {
-    if (_user == null) return;
+    final user = _user;
+    final scope = _scope;
+    if (user == null ||
+        user.userId != widget.userId ||
+        _restricted ||
+        _relationshipBusy ||
+        !_isCurrent(scope)) {
+      return;
+    }
     if (!requireAuthenticatedAction(context, ref)) return;
     try {
       final conversation = await ref
           .read(chatApiProvider)
-          .openConversation(userId: _user!.userId);
-      if (!mounted) return;
-      final displayName = _user!.displayName.trim().isNotEmpty
-          ? _user!.displayName
-          : _user!.username;
+          .openConversation(userId: user.userId);
+      if (!_isCurrent(scope) || _restricted) return;
+      final displayName = user.displayName.trim().isNotEmpty
+          ? user.displayName
+          : user.username;
       context.push(
         '/chat/conversation/${conversation.conversationId}',
-        extra: {
-          'title': displayName,
-          'name': displayName,
-        },
+        extra: {'title': displayName, 'name': displayName},
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrent(scope)) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -163,8 +341,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final signedIn = ref.watch(authSessionProvider).isAuthenticated;
+    ref.listen(authRepositoryProvider, (_, auth) {
+      if (!identical(_auth, auth)) {
+        _observe(auth);
+        _resetProfile();
+      }
+    });
+    ref.listen(usersRepositoryProvider, (_, repository) => _resetProfile());
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final menuScope = _scope;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -173,6 +360,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               : '@${_user!.username}',
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          if (signedIn &&
+              !_changing &&
+              _user?.userId == widget.userId &&
+              _user?.relationship.isSelf == false)
+            PopupMenuButton<_VisibilityAction>(
+              tooltip: l10n.t('visibility.actions'),
+              enabled: !_relationshipBusy,
+              onSelected: (action) {
+                if (_isCurrent(menuScope)) _changeVisibility(action);
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: _VisibilityAction.muteDay,
+                  child: Text(l10n.t('visibility.muteDay')),
+                ),
+                PopupMenuItem(
+                  value: _VisibilityAction.mute,
+                  child: Text(l10n.t('visibility.mute')),
+                ),
+                if (!_locallyBlocked && _user?.relationship.isBlocking == false)
+                  PopupMenuItem(
+                    value: _VisibilityAction.block,
+                    child: Text(l10n.t('visibility.block')),
+                  ),
+              ],
+            ),
+        ],
       ),
       body: _loading
           ? const LoadingView()
@@ -206,14 +421,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           children: [
                             _ProfileHeader(
                               user: _user!,
-                              onFollow: _toggleFollow,
-                              onMessage: _openDirectMessage,
+                              onFollow: _relationshipBusy
+                                  ? null
+                                  : _toggleFollow,
+                              onMessage: _relationshipBusy
+                                  ? null
+                                  : _openDirectMessage,
+                              restricted: _restricted,
                             ),
                             Divider(height: 1, color: theme.dividerColor),
                           ],
                         );
                       }
 
+                      if (_loadingPosts) {
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (_postsError case final error?) {
+                        return ErrorView(error: error, onRetry: _loadPosts);
+                      }
                       if (_posts.isEmpty) {
                         // empty state under header
                         if (index == 1 && !_hasNext) {
@@ -273,11 +502,13 @@ class _ProfileHeader extends StatelessWidget {
     required this.user,
     required this.onFollow,
     required this.onMessage,
+    required this.restricted,
   });
 
   final V2PublicUser user;
-  final VoidCallback onFollow;
-  final VoidCallback onMessage;
+  final VoidCallback? onFollow;
+  final VoidCallback? onMessage;
+  final bool restricted;
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +594,7 @@ class _ProfileHeader extends StatelessWidget {
               ),
             ],
           ),
-          if (!user.relationship.isSelf) ...[
+          if (!user.relationship.isSelf && !restricted) ...[
             const SizedBox(height: 16),
             Row(
               children: [
@@ -410,11 +641,7 @@ class _MetaItem extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 280),

@@ -9,6 +9,8 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
 import '../../../core/utils/json_utils.dart';
 import '../domain/user_models.dart';
+import '../domain/email_change.dart';
+import '../domain/security_action.dart';
 
 class UsersApi {
   UsersApi(this._client);
@@ -18,7 +20,24 @@ class UsersApi {
   Future<V2SelfUser> getMe() {
     return _client.requestData<V2SelfUser>(
       ApiPaths.usersMe,
-      decode: (data) => V2SelfUser.fromJson(toMap(data)),
+      validateSuccessEnvelope: (envelope) {
+        if (envelope is! Map<String, Object?> ||
+            envelope['code'] is! int ||
+            envelope['code'] != 200 ||
+            envelope['message'] != 'success' ||
+            !envelope.containsKey('meta') ||
+            envelope['meta'] != null) {
+          throw const FormatException('Invalid current user profile response');
+        }
+      },
+      decode: (data) {
+        final json = toMap(data);
+        final id = json['user_id'];
+        if (id is! int || id <= 0 || id > 9007199254740991) {
+          throw const FormatException('Invalid current user profile response');
+        }
+        return V2SelfUser.fromJson(json);
+      },
     );
   }
 
@@ -31,12 +50,12 @@ class UsersApi {
     );
   }
 
-  Future<void> updateEmail({
+  Future<V2EmailChangeData> updateEmail({
     required String newEmail,
     required String verificationId,
     required String code,
-  }) async {
-    await _client.request<void>(
+  }) {
+    return _client.requestData<V2EmailChangeData>(
       ApiPaths.usersMeEmail,
       method: 'PATCH',
       data: {
@@ -44,19 +63,22 @@ class UsersApi {
         'verification_id': verificationId,
         'code': code,
       },
-      decode: (_) {},
+      validateSuccessEnvelope: validateEmailChangeEnvelope,
+      decode: (data) =>
+          V2EmailChangeData.fromJson(data, expectedEmail: newEmail),
     );
   }
 
-  Future<Map<String, dynamic>> deleteMe({
+  Future<V2AccountDeletionData> deleteMe({
     required String password,
     required String confirmation,
   }) {
-    return _client.requestData<Map<String, dynamic>>(
+    return _client.requestData<V2AccountDeletionData>(
       ApiPaths.usersMe,
       method: 'DELETE',
       data: {'password': password, 'confirmation': confirmation},
-      decode: (data) => toMap(data),
+      validateSuccessEnvelope: validateSecurityActionEnvelope,
+      decode: V2AccountDeletionData.fromJson,
     );
   }
 
@@ -109,7 +131,8 @@ class UsersApi {
   Future<V2UserSettings> getSettings() {
     return _client.requestData<V2UserSettings>(
       ApiPaths.usersMeSettings,
-      decode: (data) => V2UserSettings.fromJson(toMap(data)),
+      validateSuccessEnvelope: validateAccountSettingsEnvelope,
+      decode: V2UserSettings.fromJson,
     );
   }
 
@@ -118,7 +141,8 @@ class UsersApi {
       ApiPaths.usersMeSettings,
       method: 'PATCH',
       data: body,
-      decode: (data) => V2UserSettings.fromJson(toMap(data)),
+      validateSuccessEnvelope: validateAccountSettingsEnvelope,
+      decode: V2UserSettings.fromJson,
     );
   }
 
@@ -154,10 +178,13 @@ class UsersApi {
     );
   }
 
-  Future<void> muteUser(int userId) async {
+  Future<void> muteUser(int userId, {DateTime? expiresAt}) async {
     await _client.request<void>(
       '${ApiPaths.usersMeMutes}/$userId',
       method: 'POST',
+      data: expiresAt == null
+          ? null
+          : {'expires_at': expiresAt.toUtc().toIso8601String()},
       decode: (_) {},
     );
   }
@@ -173,11 +200,36 @@ class UsersApi {
   Future<PagedResult<V2AccountStatement>> getStatements({
     int page = 1,
     int size = 20,
+    String? status,
+    String? type,
   }) {
     return _client.requestPaged<V2AccountStatement>(
       ApiPaths.usersMeStatements,
-      query: {'page': page, 'page_size': size},
+      query: {
+        'page': page,
+        'page_size': size,
+        if (status != null) 'status': status,
+        if (type != null) 'type': type,
+      },
       decodeItem: (item) => V2AccountStatement.fromJson(toMap(item)),
+    );
+  }
+
+  Future<void> changeStatementStatus(int id, String action) {
+    return _client.requestData<void>(
+      '${ApiPaths.usersMeStatements}/$id',
+      method: 'PATCH',
+      data: {'action': action},
+      decode: (_) {},
+    );
+  }
+
+  Future<void> submitStatementAppeal(int id, String message) {
+    return _client.requestData<void>(
+      '${ApiPaths.usersMeStatements}/$id/appeals',
+      method: 'POST',
+      data: {'appeal_message': message},
+      decode: (_) {},
     );
   }
 
@@ -188,10 +240,20 @@ class UsersApi {
     );
   }
 
-  Future<V2PublicUser> getUserById(int userId) {
+  Future<V2PublicUser> getUserById(int userId) async {
+    if (userId <= 0 || userId > 9007199254740991) {
+      throw const FormatException('Invalid profile route');
+    }
     return _client.requestData<V2PublicUser>(
       '${ApiPaths.users}/$userId',
-      decode: (data) => V2PublicUser.fromJson(toMap(data)),
+      decode: (data) {
+        final profile = toMap(data);
+        final id = profile['user_id'];
+        if (id is! int || id <= 0 || id > 9007199254740991 || id != userId) {
+          throw const FormatException('Invalid public profile response');
+        }
+        return V2PublicUser.fromJson(profile);
+      },
     );
   }
 
@@ -253,6 +315,18 @@ class UsersApi {
     );
   }
 
+  Future<PagedResult<V2PublicUser>> searchUsers(
+    String query, {
+    int page = 1,
+    int size = 20,
+  }) {
+    return _client.requestPaged<V2PublicUser>(
+      ApiPaths.users,
+      query: {'q': query, 'page': page, 'page_size': size, 'sort': 'popular'},
+      decodeItem: (item) => V2PublicUser.fromJson(toMap(item)),
+    );
+  }
+
   Future<List<V2PublicUser>> getRecommendations({int limit = 10}) {
     return _client.requestList<V2PublicUser>(
       ApiPaths.userRecommendations,
@@ -261,33 +335,36 @@ class UsersApi {
     );
   }
 
-  Future<Map<String, dynamic>> setupTwoFactor({required String password}) {
-    return _client.requestData<Map<String, dynamic>>(
+  Future<V2TwoFactorSetupData> setupTwoFactor({required String password}) {
+    return _client.requestData<V2TwoFactorSetupData>(
       ApiPaths.usersMeTwoFactorSetup,
       method: 'POST',
       data: {'password': password},
-      decode: (data) => toMap(data),
+      validateSuccessEnvelope: validateSecurityActionEnvelope,
+      decode: V2TwoFactorSetupData.fromJson,
     );
   }
 
-  Future<Map<String, dynamic>> confirmTwoFactor({required String code}) {
-    return _client.requestData<Map<String, dynamic>>(
+  Future<V2TwoFactorConfirmData> confirmTwoFactor({required String code}) {
+    return _client.requestData<V2TwoFactorConfirmData>(
       ApiPaths.usersMeTwoFactorConfirm,
       method: 'POST',
       data: {'code': code},
-      decode: (data) => toMap(data),
+      validateSuccessEnvelope: validateSecurityActionEnvelope,
+      decode: V2TwoFactorConfirmData.fromJson,
     );
   }
 
-  Future<Map<String, dynamic>> disableTwoFactor({
+  Future<V2TwoFactorDisabledData> disableTwoFactor({
     required String password,
     required String code,
   }) {
-    return _client.requestData<Map<String, dynamic>>(
+    return _client.requestData<V2TwoFactorDisabledData>(
       ApiPaths.usersMeTwoFactor,
       method: 'DELETE',
       data: {'password': password, 'code': code},
-      decode: (data) => toMap(data),
+      validateSuccessEnvelope: validateSecurityActionEnvelope,
+      decode: V2TwoFactorDisabledData.fromJson,
     );
   }
 

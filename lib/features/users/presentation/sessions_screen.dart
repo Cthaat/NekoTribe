@@ -18,28 +18,70 @@ class SessionsScreen extends ConsumerStatefulWidget {
 class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   List<V2SessionItem> _items = [];
   bool _loading = true;
+  bool _changing = false;
+  bool _confirming = false;
+  bool _hasNext = false;
+  int _page = 1, _total = 0, _request = 0;
+  late final VoidCallback _stopSessionListener;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
+    _stopSessionListener = ref.read(tokenStoreProvider).listenSessionChanges(
+      () {
+        if (!mounted) return;
+        setState(() {
+          _request++;
+          _items = [];
+          _page = 1;
+          _total = 0;
+          _loading = _changing = _confirming = _hasNext = false;
+          _error = null;
+        });
+      },
+    );
     _load();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _stopSessionListener();
+    super.dispose();
+  }
+
+  bool _current(int revision) {
+    if (!mounted) return false;
+    final tokens = ref.read(tokenStoreProvider);
+    return tokens.revision == revision && !tokens.isSessionChanging;
+  }
+
+  Future<void> _load({int page = 1}) async {
+    final revision = ref.read(tokenStoreProvider).revision;
+    if (!_current(revision)) return;
+    final request = ++_request;
+    bool valid() => _current(revision) && request == _request;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final list = await ref.read(authApiProvider).listSessions();
-      if (!mounted) return;
+      final api = ref.read(authApiProvider);
+      var result = await api.listSessions(page: page);
+      if (!valid()) return;
+      if (page > 1 && result.items.isEmpty) {
+        result = await api.listSessions();
+        if (!valid()) return;
+      }
       setState(() {
-        _items = list;
+        _items = result.items;
+        _page = result.page;
+        _total = result.total;
+        _hasNext = result.hasNext;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!valid()) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -48,48 +90,64 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   }
 
   Future<void> _revoke(V2SessionItem session) async {
-    try {
-      await ref.read(authApiProvider).revokeSession(session.sessionId);
-      if (!mounted) return;
-      setState(
-        () => _items.removeWhere((s) => s.sessionId == session.sessionId),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
-    }
+    if (session.isCurrent || !_items.contains(session)) return;
+    await _change(ref.read(tokenStoreProvider).revision, id: session.sessionId);
   }
 
   Future<void> _revokeOthers() async {
+    final revision = ref.read(tokenStoreProvider).revision;
+    if (_confirming || _changing || _loading || !_current(revision)) return;
+    setState(() => _confirming = true);
     final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(l10n.t('account.sessions.revoke_others')),
         content: Text(l10n.t('account.sessions.revoke_others_body')),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(l10n.t('common.cancel')),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(l10n.t('common.confirm')),
           ),
         ],
       ),
     );
-    if (ok != true) return;
+    if (!_current(revision)) return;
+    setState(() => _confirming = false);
+    if (ok == true) await _change(revision);
+  }
+
+  Future<void> _change(int revision, {String? id}) async {
+    if (!_current(revision) || _changing || _loading) return;
+    setState(() => _changing = true);
     try {
-      await ref.read(authApiProvider).revokeOtherSessions();
-      await _load();
+      final api = ref.read(authApiProvider);
+      if (id == null) {
+        await api.revokeOtherSessions();
+      } else {
+        await api.revokeSession(id);
+      }
+      if (!_current(revision)) return;
+      setState(
+        () => _items = _items
+            .where(
+              (session) =>
+                  id == null ? session.isCurrent : session.sessionId != id,
+            )
+            .toList(),
+      );
+      await _load(page: id == null ? 1 : _page);
     } catch (e) {
-      if (!mounted) return;
+      if (!_current(revision)) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (_current(revision)) setState(() => _changing = false);
     }
   }
 
@@ -108,12 +166,46 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         title: Text(l10n.t('account.sessions.title')),
         actions: [
           IconButton(
+            tooltip: l10n.t('account.sessions.refresh'),
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading || _changing ? null : () => _load(page: _page),
+          ),
+          IconButton(
             tooltip: l10n.t('account.sessions.revoke_others'),
             icon: const Icon(Icons.logout),
-            onPressed: _items.length > 1 ? _revokeOthers : null,
+            onPressed:
+                !_loading &&
+                    !_changing &&
+                    !_confirming &&
+                    (_total > 1 || _items.any((item) => !item.isCurrent))
+                ? _revokeOthers
+                : null,
           ),
         ],
       ),
+      bottomNavigationBar: _page > 1 || _hasNext
+          ? SafeArea(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (_page > 1)
+                    TextButton(
+                      onPressed: _loading || _changing
+                          ? null
+                          : () => _load(page: _page - 1),
+                      child: Text(l10n.t('account.sessions.previous_page')),
+                    ),
+                  if (_hasNext)
+                    TextButton(
+                      onPressed: _loading || _changing
+                          ? null
+                          : () => _load(page: _page + 1),
+                      child: Text(l10n.t('account.sessions.next_page')),
+                    ),
+                ],
+              ),
+            )
+          : null,
       body: _loading
           ? const LoadingView()
           : _error != null
@@ -127,7 +219,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                   maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
                 child: RefreshIndicator(
-                  onRefresh: _load,
+                  onRefresh: () async {
+                    if (!_changing) await _load(page: _page);
+                  },
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _items.length,
@@ -153,10 +247,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: (s.isCurrent
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.onSurfaceVariant)
-                                      .withValues(alpha: 0.1),
+                                  color:
+                                      (s.isCurrent
+                                              ? theme.colorScheme.primary
+                                              : theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant)
+                                          .withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
@@ -236,7 +333,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                                     Icons.delete_outline,
                                     color: theme.colorScheme.error,
                                   ),
-                                  onPressed: () => _revoke(s),
+                                  onPressed: _changing || _loading
+                                      ? null
+                                      : () => _revoke(s),
                                 ),
                             ],
                           ),

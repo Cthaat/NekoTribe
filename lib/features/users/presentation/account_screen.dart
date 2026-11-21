@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/ai_conversation_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
@@ -20,27 +23,75 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   V2SelfUser? _user;
   bool _loading = true;
   Object? _error;
+  int _request = 0;
+  VoidCallback? _stopSession;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    final tokens = ref.read(tokenStoreProvider);
+    var revision = tokens.revision;
+    var endpoint = tokens.endpointRevision;
+    var changing = tokens.isSessionChanging;
+    _stopSession = tokens.listenSessionChanges(() {
+      if (revision == tokens.revision &&
+          endpoint == tokens.endpointRevision &&
+          changing == tokens.isSessionChanging) {
+        return;
+      }
+      revision = tokens.revision;
+      endpoint = tokens.endpointRevision;
+      changing = tokens.isSessionChanging;
+      unawaited(_load());
+    });
+    ref.listenManual(usersRepositoryProvider, (previous, next) {
+      if (!identical(previous, next)) unawaited(_load());
+    });
+    unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    _stopSession?.call();
+    super.dispose();
   }
 
   Future<void> _load() async {
+    final request = ++_request;
+    final tokens = ref.read(tokenStoreProvider);
     setState(() {
+      _user = null;
       _loading = true;
       _error = null;
     });
+    if (tokens.isSessionChanging) return;
+    final revision = tokens.revision;
+    final endpoint = tokens.endpointRevision;
+    final repository = ref.read(usersRepositoryProvider);
+    bool isCurrent() =>
+        mounted &&
+        request == _request &&
+        identical(tokens, ref.read(tokenStoreProvider)) &&
+        identical(repository, ref.read(usersRepositoryProvider)) &&
+        revision == tokens.revision &&
+        endpoint == tokens.endpointRevision &&
+        !tokens.isSessionChanging;
+
     try {
-      final user = await ref.read(usersRepositoryProvider).getCurrentUser();
-      if (!mounted) return;
+      final session = await tokens.read();
+      if (!isCurrent()) return;
+      if (session == null) {
+        setState(() => _loading = false);
+        return;
+      }
+      final user = await repository.getCurrentUser();
+      if (!isCurrent()) return;
       setState(() {
         _user = user;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!isCurrent()) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -49,11 +100,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   Future<void> _logout() async {
-    await ref.read(authRepositoryProvider).logout();
-    if (!mounted) return;
-    await ref.read(realtimeServiceProvider).disconnect();
-    ref.read(notificationsUnreadProvider.notifier).set(0);
-    ref.read(authSessionProvider.notifier).markLoggedOut();
+    final repository = ref.read(authRepositoryProvider);
+    final receipt = await repository.logout();
+    if (!mounted || receipt == null || !repository.isCurrentReceipt(receipt)) {
+      return;
+    }
     context.go('/auth/login');
   }
 
@@ -183,8 +234,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                         ),
                         _Row(
                           icon: Icons.psychology_outlined,
-                          label: l10n.t('sentiment.title'),
-                          onTap: () => context.push('/sentiment'),
+                          label: l10n.t('ai.knowledge.title'),
+                          onTap: () => openAiConversation(context, knowledge: true),
+                        ),
+                        _Row(
+                          icon: Icons.edit_note_outlined,
+                          label: l10n.t('ai.writing.title'),
+                          onTap: () => openAiConversation(context),
                         ),
                         _Row(
                           icon: Icons.settings_outlined,
@@ -370,7 +426,9 @@ class _Stat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(

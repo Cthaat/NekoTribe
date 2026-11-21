@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../../../core/network/api_response.dart';
 import '../domain/user_models.dart';
+import '../domain/security_action.dart';
 import 'users_api.dart';
 
 class UsersRepository {
@@ -17,15 +18,17 @@ class UsersRepository {
     String? bio,
     String? location,
     String? website,
+    String? phone,
     String? birthDate,
   }) {
-    final body = <String, dynamic>{};
-    if (displayName != null) body['display_name'] = displayName;
-    if (bio != null) body['bio'] = bio;
-    if (location != null) body['location'] = location;
-    if (website != null) body['website'] = website;
-    if (birthDate != null) body['birth_date'] = birthDate;
-    return _api.updateMe(body);
+    return _api.updateMe({
+      if (displayName != null) 'display_name': displayName,
+      if (bio != null) 'bio': bio,
+      if (location != null) 'location': location,
+      if (website != null) 'website': website,
+      if (phone != null) 'phone': phone,
+      if (birthDate != null) 'birth_date': birthDate,
+    });
   }
 
   Future<V2SelfUser> changeAvatarFile(File file) async {
@@ -50,15 +53,15 @@ class UsersRepository {
     required String newEmail,
     required String verificationId,
     required String code,
-  }) {
-    return _api.updateEmail(
+  }) async {
+    await _api.updateEmail(
       newEmail: newEmail,
       verificationId: verificationId,
       code: code,
     );
   }
 
-  Future<Map<String, dynamic>> deleteAccount({
+  Future<V2AccountDeletionData> deleteAccount({
     required String password,
     required String confirmation,
   }) => _api.deleteMe(password: password, confirmation: confirmation);
@@ -101,22 +104,37 @@ class UsersRepository {
 
   Future<void> blockUser(int userId) => _api.blockUser(userId);
   Future<void> unblockUser(int userId) => _api.unblockUser(userId);
-  Future<void> muteUser(int userId) => _api.muteUser(userId);
+  Future<void> muteUser(int userId, {DateTime? expiresAt}) =>
+      _api.muteUser(userId, expiresAt: expiresAt);
   Future<void> unmuteUser(int userId) => _api.unmuteUser(userId);
 
   Future<PagedResult<V2AccountStatement>> statements({
     int page = 1,
     int size = 20,
-  }) => _api.getStatements(page: page, size: size);
+    String? status,
+    String? type,
+  }) => _api.getStatements(page: page, size: size, status: status, type: type);
+
+  Future<void> changeStatementStatus(int id, String action) =>
+      _api.changeStatementStatus(id, action);
+
+  Future<void> submitStatementAppeal(int id, String message) =>
+      _api.submitStatementAppeal(id, message);
+
+  Future<PagedResult<V2PublicUser>> searchUsers(
+    String query, {
+    int page = 1,
+    int size = 20,
+  }) => _api.searchUsers(query, page: page, size: size);
 
   Future<List<V2PublicUser>> recommendations({int limit = 10}) =>
       _api.getRecommendations(limit: limit);
 
-  Future<Map<String, dynamic>> setupTwoFactor({required String password}) =>
+  Future<V2TwoFactorSetupData> setupTwoFactor({required String password}) =>
       _api.setupTwoFactor(password: password);
-  Future<Map<String, dynamic>> confirmTwoFactor({required String code}) =>
+  Future<V2TwoFactorConfirmData> confirmTwoFactor({required String code}) =>
       _api.confirmTwoFactor(code: code);
-  Future<Map<String, dynamic>> disableTwoFactor({
+  Future<V2TwoFactorDisabledData> disableTwoFactor({
     required String password,
     required String code,
   }) => _api.disableTwoFactor(password: password, code: code);

@@ -4,13 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/token_store.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../core/utils/auth_input.dart';
+import '../../../core/utils/group_invite.dart';
+import '../../../core/utils/group_post_link.dart';
 import '../domain/auth_models.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.inviteCode, this.groupPostLink});
+
+  final String? inviteCode;
+  final GroupPostLink? groupPostLink;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -31,7 +38,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (_account.text.trim().isEmpty || _password.text.isEmpty) return;
+    if (_busy) return;
+    final account = trimAuthInput(_account.text),
+        password = trimAuthInput(_password.text);
+    if (account.isEmpty || password.isEmpty) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -39,18 +49,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final repo = ref.read(authRepositoryProvider);
       final result = await repo.login(
-        account: _account.text.trim(),
-        password: _password.text,
+        account: account,
+        password: password,
         rememberMe: _rememberMe,
       );
       if (!mounted) return;
       if (result is V2LoginSuccess) {
         ref.read(authSessionProvider.notifier).markLoggedIn();
         unawaited(ref.read(realtimeServiceProvider).connect());
-        context.go('/feed');
-      } else if (result is V2TwoFactorRequired) {
+        final link = widget.groupPostLink;
         context.go(
-          '/auth/2fa',
+          groupInviteLocation(widget.inviteCode) ??
+              (link == null ? '/feed' : groupPostLocation(link)),
+        );
+      } else if (result is V2TwoFactorRequired) {
+        final invite = normalizeGroupInviteCode(widget.inviteCode);
+        final link = widget.groupPostLink;
+        context.go(
+          Uri(
+            path: '/auth/2fa',
+            queryParameters: invite != null
+                ? {'code': invite}
+                : link == null
+                ? null
+                : groupPostLinkQuery(link),
+          ).toString(),
           extra: {'challengeId': result.challengeId, 'account': result.account},
         );
       }
@@ -62,12 +85,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _openEndpointSettings() async {
+    if (_busy) return;
+    final store = ref.read(tokenStoreProvider);
+    final revision = store.endpointRevision;
+    await context.push('/settings/endpoint');
+    if (!mounted) return;
+    final current = ref.read(tokenStoreProvider);
+    if (!identical(store, current) || current.endpointRevision != revision) {
+      _password.clear();
+      setState(() => _error = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final appBar = AppBar(
+      title: Text(l10n.t('auth.login')),
+      actions: [
+        IconButton(
+          tooltip: l10n.t('endpoint.title'),
+          onPressed: _busy ? null : _openEndpointSettings,
+          icon: const Icon(Icons.dns_outlined),
+        ),
+      ],
+    );
+    if (!ref.watch(tokenStoreProvider).supportsSessionStorage) {
+      return Scaffold(
+        appBar: appBar,
+        body: const ErrorView(error: SessionStorageUnavailable()),
+      );
+    }
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('auth.login'))),
+      appBar: appBar,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth < 420.0

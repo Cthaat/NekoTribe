@@ -1,4 +1,5 @@
 import '../../../core/utils/json_utils.dart';
+export 'user_settings.dart';
 
 class V2Relationship {
   V2Relationship({
@@ -63,6 +64,7 @@ class V2PublicUser {
     required this.relationship,
     required this.onlineStatus,
     this.lastSeenAt,
+    this.muteExpiresAt,
   });
 
   final int userId;
@@ -80,6 +82,7 @@ class V2PublicUser {
   final V2Relationship relationship;
   final String onlineStatus;
   final String? lastSeenAt;
+  final String? muteExpiresAt;
 
   bool get verified => isVerified == 1;
 
@@ -104,6 +107,7 @@ class V2PublicUser {
           : V2Relationship.empty(),
       onlineStatus: toStr(json['online_status'], defaultValue: 'offline'),
       lastSeenAt: toStrOrNull(json['last_seen_at']),
+      muteExpiresAt: toStrOrNull(json['expires_at']),
     );
   }
 }
@@ -261,79 +265,6 @@ class V2AvatarData {
     return V2AvatarData(
       avatarUrl: toStr(json['avatar_url']),
       avatarMediaId: toInt(json['avatar_media_id']),
-    );
-  }
-}
-
-class V2UserSettings {
-  V2UserSettings({
-    required this.userId,
-    this.twoFactorEnabled,
-    required this.loginAlerts,
-    required this.profileVisibility,
-    this.showOnlineStatus,
-    this.allowDmFromStrangers,
-    this.pushNotificationEnabled,
-    this.emailNotificationEnabled,
-    this.aiSentimentEnabled,
-    this.aiSentimentModelId,
-    this.aiSentimentReturnProbabilities,
-    this.aiSentimentIncludeMetadata,
-    this.aiSentimentTopK,
-    required this.updatedAt,
-  });
-
-  final int userId;
-  final bool? twoFactorEnabled;
-  final bool loginAlerts;
-  final String profileVisibility;
-  final bool? showOnlineStatus;
-  final bool? allowDmFromStrangers;
-  final bool? pushNotificationEnabled;
-  final bool? emailNotificationEnabled;
-  final bool? aiSentimentEnabled;
-  final String? aiSentimentModelId;
-  final bool? aiSentimentReturnProbabilities;
-  final bool? aiSentimentIncludeMetadata;
-  final int? aiSentimentTopK;
-  final String updatedAt;
-
-  factory V2UserSettings.fromJson(Map<String, dynamic> json) {
-    return V2UserSettings(
-      userId: toInt(json['user_id']) ?? 0,
-      twoFactorEnabled: json['two_factor_enabled'] == null
-          ? null
-          : toBool(json['two_factor_enabled']),
-      loginAlerts: toBool(json['login_alerts']),
-      profileVisibility: toStr(
-        json['profile_visibility'],
-        defaultValue: 'public',
-      ),
-      showOnlineStatus: json['show_online_status'] == null
-          ? null
-          : toBool(json['show_online_status']),
-      allowDmFromStrangers: json['allow_dm_from_strangers'] == null
-          ? null
-          : toBool(json['allow_dm_from_strangers']),
-      pushNotificationEnabled: json['push_notification_enabled'] == null
-          ? null
-          : toBool(json['push_notification_enabled']),
-      emailNotificationEnabled: json['email_notification_enabled'] == null
-          ? null
-          : toBool(json['email_notification_enabled']),
-      aiSentimentEnabled: json['ai_sentiment_enabled'] == null
-          ? null
-          : toBool(json['ai_sentiment_enabled']),
-      aiSentimentModelId: toStrOrNull(json['ai_sentiment_model_id']),
-      aiSentimentReturnProbabilities:
-          json['ai_sentiment_return_probabilities'] == null
-          ? null
-          : toBool(json['ai_sentiment_return_probabilities']),
-      aiSentimentIncludeMetadata: json['ai_sentiment_include_metadata'] == null
-          ? null
-          : toBool(json['ai_sentiment_include_metadata']),
-      aiSentimentTopK: toInt(json['ai_sentiment_top_k']),
-      updatedAt: toStr(json['updated_at']),
     );
   }
 }

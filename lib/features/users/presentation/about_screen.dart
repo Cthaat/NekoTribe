@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/ai_conversation_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/widgets/responsive.dart';
 
@@ -68,7 +69,7 @@ class AboutScreen extends StatelessWidget {
                   Chip(label: Text(l10n.t('about.groups'))),
                   Chip(label: Text(l10n.t('about.chat'))),
                   Chip(label: Text(l10n.t('about.safety'))),
-                  const Chip(label: Text('SentimentFlow')),
+                  Chip(label: Text(l10n.t('about.ai'))),
                 ],
               ),
               const SizedBox(height: 24),
@@ -86,27 +87,33 @@ class AboutScreen extends StatelessWidget {
                       subtitle: l10n.t('about.explore_posts_subtitle'),
                       onTap: () => context.push('/discover'),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 56,
-                      color: theme.dividerColor,
-                    ),
+                    Divider(height: 1, indent: 56, color: theme.dividerColor),
                     _ActionRow(
                       icon: Icons.group_outlined,
                       title: l10n.t('about.groups'),
                       subtitle: l10n.t('about.groups_subtitle'),
                       onTap: () => context.go('/groups'),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 56,
-                      color: theme.dividerColor,
-                    ),
+                    Divider(height: 1, indent: 56, color: theme.dividerColor),
                     _ActionRow(
                       icon: Icons.article_outlined,
                       title: l10n.t('about.terms'),
                       subtitle: l10n.t('about.terms_subtitle'),
                       onTap: () => context.push('/auth/terms'),
+                    ),
+                    Divider(height: 1, indent: 56, color: theme.dividerColor),
+                    _ActionRow(
+                      icon: Icons.question_answer_outlined,
+                      title: l10n.t('about.ai_knowledge'),
+                      subtitle: l10n.t('about.ai_knowledge_subtitle'),
+                      onTap: () => openAiConversation(context, knowledge: true),
+                    ),
+                    Divider(height: 1, indent: 56, color: theme.dividerColor),
+                    _ActionRow(
+                      icon: Icons.edit_note_outlined,
+                      title: l10n.t('about.ai_writing'),
+                      subtitle: l10n.t('about.ai_writing_subtitle'),
+                      onTap: () => openAiConversation(context),
                     ),
                   ],
                 ),
@@ -164,10 +171,7 @@ class _ActionRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: theme.colorScheme.outline,
-            ),
+            Icon(Icons.chevron_right, color: theme.colorScheme.outline),
           ],
         ),
       ),

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../core/utils/auth_input.dart';
+import '../domain/otp_send_cooldown.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -21,13 +23,38 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _confirmPassword = TextEditingController();
   final _otp = TextEditingController();
   String? _verificationId;
+  String? _verificationAccount;
+  String _otpAccount = '';
+  int _otpRevision = 0;
+  final _otpCooldown = OtpSendCooldown();
   bool _agreeToTerms = false;
   bool _busy = false;
   bool _sending = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _account.addListener(_accountChanged);
+  }
+
+  void _accountChanged() {
+    final account = trimAuthInput(_account.text);
+    if (account == _otpAccount) return;
+    _otpAccount = account;
+    _otpRevision++;
+    _otpCooldown.cancel();
+    _otp.clear();
+    setState(() {
+      _verificationId = null;
+      _verificationAccount = null;
+      _sending = false;
+    });
+  }
+
+  @override
   void dispose() {
+    _otpCooldown.cancel();
     _account.dispose();
     _username.dispose();
     _displayName.dispose();
@@ -38,39 +65,96 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _sendOtp() async {
-    if (_account.text.trim().isEmpty) return;
-    setState(() => _sending = true);
+    if (_sending || _busy || _otpCooldown.remaining > 0) return;
+    final account = trimAuthInput(_account.text);
+    if (account.isEmpty) return;
+    if (!validNewEmail(account)) {
+      setState(
+        () => _error = AppLocalizations.of(context).t('auth.email_invalid'),
+      );
+      return;
+    }
+    final previousId = _verificationAccount == account ? _verificationId : null;
+    final revision = ++_otpRevision;
+    setState(() {
+      _sending = true;
+      _verificationId = null;
+      _verificationAccount = null;
+    });
     try {
       final otp = await ref
           .read(authRepositoryProvider)
-          .requestOtp(account: _account.text.trim(), purpose: 'register');
-      if (!mounted) return;
-      setState(() => _verificationId = otp.verificationId);
+          .requestOtp(account: account, purpose: 'register');
+      if (!mounted || revision != _otpRevision) return;
+      if (otp.account != account || otp.verificationId.trim().isEmpty) {
+        throw const FormatException('Invalid OTP response');
+      }
+      _otp.clear();
+      setState(() {
+        _otpCooldown.start(otpSendCooldownSeconds, _refreshOtpCooldown);
+        _verificationId = otp.verificationId;
+        _verificationAccount = account;
+      });
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('auth.otp_sent'))));
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = ErrorView.describe(context, e));
+      if (!mounted || revision != _otpRevision) return;
+      final retry = otpRetryDelay(e);
+      setState(() {
+        if (retry != null) {
+          _otpCooldown.start(retry, _refreshOtpCooldown);
+          _verificationId = previousId;
+          _verificationAccount = previousId == null ? null : account;
+        }
+        _error = ErrorView.describe(context, e);
+      });
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted && revision == _otpRevision) setState(() => _sending = false);
     }
   }
 
+  void _refreshOtpCooldown() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _register() async {
+    if (_busy) return;
     final l10n = AppLocalizations.of(context);
     final verificationId = _verificationId;
-    if (verificationId == null || verificationId.isEmpty) {
+    final account = trimAuthInput(_account.text),
+        username = trimAuthInput(_username.text),
+        displayName = trimAuthInput(_displayName.text);
+    final password = trimAuthInput(_password.text),
+        confirmPassword = trimAuthInput(_confirmPassword.text),
+        code = trimAuthInput(_otp.text);
+    final agreeToTerms = _agreeToTerms, revision = _otpRevision;
+    if (!validNewEmail(account)) {
+      setState(() => _error = l10n.t('auth.email_invalid'));
+      return;
+    }
+    if (!validRegistrationName(username) ||
+        !validRegistrationName(displayName)) {
+      setState(() => _error = l10n.t('auth.name_too_short'));
+      return;
+    }
+    if (verificationId == null ||
+        verificationId.isEmpty ||
+        _verificationAccount != account) {
       setState(() => _error = l10n.t('auth.otp_required'));
       return;
     }
-    if (_password.text != _confirmPassword.text) {
+    if (password != confirmPassword) {
       setState(() => _error = l10n.t('auth.password_mismatch'));
       return;
     }
-    if (!_agreeToTerms) {
+    if (!agreeToTerms) {
       setState(() => _error = l10n.t('auth.agree_terms_required'));
+      return;
+    }
+    if (!validNewPassword(password)) {
+      setState(() => _error = l10n.t('auth.password_too_short'));
       return;
     }
     setState(() {
@@ -78,32 +162,36 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _error = null;
     });
     try {
-      await ref
+      final verified = await ref
           .read(authRepositoryProvider)
           .verifyOtp(
-            account: _account.text.trim(),
+            account: account,
             purpose: 'register',
             verificationId: verificationId,
-            code: _otp.text.trim(),
+            code: code,
           );
+      if (!mounted || revision != _otpRevision) return;
+      if (!verified.verified || verified.account != account) {
+        throw const FormatException('Invalid OTP verification');
+      }
       await ref
           .read(authRepositoryProvider)
           .register(
-            email: _account.text.trim(),
-            username: _username.text.trim(),
-            displayName: _displayName.text.trim(),
-            password: _password.text,
-            confirmPassword: _confirmPassword.text,
+            email: account,
+            username: username,
+            displayName: displayName,
+            password: password,
+            confirmPassword: confirmPassword,
             verificationId: verificationId,
-            agreeToTerms: _agreeToTerms,
+            agreeToTerms: agreeToTerms,
           );
-      if (!mounted) return;
+      if (!mounted || revision != _otpRevision) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('auth.registered'))));
       context.go('/auth/login');
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || revision != _otpRevision) return;
       setState(() => _error = ErrorView.describe(context, e));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -177,7 +265,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         final sendButton = SizedBox(
                           height: 48,
                           child: OutlinedButton(
-                            onPressed: _sending ? null : _sendOtp,
+                            onPressed: _sending || _otpCooldown.remaining > 0
+                                ? null
+                                : _sendOtp,
                             child: _sending
                                 ? const SizedBox(
                                     height: 16,
@@ -186,7 +276,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : Text(l10n.t('auth.send_otp')),
+                                : Text(
+                                    _otpCooldown.remaining > 0
+                                        ? l10n
+                                              .t('auth.otp_retry_seconds')
+                                              .replaceAll(
+                                                '{seconds}',
+                                                _otpCooldown.remaining
+                                                    .toString(),
+                                              )
+                                        : l10n.t('auth.send_otp'),
+                                  ),
                           ),
                         );
                         if (constraints.maxWidth < 360) {

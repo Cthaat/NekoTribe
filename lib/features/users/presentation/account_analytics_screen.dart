@@ -20,34 +20,66 @@ class _AccountAnalyticsScreenState
   V2SelfUser? _user;
   V2UserAnalytics? _analytics;
   List<V2UserDailyAnalytics> _daily = [];
+  int _days = 14;
   bool _loading = true;
+  bool _dailyLoading = true, _dailyFailed = false, _expired = false;
+  int _overviewRequest = 0, _dailyRequest = 0;
+  late final VoidCallback _stopSessionListener;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
+    final store = ref.read(tokenStoreProvider);
+    _expired = store.isSessionChanging;
+    _stopSessionListener = store.listenSessionChanges(_expire);
     _load();
   }
 
+  @override
+  void dispose() {
+    _stopSessionListener();
+    super.dispose();
+  }
+
+  void _expire() {
+    if (!mounted || _expired) return;
+    _overviewRequest++;
+    _dailyRequest++;
+    setState(() {
+      _expired = true;
+      _user = null;
+      _analytics = null;
+      _daily = [];
+    });
+  }
+
   Future<void> _load() async {
+    if (_expired) return;
+    final request = ++_overviewRequest;
+    _dailyRequest++;
+    bool current() => mounted && request == _overviewRequest;
     setState(() {
       _loading = true;
       _error = null;
+      _daily = [];
+      _dailyLoading = true;
+      _dailyFailed = false;
     });
     try {
       final repo = ref.read(usersRepositoryProvider);
       final user = await repo.getCurrentUser();
+      if (!current()) return;
       final analytics = await repo.getUserAnalytics(user.userId);
-      final daily = await repo.getUserDailyAnalytics(user.userId, days: 14);
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _user = user;
         _analytics = analytics;
-        _daily = daily;
         _loading = false;
       });
+      await _loadDaily(_days);
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -55,12 +87,40 @@ class _AccountAnalyticsScreenState
     }
   }
 
+  Future<void> _loadDaily(int days) async {
+    final user = _user;
+    if (user == null || _expired) return;
+    final request = ++_dailyRequest;
+    bool current() => mounted && request == _dailyRequest;
+    setState(() {
+      _days = days;
+      _daily = [];
+      _dailyLoading = true;
+      _dailyFailed = false;
+    });
+    try {
+      final rows = await ref
+          .read(usersRepositoryProvider)
+          .getUserDailyAnalytics(user.userId, days: days);
+      if (current()) setState(() => _daily = rows);
+    } catch (_) {
+      if (current()) setState(() => _dailyFailed = true);
+    } finally {
+      if (current()) setState(() => _dailyLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen(usersRepositoryProvider, (previous, next) {
+      if (!identical(previous, next)) _expire();
+    });
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('account.analytics.title'))),
-      body: _loading
+      body: _expired
+          ? EmptyView(message: l10n.t('visibility.sessionChanged'))
+          : _loading
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
@@ -75,13 +135,20 @@ class _AccountAnalyticsScreenState
                     maxWidth: AppBreakpoints.contentMaxWidth,
                   ),
                   child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     children: [
                       _AnalyticsHeader(user: _user),
                       const SizedBox(height: 14),
                       _MetricGrid(analytics: _analytics!),
                       const SizedBox(height: 18),
-                      _DailyAnalyticsSection(daily: _daily),
+                      _DailyAnalyticsSection(
+                        daily: _daily,
+                        days: _days,
+                        loading: _dailyLoading,
+                        failed: _dailyFailed,
+                        onRangeChanged: _loadDaily,
+                      ),
                     ],
                   ),
                 ),
@@ -216,9 +283,19 @@ class _MetricGrid extends StatelessWidget {
 }
 
 class _DailyAnalyticsSection extends StatelessWidget {
-  const _DailyAnalyticsSection({required this.daily});
+  const _DailyAnalyticsSection({
+    required this.daily,
+    required this.days,
+    required this.loading,
+    required this.failed,
+    required this.onRangeChanged,
+  });
 
   final List<V2UserDailyAnalytics> daily;
+  final int days;
+  final bool loading;
+  final bool failed;
+  final ValueChanged<int> onRangeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -248,8 +325,48 @@ class _DailyAnalyticsSection extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 14),
-            if (daily.isEmpty)
+            Row(
+              children: [
+                Text(l10n.t('account.analytics.daily_range')),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButton<int>(
+                    key: const Key('account-analytics-range'),
+                    isExpanded: true,
+                    value: days,
+                    items: [
+                      for (final period in [7, 14, 30, 90])
+                        DropdownMenuItem(
+                          value: period,
+                          child: Text(
+                            l10n
+                                .t('account.analytics.range_days')
+                                .replaceAll('{days}', '$period'),
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null && value != days) onRangeChanged(value);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            if (loading)
+              const LinearProgressIndicator()
+            else if (failed)
+              Wrap(
+                spacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(l10n.t('account.analytics.daily_failed')),
+                  TextButton(
+                    onPressed: () => onRangeChanged(days),
+                    child: Text(l10n.t('common.retry')),
+                  ),
+                ],
+              )
+            else if (daily.isEmpty)
               EmptyView(message: l10n.t('account.analytics.daily_empty'))
             else
               for (final item in daily) ...[
