@@ -41,9 +41,10 @@ jobs:
             echo '| 文件 | 大小（字节） | SHA-256 |'
             echo '| --- | ---: | --- |'
             for archive in "${archives[@]}"; do
-              sha256sum --check --status "$archive.sha256"
               read -r digest filename < "$archive.sha256"
+              filename="${filename%$'\r'}"
               test "$filename" = "$archive"
+              printf '%s  %s\n' "$digest" "$archive" | sha256sum --check --status --strict -
               printf '| %s | %s | %s |\n' "$archive" "$(stat -c %s "$archive")" "$digest"
             done
           } >> "$GITHUB_STEP_SUMMARY"

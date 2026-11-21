@@ -13,26 +13,54 @@ permissions:
   actions: read
 jobs:
   check:
+    needs: contracts
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: nuxt
     steps:
       - uses: actions/checkout@v4
         with:
+          path: nuxt
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: needs.contracts.outputs.go != ''
+        with:
+          path: go
+          ref: ${{ needs.contracts.outputs.go }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: needs.contracts.outputs.rust != ''
+        with:
+          path: rust
+          ref: ${{ needs.contracts.outputs.rust }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: needs.contracts.outputs.flutter != ''
+        with:
+          path: flutter
+          ref: ${{ needs.contracts.outputs.flutter }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: yarn
+          cache-dependency-path: nuxt/yarn.lock
       - run: corepack enable
       - run: yarn install --frozen-lockfile
-      - name: Check specifications and types
+      - name: Check contract sources
         run: |
           # The accepted RC8 source receipt hashes this file with Windows line endings.
           python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
           yarn contracts:check
-          yarn parity:check
+      - name: Verify parity receipts with their source checkouts
+        if: needs.contracts.outputs.nuxt != ''
+        run: yarn parity:check --workspace-root ..
+      - name: Check schema, public terms and types
+        run: |
           yarn schema-catalog:check
           yarn ai-terms:check
           yarn typecheck --dotenv .env.example
