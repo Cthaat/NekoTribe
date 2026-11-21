@@ -1,4 +1,4 @@
-//! One-connection media upload transaction. The HTTP upload path is not yet wired.
+//! Persist a published media object and map its ready row in one transaction.
 use crate::{
     auth::readiness,
     db::{
@@ -9,12 +9,36 @@ use crate::{
     },
 };
 
+pub(crate) const PRIVATE_SCOPE_PREFLIGHT_SQL: &str =
+    "SELECT access_scope FROM n_media_assets WHERE 1 = 0";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrivateScope {
+    Chat,
+    Post,
+}
+
+impl PrivateScope {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Chat => "chat",
+            Self::Post => "post",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum MediaAccess {
+    Public(String),
+    Private(PrivateScope),
+}
+
 #[derive(Clone, Debug)]
 pub struct MediaUpload {
     pub user_id: i64,
     pub size: i64,
     pub key: String,
-    pub public_url: String,
+    pub access: MediaAccess,
     pub filename: String,
     pub media_type: String,
     pub mime_type: String,
@@ -69,8 +93,14 @@ fn run<T>(
         cleanup_safe,
         schema_unavailable,
     };
-    if input.user_id <= 0 || input.size <= 0 || input.key.is_empty() || input.public_url.is_empty()
-    {
+    let valid_access = match &input.access {
+        MediaAccess::Public(url) => !url.is_empty(),
+        MediaAccess::Private(scope) => {
+            let prefix = format!("private/{}/", scope.as_str());
+            input.key.starts_with(&prefix) && input.thumbnail_url.is_none()
+        }
+    };
+    if input.user_id <= 0 || input.size <= 0 || input.key.is_empty() || !valid_access {
         return failed(true, false);
     }
     let id = match tx.next_id() {
@@ -110,7 +140,11 @@ impl MediaTransaction for OracleMediaTransaction<'_> {
         let optional_number = |v: Option<f64>| v.map(DbValue::F64).unwrap_or(DbValue::Null);
         let optional_text =
             |v: &Option<String>| DbValue::from_option_string(v.clone().filter(|s| !s.is_empty()));
-        let binds = BindMap::from([
+        let public_url = match &input.access {
+            MediaAccess::Public(url) => url.clone(),
+            MediaAccess::Private(_) => super::private_read::content_url(id).ok_or(())?,
+        };
+        let mut binds = BindMap::from([
             ("media_id".into(), DbValue::I64(id)),
             ("owner_user_id".into(), DbValue::I64(input.user_id)),
             (
@@ -119,10 +153,7 @@ impl MediaTransaction for OracleMediaTransaction<'_> {
             ),
             ("file_name".into(), DbValue::String(input.filename.clone())),
             ("storage_key".into(), DbValue::String(input.key.clone())),
-            (
-                "public_url".into(),
-                DbValue::String(input.public_url.clone()),
-            ),
+            ("public_url".into(), DbValue::String(public_url)),
             ("file_size".into(), DbValue::I64(input.size)),
             ("mime_type".into(), DbValue::String(input.mime_type.clone())),
             ("width".into(), optional_number(input.width)),
@@ -132,7 +163,13 @@ impl MediaTransaction for OracleMediaTransaction<'_> {
             ("alt_text".into(), optional_text(&input.alt_text)),
             ("description".into(), optional_text(&input.description)),
         ]);
-        let sql = "INSERT INTO n_media_assets (media_id,owner_user_id,media_type,file_name,storage_key,public_url,file_size,mime_type,width,height,duration,thumbnail_url,alt_text,description,status) VALUES (:media_id,:owner_user_id,:media_type,:file_name,:storage_key,:public_url,:file_size,:mime_type,:width,:height,:duration,:thumbnail_url,:alt_text,:description,'ready')";
+        let sql = match &input.access {
+            MediaAccess::Public(_) => "INSERT INTO n_media_assets (media_id,owner_user_id,media_type,file_name,storage_key,public_url,file_size,mime_type,width,height,duration,thumbnail_url,alt_text,description,status) VALUES (:media_id,:owner_user_id,:media_type,:file_name,:storage_key,:public_url,:file_size,:mime_type,:width,:height,:duration,:thumbnail_url,:alt_text,:description,'ready')",
+            MediaAccess::Private(scope) => {
+                binds.insert("access_scope".into(), DbValue::String(scope.as_str().into()));
+                "INSERT INTO n_media_assets (media_id,owner_user_id,media_type,file_name,storage_key,public_url,file_size,mime_type,width,height,duration,thumbnail_url,alt_text,description,status,access_scope) VALUES (:media_id,:owner_user_id,:media_type,:file_name,:storage_key,:public_url,:file_size,:mime_type,:width,:height,:duration,:thumbnail_url,:alt_text,:description,'ready',:access_scope)"
+            }
+        };
         match OracleTx::new(self.0).execute(sql, binds) {
             Ok(result) if result.rows_affected == 1 => Ok(()),
             _ => Err(()),
@@ -172,7 +209,7 @@ impl MediaUpload {
             user_id: 1,
             size: 1,
             key: "posts/a".into(),
-            public_url: "/storage/posts/a".into(),
+            access: MediaAccess::Public("/storage/posts/a".into()),
             filename: "a".into(),
             media_type: "image".into(),
             mime_type: "image/png".into(),

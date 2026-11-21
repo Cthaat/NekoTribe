@@ -208,7 +208,9 @@ pub fn publish(
 ) -> io::Result<PublishedMedia> {
     let invalid = || io::Error::new(io::ErrorKind::InvalidInput, "invalid media object");
     let key = crate::storage::local_policy::normalize_local_key(key).map_err(|_| invalid())?;
-    if !key.starts_with("posts/")
+    if !(key.starts_with("posts/")
+        || key.starts_with("avatars/")
+        || crate::storage::local_policy::is_private_storage_key(&key))
         || size == 0
         || size > 500 << 20
         || !source.metadata()?.is_file()

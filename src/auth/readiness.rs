@@ -35,13 +35,19 @@ fn catalog(feature: &str) -> Result<Value, SessionStoreError> {
         "ai-conversations" => (
             include_str!("../../contracts/requirements/ai-conversation-schema-catalog.json"),
             "AI-CONVERSATION-SCHEMA-CATALOG",
-            3,
+            5,
+        ),
+        "ai-skills" => (
+            include_str!("../../contracts/requirements/ai-skill-schema-catalog.json"),
+            "AI-SKILL-SCHEMA-CATALOG",
+            1,
         ),
         _ => return Err(SessionStoreError),
     };
     let value: Value = serde_json::from_str(content).map_err(|_| SessionStoreError)?;
+    let revision = if feature == "ai-conversations" { 3 } else { 1 };
     if value["id"] != expected_id
-        || value["revision"] != 1
+        || value["revision"] != revision
         || value["feature"]["id"] != feature
         || value["feature"]["steps"].as_array().map(Vec::len) != Some(count)
         || value["migrationChecksums"]
@@ -213,7 +219,9 @@ fn matches_column(expected: &Value, actual: &Value) -> bool {
         .and_then(|s| s.strip_suffix(')'))
     {
         return text(actual, "DATA_TYPE") == Some("VARCHAR2")
-            && inner.parse::<i64>().ok() == actual.get("CHAR_LENGTH").and_then(number);
+            && inner.parse::<i64>().ok() == actual.get("CHAR_LENGTH").and_then(number)
+            && text(expected, "charUsed")
+                .is_none_or(|unit| text(actual, "CHAR_USED") == Some(unit));
     }
     text(actual, "DATA_TYPE")
         == Some(if kind == "TIMESTAMP" {
@@ -400,6 +408,12 @@ pub(crate) fn collect_ai_conversation_snapshot(
     })
 }
 
+pub(crate) fn collect_ai_skill_snapshot(
+    connection: &::oracle::Connection,
+) -> Result<Value, DbError> {
+    collect_feature_with("ai-skills", |sql, binds| query(connection, sql, binds))
+}
+
 /// Collects an Oracle dictionary snapshot through an injected SELECT executor.
 pub fn collect_with<F>(read: F) -> Result<Value, DbError>
 where
@@ -454,7 +468,7 @@ where
         if exists.is_empty() {
             continue;
         }
-        let cols = read("SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default FROM user_tab_columns WHERE table_name = :table_name", bind("table_name", &table))?;
+        let cols = read("SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default, char_used FROM user_tab_columns WHERE table_name = :table_name", bind("table_name", &table))?;
         let constraints = read("SELECT c.constraint_name, c.constraint_type, c.search_condition_vc, c.delete_rule, c.status, c.validated, r.table_name AS referenced_table, c.r_owner AS referenced_owner FROM user_constraints c LEFT JOIN user_constraints r ON r.constraint_name = c.r_constraint_name AND c.r_owner = USER WHERE c.table_name = :table_name", bind("table_name", &table))?;
         let constraint_cols = read("SELECT c.constraint_name, c.column_name, c.position, r.column_name AS referenced_column FROM user_cons_columns c LEFT JOIN user_constraints f ON f.constraint_name = c.constraint_name LEFT JOIN user_cons_columns r ON r.constraint_name = f.r_constraint_name AND r.position = c.position AND f.r_owner = USER WHERE c.table_name = :table_name ORDER BY c.constraint_name, c.position", bind("table_name", &table))?;
         let mut enriched = Vec::new();

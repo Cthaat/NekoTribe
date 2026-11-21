@@ -1,10 +1,12 @@
 use super::local_policy::{normalize_local_key, parse_local_byte_range};
+use crate::media::private_read::PrivateKey;
 use axum::{
     body::Body,
-    extract::{Path, State},
-    http::{header, HeaderMap, Response, StatusCode},
+    extract::{OriginalUri, Path, State},
+    http::{header, HeaderMap, Method, Response, StatusCode},
+    response::IntoResponse,
     routing::get,
-    Router,
+    Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::{
@@ -18,37 +20,78 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 pub struct LocalStorageConfig {
     pub root: PathBuf,
     pub unsupported: bool,
+    pub s3: Option<super::s3::S3Storage>,
 }
 impl LocalStorageConfig {
     pub fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Self {
-        let value = |key| {
+        let value = |key: &str| {
             get(key)
                 .map(|s| s.trim().to_owned())
                 .filter(|s| !s.is_empty())
         };
+        let use_s3 = value("STORAGE_TYPE").as_deref() == Some("s3");
+        let s3 = use_s3
+            .then(|| super::s3::S3Storage::from_lookup(&value))
+            .flatten();
         Self {
             root: value("STORAGE_PATH")
                 .or_else(|| value("STORAGE_ROOT_DIR"))
                 .unwrap_or_else(|| "./storage".into())
                 .into(),
-            unsupported: value("STORAGE_TYPE").as_deref() == Some("s3"),
+            unsupported: use_s3 && s3.is_none(),
+            s3,
         }
     }
 }
 
 pub fn router(config: LocalStorageConfig) -> Router {
     Router::new()
-        .route("/storage/{*key}", get(read))
+        .route("/storage/{*key}", get(read).head(read))
+        .route("/uploads/{*key}", get(retired_storage))
+        .route("/upload/{*key}", get(retired_storage))
         .with_state(config)
 }
 
-const AVATAR: &str = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAQAAAAAYLlVAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAiklEQVR4nO3XwQmAMBAEwTn77y6doC3YgGCWoJcQecBqYSkAAAAAAAAAAAAAAGBc2q7r+7y7e0T7Yx5smN1vyXodD9bK7q7I0cxdMM9wPZz8x0y2H2Y9nLxj5mx1dbrYqX5cJ8eVnqE7x1B8hTn7gk3f4g0AAAAAAAAAAAAAAIB3bQF6rA1Xj2GmQAAAAABJRU5ErkJggg==";
+async fn retired_storage(OriginalUri(uri): OriginalUri) -> impl IntoResponse {
+    let requested = uri.path();
+    let prefix = if requested.starts_with("/uploads/") {
+        "/uploads"
+    } else {
+        "/upload"
+    };
+    (
+        StatusCode::GONE,
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(serde_json::json!({
+            "code": 410,
+            "message": format!("Legacy {prefix} path removed. Public files are served from /storage."),
+            "data": {"requested_path": requested, "storage_base": "/storage"},
+            "meta": null
+        })),
+    )
+}
 
-fn error(status: StatusCode) -> Response<Body> {
+const AVATAR: &str = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAA/UlEQVR42u2YOw4CMQxENyOuyg2oKai5AbejouQI9FCQOJOf8lyuVva8OJE/6fl6HyubjsUNAAAAAAAAAJa2UyO/t/vj68v1cm4RKNl7oV/pTTHUU33ODyMBMsV5GdRZvZ1B/dV7GagDFWdpSQIZAAAAAMLtjaUvIgPRs3S1pbYMFAkyNtXOK5QpyzsSmN/AX3H2gSY12k4vPFJSyAA49tkLucbCmvcdfMT27UgYQ5OoD7vVJOrDzjWP+lgITaU+EGibOtDt+EvDUYkBAGATgEbzVH24na5QtyQUBdKQbZQxhEZt1FzONWop63JbtVZZeKSkkAEAAAAAADCHfQBIWmGUrvIeKwAAAABJRU5ErkJggg==";
+
+pub(super) fn error(status: StatusCode) -> Response<Body> {
     Response::builder()
         .status(status)
         .body(Body::empty())
         .unwrap()
+}
+
+pub(super) fn missing(key: &str) -> Response<Body> {
+    if key == "default-avatar.png" {
+        let data = STANDARD.decode(AVATAR).expect("constant avatar");
+        return Response::builder()
+            .status(200)
+            .header(header::CONTENT_TYPE, "image/png")
+            .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
+            .header(header::CONTENT_LENGTH, data.len())
+            .body(Body::from(data))
+            .unwrap();
+    }
+    error(StatusCode::NOT_FOUND)
 }
 
 pub(crate) fn link(metadata: &Metadata) -> bool {
@@ -85,10 +128,9 @@ async fn read(
     State(config): State<LocalStorageConfig>,
     Path(raw): Path<String>,
     headers: HeaderMap,
+    method: Method,
 ) -> Response<Body> {
-    if config.unsupported {
-        return error(StatusCode::NOT_IMPLEMENTED);
-    }
+    let head_only = method == Method::HEAD;
     let key = match normalize_local_key(&raw) {
         Ok(key) => key,
         Err(_) => return error(StatusCode::BAD_REQUEST),
@@ -96,27 +138,45 @@ async fn read(
     if key
         .split('/')
         .next()
-        .is_some_and(|s| s.eq_ignore_ascii_case("temp"))
+        .is_some_and(|s| s.eq_ignore_ascii_case("temp") || s.eq_ignore_ascii_case("private"))
     {
         return error(StatusCode::NOT_FOUND);
     }
-    let root = config.root.clone();
-    let name = key.clone();
+    if config.unsupported {
+        return if super::s3::managed(&key).is_some() {
+            error(StatusCode::SERVICE_UNAVAILABLE)
+        } else {
+            missing(&key)
+        };
+    }
+    if let Some(s3) = config.s3 {
+        return s3.read(&key, &headers, head_only).await;
+    }
+    read_local(config.root, &key, &headers, head_only).await
+}
+
+pub(crate) async fn read_private(
+    config: LocalStorageConfig,
+    key: &PrivateKey,
+    headers: &HeaderMap,
+    head_only: bool,
+) -> Response<Body> {
+    if let Some(s3) = config.s3 {
+        return s3.read_private(key, headers, head_only).await;
+    }
+    read_local(config.root, key.as_str(), headers, head_only).await
+}
+
+async fn read_local(
+    root: PathBuf,
+    key: &str,
+    headers: &HeaderMap,
+    head_only: bool,
+) -> Response<Body> {
+    let name = key.to_owned();
     let file = match tokio::task::spawn_blocking(move || open_checked(&root, &name)).await {
         Ok(Ok(file)) => file,
-        Ok(Err(e)) if e.kind() == io::ErrorKind::NotFound => {
-            if key == "default-avatar.png" {
-                let data = STANDARD.decode(AVATAR).expect("constant avatar");
-                return Response::builder()
-                    .status(200)
-                    .header(header::CONTENT_TYPE, "image/png")
-                    .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
-                    .header(header::CONTENT_LENGTH, data.len())
-                    .body(Body::from(data))
-                    .unwrap();
-            }
-            return error(StatusCode::NOT_FOUND);
-        }
+        Ok(Err(e)) if e.kind() == io::ErrorKind::NotFound => return missing(key),
         _ => return error(StatusCode::INTERNAL_SERVER_ERROR),
     };
     let metadata = match file.metadata() {
@@ -125,7 +185,7 @@ async fn read(
         Err(_) => return error(StatusCode::INTERNAL_SERVER_ERROR),
     };
     let size = metadata.len();
-    let raw_range = match headers.get(header::RANGE) {
+    let raw_range = match headers.get(header::RANGE).filter(|_| !head_only) {
         Some(v) => match v.to_str() {
             Ok(s) => s,
             Err(_) => "invalid",
@@ -170,7 +230,7 @@ async fn read(
     });
     let mut builder = Response::builder()
         .status(if range.is_some() { 206 } else { 200 })
-        .header(header::CONTENT_TYPE, mime(&key))
+        .header(header::CONTENT_TYPE, mime(key))
         .header(header::CONTENT_LENGTH, length)
         .header(header::ACCEPT_RANGES, "bytes")
         .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
@@ -192,10 +252,16 @@ async fn read(
             builder = builder.header(header::ETAG, format!("\"{size}-{millis}\""));
         }
     }
-    builder.body(Body::from_stream(stream)).unwrap()
+    builder
+        .body(if head_only {
+            Body::empty()
+        } else {
+            Body::from_stream(stream)
+        })
+        .unwrap()
 }
 
-fn mime(key: &str) -> &'static str {
+pub(super) fn mime(key: &str) -> &'static str {
     match FsPath::new(key)
         .extension()
         .and_then(|s| s.to_str())
@@ -204,6 +270,7 @@ fn mime(key: &str) -> &'static str {
         .as_str()
     {
         "7z" => "application/x-7z-compressed",
+        "avif" => "image/avif",
         "csv" => "text/csv",
         "doc" => "application/msword",
         "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -217,7 +284,8 @@ fn mime(key: &str) -> &'static str {
         "odp" => "application/vnd.oasis.opendocument.presentation",
         "ods" => "application/vnd.oasis.opendocument.spreadsheet",
         "odt" => "application/vnd.oasis.opendocument.text",
-        "ogg" => "audio/ogg",
+        "oga" | "ogg" | "opus" | "spx" => "audio/ogg",
+        "ogm" | "ogv" => "video/ogg",
         "pdf" => "application/pdf",
         "png" => "image/png",
         "ppt" => "application/vnd.ms-powerpoint",
@@ -229,6 +297,7 @@ fn mime(key: &str) -> &'static str {
         "txt" => "text/plain",
         "wav" => "audio/wav",
         "webm" => "video/webm",
+        "webp" => "image/webp",
         "xls" => "application/vnd.ms-excel",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "xml" => "application/xml",

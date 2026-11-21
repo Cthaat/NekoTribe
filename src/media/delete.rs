@@ -1,9 +1,10 @@
 use crate::{
-    auth::{
-        session_repository::SessionExecutor,
-        sessions::{NativeState, SessionStoreError},
+    auth::sessions::NativeState,
+    db::{
+        oracle::{BindMap, DbError},
+        tx::Transaction,
+        value::DbValue,
     },
-    db::{oracle::BindMap, value::DbValue},
     httpx::{errors::ApiError, response::V2Response},
     storage::{
         local_http::{link, LocalStorageConfig},
@@ -16,13 +17,39 @@ use axum::{
     response::{IntoResponse, Response},
     Extension, Json,
 };
-use std::{fs, io, path::Path};
+use serde::Deserialize;
+use std::{fs, io, path::Path, sync::OnceLock};
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ReferenceContract {
+    check_references: String,
+    pub(crate) key_pattern: String,
+    pub(crate) alias_pattern: String,
+    pub(crate) lookup_group_images: String,
+    pub(crate) lock_group_image: String,
+}
+
+pub(crate) fn reference_contract() -> &'static ReferenceContract {
+    static CONTRACT: OnceLock<ReferenceContract> = OnceLock::new();
+    &CONTRACT.get_or_init(|| {
+        serde_json::from_str(include_str!("../../contracts/requirements/media-delete-references.json"))
+            .expect("valid media delete reference contract")
+    })
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MediaDelete {
     pub key: Option<String>,
     pub public_url: Option<String>,
     pub thumbnail_url: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MediaDeleteOutcome {
+    Missing,
+    InUse,
+    Deleted(MediaDelete),
 }
 
 pub(crate) async fn remove(
@@ -39,30 +66,22 @@ pub(crate) async fn remove(
         let id = crate::posts::create_request::string_number(crate::auth::login::js_trim(&decoded))
             .filter(|v| v.is_finite() && *v > 0.0)
             .ok_or_else(|| ApiError::bad_request("id 参数错误"))?;
-        let Some(record) = state
+        let record = match state
             .repository
             .delete_media(user, id)
             .await
             .map_err(|_| ApiError::server_error("服务器内部错误"))?
-        else {
-            return Err(ApiError::not_found("媒体不存在"));
+        {
+            MediaDeleteOutcome::Missing => return Err(ApiError::not_found("媒体不存在")),
+            MediaDeleteOutcome::InUse => return Err(ApiError::conflict("媒体正在使用")),
+            MediaDeleteOutcome::Deleted(record) => record,
         };
         let config = config
             .map(|x| x.0)
             .unwrap_or_else(|| LocalStorageConfig::from_lookup(|_| None));
         let policy = state.storage_urls.clone();
-        tokio::task::spawn_blocking(move || {
-            remove_reference(
-                &config,
-                &policy,
-                record.key.as_deref(),
-                record.public_url.as_deref(),
-            )?;
-            remove_reference(&config, &policy, None, record.thumbnail_url.as_deref())
-        })
-        .await
-        .map_err(|_| ApiError::server_error("服务器内部错误"))?
-        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+        remove_references(config,policy,record).await
+            .map_err(|_| ApiError::server_error("服务器内部错误"))?;
         Ok(Json(V2Response::null("media deleted")).into_response())
     }
     .await;
@@ -74,27 +93,70 @@ pub(crate) async fn remove(
     response
 }
 
-pub async fn remove_from_store<E: SessionExecutor>(
-    executor: &E,
+async fn remove_references(config: LocalStorageConfig, policy: crate::auth::storage_urls::StorageUrlPolicy, record: MediaDelete) -> Result<(), ()> {
+    if let Some(s3) = config.s3 {
+        return tokio::spawn(async move {
+            for (key, public_url) in [
+                (record.key.as_deref(), record.public_url.as_deref()),
+                (None, record.thumbnail_url.as_deref()),
+            ] {
+                if let Some(key) = resolve_reference(&policy, key, public_url)? {
+                    s3.delete(&key).await.map_err(|_| ())?;
+                }
+            }
+            Ok(())
+        }).await.map_err(|_| ())?;
+    }
+    tokio::task::spawn_blocking(move || {
+        remove_reference(&config,&policy,record.key.as_deref(),record.public_url.as_deref())?;
+        remove_reference(&config,&policy,None,record.thumbnail_url.as_deref())
+    }).await.map_err(|_|())?
+}
+
+pub fn run<T: Transaction>(
+    tx: &T,
     user: u64,
     id: f64,
-) -> Result<Option<MediaDelete>, SessionStoreError> {
-    let user = i64::try_from(user).map_err(|_| SessionStoreError)?;
+) -> Result<MediaDeleteOutcome, DbError> {
+    let user = i64::try_from(user).map_err(|_| DbError::ExpectedNumber("user_id".into()))?;
+    match remove_row(tx, user, id) {
+        Ok(MediaDeleteOutcome::Deleted(record)) => {
+            if let Err(error) = tx.commit() {
+                let _ = tx.rollback();
+                return Err(error);
+            }
+            Ok(MediaDeleteOutcome::Deleted(record))
+        }
+        result => {
+            tx.rollback()?;
+            result
+        }
+    }
+}
+
+fn remove_row<T: Transaction>(tx: &T, user: i64, id: f64) -> Result<MediaDeleteOutcome, DbError> {
     let bindings = || {
         BindMap::from([
             ("media_id".into(), DbValue::F64(id)),
             ("user_id".into(), DbValue::I64(user)),
         ])
     };
-    let rows=executor.query("SELECT storage_key, public_url, thumbnail_url FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id",bindings()).await?;
+    let rows = tx.query("SELECT storage_key, public_url, thumbnail_url FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id FOR UPDATE", bindings())?;
     let Some(row) = rows.first() else {
-        return Ok(None);
+        return Ok(MediaDeleteOutcome::Missing);
     };
-    let value = |key: &str| -> Result<Option<String>, SessionStoreError> {
+    let references = tx.query(
+        &reference_contract().check_references,
+        BindMap::from([("media_id".into(), DbValue::F64(id))]),
+    )?;
+    if !references.is_empty() {
+        return Ok(MediaDeleteOutcome::InUse);
+    }
+    let value = |key: &str| -> Result<Option<String>, DbError> {
         match row.get(key) {
             Some(DbValue::Null) => Ok(None),
             Some(DbValue::String(s)) => Ok((!s.is_empty()).then(|| s.clone())),
-            _ => Err(SessionStoreError),
+            _ => Err(DbError::SchemaNotReady),
         }
     };
     let record = MediaDelete {
@@ -102,16 +164,15 @@ pub async fn remove_from_store<E: SessionExecutor>(
         public_url: value("PUBLIC_URL")?,
         thumbnail_url: value("THUMBNAIL_URL")?,
     };
-    match executor
+    match tx
         .execute(
             "DELETE FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id",
             bindings(),
-        )
-        .await?
+        )?
     {
-        0 => Ok(None),
-        1 => Ok(Some(record)),
-        _ => Err(SessionStoreError),
+        0 => Ok(MediaDeleteOutcome::Missing),
+        1 => Ok(MediaDeleteOutcome::Deleted(record)),
+        _ => Err(DbError::SchemaNotReady),
     }
 }
 
@@ -121,11 +182,7 @@ fn remove_reference(
     key: Option<&str>,
     reference: Option<&str>,
 ) -> Result<(), ()> {
-    let key = match key.filter(|s| !s.is_empty()) {
-        Some(key) => Some(normalize_local_key(key).map_err(|_| ())?),
-        None => policy.managed_key(reference.unwrap_or(""))?,
-    };
-    let Some(key) = key else { return Ok(()) };
+    let Some(key) = resolve_reference(policy,key,reference)? else { return Ok(()) };
     if config.unsupported
         || key
             .split('/')
@@ -157,6 +214,25 @@ fn remove_reference(
     }
 }
 
+fn resolve_reference(policy: &crate::auth::storage_urls::StorageUrlPolicy, key: Option<&str>, reference: Option<&str>) -> Result<Option<String>, ()> {
+    let explicit = key.filter(|value| !value.is_empty());
+    let selected = match explicit {
+        Some(key) => Some(normalize_local_key(key).map_err(|_| ())?),
+        None => policy.managed_key(reference.unwrap_or(""))?,
+    };
+    let Some(key) = selected else { return Ok(None) };
+    let prefix = key.split('/').next().unwrap_or_default();
+    if prefix.eq_ignore_ascii_case("private") {
+        if explicit.is_none() {
+            return Ok(None);
+        }
+        if !crate::storage::local_policy::is_private_storage_key(&key) {
+            return Err(());
+        }
+    }
+    Ok(Some(key))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +245,7 @@ mod tests {
         let config = LocalStorageConfig {
             root: root.clone(),
             unsupported: false,
+            s3: None,
         };
         let policy = crate::auth::storage_urls::StorageUrlPolicy::from_lookup(|key| match key {
             "STORAGE_PUBLIC_BASE" => Some("/media".into()),
@@ -196,7 +273,8 @@ mod tests {
         assert!(remove_reference(
             &LocalStorageConfig {
                 root: root.clone(),
-                unsupported: true
+                unsupported: true,
+                s3: None,
             },
             &policy,
             Some("owned/a.txt"),
@@ -215,6 +293,7 @@ mod tests {
         let config = LocalStorageConfig {
             root: root.clone(),
             unsupported: false,
+            s3: None,
         };
         assert!(remove_reference(&config, &Default::default(), Some("link/a.txt"), None).is_err());
         assert!(root.join("outside/a.txt").exists());

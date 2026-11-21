@@ -7,7 +7,9 @@ use axum::{
 use serde_json::Value;
 use std::sync::OnceLock;
 
-use crate::{app::state::AppState, httpx::errors::ApiError};
+use crate::{
+    app::state::AppState, httpx::errors::ApiError, media::upload::PRIVATE_UPLOAD_ROUTE,
+};
 
 const MAX_PROXY_BODY_BYTES: usize = 64 * 1024 * 1024;
 const V2_OPENAPI_JSON: &str = include_str!("../../contracts/v2.openapi.json");
@@ -21,6 +23,9 @@ struct V2RoutePattern {
 
 pub async fn proxy_to_legacy(State(state): State<AppState>, request: Request<Body>) -> Response {
     let path = request.uri().path();
+    if let Some(response) = crate::sentiment_retirement::response(request.method(), path) {
+        return response;
+    }
     if path.starts_with("/api/v2/") && !is_known_v2_route(request.method().as_str(), path) {
         return ApiError::route_not_found().into_response();
     }
@@ -50,10 +55,6 @@ pub fn is_known_v2_route(method: &str, path: &str) -> bool {
         return v2_routes()
             .iter()
             .any(|route| route_pattern_matches(&route.pattern, path));
-    }
-
-    if path.starts_with("/api/v2/integrations/sentiment-flow") {
-        return true;
     }
 
     let method = method.to_ascii_lowercase();
@@ -96,6 +97,9 @@ fn load_v2_routes() -> Vec<V2RoutePattern> {
 }
 
 fn route_pattern_matches(pattern: &str, path: &str) -> bool {
+    if pattern == PRIVATE_UPLOAD_ROUTE {
+        return path == pattern;
+    }
     let pattern_segments = pattern.trim_matches('/').split('/').collect::<Vec<_>>();
     let path_segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
 
@@ -108,16 +112,35 @@ fn route_pattern_matches(pattern: &str, path: &str) -> bool {
             })
 }
 
+fn private_upload_proxy_error() -> ApiError {
+    ApiError::new(StatusCode::BAD_GATEWAY, 50201, "媒体存储暂不可用")
+}
+
+fn private_upload_client() -> Result<&'static reqwest::Client, ApiError> {
+    static CLIENT: OnceLock<Result<reqwest::Client, reqwest::Error>> = OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+        })
+        .as_ref()
+        .map_err(|_| private_upload_proxy_error())
+}
+
 async fn forward(state: AppState, request: Request<Body>) -> Result<Response, ApiError> {
     let (parts, body) = request.into_parts();
     let upstream_url = build_upstream_url(&state.config.legacy_backend.base_url, &parts.uri)?;
+    let private_upload = parts.uri.path() == PRIVATE_UPLOAD_ROUTE;
     let body = to_bytes(body, MAX_PROXY_BODY_BYTES)
         .await
         .map_err(|_| ApiError::bad_request("请求体读取失败"))?;
-    let mut upstream = state
-        .http_client
-        .request(parts.method.clone(), upstream_url)
-        .body(body);
+    let client = if private_upload {
+        private_upload_client()?
+    } else {
+        &state.http_client
+    };
+    let mut upstream = client.request(parts.method.clone(), upstream_url).body(body);
 
     for (name, value) in &parts.headers {
         if should_forward_request_header(name, &parts.headers) {
@@ -125,11 +148,17 @@ async fn forward(state: AppState, request: Request<Body>) -> Result<Response, Ap
         }
     }
 
-    let upstream_response = upstream
-        .send()
-        .await
-        .map_err(|error| ApiError::server_error(format!("legacy backend unavailable: {error}")))?;
+    let upstream_response = upstream.send().await.map_err(|error| {
+        if private_upload {
+            private_upload_proxy_error()
+        } else {
+            ApiError::server_error(format!("legacy backend unavailable: {error}"))
+        }
+    })?;
     let status = upstream_response.status();
+    if private_upload && status.is_redirection() {
+        return Err(private_upload_proxy_error());
+    }
     let headers = upstream_response.headers().clone();
     let bytes = upstream_response
         .bytes()

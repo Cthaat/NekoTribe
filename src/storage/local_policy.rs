@@ -9,6 +9,10 @@ pub struct ByteRange {
     pub start: u64,
     pub end: u64,
 }
+pub(crate) fn is_private_storage_key(key: &str) -> bool {
+    key.starts_with("private/chat/") || key.starts_with("private/post/")
+}
+
 pub fn normalize_local_key(key: &str) -> Result<String, StoragePolicyError> {
     let normalized = key.replace('\\', "/");
     for part in normalized.split('/') {

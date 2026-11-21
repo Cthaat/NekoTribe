@@ -1,4 +1,5 @@
 //! Bounded streaming multipart parser; the caller authenticates before invoking it.
+use super::upload_transaction::PrivateScope;
 use axum::body::Body;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 
@@ -26,30 +27,80 @@ impl Default for Limits {
 #[derive(Debug)]
 pub enum ParseError {
     Invalid,
+    InvalidAccessScope,
     NoFile,
     Storage,
 }
 
 pub struct SelectedMedia {
     pub file: tokio::fs::File,
+    pub(crate) temp_path: Option<tempfile::TempPath>,
     pub name: String,
     pub mime: String,
     pub size: u64,
     pub alt_text: String,
     pub description: String,
+    pub private_scope: Option<PrivateScope>,
 }
 
 struct PartFile {
     file: tokio::fs::File,
+    temp_path: Option<tempfile::TempPath>,
     name: String,
     mime: String,
     size: u64,
+}
+
+fn create_staged_file() -> std::io::Result<(std::fs::File, Option<tempfile::TempPath>)> {
+    #[cfg(windows)]
+    {
+        let (file, path) = tempfile::NamedTempFile::new()?.into_parts();
+        Ok((file, Some(path)))
+    }
+    #[cfg(not(windows))]
+    {
+        Ok((tempfile::tempfile()?, None))
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ScopePolicy {
+    Ignore,
+    Optional,
+    RequiredPrivate,
 }
 
 pub async fn parse(
     body: Body,
     boundary: &str,
     limits: Limits,
+) -> Result<SelectedMedia, ParseError> {
+    parse_fields(body, boundary, limits, "media", ScopePolicy::Optional).await
+}
+
+pub(crate) async fn parse_private(
+    body: Body,
+    boundary: &str,
+    limits: Limits,
+) -> Result<SelectedMedia, ParseError> {
+    parse_fields(body, boundary, limits, "media", ScopePolicy::RequiredPrivate).await
+}
+
+pub(crate) async fn parse_with_alias(
+    body: Body,
+    boundary: &str,
+    limits: Limits,
+    alias: &str,
+) -> Result<SelectedMedia, ParseError> {
+    parse_fields(body, boundary, limits, alias, ScopePolicy::Ignore).await
+}
+
+async fn parse_fields(
+    body: Body,
+    boundary: &str,
+    limits: Limits,
+    alias: &str,
+    scope_policy: ScopePolicy,
 ) -> Result<SelectedMedia, ParseError> {
     if boundary.is_empty()
         || limits.file_bytes == 0
@@ -75,7 +126,7 @@ pub async fn parse(
     );
     let (mut primary, mut alternate) = (None, None);
     let (mut files, mut fields, mut total_files, mut total_fields) = (0usize, 0usize, 0u64, 0u64);
-    let (mut alt_text, mut description) = (None, None);
+    let (mut alt_text, mut description, mut access_scope) = (None, None, None);
     while let Some(mut field) = multipart
         .next_field()
         .await
@@ -92,7 +143,7 @@ pub async fn parse(
                 .content_type()
                 .map(ToString::to_string)
                 .unwrap_or_default();
-            let temp = tokio::task::spawn_blocking(tempfile::tempfile)
+            let (temp, temp_path) = tokio::task::spawn_blocking(create_staged_file)
                 .await
                 .map_err(|_| ParseError::Storage)?
                 .map_err(|_| ParseError::Storage)?;
@@ -118,13 +169,14 @@ pub async fn parse(
             file.flush().await.map_err(|_| ParseError::Storage)?;
             let item = PartFile {
                 file,
+                temp_path,
                 name,
                 mime,
                 size,
             };
             if field_name == "file" && primary.is_none() {
                 primary = Some(item);
-            } else if field_name == "media" && alternate.is_none() {
+            } else if field_name == alias && alternate.is_none() {
                 alternate = Some(item);
             }
         } else {
@@ -132,8 +184,16 @@ pub async fn parse(
             if fields > limits.fields {
                 return Err(ParseError::Invalid);
             }
-            let capture = (field_name == "alt_text" && alt_text.is_none())
-                || (field_name == "description" && description.is_none());
+            let target = match field_name.as_str() {
+                "alt_text" if alt_text.is_none() => Some(&mut alt_text),
+                "description" if description.is_none() => Some(&mut description),
+                "access_scope"
+                    if !matches!(scope_policy, ScopePolicy::Ignore) && access_scope.is_none() =>
+                {
+                    Some(&mut access_scope)
+                }
+                _ => None,
+            };
             let mut value = Vec::new();
             while let Some(chunk) = field.chunk().await.map_err(|_| ParseError::Invalid)? {
                 total_fields = total_fields
@@ -142,20 +202,21 @@ pub async fn parse(
                 if total_fields > limits.field_bytes {
                     return Err(ParseError::Invalid);
                 }
-                if capture {
+                if target.is_some() {
                     value.extend_from_slice(&chunk);
                 }
             }
-            if capture {
-                let value = String::from_utf8_lossy(&value).into_owned();
-                if field_name == "alt_text" {
-                    alt_text = Some(value);
-                } else {
-                    description = Some(value);
-                }
+            if let Some(target) = target {
+                *target = Some(String::from_utf8_lossy(&value).into_owned());
             }
         }
     }
+    let private_scope = match access_scope.as_deref() {
+        None | Some("public") if !matches!(scope_policy, ScopePolicy::RequiredPrivate) => None,
+        Some("chat") => Some(PrivateScope::Chat),
+        Some("post") => Some(PrivateScope::Post),
+        _ => return Err(ParseError::InvalidAccessScope),
+    };
     let mut selected = primary.or(alternate).ok_or(ParseError::NoFile)?;
     selected
         .file
@@ -164,11 +225,13 @@ pub async fn parse(
         .map_err(|_| ParseError::Storage)?;
     Ok(SelectedMedia {
         file: selected.file,
+        temp_path: selected.temp_path,
         name: selected.name,
         mime: selected.mime,
         size: selected.size,
         alt_text: alt_text.unwrap_or_default(),
         description: description.unwrap_or_default(),
+        private_scope,
     })
 }
 

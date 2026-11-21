@@ -19,8 +19,8 @@ pub enum BackendMode {
 impl BackendMode {
     pub fn parse(raw: Option<&str>) -> Result<Self, ConfigError> {
         match raw {
-            None | Some("compat") => Ok(Self::Compat),
-            Some("native") => Ok(Self::Native),
+            None | Some("native") => Ok(Self::Native),
+            Some("compat") => Ok(Self::Compat),
             _ => Err(ConfigError::new("invalid backend mode")),
         }
     }
@@ -119,17 +119,30 @@ impl fmt::Display for ConfigError {
 
 impl Error for ConfigError {}
 
+pub(crate) fn shared_native_value(
+    get: &impl Fn(&str) -> Option<String>,
+    key: &str,
+) -> Option<String> {
+    get(&format!("NUXT_{key}")).or_else(|| get(key))
+}
+
 impl AppConfig {
     pub fn native_from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
+        let shared = |key: &str| shared_native_value(&get, key);
         let required = |key: &str| {
-            get(key)
+            shared(key)
                 .filter(|v| !v.trim().is_empty())
-                .ok_or_else(|| ConfigError::new("missing native configuration"))
+                .ok_or_else(|| ConfigError::new(format!("missing native setting: {key}")))
         };
-        let port =
-            |key: &str, default: u16| get(key).map(|v| native_port(&v)).unwrap_or(Ok(default));
+        let port = |key: &str, default: u16| {
+            shared(key)
+                .filter(|v| !v.is_empty())
+                .map(|v| native_port(&v))
+                .unwrap_or(Ok(default))
+        };
         let pool = |key: &str, default: usize| {
-            get(key)
+            shared(key)
+                .filter(|v| !v.is_empty())
                 .map(|v| {
                     v.parse::<usize>()
                         .map_err(|_| ConfigError::new("invalid pool range"))
@@ -145,7 +158,7 @@ impl AppConfig {
             .or_else(|| get("PORT"))
             .map(|v| native_port(&v))
             .transpose()?
-            .unwrap_or(8080);
+            .unwrap_or(30003);
         let host = get("HOST").unwrap_or_else(|| "127.0.0.1".into());
         if host.trim().is_empty() {
             return Err(ConfigError::new("invalid host"));
@@ -154,7 +167,7 @@ impl AppConfig {
             get(nuxt_key)
                 .or_else(|| get(legacy_key))
                 .map(|v| {
-                    v.trim()
+                    v.trim_matches([' ', '\t', '\r', '\n', '\x0c', '\x0b'])
                         .parse::<u64>()
                         .ok()
                         .filter(|v| *v > 0)
@@ -185,7 +198,7 @@ impl AppConfig {
                 refresh_policy: crate::auth::sessions::RefreshPolicy {
                     access_seconds,
                     refresh_seconds,
-                    cookie_secure: get("COOKIE_SECURE").as_deref() == Some("true"),
+                    cookie_secure: shared("COOKIE_SECURE").as_deref() == Some("true"),
                 },
                 storage_urls: crate::auth::storage_urls::StorageUrlPolicy::from_lookup(&get),
                 local_storage: crate::storage::local_http::LocalStorageConfig::from_lookup(&get),
@@ -198,7 +211,7 @@ impl AppConfig {
                 port: server_port,
             },
             auth: AuthConfig {
-                cookie_secure: parse_bool(get("COOKIE_SECURE").as_deref()),
+                cookie_secure: parse_bool(shared("COOKIE_SECURE").as_deref()),
             },
             oracle: OracleConfig {
                 host: required("ORACLE_HOST")?,
@@ -324,7 +337,7 @@ impl AppConfig {
                 port: 5501,
                 service_name: "ORCLPDB1".to_string(),
                 user: "neko_app".to_string(),
-                password: "NekoApp2026#".to_string(),
+                password: "fixture-oracle-password".to_string(),
                 pool_min: 2,
                 pool_max: 10,
             },
@@ -356,9 +369,10 @@ fn native_redis_from_lookup(
     ]
     .iter()
     .any(|key| parse_bool(get(key).as_deref()));
-    let mut raw = value(&["NUXT_REDIS_URL", "REDIS_URL"]);
-    let mut host = value(&["NUXT_REDIS_HOST", "REDIS_HOST"]);
-    let mut port = value(&["NUXT_REDIS_PORT", "REDIS_PORT"]);
+    let shared = |key| shared_native_value(get, key).filter(|value| !value.is_empty());
+    let mut raw = shared("REDIS_URL");
+    let mut host = shared("REDIS_HOST");
+    let mut port = shared("REDIS_PORT");
     if docker {
         raw = value(&["DOCKER_REDIS_URL"]).or(raw);
         host = value(&["DOCKER_REDIS_HOST"]).or(host);
@@ -373,10 +387,16 @@ fn native_redis_from_lookup(
     if !matches!(url.scheme(), "redis" | "rediss")
         || url.host_str().is_none()
         || url.fragment().is_some()
+        || url.port() == Some(0)
     {
         return Err(invalid());
     }
     if let Some(host) = host {
+        let host = if host.parse::<std::net::Ipv6Addr>().is_ok() {
+            format!("[{host}]")
+        } else {
+            host
+        };
         url.set_host(Some(&host)).map_err(|_| invalid())?;
     }
     let port = match port {
@@ -390,11 +410,14 @@ fn native_redis_from_lookup(
     } else {
         path.parse::<u16>().map_err(|_| invalid())?
     };
-    if let Some(value) = value(&["NUXT_REDIS_DB", "REDIS_DB"]) {
+    if let Some(value) = shared("REDIS_DB") {
         db = value.parse::<u16>().map_err(|_| invalid())?;
     }
     url.set_path(&format!("/{db}"));
-    if let Some(password) = value(&["NUXT_REDIS_PASSWORD", "REDIS_PASSWORD"]) {
+    if let Some(password) = shared("REDIS_PASSWORD") {
+        // The URL setter preserves percent escapes, but the Redis client decodes them.
+        // This setting is a literal password rather than URL userinfo.
+        let password = password.replace('%', "%25");
         url.set_password(Some(&password)).map_err(|_| invalid())?;
     }
     Ok(RedisConfig {

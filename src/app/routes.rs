@@ -17,7 +17,7 @@ use crate::{
     config::env::{AppConfig, BackendMode},
     db::pool::OraclePool,
     httpx::errors::ApiError,
-    middleware::{logging, request_id, security_headers},
+    middleware::{cache, logging, request_id, security_headers},
     proxy::legacy,
 };
 
@@ -42,10 +42,12 @@ pub fn build_router(config: AppConfig) -> Router {
 
     Router::new()
         .route("/api/health", get(health))
+        .route("/api/ready", get(super::readiness::compat_unavailable))
         .route("/api/v2/{*path}", any(legacy::proxy_to_legacy))
         .route("/storage/{*path}", get(legacy::proxy_to_legacy))
         .route("/uploads/{*path}", get(legacy::proxy_to_legacy))
         .nest("/api/v2", Router::new().fallback(v2_route_not_found))
+        .layer(axum_middleware::from_fn(cache::api_no_store))
         .layer(axum_middleware::from_fn(logging::log_request_response))
         .layer(axum_middleware::from_fn_with_state(
             config.clone(),
@@ -57,9 +59,11 @@ pub fn build_router(config: AppConfig) -> Router {
 
 // Startup preflight precedes binding a listening socket. Unit/HTTP tests can
 // inject a SessionRepository without touching Oracle or a legacy upstream.
-pub async fn prepare_router(config: AppConfig) -> Result<Router, SessionStoreError> {
+pub async fn prepare_router(
+    config: AppConfig,
+) -> Result<(Router, Option<tokio::task::JoinHandle<()>>), SessionStoreError> {
     if config.backend_mode == BackendMode::Compat {
-        return Ok(build_router(config));
+        return Ok((build_router(config), None));
     }
     let pool = OraclePool::new(config.oracle.clone());
     let repository = Arc::new(OracleSessions {
@@ -68,7 +72,9 @@ pub async fn prepare_router(config: AppConfig) -> Result<Router, SessionStoreErr
     tokio::time::timeout(std::time::Duration::from_secs(15), repository.preflight())
         .await
         .map_err(|_| SessionStoreError)??;
-    native_router(config, repository, pool)
+    let router = native_router(config, repository, pool.clone())?;
+    let sweep = tokio::spawn(crate::moderation::ban_expiry::run_sweep(pool));
+    Ok((router, Some(sweep)))
 }
 fn native_router(
     config: AppConfig,
@@ -85,6 +91,19 @@ fn native_router(
         crate::notification_events::RedisNotificationPublisher::new(&config.redis)
             .map_err(|_| SessionStoreError)?,
     );
+    let otp_limiter = Arc::new(
+        crate::auth::otp_send_limit::RedisOtpSendLimiter::new(&config.redis)
+            .map_err(|_| SessionStoreError)?,
+    );
+    let ai_quota = crate::ai::model_quota::AiModelQuota::from_redis(
+        &config.redis, &|key| std::env::var(key).ok(),
+    ).map_err(|_| SessionStoreError)?;
+    let redis = redis::Client::open(config.redis.connection_url()).map_err(|_| SessionStoreError)?;
+    let readiness = super::readiness::native_route(pool.clone(), redis);
+    let realtime = Arc::new(
+        crate::local_presence::LocalPresenceEvents::new(Some(source), Some(publisher))
+            .map_err(|_| SessionStoreError)?,
+    );
     Ok(sessions::build_native_router_with_realtime_and_publisher(
         codec,
         repository,
@@ -93,15 +112,21 @@ fn native_router(
         options.refresh_policy,
         options.storage_urls.clone(),
         Arc::new(options.smtp.clone()),
-        Some(source),
-        Some(publisher),
+        Some(realtime.clone()),
+        Some(realtime),
     )
+    .merge(readiness.layer(axum_middleware::from_fn_with_state(
+        options.cors.clone(), sessions::cors_middleware,
+    )))
     .merge(
         crate::storage::local_http::router(options.local_storage.clone()).layer(
             axum_middleware::from_fn_with_state(options.cors.clone(), sessions::cors_middleware),
         ),
     )
     .layer(axum::Extension(options.local_storage.clone()))
+    .layer(axum::Extension(crate::auth::otp_send_limit::OtpSendLimit(otp_limiter.clone())))
+    .layer(axum::Extension(crate::auth::otp_attempt_limit::OtpAttemptLimit(otp_limiter)))
+    .layer(axum::Extension(ai_quota))
     .layer(axum::Extension(options.ai_moderation.clone()))
     .layer(axum::Extension(options.ai_writing.clone()))
     .layer(axum::Extension(

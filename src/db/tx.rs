@@ -1,7 +1,41 @@
-use crate::db::oracle::{BindMap, DbError, ExecuteResult};
+use crate::db::{
+    oracle::{bind_refs, bind_values, BindMap, DbError, ExecuteResult},
+    row::{oracle_row_to_db_row, DbRow},
+};
+
+/// All queries and writes use one connection without auto-committing.
+pub trait Transaction {
+    fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError>;
+    fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError>;
+    fn commit(&self) -> Result<(), DbError>;
+    fn rollback(&self) -> Result<(), DbError>;
+}
 
 pub struct OracleTx<'a> {
     connection: &'a oracle::Connection,
+}
+
+impl Transaction for OracleTx<'_> {
+    fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
+        let values = bind_values(binds);
+        let refs = bind_refs(&values);
+        self.connection
+            .query_named(sql, &refs)?
+            .map(|row| oracle_row_to_db_row(&row?))
+            .collect()
+    }
+
+    fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError> {
+        Ok(OracleTx::execute(self, sql, binds)?.rows_affected)
+    }
+
+    fn commit(&self) -> Result<(), DbError> {
+        OracleTx::commit(self)
+    }
+
+    fn rollback(&self) -> Result<(), DbError> {
+        OracleTx::rollback(self)
+    }
 }
 
 impl<'a> OracleTx<'a> {

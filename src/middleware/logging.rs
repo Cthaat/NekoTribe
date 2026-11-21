@@ -9,7 +9,11 @@ pub async fn log_request_response(request: Request<Body>, next: Next) -> Respons
     let method = request.method().clone();
     let uri = request.uri().clone();
     let sanitized_query = uri.query().map(sanitize_query).unwrap_or_default();
-    let path = uri.path().to_string();
+    let path = if uri.path().starts_with("/api/v2/groups/invite-codes/") {
+        "/api/v2/groups/invite-codes/[invite]"
+    } else {
+        uri.path()
+    };
 
     tracing::info!(
         %method,

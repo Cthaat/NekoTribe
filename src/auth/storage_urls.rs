@@ -27,6 +27,10 @@ fn trim_js(value: &str) -> &str {
 }
 
 impl StorageUrlPolicy {
+    pub(crate) fn site_base_url(&self) -> &str {
+        &self.base_url
+    }
+
     pub(crate) fn managed_key(&self, reference: &str) -> Result<Option<String>, ()> {
         if reference.is_empty() {
             return Ok(None);
