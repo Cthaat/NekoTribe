@@ -95,7 +95,8 @@ def required_files(stack, platform, version):
                 "portable/flutter_windows.dll", "portable/data/flutter_assets/AssetManifest.bin"}
     if platform == "android":
         return {f"NekoTribe-{version}-android.apk"}
-    return {"site/index.html", "site/app_config.json", "configure-web.mjs", "nginx.conf.example"}
+    return {"site/index.html", "site/assets/assets/config/app_config.json", "site/main.dart.js",
+            "site/canvaskit/canvaskit.wasm", "configure-web.mjs", "nginx.conf.example"}
 
 
 def assemble(stack, version, source, output):
