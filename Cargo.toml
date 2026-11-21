@@ -16,7 +16,7 @@ path = "src/main.rs"
 aes-gcm = "=0.10.3"
 axum = { version = "0.8", features = ["ws"] }
 base64 = "=0.22.1"
-bcrypt = "=0.17.1"
+bcrypt = "=0.19.3"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 hex = "0.4"
 getrandom = "=0.3.4"
