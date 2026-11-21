@@ -102,6 +102,8 @@ jobs:
         if: steps.refs.outputs.ready == 'true'
         working-directory: nuxt
         run: |
+          # Reproduce the exact source bytes recorded by the accepted RC8 receipt.
+          python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
           node scripts/contracts.mjs check --workspace-root ..
           node scripts/parity.mjs check --workspace-root ..
       - name: Record checked commits

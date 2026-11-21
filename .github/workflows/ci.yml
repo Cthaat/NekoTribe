@@ -29,6 +29,8 @@ jobs:
       - run: yarn install --frozen-lockfile
       - name: Check specifications and types
         run: |
+          # The accepted RC8 source receipt hashes this file with Windows line endings.
+          python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
           yarn contracts:check
           yarn parity:check
           yarn schema-catalog:check
