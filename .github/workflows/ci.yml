@@ -1,0 +1,76 @@
+name: Rust CI
+on:
+  push:
+    branches: [Rust]
+  pull_request:
+    branches: [Rust]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: write
+  packages: write
+  actions: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.95.0'
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --locked
+      - name: Run library and route tests without live services
+        run: |
+          cargo test --locked --lib --test contract_test --test ai_knowledge_route_test --test ai_conversation_route_test
+  contracts:
+    permissions:
+      contents: read
+    uses: Cthaat/NekoTribe/.github/workflows/contracts.yml@master
+    with:
+      nuxt-ref: refs/heads/master
+      go-ref: refs/heads/codex/go
+      rust-ref: ${{ github.sha }}
+      flutter-ref: refs/heads/Flutter
+      allow-missing: true
+  package:
+    if: github.event_name == 'push'
+    needs: [check, contracts]
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, windows-latest]
+    uses: Cthaat/NekoTribe/.github/workflows/package.yml@master
+    with:
+      target: rust
+      runner: ${{ matrix.runner }}
+      ref: ${{ github.sha }}
+  image:
+    if: github.event_name == 'push'
+    needs: [check, contracts]
+    permissions:
+      contents: read
+      packages: write
+    uses: Cthaat/NekoTribe/.github/workflows/image.yml@master
+    with:
+      target: rust
+      version: rust
+      ref: ${{ github.sha }}
+      rolling: true
+  rolling:
+    if: github.event_name == 'push'
+    needs: package
+    permissions:
+      contents: write
+      actions: read
+    uses: Cthaat/NekoTribe/.github/workflows/rolling.yml@master
+    with:
+      prefix: native-rust
