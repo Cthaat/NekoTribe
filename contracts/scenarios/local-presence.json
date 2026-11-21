@@ -1,0 +1,181 @@
+{
+  "id": "LOCAL-PRESENCE",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "local-without-redis",
+      "remote": "unavailable",
+      "expectedLocal": 1,
+      "expectedRemote": "unavailable"
+    },
+    {
+      "id": "connecting-does-not-block-local",
+      "remote": "blocked",
+      "expectedLocal": 1,
+      "expectedRemote": "connecting"
+    },
+    {
+      "id": "remote-echo-filtered",
+      "remote": "connected",
+      "expectedLocal": 1,
+      "expectedRemote": "connected"
+    },
+    {
+      "id": "other-instance-forwarded",
+      "remote": "connected",
+      "expectedPeer": 1
+    },
+    {
+      "id": "private-user-isolation",
+      "remote": "connected",
+      "expectedOtherUser": 0
+    },
+    {
+      "id": "remote-close-keeps-local",
+      "remote": "closed",
+      "expectedLocal": 1,
+      "expectedRemote": "unavailable"
+    },
+    {
+      "id": "slow-subscriber-closed",
+      "queueLimit": 16
+    },
+    {
+      "id": "closed-hub-rejects-new-subscribers",
+      "expectedError": true
+    }
+  ],
+  "statusCases": [
+    {
+      "id": "connecting",
+      "remote_events": "connecting",
+      "local_presence": true,
+      "valid": true
+    },
+    {
+      "id": "connected",
+      "remote_events": "connected",
+      "local_presence": true,
+      "valid": true
+    },
+    {
+      "id": "unavailable",
+      "remote_events": "unavailable",
+      "local_presence": true,
+      "valid": true
+    },
+    {
+      "id": "invalid-state",
+      "remote_events": "ready-ish",
+      "local_presence": true,
+      "valid": false
+    },
+    {
+      "id": "invalid-flag",
+      "remote_events": "connected",
+      "local_presence": "true",
+      "valid": false
+    }
+  ],
+  "remoteCases": [
+    {
+      "id": "hidden-null",
+      "frame": {
+        "type": "presence_update",
+        "data": {
+          "user_id": 9,
+          "online_status": "hidden",
+          "last_seen_at": null,
+          "server_id": "peer"
+        },
+        "timestamp": 1234
+      },
+      "valid": true
+    },
+    {
+      "id": "visible-string",
+      "frame": {
+        "type": "presence_update",
+        "data": {
+          "user_id": 9,
+          "online_status": "online",
+          "last_seen_at": "2026-11-03T00:00:00Z",
+          "server_id": "peer"
+        },
+        "timestamp": 1234
+      },
+      "valid": true
+    },
+    {
+      "id": "extra-private-field",
+      "frame": {
+        "type": "presence_update",
+        "data": {
+          "user_id": 9,
+          "online_status": "hidden",
+          "last_seen_at": null,
+          "server_id": "peer",
+          "email": "must-not-leak"
+        },
+        "timestamp": 1234
+      },
+      "valid": false
+    },
+    {
+      "id": "hidden-last-seen",
+      "frame": {
+        "type": "presence_update",
+        "data": {
+          "user_id": 9,
+          "online_status": "hidden",
+          "last_seen_at": "private",
+          "server_id": "peer"
+        },
+        "timestamp": 1234
+      },
+      "valid": false
+    },
+    {
+      "id": "negative-clock",
+      "frame": {
+        "type": "presence_update",
+        "data": {
+          "user_id": 9,
+          "online_status": "hidden",
+          "last_seen_at": null,
+          "server_id": "peer"
+        },
+        "timestamp": -1
+      },
+      "valid": false
+    },
+    {
+      "id": "fractional-clock",
+      "frame": {
+        "type": "presence_update",
+        "data": {
+          "user_id": 9,
+          "online_status": "hidden",
+          "last_seen_at": null,
+          "server_id": "peer"
+        },
+        "timestamp": 0.5
+      },
+      "valid": false
+    },
+    {
+      "id": "unsafe-clock",
+      "frame": {
+        "type": "presence_update",
+        "data": {
+          "user_id": 9,
+          "online_status": "hidden",
+          "last_seen_at": null,
+          "server_id": "peer"
+        },
+        "timestamp": 9007199254740992
+      },
+      "valid": false
+    }
+  ]
+}

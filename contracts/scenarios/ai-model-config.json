@@ -1,7 +1,39 @@
 {
   "id": "AI-MODEL-CONFIG",
-  "revision": 1,
+  "revision": 3,
   "scope": "offline-configuration-component-not-model-inference",
+  "rawCases": [
+    {
+      "id": "duplicate-revision",
+      "before": "\"revision\"",
+      "after": "\"revision\":91,\"revision\"",
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "duplicate-provider-field",
+      "before": "\"baseUrl\"",
+      "after": "\"baseUrl\":\"https://other.example.test\",\"baseUrl\"",
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "escaped-duplicate-binding",
+      "before": "\"knowledge\"",
+      "after": "\"\\u006bnowledge\":\"unused\",\"knowledge\"",
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "unpaired-surrogate-model",
+      "before": "\"test/local-v1\"",
+      "after": "\"test/\\ud800\"",
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "paired-surrogate-model",
+      "before": "\"test/local-v1\"",
+      "after": "\"test/\\ud83d\\ude80\"",
+      "expectedModel": "test/🚀"
+    }
+  ],
   "cases": [
     {
       "id": "default-local",
@@ -3038,6 +3070,617 @@
       },
       "role": "knowledge",
       "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "versioned-selection-snapshot",
+      "action": "replace",
+      "role": "knowledge",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 1,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512,
+            "modelVersion": "2026.11+q4"
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "nextConfig": {
+        "schemaVersion": 1,
+        "revision": 2,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512,
+            "modelVersion": "2026.12+q4"
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "expectedRevision": 1,
+      "expectedBefore": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "small",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434",
+        "model": "test/local-v1",
+        "apiKeyEnv": null,
+        "capabilities": [],
+        "contextWindowTokens": 4096,
+        "maxOutputTokens": 512,
+        "modelVersion": "2026.11+q4"
+      },
+      "expected": {
+        "configurationRevision": 2,
+        "role": "knowledge",
+        "profileId": "small",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434",
+        "model": "test/local-v1",
+        "apiKeyEnv": null,
+        "capabilities": [],
+        "contextWindowTokens": 4096,
+        "maxOutputTokens": 512,
+        "modelVersion": "2026.12+q4"
+      }
+    },
+    {
+      "id": "null-model-version-backward-compatibility",
+      "action": "select",
+      "role": "knowledge",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 1,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512,
+            "modelVersion": null
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "expected": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "small",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434",
+        "model": "test/local-v1",
+        "apiKeyEnv": null,
+        "capabilities": [],
+        "contextWindowTokens": 4096,
+        "maxOutputTokens": 512
+      }
+    },
+    {
+      "id": "empty-model-version",
+      "action": "select",
+      "role": "knowledge",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 1,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512,
+            "modelVersion": ""
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "url-model-version",
+      "action": "select",
+      "role": "knowledge",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 1,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512,
+            "modelVersion": "https://fixture.invalid/tag"
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "long-model-version",
+      "action": "select",
+      "role": "knowledge",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 1,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512,
+            "modelVersion": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "non-string-model-version",
+      "action": "select",
+      "role": "knowledge",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 1,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512,
+            "modelVersion": 5
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "highest-storable-revision",
+      "action": "select",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 999999999999999,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "role": "knowledge",
+      "expected": {
+        "configurationRevision": 999999999999999,
+        "role": "knowledge",
+        "profileId": "small",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434",
+        "model": "test/local-v1",
+        "apiKeyEnv": null,
+        "capabilities": [],
+        "contextWindowTokens": 4096,
+        "maxOutputTokens": 512
+      }
+    },
+    {
+      "id": "revision-above-storage-range",
+      "action": "select",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 1000000000000000,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "role": "knowledge",
+      "expectedError": "INVALID_CONFIGURATION"
+    },
+    {
+      "id": "replacement-above-storage-range",
+      "action": "replace",
+      "config": {
+        "schemaVersion": 1,
+        "revision": 1,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "nextConfig": {
+        "schemaVersion": 1,
+        "revision": 1000000000000000,
+        "providers": [
+          {
+            "id": "local",
+            "adapter": "ollama",
+            "baseUrl": "http://127.0.0.1:11434"
+          },
+          {
+            "id": "hosted",
+            "adapter": "openai-compatible",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKeyEnv": "AI_HOSTED_KEY"
+          }
+        ],
+        "models": [
+          {
+            "id": "small",
+            "providerId": "local",
+            "model": "test/local-v1",
+            "capabilities": [],
+            "contextWindowTokens": 4096,
+            "maxOutputTokens": 512
+          },
+          {
+            "id": "capable",
+            "providerId": "hosted",
+            "model": "other-vendor/model-next",
+            "capabilities": [
+              "tools",
+              "structured-output"
+            ],
+            "contextWindowTokens": 8192,
+            "maxOutputTokens": 1024
+          }
+        ],
+        "bindings": {
+          "knowledge": "small",
+          "writing": "small",
+          "agent": "capable",
+          "moderation": "capable"
+        }
+      },
+      "expectedRevision": 1,
+      "role": "knowledge",
+      "expectedError": "INVALID_CONFIGURATION",
+      "expectedAfterError": {
+        "configurationRevision": 1,
+        "role": "knowledge",
+        "profileId": "small",
+        "providerId": "local",
+        "adapter": "ollama",
+        "baseUrl": "http://127.0.0.1:11434",
+        "model": "test/local-v1",
+        "apiKeyEnv": null,
+        "capabilities": [],
+        "contextWindowTokens": 4096,
+        "maxOutputTokens": 512
+      }
     }
   ]
 }

@@ -1,0 +1,645 @@
+{
+  "id": "AUTH-PUBLIC-RESPONSES",
+  "revision": 1,
+  "scope": "data-level public auth decoding, synthetic fixtures only; clone operation base then apply ordered path edits",
+  "account": "synthetic@example.test",
+  "username": "synthetic",
+  "bases": {
+    "create": {
+      "account": "synthetic@example.test",
+      "verification_id": "synthetic-otp",
+      "expires_at": "2030-01-01T00:00:00Z"
+    },
+    "verify": {
+      "account": "synthetic@example.test",
+      "verified": true,
+      "verified_at": "2030-01-01T00:00:00Z"
+    },
+    "register": {
+      "user": {
+        "user_id": 1,
+        "username": "synthetic",
+        "display_name": "Synthetic",
+        "avatar_url": "",
+        "bio": "",
+        "location": "",
+        "website": "",
+        "is_verified": 0,
+        "followers_count": 0,
+        "following_count": 0,
+        "posts_count": 0,
+        "likes_count": 0,
+        "relationship": {
+          "is_self": true,
+          "is_following": false,
+          "is_blocked": false,
+          "is_blocking": false,
+          "relation": "self"
+        },
+        "online_status": "hidden",
+        "last_seen_at": null,
+        "email": "synthetic@example.test",
+        "phone": "",
+        "birth_date": null,
+        "email_verified_at": null,
+        "is_active": 1,
+        "status": "active",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z"
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "create-valid",
+      "operation": "create",
+      "changes": [],
+      "accepted": true
+    },
+    {
+      "id": "verify-valid",
+      "operation": "verify",
+      "changes": [],
+      "accepted": true
+    },
+    {
+      "id": "register-valid",
+      "operation": "register",
+      "changes": [],
+      "accepted": true
+    },
+    {
+      "id": "create-missing-account",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-missing-verification_id",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "verification_id"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-missing-expires_at",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "expires_at"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-wrong-account",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "value": "other@example.test"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-account-empty",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "value": " "
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-account-number",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-account-object",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-time-calendar",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "expires_at"
+          ],
+          "value": "2030-02-30T00:00:00Z"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-time-no-zone",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "expires_at"
+          ],
+          "value": "2030-01-01T00:00:00"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-time-type",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "expires_at"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-leap-offset",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "expires_at"
+          ],
+          "value": "2028-02-29T01:00:00.123456789+01:00"
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "id": "verify-missing-account",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-missing-verified",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-missing-verified_at",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified_at"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-wrong-account",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "value": "other@example.test"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-account-empty",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "value": " "
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-account-number",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-account-object",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-time-calendar",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified_at"
+          ],
+          "value": "2030-02-30T00:00:00Z"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-time-no-zone",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified_at"
+          ],
+          "value": "2030-01-01T00:00:00"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-time-type",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified_at"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-leap-offset",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified_at"
+          ],
+          "value": "2028-02-29T01:00:00.123456789+01:00"
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "id": "verify-flag-false",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-flag-string",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified"
+          ],
+          "value": "true"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-flag-number",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified"
+          ],
+          "value": 1
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "verify-flag-null",
+      "operation": "verify",
+      "changes": [
+        {
+          "path": [
+            "verified"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-id-empty",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "verification_id"
+          ],
+          "value": " "
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-id-number",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "verification_id"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-id-object",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "verification_id"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-id-zero",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-id-fraction",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": 1.5
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-id-string",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": "1"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-id-unsafe",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": 9007199254740992
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-missing-username",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "username"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-username-empty",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "username"
+          ],
+          "value": " "
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-username-number",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "username"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-username-mismatch",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "username"
+          ],
+          "value": "other"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-missing-email",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "email"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-email-empty",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "email"
+          ],
+          "value": " "
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-email-number",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "email"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-email-mismatch",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "email"
+          ],
+          "value": "other"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "register-missing-user",
+      "operation": "register",
+      "changes": [
+        {
+          "path": [
+            "user"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "create-extra-field",
+      "operation": "create",
+      "changes": [
+        {
+          "path": [
+            "future"
+          ],
+          "value": {
+            "enabled": true
+          }
+        }
+      ],
+      "accepted": true
+    }
+  ]
+}

@@ -1,0 +1,289 @@
+{
+  "id": "MODERATION-USER-ACTIONS",
+  "cases": [
+    {
+      "id": "anonymous",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 401,
+      "body": {
+        "action": "note"
+      }
+    },
+    {
+      "id": "member",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 403,
+      "body": {
+        "action": "note"
+      },
+      "denied": true
+    },
+    {
+      "id": "self",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/42/actions",
+      "status": 403,
+      "body": {
+        "action": "note"
+      },
+      "error": "不能处罚自己"
+    },
+    {
+      "id": "bad-id",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/07/actions",
+      "status": 400,
+      "body": {
+        "action": "note"
+      }
+    },
+    {
+      "id": "bad-action",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 400,
+      "body": {
+        "action": "delete"
+      }
+    },
+    {
+      "id": "bad-note",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 400,
+      "body": {
+        "action": "note",
+        "note": 42
+      }
+    },
+    {
+      "id": "bad-duration",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 400,
+      "body": {
+        "action": "ban",
+        "duration_hours": 1.5
+      }
+    },
+    {
+      "id": "zero-mute",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 400,
+      "body": {
+        "action": "mute",
+        "duration_hours": 0
+      }
+    },
+    {
+      "id": "too-long",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 400,
+      "body": {
+        "action": "mute",
+        "duration_hours": 87601
+      }
+    },
+    {
+      "id": "unknown-target",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/99/actions",
+      "status": 404,
+      "body": {
+        "action": "ban"
+      },
+      "error": "用户不存在"
+    },
+    {
+      "id": "disabled-target",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/9/actions",
+      "status": 409,
+      "body": {
+        "action": "unban"
+      },
+      "targetState": "disabled",
+      "error": "账号状态不允许此处置"
+    },
+    {
+      "id": "untracked-suspension",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/10/actions",
+      "status": 409,
+      "body": {
+        "action": "unban"
+      },
+      "targetState": "suspended",
+      "error": "账号状态不允许此处置"
+    },
+    {
+      "id": "default-mute",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 200,
+      "body": {
+        "action": "mute"
+      },
+      "setting": " 36 ",
+      "hours": 36,
+      "item": {
+        "user_id": 7,
+        "status": "active",
+        "is_active": 1
+      },
+      "writes": [
+        "revokeRestriction",
+        "addRestriction",
+        "audit"
+      ]
+    },
+    {
+      "id": "explicit-mute",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 200,
+      "body": {
+        "action": "mute",
+        "duration_hours": "003",
+        "note": "  reviewed "
+      },
+      "hours": 3,
+      "item": {
+        "user_id": 7,
+        "status": "active",
+        "is_active": 1
+      },
+      "writes": [
+        "revokeRestriction",
+        "addRestriction",
+        "audit"
+      ]
+    },
+    {
+      "id": "indefinite-ban",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 200,
+      "body": {
+        "action": "ban",
+        "duration_hours": 0
+      },
+      "hours": 0,
+      "item": {
+        "user_id": 7,
+        "status": "suspended",
+        "is_active": 0
+      },
+      "writes": [
+        "updateUser",
+        "revokeSessions",
+        "revokeRestriction",
+        "addRestriction",
+        "audit"
+      ]
+    },
+    {
+      "id": "default-ban",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 200,
+      "body": {
+        "action": "ban"
+      },
+      "hours": 24,
+      "item": {
+        "user_id": 7,
+        "status": "suspended",
+        "is_active": 0
+      },
+      "writes": [
+        "updateUser",
+        "revokeSessions",
+        "revokeRestriction",
+        "addRestriction",
+        "audit"
+      ]
+    },
+    {
+      "id": "tracked-unban",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/8/actions",
+      "status": 200,
+      "body": {
+        "action": "unban"
+      },
+      "targetState": "suspended",
+      "history": true,
+      "item": {
+        "user_id": 8,
+        "status": "active",
+        "is_active": 1
+      },
+      "writes": [
+        "updateUser",
+        "revokeRestriction",
+        "audit"
+      ]
+    },
+    {
+      "id": "unmute",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 200,
+      "body": {
+        "action": "unmute"
+      },
+      "item": {
+        "user_id": 7,
+        "status": "active",
+        "is_active": 1
+      },
+      "writes": [
+        "revokeRestriction",
+        "audit"
+      ]
+    },
+    {
+      "id": "note-new-case",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 200,
+      "body": {
+        "action": "note",
+        "note": "  reviewed "
+      },
+      "missingCase": true,
+      "item": {
+        "user_id": 7,
+        "status": "active",
+        "is_active": 1
+      },
+      "writes": [
+        "create",
+        "audit"
+      ]
+    },
+    {
+      "id": "audit-failure",
+      "method": "POST",
+      "path": "/api/v2/moderation/users/7/actions",
+      "status": 500,
+      "body": {
+        "action": "ban",
+        "duration_hours": 4
+      },
+      "auditFail": true,
+      "writes": [
+        "updateUser",
+        "revokeSessions",
+        "revokeRestriction",
+        "addRestriction",
+        "audit"
+      ]
+    }
+  ]
+}

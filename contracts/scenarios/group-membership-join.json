@@ -1,0 +1,46 @@
+{
+  "id": "GROUP-MEMBERSHIP-JOIN",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "unsafe-id",
+      "status": 400
+    },
+    {
+      "id": "public-active",
+      "status": 200
+    },
+    {
+      "id": "approval-pending",
+      "status": 200
+    },
+    {
+      "id": "secret-needs-invitation",
+      "status": 422
+    },
+    {
+      "id": "valid-invitation",
+      "status": 200
+    },
+    {
+      "id": "expired-invitation",
+      "status": 422
+    },
+    {
+      "id": "existing-membership",
+      "status": 422
+    },
+    {
+      "id": "not-found",
+      "status": 404
+    },
+    {
+      "id": "failed-insert-rolls-back-invite",
+      "status": 500
+    }
+  ]
+}

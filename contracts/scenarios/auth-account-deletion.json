@@ -1,0 +1,195 @@
+{
+  "id": "AUTH-ACCOUNT-DELETION",
+  "revision": 1,
+  "base": {
+    "password": "test-password",
+    "confirmation": "DELETE"
+  },
+  "userId": 42,
+  "username": "tester",
+  "cases": [
+    {
+      "id": "DELETE-01",
+      "patch": {},
+      "status": 200,
+      "message": "success",
+      "writes": 1
+    },
+    {
+      "id": "DELETE-02",
+      "patch": {
+        "confirmation": "tester"
+      },
+      "status": 200,
+      "message": "success",
+      "writes": 1
+    },
+    {
+      "id": "DELETE-03",
+      "patch": {
+        "password": " test-password ",
+        "confirmation": " delete "
+      },
+      "status": 200,
+      "message": "success",
+      "writes": 1
+    },
+    {
+      "id": "DELETE-04",
+      "patch": {
+        "password": ""
+      },
+      "status": 400,
+      "message": "password 不能为空",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-05",
+      "patch": {
+        "confirmation": null
+      },
+      "status": 400,
+      "message": "confirmation 不能为空",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-06",
+      "patch": {
+        "confirmation": "other"
+      },
+      "status": 400,
+      "message": "确认内容不匹配",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-07",
+      "patch": {
+        "password": "wrong"
+      },
+      "status": 401,
+      "message": "密码错误",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-08",
+      "patch": {
+        "confirmation": {}
+      },
+      "status": 400,
+      "message": "confirmation 不能为空",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-09",
+      "patch": {},
+      "fault": "profile",
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-10",
+      "patch": {},
+      "fault": "missing",
+      "status": 404,
+      "message": "用户不存在",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-11",
+      "patch": {},
+      "fault": "credential",
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-12",
+      "patch": {},
+      "fault": "inactive",
+      "status": 403,
+      "message": "账号不可用",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-13",
+      "patch": {},
+      "fault": "posts",
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-14",
+      "patch": {},
+      "fault": "comments",
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-15",
+      "patch": {},
+      "fault": "sessions",
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-16",
+      "patch": {},
+      "fault": "user",
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-17",
+      "patch": {},
+      "fault": "changed",
+      "status": 409,
+      "message": "账号已变更，请重新验证",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-18",
+      "patch": {},
+      "fault": "commit",
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0
+    },
+    {
+      "id": "DELETE-19",
+      "patch": {},
+      "fault": "commit_applied",
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 1
+    },
+    {
+      "id": "DELETE-20",
+      "patch": {},
+      "fault": "presence",
+      "status": 200,
+      "message": "success",
+      "writes": 1
+    },
+    {
+      "id": "DELETE-21",
+      "patch": {},
+      "auth": "none",
+      "status": 401,
+      "message": null,
+      "writes": 0
+    },
+    {
+      "id": "DELETE-22",
+      "patch": {},
+      "auth": "revoked",
+      "status": 401,
+      "message": null,
+      "writes": 0
+    }
+  ]
+}

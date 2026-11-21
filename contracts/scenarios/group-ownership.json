@@ -1,0 +1,13 @@
+{
+  "id": "GROUP-OWNERSHIP",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"bad-id-or-body","status":400},
+    {"id":"missing-group-or-same-group-target","status":404},
+    {"id":"active-owner-transfers-to-active-member","status":200},
+    {"id":"former-owner-cannot-repeat-transfer","status":422},
+    {"id":"self-or-inactive-target","status":422},
+    {"id":"any-update-audit-or-commit-failure","status":500}
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "id": "POST-LIST",
-  "revision": 1,
+  "revision": 3,
   "cases": [
     {"id": "LIST-01", "name": "匿名公开列表，NULL viewer 和可见性函数", "status": "not-run"},
     {"id": "LIST-02", "name": "有效 Cookie 与 Bearer 按会话身份过滤", "status": "not-run"},
@@ -26,6 +26,8 @@
     {"id": "LIST-22", "name": "指定目标绑定并叠加可见性、搜索和时间线过滤", "status": "not-run"},
     {"id": "LIST-23", "name": "数字目标仅接受安全正整数，认证先于参数校验", "status": "not-run"},
     {"id": "LIST-24", "name": "标签名称按 URL 解码并绑定，特殊字符不拼入 SQL", "status": "not-run"},
-    {"id": "LIST-25", "name": "不存在的目标返回空列表且不泄露目标状态", "status": "not-run"}
+    {"id": "LIST-25", "name": "不存在的目标返回空列表且不泄露目标状态", "status": "not-run"},
+    {"id": "LIST-26", "name": "帖子详情的回复帖独立分页，过滤错帖和重复数据，重试失败的原页，精确引用及匿名详情不读取回复帖", "status": "not-run"},
+    {"id": "LIST-27", "name": "回帖和转发切换请求正确端点并按原帖 ID 过滤，丢弃上一类型迟到的列表响应", "status": "not-run"}
   ]
 }

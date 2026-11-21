@@ -1,0 +1,26 @@
+{
+  "id": "GROUP-POST-DELETE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "bad-reason",
+      "status": 400
+    },
+    {
+      "id": "wrong-group-or-already-deleted",
+      "status": 404
+    },
+    {
+      "id": "third-party-member-denied",
+      "status": 422
+    },
+    {
+      "id": "author-or-staff-soft-delete",
+      "status": 200
+    }
+  ]
+}

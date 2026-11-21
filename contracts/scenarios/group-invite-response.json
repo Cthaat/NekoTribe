@@ -1,0 +1,14 @@
+{
+  "id": "GROUP-INVITE-RESPONSE",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"invalid-id-or-decision","status":400},
+    {"id":"other-user-or-public-link-hidden","status":404},
+    {"id":"accept-and-join","status":200},
+    {"id":"reject-and-legacy-decline","status":200},
+    {"id":"already-responded-expired-or-inactive","status":422},
+    {"id":"existing-member-cannot-accept","status":422},
+    {"id":"member-insert-failure-rolls-back","status":500}
+  ]
+}

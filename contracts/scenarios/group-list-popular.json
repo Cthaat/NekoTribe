@@ -1,0 +1,27 @@
+{
+  "id": "GROUP-LIST-POPULAR",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "public-only",
+      "status": 200
+    },
+    {
+      "id": "bounded-limit",
+      "status": 200,
+      "limit": 50
+    },
+    {
+      "id": "same-details-as-by-id",
+      "status": 200
+    },
+    {
+      "id": "score-and-stable-order",
+      "status": 200
+    }
+  ]
+}

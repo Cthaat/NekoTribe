@@ -1,0 +1,52 @@
+{
+  "maxPosts": 100,
+  "maxReasonBytes": 200,
+  "maxNoteBytes": 1000,
+  "actions": {
+    "approve": {
+      "status": "approved",
+      "report": "resolved",
+      "deleted": 1
+    },
+    "reject": {
+      "status": "rejected",
+      "report": "dismissed",
+      "deleted": 0
+    },
+    "flag": {
+      "status": "flagged",
+      "report": "in_review",
+      "deleted": null
+    },
+    "remove": {
+      "status": "removed",
+      "report": "resolved",
+      "deleted": 1
+    },
+    "restore": {
+      "status": "restored",
+      "report": "resolved",
+      "deleted": 0
+    },
+    "claim": {
+      "status": "pending",
+      "report": "in_review",
+      "deleted": null
+    },
+    "release": {
+      "status": "pending",
+      "report": "pending",
+      "deleted": null
+    }
+  },
+  "sql": {
+    "settings": "SELECT setting_key, setting_value FROM n_moderation_settings WHERE setting_key IN ('allow_moderator_claim', 'require_note_on_reject')",
+    "post": "SELECT post_id FROM n_posts WHERE post_id = :post_id FOR UPDATE",
+    "case": "SELECT case_id, assigned_to FROM n_moderation_cases WHERE target_type = 'post' AND target_id = :post_id FOR UPDATE",
+    "create": "INSERT INTO n_moderation_cases (case_id,target_type,target_id,status,priority,report_count,latest_reported_at) VALUES (seq_moderation_case_id.NEXTVAL,'post',:post_id,'pending','normal',0,CURRENT_TIMESTAMP)",
+    "updatePost": "UPDATE n_posts SET is_deleted = :deleted, deleted_at = CASE WHEN :deleted = 1 THEN COALESCE(deleted_at,CURRENT_TIMESTAMP) ELSE NULL END, updated_at = CURRENT_TIMESTAMP WHERE post_id = :post_id",
+    "updateCase": "UPDATE n_moderation_cases SET status = :status, assigned_to = CASE WHEN :action = 'claim' THEN :viewer_id WHEN :action = 'release' THEN NULL ELSE assigned_to END, resolved_at = CASE WHEN :status IN ('approved','rejected','removed','restored') THEN CURRENT_TIMESTAMP ELSE NULL END, updated_at = CURRENT_TIMESTAMP WHERE case_id = :case_id",
+    "updateReports": "UPDATE n_moderation_reports SET status = :status, handled_by = :viewer_id, resolved_at = CASE WHEN :status IN ('resolved','dismissed') THEN CURRENT_TIMESTAMP ELSE NULL END, updated_at = CURRENT_TIMESTAMP WHERE target_type = 'post' AND target_id = :post_id",
+    "audit": "INSERT INTO n_moderation_actions (action_id,case_id,target_type,target_id,action,moderator_user_id,reason,note) VALUES (seq_moderation_action_id.NEXTVAL,:case_id,'post',:post_id,:action,:viewer_id,:reason,:note)"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "id": "AUTH-REFRESH",
-  "revision": 1,
+  "revision": 2,
   "scope": "Acceptance requirements; not a claim that real Oracle or cross-backend tests have run",
   "cases": [
     {"id": "REFRESH-001", "description": "Existing valid refresh Cookie succeeds without body, with the expected envelope, two matching HttpOnly cookies and unchanged session identity."},
@@ -13,5 +13,19 @@
     {"id": "REFRESH-008", "description": "Database failures return a safe error and no new cookies; an unknown commit outcome is not represented as a guaranteed rollback."},
     {"id": "REFRESH-009", "description": "CORS preflight is handled before authentication and does not query the session store."},
     {"id": "REFRESH-010", "description": "With shared signing keys, each backend accepts and rotates tokens issued by each backend against one isolated Oracle database; Web and Flutter complete refresh and a subsequent supported protected request using their configured backend."}
+  ],
+  "requestBodyCases": [
+    {"id":"json", "contentType":"application/json", "body":"{\"refresh_token\":\"TOKEN\"}", "accepted":true},
+    {"id":"json-field-case", "contentType":"application/json", "body":"{\"REFRESH_TOKEN\":\"TOKEN\"}", "accepted":false},
+    {"id":"text-media-type", "contentType":"Text/Plain; charset=utf-8", "body":"{\"refresh_token\":\"TOKEN\"}", "accepted":false},
+    {"id":"form", "contentType":"Application/X-Www-Form-Urlencoded; charset=utf-8", "body":"refresh_token=%20TOKEN+", "accepted":true},
+    {"id":"form-duplicates", "contentType":"application/x-www-form-urlencoded", "body":"refresh_token=&refresh_token=TOKEN", "accepted":false},
+    {"id":"form-malformed-escape", "contentType":"application/x-www-form-urlencoded", "body":"refresh_token=TOKEN&note=%X0", "accepted":false},
+    {"id":"form-malformed-utf8", "contentType":"application/x-www-form-urlencoded", "body":"refresh_token=TOKEN&note=%FF", "accepted":false},
+    {"id":"form-unescaped-semicolon", "contentType":"application/x-www-form-urlencoded", "body":"refresh_token=TOKEN&note=a;b", "accepted":false},
+    {"id":"json-exact-limit", "contentType":"application/json", "body":"{\"refresh_token\":\"TOKEN\"}", "bytes":1048576, "accepted":true},
+    {"id":"json-over-limit", "contentType":"application/json", "body":"{\"refresh_token\":\"TOKEN\"}", "bytes":1048577, "accepted":false},
+    {"id":"cookie-ignores-oversize", "contentType":"application/json", "body":"{}", "bytes":1048577, "cookie":"TOKEN", "accepted":true},
+    {"id":"cookie-whitespace-no-fallback", "contentType":"application/json", "body":"{\"refresh_token\":\"TOKEN\"}", "cookie":"%20", "accepted":false}
   ]
 }

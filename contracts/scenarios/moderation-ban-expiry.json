@@ -1,0 +1,15 @@
+{
+  "id": "MODERATION-BAN-EXPIRY",
+  "now": "2026-11-17 09:00:00",
+  "cases": [
+    {"id":"at-end","account":"suspended","active":0,"restrictions":[["ban","active","2026-11-17 08:00:00","2026-11-17 09:00:00"]],"restored":true,"expired":1},
+    {"id":"unexpired","account":"suspended","active":0,"restrictions":[["ban","active","2026-11-17 08:00:00","2026-11-17 09:00:01"]],"restored":false,"expired":0},
+    {"id":"overlapping-indefinite","account":"suspended","active":0,"restrictions":[["ban","active","2026-11-17 07:00:00","2026-11-17 08:00:00"],["ban","active","2026-11-17 08:00:00",null]],"restored":false,"expired":0},
+    {"id":"future-ban","account":"suspended","active":0,"restrictions":[["ban","active","2026-11-17 07:00:00","2026-11-17 08:00:00"],["ban","active","2026-11-17 10:00:00","2026-11-17 11:00:00"]],"restored":false,"expired":0},
+    {"id":"historical-revoked","account":"suspended","active":0,"restrictions":[["ban","revoked","2026-11-17 07:00:00","2026-11-17 08:00:00"]],"restored":false,"expired":0},
+    {"id":"unrelated-suspension","account":"suspended","active":0,"restrictions":[["mute","active","2026-11-17 07:00:00","2026-11-17 08:00:00"]],"restored":false,"expired":0},
+    {"id":"disabled-account","account":"disabled","active":0,"restrictions":[["ban","active","2026-11-17 07:00:00","2026-11-17 08:00:00"]],"restored":false,"expired":0},
+    {"id":"pending-account","account":"pending","active":0,"restrictions":[["ban","active","2026-11-17 07:00:00","2026-11-17 08:00:00"]],"restored":false,"expired":0},
+    {"id":"multiple-elapsed-bans","account":"suspended","active":0,"restrictions":[["ban","active","2026-11-17 06:00:00","2026-11-17 07:00:00"],["ban","active","2026-11-17 07:00:00","2026-11-17 08:00:00"],["mute","active","2026-11-17 08:00:00","2026-11-17 12:00:00"]],"restored":true,"expired":2}
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "id": "AI-KNOWLEDGE-INDEX-FALLBACK",
+  "cases": [
+    {"id":"strict-by-default","status":503,"fallback":"","expect":"error"},
+    {"id":"temporarily-unavailable","status":503,"fallback":"lexical","expect":"lexical"},
+    {"id":"overloaded","status":429,"fallback":"lexical","expect":"lexical"},
+    {"id":"bad-gateway","status":502,"fallback":"lexical","expect":"lexical"},
+    {"id":"gateway-timeout","status":504,"fallback":"lexical","expect":"lexical"},
+    {"id":"network-error","transportError":true,"fallback":"lexical","expect":"lexical"},
+    {"id":"caller-cancelled","noRequest":true,"transportError":true,"cancel":true,"fallback":"lexical","expect":"error"},
+    {"id":"blank-search-phrase","query":"　 ","noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"control-in-search-phrase","query":"a\u0000b","noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"zero-candidate-limit","limit":0,"noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"oversized-candidate-limit","limit":21,"noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"missing-slashes","address":"http:index.example.test","noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"empty-query","address":"http://index.example.test?","noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"empty-fragment","address":"http://index.example.test#","noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"embedded-tab","address":"http://index.example.test/in\tdex","noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"zero-port","address":"http://index.example.test:0","noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"embedded-credentials","address":"http://@index.example.test","noRequest":true,"transportError":true,"fallback":"lexical","expect":"error"},
+    {"id":"ipv6-proxy-prefix","address":"http://[::1]:3818/retrieval/","status":200,"body":"{\"version\":1,\"candidates\":[]}","fallback":"lexical","expect":"empty"},
+    {"id":"authentication-rejected","status":401,"fallback":"lexical","expect":"error"},
+    {"id":"redirect","status":302,"fallback":"lexical","expect":"error"},
+    {"id":"malformed-success","status":200,"body":"{}","fallback":"lexical","expect":"error"},
+    {"id":"malformed-success-case-envelope","status":200,"body":"{\"Version\":1,\"candidates\":[]}","fallback":"lexical","expect":"error"},
+    {"id":"malformed-success-case-candidate","status":200,"body":"{\"version\":1,\"candidates\":[{\"Kind\":\"post\",\"id\":42,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}","fallback":"lexical","expect":"error"},
+    {"id":"malformed-success-bom","status":200,"body":"\uFEFF{\"version\":1,\"candidates\":[]}","fallback":"lexical","expect":"error"},
+    {"id":"empty-success","status":200,"body":"{\"version\":1,\"candidates\":[]}","fallback":"lexical","expect":"empty"},
+    {"id":"group-success","status":200,"body":"{\"version\":1,\"candidates\":[{\"kind\":\"group_comment\",\"id\":21,\"version\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"chunk\":2}]}","fallback":"lexical","expect":"group"}
+  ]
+}

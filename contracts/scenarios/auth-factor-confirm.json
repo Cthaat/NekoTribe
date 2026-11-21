@@ -1,0 +1,154 @@
+{
+  "id": "AUTH-FACTOR-CONFIRM",
+  "revision": 1,
+  "derivedFrom": "auth-two-factor-management.json",
+  "action": "confirm",
+  "cases": [
+    {
+      "id": "FACTOR-10",
+      "action": "confirm",
+      "patch": {},
+      "status": 200,
+      "message": "success",
+      "writes": 1
+    },
+    {
+      "id": "FACTOR-11",
+      "action": "confirm",
+      "patch": {},
+      "status": 401,
+      "message": null,
+      "writes": 0,
+      "auth": "none"
+    },
+    {
+      "id": "FACTOR-12",
+      "action": "confirm",
+      "patch": {},
+      "status": 401,
+      "message": null,
+      "writes": 0,
+      "auth": "revoked"
+    },
+    {
+      "id": "FACTOR-13",
+      "action": "confirm",
+      "patch": {},
+      "status": 503,
+      "message": "服务暂不可用，请稍后重试。",
+      "writes": 0,
+      "fault": "schema"
+    },
+    {
+      "id": "FACTOR-14",
+      "action": "confirm",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0,
+      "fault": "secret"
+    },
+    {
+      "id": "FACTOR-15",
+      "action": "confirm",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0,
+      "fault": "write"
+    },
+    {
+      "id": "FACTOR-16",
+      "action": "confirm",
+      "patch": {},
+      "status": 409,
+      "message": "双因素设置已变更，请重试",
+      "writes": 0,
+      "fault": "changed"
+    },
+    {
+      "id": "FACTOR-17",
+      "action": "confirm",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0,
+      "fault": "commit"
+    },
+    {
+      "id": "FACTOR-18",
+      "action": "confirm",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 1,
+      "fault": "commit_applied"
+    },
+    {
+      "id": "FACTOR-41",
+      "action": "confirm",
+      "patch": {},
+      "status": 422,
+      "message": "请先生成双因素认证密钥",
+      "writes": 0,
+      "secret": "absent"
+    },
+    {
+      "id": "FACTOR-42",
+      "action": "confirm",
+      "patch": {},
+      "status": 422,
+      "message": "双因素认证已启用，请先关闭后再重新设置",
+      "writes": 0,
+      "secret": "enabled"
+    },
+    {
+      "id": "FACTOR-43",
+      "action": "confirm",
+      "patch": {
+        "code": "wrong"
+      },
+      "status": 401,
+      "message": "双因素验证码错误",
+      "writes": 0
+    },
+    {
+      "id": "FACTOR-44",
+      "action": "confirm",
+      "patch": {
+        "code": true
+      },
+      "status": 401,
+      "message": "双因素验证码错误",
+      "writes": 0
+    },
+    {
+      "id": "FACTOR-45",
+      "action": "confirm",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "writes": 0,
+      "fault": "cipher"
+    },
+    {
+      "id": "FACTOR-46",
+      "action": "confirm",
+      "patch": {},
+      "status": 400,
+      "message": "双因素密钥格式错误",
+      "writes": 0,
+      "fault": "base32"
+    },
+    {
+      "id": "FACTOR-51",
+      "action": "confirm",
+      "patch": {
+        "code": null
+      },
+      "status": 401,
+      "message": "双因素验证码错误",
+      "writes": 0
+    }
+  ]
+}

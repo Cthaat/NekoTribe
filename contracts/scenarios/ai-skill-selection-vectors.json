@@ -1,0 +1,19 @@
+{
+  "id": "AI-SKILL-SELECTION-VECTORS",
+  "revision": 1,
+  "executionStatus": "component-vectors-not-product-acceptance",
+  "cases": [
+    {"id":"knowledge-auto","enabled":["knowledge-answer"],"purpose":"knowledge","groupId":null,"skillId":null,"allowed":true,"expected":"knowledge-answer","selection":"purpose-default"},
+    {"id":"writing-explicit","enabled":["writing-draft"],"purpose":"writing","groupId":null,"skillId":"writing-draft","allowed":true,"expected":"writing-draft","selection":"explicit"},
+    {"id":"group-auto","enabled":["group-brief"],"purpose":"group","groupId":42,"skillId":null,"allowed":true,"expected":"group-brief","selection":"purpose-default"},
+    {"id":"moderation-auto","enabled":["moderation-advice"],"purpose":"moderation","groupId":null,"skillId":null,"allowed":true,"expected":"moderation-advice","selection":"purpose-default"},
+    {"id":"disabled","enabled":[],"purpose":"knowledge","groupId":null,"skillId":null,"allowed":true,"error":true},
+    {"id":"wrong-purpose","enabled":["writing-draft"],"purpose":"knowledge","groupId":null,"skillId":"writing-draft","allowed":true,"error":true},
+    {"id":"unknown-skill","enabled":["knowledge-answer"],"purpose":"knowledge","groupId":null,"skillId":"unknown","allowed":true,"error":true},
+    {"id":"denied-group","enabled":["group-brief"],"purpose":"group","groupId":42,"skillId":null,"allowed":false,"error":true},
+    {"id":"group-missing","enabled":["group-brief"],"purpose":"group","groupId":null,"skillId":null,"allowed":true,"error":true},
+    {"id":"other-group-forbidden","enabled":["writing-draft"],"purpose":"writing","groupId":42,"skillId":null,"allowed":true,"error":true},
+    {"id":"unknown-enabled","enabled":["evil"],"purpose":"writing","groupId":null,"skillId":null,"allowed":true,"error":true},
+    {"id":"duplicate-enabled","enabled":["writing-draft","writing-draft"],"purpose":"writing","groupId":null,"skillId":null,"allowed":true,"error":true}
+  ]
+}

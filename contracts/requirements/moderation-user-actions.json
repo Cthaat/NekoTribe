@@ -1,0 +1,25 @@
+{
+  "actions": [
+    "ban",
+    "unban",
+    "mute",
+    "unmute",
+    "note"
+  ],
+  "maxDurationHours": 87600,
+  "defaultDurationHours": 24,
+  "maxReasonBytes": 200,
+  "maxNoteBytes": 1000,
+  "sql": {
+    "lock": "SELECT user_id, status, is_active FROM n_users WHERE user_id = :user_id FOR UPDATE",
+    "case": "SELECT case_id FROM n_moderation_cases WHERE target_type = 'user' AND target_id = :user_id FOR UPDATE",
+    "create": "INSERT INTO n_moderation_cases (case_id,target_type,target_id,status,priority,report_count,latest_reported_at) VALUES (seq_moderation_case_id.NEXTVAL,'user',:user_id,'pending','normal',0,CURRENT_TIMESTAMP)",
+    "defaultMute": "SELECT setting_value FROM n_moderation_settings WHERE setting_key = 'default_mute_hours'",
+    "banHistory": "SELECT 1 AS found FROM n_moderation_user_restrictions WHERE user_id = :user_id AND restriction_type = 'ban' AND ROWNUM = 1",
+    "updateUser": "UPDATE n_users SET status = :status, is_active = :active, updated_at = CURRENT_TIMESTAMP WHERE user_id = :user_id",
+    "revokeSessions": "UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND revoked_at IS NULL",
+    "revokeRestriction": "UPDATE n_moderation_user_restrictions SET status = 'revoked', revoked_by = :viewer_id, revoked_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND restriction_type = :kind AND status = 'active'",
+    "addRestriction": "INSERT INTO n_moderation_user_restrictions (restriction_id,user_id,restriction_type,reason,ends_at,created_by) VALUES (seq_moderation_restriction_id.NEXTVAL,:user_id,:kind,:reason,CASE WHEN :hours > 0 THEN CURRENT_TIMESTAMP + NUMTODSINTERVAL(:hours,'HOUR') ELSE NULL END,:viewer_id)",
+    "audit": "INSERT INTO n_moderation_actions (action_id,case_id,target_type,target_id,action,moderator_user_id,reason,note,duration_hours) VALUES (seq_moderation_action_id.NEXTVAL,:case_id,'user',:user_id,:action,:viewer_id,:reason,:note,:hours)"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "DIRECT-MESSAGE-SEND",
+  "revision": 1,
+  "cases": [
+    {"id":"nonparticipant","status":403,"writes":0,"events":0},
+    {"id":"blocked","status":403,"writes":0,"events":0},
+    {"id":"strangers-disabled","status":403,"writes":0,"events":0},
+    {"id":"recipient-missing","status":404,"writes":0,"events":0},
+    {"id":"transaction-failed","status":500,"committed":false,"events":0},
+    {"id":"recipient-push-disabled","status":200,"committed":true,"noticeStored":true,"noticePushed":false,"localRecipients":[42,9]},
+    {"id":"redis-unavailable","status":200,"committed":true,"localRecipients":[42,9],"excludedUsers":[7]}
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "id": "AUTH-REGISTRATION",
-  "revision": 1,
+  "revision": 2,
   "base": {
     "email": "new@example.test",
     "username": "newuser",
@@ -229,7 +229,7 @@
     {
       "id": "REG-25",
       "patch": {
-        "phone": 123.0
+        "phone": 123
       },
       "expected_phone": "123",
       "status": 200,
@@ -238,7 +238,7 @@
     {
       "id": "REG-26",
       "patch": {
-        "phone": 1e20
+        "phone": 100000000000000000000
       },
       "expected_phone": "100000000000000000000",
       "status": 200,
@@ -256,7 +256,7 @@
     {
       "id": "REG-28",
       "patch": {
-        "phone": 9007199254740993
+        "phone": 9007199254740992
       },
       "expected_phone": "9007199254740992",
       "status": 200,
@@ -265,11 +265,18 @@
     {
       "id": "REG-29",
       "patch": {
-        "phone": -0.0
+        "phone": 0
       },
       "expected_phone": "0",
       "status": 200,
       "inserts": 1
+    },
+    {
+      "id": "REG-30",
+      "patch": {},
+      "fault": "consumed",
+      "status": 422,
+      "inserts": 0
     }
   ],
   "hashInterop": {

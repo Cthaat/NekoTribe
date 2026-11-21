@@ -1,0 +1,11 @@
+{
+  "id": "SERVICE-READINESS",
+  "cases": [
+    {"id":"ready","given":"The configured Oracle and Redis both answer within two seconds","expect":{"httpStatus":200,"body":{"status":"ready"},"cacheControl":"no-store"}},
+    {"id":"oracle-unavailable","given":"Oracle is unavailable but the process is listening","expect":{"httpStatus":503,"body":{"status":"unavailable"},"cacheControl":"no-store"}},
+    {"id":"redis-unavailable","given":"Redis is unavailable but the process is listening","expect":{"httpStatus":503,"body":{"status":"unavailable"},"cacheControl":"no-store"}},
+    {"id":"timeout","given":"A dependency fails to answer within the probe budget","expect":{"httpStatus":503,"body":{"status":"unavailable"},"cacheControl":"no-store"}},
+    {"id":"recovers","given":"Both dependencies recover after the timed-out probe settles","expect":{"httpStatus":200,"body":{"status":"ready"},"cacheControl":"no-store"}},
+    {"id":"rust-compat","given":"The Rust process runs in compatibility mode","expect":{"httpStatus":503,"body":{"status":"unavailable"},"cacheControl":"no-store"}}
+  ]
+}

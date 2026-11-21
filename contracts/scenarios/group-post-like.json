@@ -1,0 +1,30 @@
+{
+  "id": "GROUP-POST-LIKE",
+  "revision": 3,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "wrong-group-or-deleted-post",
+      "status": 404
+    },
+    {
+      "id": "increment-once-and-return-count",
+      "status": 200
+    },
+    {
+      "id": "like-write-failure",
+      "status": 500
+    },
+    {
+      "id": "hidden-post-like-rejected",
+      "status": 404
+    },
+    {
+      "id": "visibility-loss-before-commit-rolls-back",
+      "status": 404
+    }
+  ]
+}

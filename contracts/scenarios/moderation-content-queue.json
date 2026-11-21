@@ -1,0 +1,100 @@
+{
+  "id": "MODERATION-CONTENT-QUEUE",
+  "cases": [
+    {
+      "id": "anonymous",
+      "path": "/api/v2/moderation/content",
+      "status": 401,
+      "method": "GET"
+    },
+    {
+      "id": "non-moderator",
+      "path": "/api/v2/moderation/content",
+      "status": 403,
+      "denied": true,
+      "method": "GET"
+    },
+    {
+      "id": "full-row",
+      "path": "/api/v2/moderation/content?status=pending&priority=high&reason=spam&q=%20all%20&date_range=week&sort=most_reports&page_size=2",
+      "status": 200,
+      "query": {
+        "status": "pending",
+        "priority": "high",
+        "reason": "spam",
+        "q": "all",
+        "date_range": "week",
+        "sort": "most_reports",
+        "start_row": 1,
+        "end_row": 2
+      },
+      "meta": {
+        "page": 1,
+        "page_size": 2,
+        "total": 1,
+        "has_next": false
+      },
+      "item": {
+        "case_id": 17,
+        "post_id": 81,
+        "report_reasons": [
+          "hate",
+          "spam"
+        ],
+        "report_ids": [
+          12,
+          11,
+          10
+        ],
+        "media_ids": [
+          23
+        ]
+      },
+      "method": "GET"
+    },
+    {
+      "id": "empty-page",
+      "path": "/api/v2/moderation/content?status=pending&priority=high&reason=spam&q=%20all%20&date_range=week&sort=most_reports&page_size=2&page=2",
+      "status": 200,
+      "query": {
+        "status": "pending",
+        "priority": "high",
+        "reason": "spam",
+        "q": "all",
+        "date_range": "week",
+        "sort": "most_reports",
+        "start_row": 3,
+        "end_row": 4
+      },
+      "meta": {
+        "page": 2,
+        "page_size": 2,
+        "total": 1,
+        "has_next": false
+      },
+      "method": "GET"
+    },
+    {
+      "id": "fallbacks",
+      "path": "/api/v2/moderation/content?status=unknown&priority=nope&reason=unknown&sort=weird&date_range=nope&page_size=2",
+      "status": 200,
+      "query": {
+        "status": "pending",
+        "priority": null,
+        "reason": "other",
+        "q": null,
+        "date_range": "all",
+        "sort": "newest",
+        "start_row": 1,
+        "end_row": 2
+      },
+      "meta": {
+        "page": 1,
+        "page_size": 2,
+        "total": 0,
+        "has_next": false
+      },
+      "method": "GET"
+    }
+  ]
+}

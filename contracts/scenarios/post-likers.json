@@ -1,0 +1,99 @@
+{
+  "id": "POST-LIKERS",
+  "cases": [
+    {
+      "id": "anonymous",
+      "method": "GET",
+      "path": "/api/v2/posts/1/likes",
+      "status": 401,
+      "anonymous": true
+    },
+    {
+      "id": "invalid-id",
+      "method": "GET",
+      "path": "/api/v2/posts/01/likes",
+      "status": 400
+    },
+    {
+      "id": "unsafe-id",
+      "method": "GET",
+      "path": "/api/v2/posts/9007199254740992/likes",
+      "status": 400
+    },
+    {
+      "id": "hidden",
+      "method": "GET",
+      "path": "/api/v2/posts/2/likes",
+      "status": 404
+    },
+    {
+      "id": "deleted",
+      "method": "GET",
+      "path": "/api/v2/posts/6/likes",
+      "status": 404
+    },
+    {
+      "id": "missing",
+      "method": "GET",
+      "path": "/api/v2/posts/999/likes",
+      "status": 404
+    },
+    {
+      "id": "visible-empty",
+      "method": "GET",
+      "path": "/api/v2/posts/4/likes",
+      "status": 200,
+      "ids": [],
+      "meta": {
+        "page": 1,
+        "page_size": 20,
+        "total": 0,
+        "has_next": false
+      }
+    },
+    {
+      "id": "first-page",
+      "method": "GET",
+      "path": "/api/v2/posts/1/likes?page_size=2&viewer_id=999",
+      "status": 200,
+      "ids": [
+        8,
+        7
+      ],
+      "meta": {
+        "page": 1,
+        "page_size": 2,
+        "total": 3,
+        "has_next": true
+      }
+    },
+    {
+      "id": "stable-tie-page",
+      "method": "GET",
+      "path": "/api/v2/posts/1/likes?page=2&page_size=2",
+      "status": 200,
+      "ids": [
+        9
+      ],
+      "meta": {
+        "page": 2,
+        "page_size": 2,
+        "total": 3,
+        "has_next": false
+      }
+    },
+    {
+      "id": "beyond-end",
+      "method": "GET",
+      "path": "/api/v2/posts/1/likes?page=3&page_size=2",
+      "status": 200,
+      "ids": [],
+      "meta": {
+        "page": 3,
+        "page_size": 2,
+        "total": 3,
+        "has_next": false
+      }
+    }
+  ]
+}

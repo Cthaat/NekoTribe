@@ -1,0 +1,5 @@
+{
+  "chat": "SELECT 1 AS permitted\nFROM n_media_assets a\nWHERE a.media_id = :media_id AND a.access_scope = 'chat' AND a.status = 'ready'\n  AND NOT EXISTS (SELECT 1 FROM n_chat_message_media cm WHERE cm.media_id = a.media_id)\n  AND NOT EXISTS (SELECT 1 FROM n_post_media pm WHERE pm.media_id = a.media_id)",
+  "post": "SELECT 1 AS permitted\nFROM n_media_assets a\nWHERE a.media_id = :media_id AND a.access_scope = 'post' AND a.status = 'ready'\n  AND NOT EXISTS (SELECT 1 FROM n_chat_message_media cm WHERE cm.media_id = a.media_id)\n  AND NOT EXISTS (\n    SELECT 1 FROM n_post_media pm WHERE pm.media_id = a.media_id AND pm.post_id <> :post_id\n  )",
+  "retained": "SELECT 1 AS found\nFROM n_post_media pm JOIN n_media_assets a ON a.media_id = pm.media_id\nWHERE pm.post_id = :post_id\n  AND SUBSTR(LOWER(REPLACE(a.storage_key, CHR(92), '/') || '/'), 1, 8) = 'private/'\n  AND ROWNUM = 1"
+}

@@ -1,0 +1,190 @@
+{
+  "id": "CONTENT-ANALYTICS",
+  "cases": [
+    {
+      "id": "anonymous",
+      "method": "GET",
+      "path": "/api/v2/posts/1/analytics",
+      "status": 401,
+      "anonymous": true
+    },
+    {
+      "id": "invalid-id",
+      "method": "GET",
+      "path": "/api/v2/users/01/analytics",
+      "status": 400
+    },
+    {
+      "id": "own-private-post",
+      "method": "GET",
+      "path": "/api/v2/posts/1/analytics?viewer_id=8",
+      "status": 200,
+      "data": {
+        "post_id": 1,
+        "views_count": 3,
+        "likes_count": 2,
+        "comments_count": 2,
+        "replies_count": 1,
+        "retweets_count": 3,
+        "engagement_score": 4.25,
+        "like_rate": 0.6667
+      }
+    },
+    {
+      "id": "own-post-without-views",
+      "method": "GET",
+      "path": "/api/v2/posts/7/analytics",
+      "status": 200,
+      "data": {
+        "post_id": 7,
+        "views_count": 0,
+        "likes_count": 8,
+        "comments_count": 2,
+        "replies_count": 1,
+        "retweets_count": 3,
+        "engagement_score": 4.25,
+        "like_rate": 0
+      }
+    },
+    {
+      "id": "own-post-without-stats",
+      "method": "GET",
+      "path": "/api/v2/posts/13/analytics",
+      "status": 404
+    },
+    {
+      "id": "visible-post-of-another-user",
+      "method": "GET",
+      "path": "/api/v2/posts/8/analytics",
+      "status": 422
+    },
+    {
+      "id": "inaccessible-post",
+      "method": "GET",
+      "path": "/api/v2/posts/2/analytics",
+      "status": 404
+    },
+    {
+      "id": "deleted-post",
+      "method": "GET",
+      "path": "/api/v2/posts/6/analytics",
+      "status": 404
+    },
+    {
+      "id": "missing-post",
+      "method": "GET",
+      "path": "/api/v2/posts/99/analytics",
+      "status": 404
+    },
+    {
+      "id": "own-overview",
+      "method": "GET",
+      "path": "/api/v2/users/1/analytics",
+      "status": 200,
+      "data": {
+        "user_id": 1,
+        "total_posts": 3,
+        "posts_this_week": 2,
+        "posts_this_month": 3,
+        "total_likes_received": 10,
+        "avg_likes_per_post": 5,
+        "total_likes_given": 1,
+        "total_comments_made": 1,
+        "engagement_score": 4.25
+      }
+    },
+    {
+      "id": "public-overview",
+      "method": "GET",
+      "path": "/api/v2/users/8/analytics",
+      "status": 200,
+      "data": {
+        "user_id": 8,
+        "total_posts": 1,
+        "posts_this_week": 1,
+        "posts_this_month": 1,
+        "total_likes_received": 5,
+        "avg_likes_per_post": 5,
+        "total_likes_given": 0,
+        "total_comments_made": 0,
+        "engagement_score": 3.5
+      }
+    },
+    {
+      "id": "blocked-overview",
+      "method": "GET",
+      "path": "/api/v2/users/9/analytics",
+      "status": 404
+    },
+    {
+      "id": "blocked-by-target-overview",
+      "method": "GET",
+      "path": "/api/v2/users/14/analytics",
+      "status": 404
+    },
+    {
+      "id": "private-overview",
+      "method": "GET",
+      "path": "/api/v2/users/10/analytics",
+      "status": 404
+    },
+    {
+      "id": "inactive-overview",
+      "method": "GET",
+      "path": "/api/v2/users/11/analytics",
+      "status": 404
+    },
+    {
+      "id": "public-empty-overview",
+      "method": "GET",
+      "path": "/api/v2/users/12/analytics",
+      "status": 200,
+      "data": {
+        "user_id": 12,
+        "total_posts": 0,
+        "posts_this_week": 0,
+        "posts_this_month": 0,
+        "total_likes_received": 0,
+        "avg_likes_per_post": 0,
+        "total_likes_given": 0,
+        "total_comments_made": 0,
+        "engagement_score": 0
+      }
+    },
+    {
+      "id": "other-users-daily",
+      "method": "GET",
+      "path": "/api/v2/users/8/analytics/daily",
+      "status": 404,
+      "skipQuery": true
+    },
+    {
+      "id": "min-days",
+      "method": "GET",
+      "path": "/api/v2/users/1/analytics/daily?days=1",
+      "status": 200,
+      "length": 7
+    },
+    {
+      "id": "default-days",
+      "method": "GET",
+      "path": "/api/v2/users/1/analytics/daily?days=7&days=8",
+      "status": 200,
+      "length": 14
+    },
+    {
+      "id": "max-days",
+      "method": "GET",
+      "path": "/api/v2/users/1/analytics/daily?days=999",
+      "status": 200,
+      "length": 90
+    },
+    {
+      "id": "whole-days",
+      "method": "GET",
+      "path": "/api/v2/users/1/analytics/daily?days=8.9",
+      "status": 200,
+      "length": 8
+    }
+  ]
+}

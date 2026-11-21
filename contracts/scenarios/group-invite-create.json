@@ -1,0 +1,14 @@
+{
+  "id": "GROUP-INVITE-CREATE",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"invalid-id-count-expiry-message","status":400},
+    {"id":"active-member-creates-link","status":200},
+    {"id":"directed-invite-stores-eligible-notification","status":200},
+    {"id":"opted-out-recipient-still-gets-invitation","status":200},
+    {"id":"missing-group-or-recipient","status":404},
+    {"id":"inactive-actor-self-or-existing-target-membership","status":422},
+    {"id":"notification-or-expiry-write-failure-rolls-back","status":500}
+  ]
+}

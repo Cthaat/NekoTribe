@@ -1,0 +1,22 @@
+{
+  "id": "GROUP-LIST-MINE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "only-own-active-memberships",
+      "status": 200
+    },
+    {
+      "id": "stable-join-order",
+      "status": 200
+    },
+    {
+      "id": "invalid-category",
+      "status": 400
+    }
+  ]
+}

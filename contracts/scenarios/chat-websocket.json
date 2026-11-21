@@ -1,0 +1,24 @@
+{
+  "id": "CHAT-WEBSOCKET",
+  "revision": 1,
+  "cases": [
+    { "id": "WS-CHAT-01", "name": "加入命令只接受正安全整数和兼容十进制字符串" },
+    { "id": "WS-CHAT-02", "name": "按会话复核频道读取权限，加入和离开只影响选定频道" },
+    { "id": "WS-CHAT-03", "name": "发送频道命令失败后重连，在有效状态帧到达后重新加入活动频道" },
+    { "id": "WS-CHAT-04", "name": "账号或后端切换后废弃前一连接的命令和事件" },
+    { "id": "WS-CHAT-05", "name": "首次或恢复订阅时用 HTTP 补读当前频道历史并合并实时变更" }
+  ],
+  "channelIdCases": [
+    { "input": 7, "channelId": 7 },
+    { "input": "+007", "channelId": 7 },
+    { "input": [7], "channelId": null },
+    { "input": " 7", "channelId": null },
+    { "input": "7\n", "channelId": null },
+    { "input": "0x7", "channelId": null },
+    { "input": "7.0", "channelId": null },
+    { "input": "7e0", "channelId": null },
+    { "input": 0, "channelId": null },
+    { "input": 7.1, "channelId": null },
+    { "input": 9007199254740992, "channelId": null }
+  ]
+}

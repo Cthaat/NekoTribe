@@ -1,0 +1,145 @@
+{
+  "id": "MODERATION-APPEALS",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "no-session",
+      "method": "GET",
+      "path": "/api/v2/moderation/appeals",
+      "status": 401
+    },
+    {
+      "id": "forbidden-before-input",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/bad",
+      "body": {
+        "appeal_status": "approved"
+      },
+      "denied": true,
+      "status": 403
+    },
+    {
+      "id": "filtered-empty-page",
+      "method": "GET",
+      "path": "/api/v2/moderation/appeals?status=pending&page=2&page_size=2",
+      "status": 200,
+      "filter": "pending",
+      "meta": {
+        "page": 2,
+        "page_size": 2,
+        "total": 2,
+        "has_next": false
+      }
+    },
+    {
+      "id": "invalid-path-id",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/012",
+      "body": {
+        "appeal_status": "approved"
+      },
+      "status": 400
+    },
+    {
+      "id": "legacy-field-is-invalid",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/12",
+      "body": {
+        "status": "approved",
+        "response": "bad"
+      },
+      "status": 400
+    },
+    {
+      "id": "invalid-decision",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/12",
+      "body": {
+        "appeal_status": "pending"
+      },
+      "status": 400
+    },
+    {
+      "id": "invalid-reply-type",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/12",
+      "body": {
+        "appeal_status": "approved",
+        "admin_response": null
+      },
+      "status": 400
+    },
+    {
+      "id": "reply-byte-limit",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/12",
+      "body": {
+        "appeal_status": "approved",
+        "admin_response": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+      },
+      "status": 400
+    },
+    {
+      "id": "missing",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/90",
+      "body": {
+        "appeal_status": "approved"
+      },
+      "status": 404
+    },
+    {
+      "id": "approve",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/12",
+      "body": {
+        "appeal_status": "approved",
+        "admin_response": "  Reviewed by staff  "
+      },
+      "status": 200,
+      "decision": "approved",
+      "reply": "Reviewed by staff"
+    },
+    {
+      "id": "identical-retry",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/12",
+      "body": {
+        "appeal_status": "approved",
+        "admin_response": "Reviewed by staff"
+      },
+      "status": 200,
+      "decision": "approved",
+      "reply": "Reviewed by staff"
+    },
+    {
+      "id": "conflict-decision",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/12",
+      "body": {
+        "appeal_status": "rejected",
+        "admin_response": "Reviewed by staff"
+      },
+      "status": 409
+    },
+    {
+      "id": "conflict-amended-reply",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/12",
+      "body": {
+        "appeal_status": "approved",
+        "admin_response": "Different reply"
+      },
+      "status": 409
+    },
+    {
+      "id": "audit-failure-rolls-back",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/appeals/13",
+      "body": {
+        "appeal_status": "rejected"
+      },
+      "status": 500
+    }
+  ]
+}

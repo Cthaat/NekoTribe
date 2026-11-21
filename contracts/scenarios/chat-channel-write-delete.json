@@ -1,0 +1,23 @@
+{
+  "id": "CHAT-CHANNEL-DELETE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "status": 401
+    },
+    {
+      "id": "ordinary-member",
+      "status": 403
+    },
+    {
+      "id": "deleted-or-inaccessible",
+      "status": 403
+    },
+    {
+      "id": "soft-delete-keeps-messages",
+      "status": 200,
+      "data": null
+    }
+  ]
+}

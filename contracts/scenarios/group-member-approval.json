@@ -1,0 +1,14 @@
+{
+  "id": "GROUP-MEMBER-APPROVAL",
+  "revision": 2,
+  "cases": [
+    { "id": "unauthenticated", "status": 401 },
+    { "id": "non-boolean-or-invalid-id", "status": 400 },
+    { "id": "pending-approval", "status": 200 },
+    { "id": "pending-rejection", "status": 200 },
+    { "id": "already-active-or-protected-status", "status": 422 },
+    { "id": "muted-or-insufficient-actor", "status": 422 },
+    { "id": "member-id-from-another-group", "status": 404 },
+    { "id": "audit-failure-rolls-back", "status": 500 }
+  ]
+}

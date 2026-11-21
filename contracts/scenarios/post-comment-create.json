@@ -1,13 +1,13 @@
 {
   "id": "POST-COMMENT-CREATE",
-  "revision": 1,
+  "revision": 2,
   "cases": [
     {"id":"CREATE-01","assertion":"session and safe post and parent IDs are required; invalid and empty content is rejected"},
     {"id":"CREATE-02","assertion":"hidden, deleted or missing post cannot be commented on before or during insertion"},
-    {"id":"CREATE-03","assertion":"parent belongs to the same post and remains undeleted at insertion"},
+    {"id":"CREATE-03","assertion":"parent belongs to the same post and meets visibility, active-author and bidirectional block rules in both the lookup and insertion"},
     {"id":"CREATE-04","assertion":"root and reply IDs, content, author, timestamps and viewer state match the common response"},
     {"id":"CREATE-05","assertion":"post author and distinct parent author receive correctly deduplicated notifications according to preferences"},
     {"id":"CREATE-06","assertion":"a failure after committed insertion may leave a comment or partial notifications and does not leak internals"},
-    {"id":"CREATE-07","assertion":"isolated real Oracle, Redis, both clients, races and cross-backend behavior are verified"}
+    {"id":"CREATE-07","assertion":"both clients send the selected parent for regular and cited comments, retain rejected drafts and clear confirmed drafts; isolated Oracle and Redis remain an acceptance gate"}
   ]
 }

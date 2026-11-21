@@ -1,0 +1,140 @@
+{
+  "id": "ACCOUNT-STATEMENTS",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "anonymous",
+      "method": "GET",
+      "path": "/api/v2/users/me/account-statements",
+      "status": 401
+    },
+    {
+      "id": "filtered-empty-page",
+      "method": "GET",
+      "path": "/api/v2/users/me/account-statements?status=unread&type=warning&page=2&page_size=2&user_id=77",
+      "status": 200,
+      "meta": {
+        "page": 2,
+        "page_size": 2,
+        "total": 2,
+        "has_next": false
+      }
+    },
+    {
+      "id": "invalid-id",
+      "method": "PATCH",
+      "path": "/api/v2/users/me/account-statements/01",
+      "body": {
+        "action": "mark_read"
+      },
+      "status": 400
+    },
+    {
+      "id": "invalid-action",
+      "method": "PATCH",
+      "path": "/api/v2/users/me/account-statements/9",
+      "body": {
+        "action": "constructor"
+      },
+      "status": 400
+    },
+    {
+      "id": "foreign-record",
+      "method": "PATCH",
+      "path": "/api/v2/users/me/account-statements/8",
+      "body": {
+        "action": "dismiss"
+      },
+      "status": 404
+    },
+    {
+      "id": "mark-read",
+      "method": "PATCH",
+      "path": "/api/v2/users/me/account-statements/9",
+      "body": {
+        "action": " mark_read "
+      },
+      "status": 200,
+      "data": {
+        "statement_id": 9,
+        "status": "read",
+        "updated_at": "2026-11-16T08:00:00.000Z"
+      }
+    },
+    {
+      "id": "missing-appeal-text",
+      "method": "POST",
+      "path": "/api/v2/users/me/account-statements/9/appeals",
+      "body": {
+        "appeal_message": " "
+      },
+      "status": 400
+    },
+    {
+      "id": "too-many-utf8-bytes",
+      "method": "POST",
+      "path": "/api/v2/users/me/account-statements/9/appeals",
+      "body": {
+        "appeal_message": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+      },
+      "status": 400
+    },
+    {
+      "id": "foreign-appeal",
+      "method": "POST",
+      "path": "/api/v2/users/me/account-statements/8/appeals",
+      "body": {
+        "appeal_message": "Check rule application"
+      },
+      "status": 404
+    },
+    {
+      "id": "submit",
+      "method": "POST",
+      "path": "/api/v2/users/me/account-statements/9/appeals",
+      "body": {
+        "appeal_message": "  Check rule application  "
+      },
+      "status": 200,
+      "data": {
+        "statement_id": 9,
+        "status": "appealed",
+        "appeal_id": 12,
+        "appeal_status": "pending"
+      }
+    },
+    {
+      "id": "retry",
+      "method": "POST",
+      "path": "/api/v2/users/me/account-statements/9/appeals",
+      "body": {
+        "appeal_message": "Check rule application"
+      },
+      "status": 200,
+      "data": {
+        "statement_id": 9,
+        "status": "appealed",
+        "appeal_id": 12,
+        "appeal_status": "pending"
+      }
+    },
+    {
+      "id": "conflicting-message",
+      "method": "POST",
+      "path": "/api/v2/users/me/account-statements/9/appeals",
+      "body": {
+        "appeal_message": "Different reason"
+      },
+      "status": 409
+    },
+    {
+      "id": "transaction-failure",
+      "method": "POST",
+      "path": "/api/v2/users/me/account-statements/10/appeals",
+      "body": {
+        "appeal_message": "Check second statement"
+      },
+      "status": 500
+    }
+  ]
+}

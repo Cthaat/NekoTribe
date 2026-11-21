@@ -1,0 +1,78 @@
+{
+  "id": "USER-DISCOVERY",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "path": "/api/v2/users",
+      "status": 401
+    },
+    {
+      "id": "search-normalizes-filters",
+      "path": "/api/v2/users?q=+ALI_CE+&verified=true&sort=oldest&page=2&page_size=2&viewer_id=99",
+      "status": 200,
+      "pattern": "%ali_ce%",
+      "sort": "oldest",
+      "verified": 1,
+      "meta": {
+        "page": 2,
+        "page_size": 2,
+        "total": 8,
+        "has_next": true
+      }
+    },
+    {
+      "id": "duplicate-queries-fall-back",
+      "path": "/api/v2/users?q=a&q=b&verified=true&verified=false&sort=oldest&sort=newest&page=3&page=2",
+      "status": 200,
+      "pattern": "%%",
+      "sort": "popular",
+      "verified": 0,
+      "meta": {
+        "page": 1,
+        "page_size": 20,
+        "total": 8,
+        "has_next": false
+      }
+    },
+    {
+      "id": "empty-page-keeps-total",
+      "path": "/api/v2/users?q=Test&sort=newest&page=10001&page_size=999",
+      "status": 200,
+      "pattern": "%test%",
+      "sort": "newest",
+      "verified": 0,
+      "meta": {
+        "page": 10000,
+        "page_size": 100,
+        "total": 8,
+        "has_next": false
+      },
+      "empty": true
+    },
+    {
+      "id": "recommendation-limit-cap",
+      "path": "/api/v2/users/recommendations?limit=51",
+      "status": 200,
+      "meta": {
+        "limit": 50
+      }
+    },
+    {
+      "id": "recommendation-limit-fallback",
+      "path": "/api/v2/users/recommendations?limit=2&limit=8",
+      "status": 200,
+      "meta": {
+        "limit": 10
+      }
+    },
+    {
+      "id": "recommendation-fraction",
+      "path": "/api/v2/users/recommendations?limit=2.75",
+      "status": 200,
+      "meta": {
+        "limit": 2.75
+      }
+    }
+  ]
+}
