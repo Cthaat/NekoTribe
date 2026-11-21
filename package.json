@@ -112,7 +112,7 @@
     "@types/oracledb": "^6.6.0",
     "@types/sharp": "^0.32.0",
     "@types/ws": "^8.18.1",
-    "@vue/language-core": "^3.2.8",
+    "@vue/language-core": "^3.3.14",
     "ajv": "6.12.6",
     "esbuild": "0.25.5",
     "typescript": "5.8.3",
