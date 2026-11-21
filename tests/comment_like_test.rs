@@ -180,17 +180,19 @@ async fn comment_like_repository_checks_visibility_and_binds() {
             assert_eq!(r.inserted, inserted)
         }
         for (sql, binds) in repo.executor.calls.lock().unwrap().iter() {
-            if sql.starts_with("INSERT") || sql.starts_with("DELETE") {
-                for part in [
-                    "c.is_deleted=0",
-                    "p.is_deleted=0",
-                    "fn_can_view_post(:user_id,c.post_id)=1",
-                ] {
-                    assert!(sql.contains(part), "{sql}")
-                }
-                assert_eq!(binds["user_id"], DbValue::I64(42));
-                assert_eq!(binds["comment_id"], DbValue::I64(20));
+            for part in [
+                "c.is_deleted=0",
+                "p.is_deleted=0",
+                "fn_can_view_post(:viewer_id,c.post_id)=1",
+                "post_author.is_active=1",
+                "comment_author.is_active=1",
+                "b.user_id=:viewer_id AND b.target_user_id=c.user_id",
+                "b.target_user_id=:viewer_id AND b.user_id=c.user_id",
+            ] {
+                assert!(sql.contains(part), "{sql}")
             }
+            assert_eq!(binds["viewer_id"], DbValue::I64(42));
+            assert_eq!(binds["comment_id"], DbValue::I64(20));
         }
     }
 }

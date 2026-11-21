@@ -2,7 +2,7 @@ use nekotribe_backend::{
     ai::{
         conversation_store::{AiOperation, Error as StoreError, ModerationPolicy},
         knowledge_conversation::{
-            generate_with_transport, generate_with_transport_and_search, Error,
+            Error, generate_with_transport, generate_with_transport_and_search,
         },
         knowledge_service::{KnowledgeStore, KnowledgeTransport},
         knowledge_source::{Candidate, Source},
@@ -10,17 +10,18 @@ use nekotribe_backend::{
         model_config::SelectionSnapshot,
     },
     auth::{
-        sessions::{SessionRepository, StoreFuture},
         TokenClaims,
+        sessions::{SessionRepository, StoreFuture},
     },
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 
 struct Store {
     events: Arc<Mutex<Vec<&'static str>>>,
     empty: bool,
     wrong: bool,
+    skill_disabled: bool,
     question: &'static str,
 }
 impl SessionRepository for Store {
@@ -49,13 +50,24 @@ impl SessionRepository for Store {
                     self.events.lock().unwrap().push("history");
                     Ok(json!([{"sequence_no":1,"role":"user","content":self.question}]))
                 }
+                AiOperation::KnowledgeSkill(_, _) => {
+                    self.events.lock().unwrap().push("skill");
+                    if self.skill_disabled {
+                        Err(StoreError::SchemaUnavailable)
+                    } else {
+                        Ok(json!(7))
+                    }
+                }
                 AiOperation::KnowledgeAssistant {
                     input,
                     sources,
                     context_snapshot,
+                    skill_generation,
                     ..
                 } => {
                     self.events.lock().unwrap().push("append");
+                    assert_eq!(skill_generation, 7);
+                    assert_eq!(input.model_version.as_deref(), Some("fixture-v2"));
                     assert_eq!(
                         (
                             input.content.as_str(),
@@ -105,6 +117,7 @@ fn source() -> Source {
         kind: "post".into(),
         id: 1,
         post_id: 1,
+        group_id: 0,
         content: "资料".into(),
         version: "a".repeat(64),
     }
@@ -127,6 +140,7 @@ fn selection() -> SelectionSnapshot {
         adapter: "ollama".into(),
         base_url: "http://localhost".into(),
         model: "test".into(),
+        model_version: Some("fixture-v2".into()),
         api_key_env: None,
         capabilities: vec![],
         context_window_tokens: 8192,
@@ -150,6 +164,7 @@ async fn retains_question_when_search_phrase_is_separate() {
         events: Arc::new(Mutex::new(vec![])),
         empty: false,
         wrong: false,
+        skill_disabled: false,
         question: "社区里有哪些猫咪？",
     };
     let result = generate_with_transport_and_search(
@@ -161,7 +176,11 @@ async fn retains_question_when_search_phrase_is_separate() {
         selection(),
         &QuestionTransport,
         None,
-        Some("猫"),
+        &nekotribe_backend::ai::knowledge_search_body::KnowledgeSearchBody {
+            phrase: Some("猫".into()),
+            skill_id: Some("knowledge-answer"),
+            expected_sequence: Some(1),
+        },
     )
     .await
     .unwrap();
@@ -174,6 +193,7 @@ async fn persists_after_generation_with_fixed_sequence_and_model() {
         events: events.clone(),
         empty: false,
         wrong: false,
+        skill_disabled: false,
         question: "猫",
     };
     let transport = Transport(events.clone());
@@ -192,7 +212,9 @@ async fn persists_after_generation_with_fixed_sequence_and_model() {
     assert_eq!(result.unwrap()["sequence_no"], 2);
     assert_eq!(
         *events.lock().unwrap(),
-        vec!["read", "history", "discover", "hydrate", "infer", "hydrate", "append"]
+        vec![
+            "read", "history", "skill", "discover", "hydrate", "infer", "hydrate", "append"
+        ]
     );
 }
 #[tokio::test]
@@ -203,26 +225,30 @@ async fn no_evidence_or_wrong_purpose_never_writes() {
         events: events.clone(),
         empty: true,
         wrong: false,
+        skill_disabled: false,
         question: "猫",
     };
-    assert!(generate_with_transport(
-        &store,
-        &store,
-        42,
-        "id",
-        ModerationPolicy::new("", ""),
-        selection(),
-        &transport,
-        None
-    )
-    .await
-    .unwrap()
-    .is_none());
+    assert!(
+        generate_with_transport(
+            &store,
+            &store,
+            42,
+            "id",
+            ModerationPolicy::new("", ""),
+            selection(),
+            &transport,
+            None
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
     assert!(!events.lock().unwrap().contains(&"append"));
     let bad = Store {
         events: events.clone(),
         empty: false,
         wrong: true,
+        skill_disabled: false,
         question: "猫",
     };
     assert!(matches!(
@@ -239,4 +265,33 @@ async fn no_evidence_or_wrong_purpose_never_writes() {
         .await,
         Err(Error::Context)
     ));
+}
+
+#[tokio::test]
+async fn disabled_skill_blocks_inference() {
+    let events = Arc::new(Mutex::new(vec![]));
+    let store = Store {
+        events: events.clone(),
+        empty: false,
+        wrong: false,
+        skill_disabled: true,
+        question: "猫",
+    };
+    let result = generate_with_transport(
+        &store,
+        &store,
+        42,
+        "id",
+        ModerationPolicy::new("", ""),
+        selection(),
+        &Transport(events.clone()),
+        None,
+    )
+    .await;
+    assert!(matches!(
+        result,
+        Err(Error::Store(StoreError::SchemaUnavailable))
+    ));
+    assert!(!events.lock().unwrap().contains(&"infer"));
+    assert!(!events.lock().unwrap().contains(&"append"));
 }

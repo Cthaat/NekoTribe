@@ -61,9 +61,18 @@ impl SessionRepository for Store {
                 Some(error) => Err(error),
                 None => Ok(match operation {
                     AiOperation::Delete(_) => serde_json::Value::Null,
-                    AiOperation::ListOwned { after, limit } => {
+                    AiOperation::ListOwned {
+                        after,
+                        limit,
+                        purpose,
+                        group_id,
+                        target_title,
+                    } => {
                         assert!(after.is_empty());
                         assert_eq!(limit, 10);
+                        assert_eq!(purpose, "knowledge");
+                        assert_eq!(group_id, None);
+                        assert!(target_title.is_empty());
                         serde_json::json!({"items":[],"next_cursor":null})
                     }
                     _ => serde_json::json!({"ok":true}),
@@ -106,7 +115,7 @@ async fn ai_routes_require_auth_validate_input_and_disable_caching() {
         ),
         (
             "GET",
-            "/api/v2/ai/conversations?limit=10".to_string(),
+            "/api/v2/ai/conversations?limit=10&purpose=knowledge".to_string(),
             "",
             true,
             200,
@@ -233,6 +242,47 @@ async fn ai_routes_require_auth_validate_input_and_disable_caching() {
                 .unwrap();
             let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(body["data"], serde_json::Value::Null);
+        }
+    }
+    for (path, json, form, duplicate) in [
+        (
+            "/api/v2/ai/conversations".to_string(),
+            r#"{"purpose":"writing"}"#,
+            "purpose=writing",
+            r#"{"purpose":"knowledge","purpo\u0073e":"writing"}"#,
+        ),
+        (
+            format!("/api/v2/ai/conversations/{id}/messages"),
+            r#"{"content":"猫😺"}"#,
+            "content=hello",
+            r#"{"content":"first","cont\u0065nt":"replacement"}"#,
+        ),
+    ] {
+        let mut padded = json.as_bytes().to_vec();
+        padded.resize(1 << 20, b' ');
+        let mut oversized = padded.clone();
+        oversized.push(b' ');
+        for (body, media_type, status) in [
+            (padded, "application/json", 200),
+            (oversized, "application/json", 400),
+            (
+                form.as_bytes().to_vec(),
+                "application/x-www-form-urlencoded",
+                400,
+            ),
+            (b"[]".to_vec(), "application/json", 400),
+            (format!("{json}{{}}").into_bytes(), "application/json", 400),
+            (duplicate.as_bytes().to_vec(), "application/json", 400),
+            (b"{\"content\":\"\xff\"}".to_vec(), "application/json", 400),
+            (br#"{"content":"\ud800"}"#.to_vec(), "application/json", 400),
+        ] {
+            let request = Request::post(path.as_str())
+                .header("authorization", format!("Bearer {token}"))
+                .header("content-type", media_type)
+                .body(Body::from(body))
+                .unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status().as_u16(), status, "{path} {media_type}");
         }
     }
 }

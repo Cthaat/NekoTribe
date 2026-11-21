@@ -241,7 +241,7 @@ async fn storage_reuses_type_preferences_and_only_push_is_suppressed_globally() 
             let input = PostNoticeInput {
                 recipient,
                 actor: 42,
-                post_id: 100,
+                resource_id: 100,
                 kind,
                 title: "title".into(),
                 message: "message".into(),

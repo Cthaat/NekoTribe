@@ -55,6 +55,36 @@ impl PostCreateTransaction for Transaction {
         if self.mode == "read" {
             return Err(DbError::SchemaNotReady);
         }
+        let (lock, allowed) = nekotribe_backend::moderation::publish_policy::queries();
+        if sql == lock {
+            return Ok(vec![DbRow::from([("USER_ID".into(), DbValue::I64(42))])]);
+        }
+        if sql == allowed {
+            return Ok(vec![DbRow::from([(
+                "ALLOWED".into(),
+                DbValue::I64(i64::from(!(self.mode == "muted"))),
+            )])]);
+        }
+        if sql.starts_with("SELECT media_id,storage_key FROM n_media_assets") {
+            let key = if self.mode.starts_with("private-") {
+                "private/post/42/a.txt"
+            } else {
+                "posts/a.txt"
+            };
+            return Ok(vec![DbRow::from([
+                ("MEDIA_ID".into(), DbValue::I64(1)),
+                ("STORAGE_KEY".into(), DbValue::String(key.into())),
+            ])]);
+        }
+        if sql.starts_with("SELECT 1 AS permitted")
+            || sql.starts_with("SELECT 1 AS found")
+        {
+            return Ok(if self.mode == "private-linked-elsewhere" {
+                vec![]
+            } else {
+                vec![DbRow::new()]
+            });
+        }
         if sql.contains("FOR UPDATE") {
             if self.mode == "missing" {
                 return Ok(vec![]);
@@ -83,6 +113,7 @@ impl PostCreateTransaction for Transaction {
                     "CONTENT".into(),
                     DbValue::String(self.saved.borrow().content.clone()),
                 ),
+                ("VISIBILITY".into(), DbValue::String("private".into())),
             ])]);
         }
         assert!(sql.contains("COUNT(*)"));
@@ -155,6 +186,28 @@ impl PostCreateTransaction for Transaction {
         Ok(())
     }
 }
+
+#[test]
+fn private_post_update_respects_effective_visibility_and_retained_media() {
+    for (mode, visibility, media_ids, expected) in [
+        ("private-retained", Some("public"), None, PostUpdate::MediaUnavailable),
+        ("private-retained", Some("public"), Some(vec![]), PostUpdate::Updated),
+        ("private-retained", Some("public"), Some(vec![8.0]), PostUpdate::MediaUnavailable),
+        ("private-retained", None, Some(vec![8.0]), PostUpdate::Updated),
+        ("private-linked-elsewhere", None, Some(vec![8.0]), PostUpdate::MediaUnavailable),
+    ] {
+        let tx = Transaction::new(mode);
+        let data = PostUpdateInput {
+            visibility: visibility.map(str::to_owned),
+            media_ids,
+            ..Default::default()
+        };
+        assert_eq!(run(&tx, 42, 20, &data).unwrap(), expected);
+        if expected == PostUpdate::MediaUnavailable {
+            assert_eq!(*tx.saved.borrow(), initial());
+        }
+    }
+}
 fn input() -> PostUpdateInput {
     PostUpdateInput {
         content: Some("new".into()),
@@ -168,6 +221,7 @@ fn input() -> PostUpdateInput {
 fn post_update_atomic_writes_and_rollbacks() {
     for mode in [
         "success",
+        "muted",
         "missing",
         "deleted",
         "other",
@@ -209,6 +263,7 @@ fn post_update_atomic_writes_and_rollbacks() {
         let actual = run(&tx, 42, 20, &data);
         let expected = match mode {
             "success" | "noop" | "clear" => Some(PostUpdate::Updated),
+            "muted" => Some(PostUpdate::PublishForbidden),
             "missing" | "deleted" | "race" => Some(PostUpdate::Missing),
             "other" => Some(PostUpdate::NotOwner),
             "bad-media" => Some(PostUpdate::MediaUnavailable),

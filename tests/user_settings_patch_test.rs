@@ -8,7 +8,7 @@ fn shared_user_settings_patch_vectors() {
     ))
     .unwrap();
     assert_eq!(fixture["id"], "USER-SETTINGS-PATCH");
-    assert_eq!(fixture["cases"].as_array().unwrap().len(), 16);
+    assert_eq!(fixture["cases"].as_array().unwrap().len(), 20);
     for case in fixture["cases"].as_array().unwrap() {
         let result = parse(&case["body"]);
         if let Some(error) = case.get("error").and_then(serde_json::Value::as_str) {

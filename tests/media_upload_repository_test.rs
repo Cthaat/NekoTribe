@@ -5,7 +5,7 @@ use nekotribe_backend::{
         storage_urls::StorageUrlPolicy,
     },
     db::oracle::BindMap,
-    media::upload_transaction::{MediaUpload, MediaUploadOutcome},
+    media::upload_transaction::{MediaAccess, MediaUpload, MediaUploadOutcome},
 };
 use std::sync::Mutex;
 
@@ -48,7 +48,7 @@ async fn repository_preserves_unknown_commit_and_delegates_input_and_policy() {
         user_id: 42,
         size: 1,
         key: "posts/a".into(),
-        public_url: "/storage/posts/a".into(),
+        access: MediaAccess::Public("/storage/posts/a".into()),
         filename: "a".into(),
         media_type: "image".into(),
         mime_type: "image/png".into(),

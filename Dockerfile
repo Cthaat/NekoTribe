@@ -9,7 +9,7 @@ RUN apt-get update \
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY tests ./tests
-COPY contracts/v2.openapi.json ./contracts/v2.openapi.json
+COPY contracts ./contracts
 
 RUN cargo build --locked --release -j 2
 
@@ -17,8 +17,11 @@ FROM container-registry.oracle.com/os/oraclelinux:9-slim AS runtime
 
 WORKDIR /app
 
-RUN microdnf install -y oracle-instantclient-release-el9 ca-certificates curl \
+RUN microdnf install -y oracle-instantclient-release-el9 oracle-epel-release-el9 ca-certificates curl \
   && microdnf install -y oracle-instantclient19.31-basiclite \
+  && microdnf install -y --enablerepo=ol9_developer_EPEL --enablerepo=ol9_codeready_builder \
+      --setopt=install_weak_deps=0 ffmpeg-free \
+  && ffprobe -version \
   && microdnf clean all
 
 ENV HOST=0.0.0.0

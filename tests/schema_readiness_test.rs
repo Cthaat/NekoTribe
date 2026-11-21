@@ -356,3 +356,55 @@ fn media_collector_reads_only_relevant_schema_and_checks_snapshot() {
         .is_err()
     );
 }
+
+#[test]
+fn shared_ai_skill_readiness_matches_nuxt_scenarios() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../contracts/scenarios/ai-skill-readiness.json"
+    ))
+    .unwrap();
+    assert_eq!(fixture["id"], "AI-SKILL-READINESS");
+    for case in fixture["cases"].as_array().unwrap() {
+        let mut snapshot = fixture["baseline"].clone();
+        for mutation in case["mutations"].as_array().unwrap() {
+            let path = mutation["path"].as_array().unwrap();
+            let mut target = &mut snapshot;
+            for part in &path[..path.len() - 1] {
+                target = if let Some(key) = part.as_str() {
+                    target.get_mut(key).unwrap()
+                } else {
+                    target.get_mut(part.as_u64().unwrap() as usize).unwrap()
+                };
+            }
+            let last = path.last().unwrap();
+            match (mutation["op"].as_str().unwrap(), last.as_str()) {
+                ("set", Some(key)) => {
+                    target
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(key.to_owned(), mutation["value"].clone());
+                }
+                ("delete", Some(key)) => {
+                    target.as_object_mut().unwrap().remove(key);
+                }
+                ("set", None) => {
+                    target[last.as_u64().unwrap() as usize] = mutation["value"].clone()
+                }
+                ("delete", None) => {
+                    target
+                        .as_array_mut()
+                        .unwrap()
+                        .remove(last.as_u64().unwrap() as usize);
+                }
+                _ => panic!("bad fixture"),
+            }
+        }
+        assert_eq!(
+            nekotribe_backend::auth::readiness::validate_feature_snapshot(&snapshot, "ai-skills")
+                .is_ok(),
+            case["ready"].as_bool().unwrap(),
+            "{}",
+            case["id"]
+        );
+    }
+}

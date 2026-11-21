@@ -1,6 +1,6 @@
 use nekotribe_backend::{
     auth::{
-        login::{LoginChallenge, LoginDevice, LoginSession},
+        login::{EncryptedSecret, FactorCompletion, LoginChallenge, LoginDevice, LoginSession},
         session_repository::{OracleSessions, SessionExecutor},
         sessions::{
             SessionCredential, SessionRepository, SessionRotation, SessionStoreError, StoreFuture,
@@ -47,6 +47,36 @@ async fn password_reset_repository_passes_arguments_to_atomic_executor() {
     );
 }
 impl SessionExecutor for RegistrationExecutor {
+    fn registration_insert<'a>(&'a self, record: &'a nekotribe_backend::auth::registration::RegistrationRecord, verification_id: &'a str) -> StoreFuture<'a, nekotribe_backend::auth::registration::Outcome> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push(("REGISTER_ATOMIC", BindMap::from([
+                ("account".into(), DbValue::String(record.email.clone())),
+                ("verification_id".into(), DbValue::String(verification_id.into())),
+                ("password_hash".into(), DbValue::String(record.password_hash.clone())),
+            ])));
+            Ok(nekotribe_backend::auth::registration::Outcome::Registered)
+        })
+    }
+    fn change_email_atomic<'a>(
+        &'a self,
+        user: u64,
+        email: &'a str,
+        id: &'a str,
+        hash: &'a str,
+    ) -> StoreFuture<'a, nekotribe_backend::users::email_change::EmailChange> {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push((
+                "EMAIL_ATOMIC",
+                BindMap::from([
+                    ("user_id".into(), DbValue::I64(user as i64)),
+                    ("email".into(), DbValue::String(email.into())),
+                    ("verification_id".into(), DbValue::String(id.into())),
+                    ("code_hash".into(), DbValue::String(hash.into())),
+                ]),
+            ));
+            Ok(nekotribe_backend::users::email_change::EmailChange::Expired)
+        })
+    }
     fn reset_password_atomic<'a>(
         &'a self,
         email: &'a str,
@@ -92,6 +122,38 @@ impl SessionExecutor for RegistrationExecutor {
         })
     }
 }
+
+#[tokio::test]
+async fn email_change_repository_forwards_identity_and_atomic_arguments() {
+    let repo = OracleSessions {
+        executor: RegistrationExecutor::default(),
+    };
+    let _ = repo.email_in_use(42, "fake';--").await.unwrap();
+    assert_eq!(
+        repo.change_email_atomic(42, "fake';--", "email_fixture", "private-hash")
+            .await
+            .unwrap(),
+        nekotribe_backend::users::email_change::EmailChange::Expired
+    );
+    let calls = repo.executor.calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls[0]
+        .0
+        .contains("email = :email AND user_id != :user_id"));
+    assert!(!calls[0].0.contains("fake';--"));
+    assert_eq!(calls[0].1["user_id"], DbValue::I64(42));
+    assert_eq!(calls[0].1["email"], DbValue::String("fake';--".into()));
+    assert_eq!(calls[1].0, "EMAIL_ATOMIC");
+    assert_eq!(calls[1].1["user_id"], DbValue::I64(42));
+    assert_eq!(
+        calls[1].1["verification_id"],
+        DbValue::String("email_fixture".into())
+    );
+    assert_eq!(
+        calls[1].1["code_hash"],
+        DbValue::String("private-hash".into())
+    );
+}
 #[tokio::test]
 async fn registration_repository_binds_otp_duplicate_sequence_and_insert() {
     use nekotribe_backend::auth::registration::RegistrationRecord;
@@ -119,7 +181,7 @@ async fn registration_repository_binds_otp_duplicate_sequence_and_insert() {
         phone: String::new(),
         birth_date: String::new(),
     };
-    repo.registration_insert(&record).await.unwrap();
+    repo.registration_insert(&record,"otp_fixture").await.unwrap();
     let calls = repo.executor.calls.lock().unwrap();
     assert_eq!(calls.len(), 4);
     assert!(
@@ -134,9 +196,8 @@ async fn registration_repository_binds_otp_duplicate_sequence_and_insert() {
     );
     assert_eq!(calls[1].1["username"], DbValue::String("username".into()));
     assert!(calls[2].0.contains("seq_user_id.NEXTVAL"));
-    assert!(calls[3].0.contains("TO_DATE(:birth_date, 'YYYY-MM-DD')"));
-    assert_eq!(calls[3].1["birth_date"], DbValue::Null);
-    assert_eq!(calls[3].1["bio"], DbValue::String("  retained  ".into()));
+    assert_eq!(calls[3].0,"REGISTER_ATOMIC");
+    assert_eq!(calls[3].1["verification_id"], DbValue::String("otp_fixture".into()));
     assert_eq!(
         calls[3].1["password_hash"],
         DbValue::String("synthetic-hash".into())
@@ -267,10 +328,8 @@ impl SessionExecutor for ListExecutor {
     fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((sql, binds));
-            if sql.contains("COUNT(*)") {
-                return Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(2))])]);
-            }
             Ok(vec![DbRow::from([
+                ("TOTAL".into(), DbValue::I64(2)),
                 ("SESSION_ID".into(), DbValue::String("a".into())),
                 ("DEVICE_INFO".into(), DbValue::Null),
                 ("IP_ADDRESS".into(), DbValue::String("127.0.0.1".into())),
@@ -308,14 +367,14 @@ async fn list_session_repository_binds_identity_pagination_and_maps_rows() {
     assert_eq!(items[0].last_accessed_at, "2026-01-01T00:00:00.000Z");
     assert_eq!(items[0].created_at, "");
     let calls = repo.executor.calls.lock().unwrap();
-    assert_eq!(calls.len(), 2);
+    assert_eq!(calls.len(), 1);
     assert!(calls[0].0.contains("revoked_at IS NULL"));
-    assert!(calls[1]
+    assert!(calls[0]
         .0
-        .contains("ROW_NUMBER() OVER (ORDER BY last_accessed_at DESC)"));
-    assert_eq!(calls[1].1["user_id"], DbValue::I64(42));
-    assert_eq!(calls[1].1["start_row"], DbValue::F64(1.5));
-    assert_eq!(calls[1].1["end_row"], DbValue::F64(4.5));
+        .contains("ROW_NUMBER() OVER (ORDER BY last_accessed_at DESC, session_id ASC)"));
+    assert_eq!(calls[0].1["user_id"], DbValue::I64(42));
+    assert_eq!(calls[0].1["start_row"], DbValue::F64(1.5));
+    assert_eq!(calls[0].1["end_row"], DbValue::F64(4.5));
 }
 
 #[tokio::test]
@@ -364,6 +423,26 @@ async fn logout_repository_binds_exact_user_session_and_current_credential() {
     );
 }
 impl SessionExecutor for Executor {
+    fn guarded_login_write(
+        &self,
+        user: u64,
+        verified_hash: String,
+        statement: &'static str,
+        binds: BindMap,
+        expected_factor: Option<EncryptedSecret>,
+        prerequisites: Vec<(&'static str, BindMap)>,
+    ) -> StoreFuture<'_, Option<u64>> {
+        assert_eq!(user, 42);
+        assert_eq!(verified_hash, "synthetic-password-hash");
+        Box::pin(async move {
+            if let Some(expected) = expected_factor {
+                assert_eq!(expected.encrypted, "verified-fixture");
+                assert!(expected.enabled);
+            }
+            self.calls.lock().unwrap().extend(prerequisites);
+            Ok(Some(self.execute(statement, binds).await?))
+        })
+    }
     fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
         Box::pin(async move {
             if self.fail {
@@ -424,6 +503,56 @@ async fn two_factor_readiness_requires_a_valid_metadata_snapshot() {
 }
 
 #[tokio::test]
+async fn login_reloads_the_account_and_password_after_expiry_recovery() {
+    #[derive(Default)]
+    struct ExpiryExecutor {
+        attempted: Mutex<bool>,
+    }
+    impl SessionExecutor for ExpiryExecutor {
+        fn execute(&self, _: &'static str, _: BindMap) -> StoreFuture<'_, u64> {
+            panic!("login account lookup must not execute an independent write")
+        }
+
+        fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+            panic!("login account lookup must not run preflight")
+        }
+
+        fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+            Box::pin(async move {
+                assert!(sql.contains("WHERE email = :account OR username = :account"));
+                assert_eq!(binds["account"], DbValue::String("sample".into()));
+                let attempted = *self.attempted.lock().unwrap();
+                let status = if attempted { "active" } else { "suspended" };
+                let password = if attempted { "second-hash" } else { "first-hash" };
+                Ok(vec![DbRow::from([
+                    ("USER_ID".into(), DbValue::I64(42)),
+                    ("USERNAME".into(), DbValue::String("sample".into())),
+                    ("PASSWORD_HASH".into(), DbValue::String(password.into())),
+                    ("STATUS".into(), DbValue::String(status.into())),
+                    ("IS_ACTIVE".into(), DbValue::I64(i64::from(attempted))),
+                ])])
+            })
+        }
+        fn restore_expired_ban(&self, user: u64) -> StoreFuture<'_, ()> {
+            Box::pin(async move {
+                assert_eq!(user, 42);
+                let mut attempted = self.attempted.lock().unwrap();
+                assert!(!*attempted);
+                *attempted = true;
+                Ok(())
+            })
+        }
+    }
+    let repo = OracleSessions {
+        executor: ExpiryExecutor::default(),
+    };
+    let account = repo.login_account("sample").await.unwrap().unwrap();
+    assert!(account.active);
+    assert_eq!(account.status, "active");
+    assert_eq!(account.password_hash, "second-hash");
+}
+
+#[tokio::test]
 async fn native_login_queries_and_writes_use_named_binds_and_independent_operations() {
     let repo = OracleSessions {
         executor: Executor::default(),
@@ -445,6 +574,7 @@ async fn native_login_queries_and_writes_use_named_binds_and_independent_operati
         remember: true,
         device: device(),
         expires_at: "2023-11-14T22:18:20.000Z".into(),
+        verified_password_hash: "synthetic-password-hash".into(),
     };
     repo.login_challenge(&challenge).await.unwrap();
     let session = LoginSession {
@@ -455,10 +585,18 @@ async fn native_login_queries_and_writes_use_named_binds_and_independent_operati
         device: device(),
         access_expires_at: "2023-11-14T22:28:20.000Z".into(),
         refresh_expires_at: "2023-12-14T22:13:20.000Z".into(),
+        verified_password_hash: "synthetic-password-hash".into(),
+        trusted_device_key: None,
+        factor_completion: Some(FactorCompletion {
+            challenge_id: "challenge-fixture".into(),
+            verified_secret: EncryptedSecret { encrypted: "verified-fixture".into(), iv: "iv".into(), tag: "tag".into(), enabled: true },
+            recovery_code_id: Some(0),
+            remembered_device: None,
+        }),
     };
     repo.login_insert_session(&session).await.unwrap();
     let calls = repo.executor.calls.lock().unwrap();
-    assert_eq!(calls.len(), 4);
+    assert_eq!(calls.len(), 6);
     assert!(!calls[0].0.contains("untrusted"));
     assert_eq!(
         calls[0].1["account"],
@@ -468,17 +606,20 @@ async fn native_login_queries_and_writes_use_named_binds_and_independent_operati
         .0
         .contains("INSERT INTO n_auth_two_factor_challenges"));
     assert_eq!(calls[1].1["challenge_id"], DbValue::String("2fa_id".into()));
-    assert!(calls[2].0.contains("INSERT INTO n_auth_sessions"));
+    assert!(calls[2].0.contains("UPDATE n_auth_two_factor_challenges"));
+    assert!(calls[3].0.contains("UPDATE n_user_two_factor_recovery_codes"));
+    assert_eq!(calls[3].1["recovery_code_id"], DbValue::I64(0));
+    assert!(calls[4].0.contains("INSERT INTO n_auth_sessions"));
     assert_eq!(
-        calls[2].1["refresh_token_hash"],
+        calls[4].1["refresh_token_hash"],
         DbValue::String("hash".into())
     );
-    assert!(calls[3].0.contains("UPDATE n_users SET last_login_at"));
-    assert_eq!(calls[3].1["user_id"], DbValue::I64(42));
+    assert!(calls[5].0.contains("UPDATE n_users SET last_login_at"));
+    assert_eq!(calls[5].1["user_id"], DbValue::I64(42));
 }
 
 #[tokio::test]
-async fn trusted_device_lookup_requires_unexpired_and_unrevoked_owner_match() {
+async fn trusted_device_claim_uses_account_and_digest_in_guarded_session_write() {
     let repo = OracleSessions {
         executor: Executor::default(),
     };
@@ -488,18 +629,30 @@ async fn trusted_device_lookup_requires_unexpired_and_unrevoked_owner_match() {
         ip: "127.0.0.1".into(),
         user_agent: "test".into(),
     };
-    assert!(!repo.login_trusted_device(42, &device).await.unwrap());
+    let session = LoginSession {
+        id: "sess_id".into(),
+        user_id: 42,
+        access_jti: "jti".into(),
+        refresh_hash: "hash".into(),
+        device,
+        access_expires_at: "2023-11-14T22:28:20.000Z".into(),
+        refresh_expires_at: "2023-12-14T22:13:20.000Z".into(),
+        verified_password_hash: "synthetic-password-hash".into(),
+        trusted_device_key: Some("synthetic-digest".into()),
+        factor_completion: None,
+    };
+    assert!(repo.login_insert_session(&session).await.unwrap());
     let calls = repo.executor.calls.lock().unwrap();
     let (sql, binds) = &calls[0];
-    assert!(sql.contains("user_id = :user_id"));
-    assert!(sql.contains("expires_at > CURRENT_TIMESTAMP"));
+    assert!(sql.starts_with("UPDATE n_user_two_factor_trusted_devices"));
     assert!(sql.contains("revoked_at IS NULL"));
-    assert!(!sql.contains("device';--"));
     assert_eq!(binds["user_id"], DbValue::I64(42));
     assert_eq!(
         binds["device_fingerprint"],
-        DbValue::String("device';--".into())
+        DbValue::String("synthetic-digest".into())
     );
+    assert!(calls[1].0.contains("INSERT INTO n_auth_sessions"));
+    assert_eq!(calls[1].1["device_fingerprint"], DbValue::String("device';--".into()));
 }
 
 struct AlertExecutor {
@@ -523,12 +676,16 @@ impl SessionExecutor for AlertExecutor {
             let row = if sql.contains("COUNT(*)") {
                 DbRow::from([("TOTAL".into(), DbValue::I64(0))])
             } else if sql.contains("login_alerts") {
-                DbRow::from([("LOGIN_ALERTS".into(), DbValue::I64(i64::from(self.enabled)))])
+                DbRow::from([
+                    ("LOGIN_ALERTS".into(), DbValue::I64(i64::from(self.enabled))),
+                    ("EMAIL_NOTIFICATION_ENABLED".into(), DbValue::I64(1)),
+                    ("EMAIL".into(), DbValue::String("recipient@example.test".into())),
+                ])
             } else if sql.contains("type_enabled") {
-                DbRow::from([(
-                    "TYPE_ENABLED".into(),
-                    DbValue::I64(i64::from(self.kind_enabled)),
-                )])
+                DbRow::from([
+                    ("TYPE_ENABLED".into(), DbValue::I64(i64::from(self.kind_enabled))),
+                    ("PUSH_NOTIFICATION_ENABLED".into(), DbValue::I64(1)),
+                ])
             } else if sql.contains("NEXTVAL") {
                 DbRow::from([("ID".into(), DbValue::I64(12))])
             } else {
@@ -567,8 +724,13 @@ async fn login_alert_honors_device_history_and_both_preference_gates() {
             },
             access_expires_at: "".into(),
             refresh_expires_at: "".into(),
+            verified_password_hash: String::new(),
+            trusted_device_key: None,
+        factor_completion: None,
         };
-        repo.record_login_alert(&session).await.unwrap();
+        let delivery = repo.record_login_alert(&session).await.unwrap();
+        assert_eq!(delivery.email.as_deref(), enabled.then_some("recipient@example.test"));
+        assert_eq!(delivery.notification_id, expected_insert.then_some(12));
         let calls = repo.executor.calls.lock().unwrap();
         let insert = calls
             .iter()
@@ -613,6 +775,8 @@ async fn production_repository_uses_named_binds_and_independent_executor_calls()
         .0
         .contains("access_token_expires_at > CURRENT_TIMESTAMP"));
     assert!(calls[0].0.contains("access_jti = :access_jti"));
+    assert!(calls[0].0.contains("u.user_id = n_auth_sessions.user_id"));
+    assert!(calls[0].0.contains("u.is_active = 1 AND u.status = 'active'"));
     assert_eq!(calls[0].1["access_jti"], DbValue::String("jti".into()));
     assert_eq!(
         calls[0].1["session_id"],
@@ -662,6 +826,8 @@ async fn rotation_uses_one_atomic_conditional_update_with_bound_values() {
         "revoked_at IS NULL",
         "refresh_token_expires_at > CURRENT_TIMESTAMP",
         "last_refresh_at = CURRENT_TIMESTAMP",
+        "u.user_id = n_auth_sessions.user_id",
+        "u.is_active = 1 AND u.status = 'active'",
     ] {
         assert!(sql.contains(clause), "{clause}");
     }
@@ -774,7 +940,9 @@ impl SessionExecutor for PostExecutor {
     fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((sql, binds));
-            if sql.contains("FROM n_tags t LEFT JOIN n_post_tags") {
+            if sql.starts_with("SELECT table_name FROM user_tables") {
+                Ok(vec![DbRow::from([("TABLE_NAME".into(), DbValue::String("N_RECOMMENDATION_FEEDBACK".into()))])])
+            } else if sql.contains("FROM n_tags t LEFT JOIN n_post_tags") {
                 Ok(vec![DbRow::from([
                     ("NAME".into(), DbValue::String("C# cats".into())),
                     ("TOTAL_POSTS".into(), DbValue::I64(2)),
@@ -790,6 +958,7 @@ impl SessionExecutor for PostExecutor {
                 Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(3))])])
             } else if sql.contains("FROM n_tags") {
                 Ok(vec![DbRow::from([
+                    ("TOTAL".into(), DbValue::I64(3)),
                     ("TAG_ID".into(), DbValue::I64(17)),
                     ("NAME".into(), DbValue::String("Cat".into())),
                     ("USAGE_COUNT".into(), DbValue::I64(42)),
@@ -898,6 +1067,23 @@ async fn post_list_repository_binds_filters_and_pages_without_interpolation() {
         .contains("ROW_NUMBER() OVER (ORDER BY v.engagement_score DESC,v.created_at DESC)"));
     assert_eq!(calls[1].1["start_row"], DbValue::F64(2.0));
     assert_eq!(calls[1].1["end_row"], DbValue::F64(2.0));
+}
+
+#[tokio::test]
+async fn signed_in_feed_uses_feedback_in_count_and_page() {
+    let repo = OracleSessions { executor: PostExecutor::default() };
+    let mut input = nekotribe_backend::posts::list::parse_post_list_query("timeline=home");
+    input.mode = "all".into();
+    repo.list_visible_posts(Some(42), &input).await.unwrap();
+    let calls = repo.executor.calls.lock().unwrap();
+    let sql: serde_json::Value = serde_json::from_str(include_str!("../contracts/requirements/recommendation-feedback.json")).unwrap();
+    assert_eq!(calls.len(), 3);
+    assert_eq!(Some(calls[0].0), sql["schema"].as_str());
+    assert!(calls[1].0.contains(sql["feedFilter"].as_str().unwrap()));
+    assert!(calls[2].0.contains(sql["feedFilter"].as_str().unwrap()));
+    assert!(calls[2].0.contains(sql["feedOrder"].as_str().unwrap()));
+    assert_eq!(calls[1].1["viewer_id"], DbValue::I64(42));
+    assert_eq!(calls[2].1["viewer_id"], DbValue::I64(42));
 }
 
 #[tokio::test]
@@ -1013,12 +1199,13 @@ async fn tag_repository_binds_filters_and_maps_results() {
         assert_eq!(items[0]["tag_id"], 17);
         assert_eq!(items[0]["trending_score"].as_f64(), Some(12.5));
         let calls = repo.executor.calls.lock().unwrap();
-        assert_eq!(calls.len(), 2);
-        assert!(calls[1]
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0]
             .0
-            .contains("trending_score DESC,usage_count DESC,updated_at DESC"));
+            .contains("trending_score DESC, usage_count DESC, updated_at DESC, tag_id DESC"));
+        assert!(calls[0].0.contains("LEFT JOIN ranked_tags"));
         if trending {
-            assert!(calls[0].0.contains("is_trending=1"));
+            assert!(calls[0].0.contains("is_trending = 1"));
             assert!(!calls[0].1.contains_key("q"));
         } else {
             assert!(!calls[0].0.contains("cat_%"));

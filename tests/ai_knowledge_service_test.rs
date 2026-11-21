@@ -15,6 +15,7 @@ fn source() -> Source {
         kind: "post".into(),
         id: 1,
         post_id: 1,
+        group_id: 0,
         content: "公开资料".into(),
         version: "a".repeat(64),
     }
@@ -28,6 +29,7 @@ fn selection() -> SelectionSnapshot {
         adapter: "ollama".into(),
         base_url: "http://localhost".into(),
         model: "test".into(),
+        model_version: None,
         api_key_env: None,
         capabilities: vec![],
         context_window_tokens: 8192,
@@ -225,8 +227,10 @@ async fn rejects_oversized_input_and_revoked_sources() {
         stale: false,
         large: true,
     };
+    let mut too_small = selection();
+    too_small.context_window_tokens = too_small.max_output_tokens + 512;
     assert_eq!(
-        generate_with_transport(&large, 42, "猫", selection(), &transport, None).await,
+        generate_with_transport(&large, 42, "猫", too_small, &transport, None).await,
         Err(TurnError::ContextTooLarge)
     );
     assert!(!events.lock().unwrap().contains(&"infer"));

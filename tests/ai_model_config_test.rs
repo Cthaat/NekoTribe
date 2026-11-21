@@ -12,9 +12,29 @@ fn base() -> Value {
 }
 
 #[test]
-fn shared_52_configuration_scenarios() {
+fn raw_model_configuration_scenarios() {
+    let suite: Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/ai-model-config.json")).unwrap();
+    let base = base().to_string();
+    for item in suite["rawCases"].as_array().unwrap() {
+        let before = item["before"].as_str().unwrap();
+        let after = item["after"].as_str().unwrap();
+        let id = item["id"].as_str().unwrap();
+        assert!(base.contains(before), "{id}");
+        let result = ModelRouter::from_json(&base.replacen(before, after, 1));
+        if let Some(expected) = item["expectedError"].as_str() {
+            assert!(matches!(result, Err(err) if err.code() == expected), "{id}");
+        } else {
+            let selected = result.unwrap().select("knowledge", &[]).unwrap();
+            assert_eq!(selected.model, item["expectedModel"].as_str().unwrap(), "{id}");
+        }
+    }
+}
+
+#[test]
+fn shared_configuration_scenarios() {
     let fixtures = cases();
-    assert_eq!(fixtures.len(), 52);
+    assert_eq!(fixtures.len(), 61);
     for case in fixtures {
         let run = || {
             let router = ModelRouter::new(&case["config"])?;

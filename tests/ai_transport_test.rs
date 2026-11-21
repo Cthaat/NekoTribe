@@ -37,6 +37,7 @@ fn selection(v: &Value) -> SelectionSnapshot {
         adapter: v["adapter"].as_str().unwrap().into(),
         base_url: v["baseUrl"].as_str().unwrap().into(),
         model: v["model"].as_str().unwrap().into(),
+        model_version: None,
         api_key_env: v["apiKeyEnv"].as_str().map(String::from),
         capabilities: v["capabilities"]
             .as_array()

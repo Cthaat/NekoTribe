@@ -22,6 +22,7 @@ struct Case {
     kind: TokenKind,
     token: String,
     expected_valid: bool,
+    expected_valid_for_rotation: Option<bool>,
     expected_user_id: Option<u64>,
 }
 
@@ -30,19 +31,28 @@ fn fixture() -> Fixture {
 }
 
 #[test]
-fn verifies_all_25_shared_nuxt_vectors() {
+fn verifies_all_shared_token_vectors() {
     let fixture = fixture();
-    assert_eq!(fixture.cases.len(), 25);
+    assert_eq!(fixture.cases.len(), 35);
     let codec = TokenCodec::new(
         fixture.keys.access.as_bytes(),
         fixture.keys.refresh.as_bytes(),
     )
     .unwrap();
     for case in fixture.cases {
+        if case.kind == TokenKind::Refresh {
+            let rotation = codec.verify_for_rotation(&case.token, fixture.now);
+            let expected = case.expected_valid_for_rotation.unwrap_or(case.expected_valid);
+            assert_eq!(rotation.is_ok(), expected, "rotation: {}", case.id);
+            if let Ok(claims) = rotation {
+                assert_eq!(Some(claims.user_id), case.expected_user_id);
+                assert_eq!(claims.session_id, "fixture-session-42");
+            }
+        }
         let result = codec.verify(&case.token, case.kind, fixture.now);
         assert_eq!(result.is_ok(), case.expected_valid, "{}", case.id);
-        if let Some(expected) = case.expected_user_id {
-            assert_eq!(result.unwrap().user_id, expected, "{}", case.id);
+        if let Ok(claims) = result {
+            assert_eq!(Some(claims.user_id), case.expected_user_id, "{}", case.id);
         }
     }
 }

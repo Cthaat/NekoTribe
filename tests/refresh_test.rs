@@ -159,6 +159,37 @@ async fn body(response: axum::response::Response) -> serde_json::Value {
     serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap()
 }
 
+#[tokio::test]
+async fn refresh_credential_body_matches_common_rules() {
+    let shared: serde_json::Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/auth-refresh.json")).unwrap();
+    let cases = shared["requestBodyCases"].as_array().unwrap();
+    assert_eq!(cases.len(), 12);
+    for item in cases {
+        let (router, store, token, _) = setup(false);
+        let mut request_body = item["body"].as_str().unwrap().replace("TOKEN", &token);
+        if let Some(bytes) = item["bytes"].as_u64() {
+            request_body.push_str(&" ".repeat(bytes as usize - request_body.len()));
+        }
+        let cookie = item["cookie"]
+            .as_str()
+            .map(|value| format!("refresh_token={}", value.replace("TOKEN", &token)));
+        let response = router
+            .oneshot(request(
+                cookie.as_deref(),
+                &request_body,
+                item["contentType"].as_str().unwrap(),
+            ))
+            .await
+            .unwrap();
+        let accepted = item["accepted"].as_bool().unwrap();
+        let id = item["id"].as_str().unwrap();
+        assert_eq!(response.status().as_u16(), if accepted { 200 } else { 401 }, "{id}");
+        assert_eq!(response.headers().get_all("set-cookie").iter().count(), if accepted { 2 } else { 0 }, "{id}");
+        assert_eq!(store.0.lock().unwrap().writes, usize::from(accepted), "{id}");
+    }
+}
+
 fn logout(
     cookie: Option<&str>,
     authorization: Option<&str>,

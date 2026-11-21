@@ -15,6 +15,7 @@ fn source() -> Source {
         kind: "post".into(),
         id: 1,
         post_id: 1,
+        group_id: 0,
         content: "公开内容".into(),
         version: "a".repeat(64),
     }

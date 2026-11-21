@@ -231,6 +231,7 @@ async fn post_comments_repository_filters_visibility_and_maps_rows() {
         let query = CommentListQuery {
             page: session_pagination("page=2&page_size=3"),
             sort: sort.into(),
+            comment_id: None,
         };
         let (items, total) = repo
             .list_post_comments(42, 1, &query)
@@ -249,6 +250,16 @@ async fn post_comments_repository_filters_visibility_and_maps_rows() {
             assert_eq!(binds["viewer_id"], DbValue::I64(42));
             assert_eq!(binds["post_id"], DbValue::I64(1));
         }
+        for (sql, _) in &calls[1..] {
+            for predicate in [
+                "post_author.is_active=1",
+                "comment_author.is_active=1",
+                "b.user_id=:viewer_id AND b.target_user_id=c.user_id",
+                "b.target_user_id=:viewer_id AND b.user_id=c.user_id",
+            ] {
+                assert!(sql.contains(predicate), "{sql}");
+            }
+        }
         assert!(calls[2].0.contains(&format!("ORDER BY {order}")));
         assert_eq!(calls[2].1["start_row"], DbValue::F64(4.0));
         assert_eq!(calls[2].1["end_row"], DbValue::F64(6.0));
@@ -262,6 +273,7 @@ async fn post_comments_repository_filters_visibility_and_maps_rows() {
     let query = CommentListQuery {
         page: session_pagination(""),
         sort: "newest".into(),
+        comment_id: None,
     };
     assert!(repo
         .list_post_comments(42, 2, &query)

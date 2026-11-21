@@ -23,6 +23,7 @@ fn mixed_terms_history_omits_post_id_and_revalidates() {
             kind: post.kind.clone(),
             id: 1,
             post_id: 1,
+            group_id: 0,
             content: "post".into(),
             version: post.version.clone(),
         },
@@ -30,6 +31,7 @@ fn mixed_terms_history_omits_post_id_and_revalidates() {
             kind: terms.kind.clone(),
             id: 3,
             post_id: 0,
+            group_id: 0,
             content: "terms".into(),
             version: terms.version.clone(),
         },
@@ -55,6 +57,7 @@ fn restores_only_current_sources() {
             kind: "post".into(),
             id: 1,
             post_id: 1,
+            group_id: 0,
             content: "公开资料".into(),
             version: ref_.version.clone(),
         }])
@@ -62,6 +65,31 @@ fn restores_only_current_sources() {
     .unwrap();
     assert_eq!(result.answer.as_deref(), Some("答案"));
     assert_eq!(result.sources, vec![ref_]);
+    assert_eq!(
+        restore(&encoded, |_| Ok(vec![])),
+        Err(HistoryError::SourceChanged)
+    );
+}
+#[test]
+fn group_history_returns_only_current_location() {
+    let reference = Candidate {
+        kind: "group_comment".into(),
+        id: 21,
+        version: "b".repeat(64),
+    };
+    let encoded = encode("group answer", std::slice::from_ref(&reference)).unwrap();
+    assert!(!encoded.contains("group_id"));
+    let source = Source {
+        kind: reference.kind.clone(),
+        id: reference.id,
+        post_id: 11,
+        group_id: 7,
+        content: "current comment".into(),
+        version: reference.version,
+    };
+    let current = restore(&encoded, |_| Ok(vec![source.clone()])).unwrap();
+    assert_eq!(current.citations[0].group_id, 7);
+    assert_eq!(current.citations[0].post_id, 11);
     assert_eq!(
         restore(&encoded, |_| Ok(vec![])),
         Err(HistoryError::SourceChanged)
@@ -98,6 +126,7 @@ fn comment_citation_has_authorized_parent_without_source_content() {
             kind: "comment".into(),
             id: 23,
             post_id: 99,
+            group_id: 0,
             content: "internal text".into(),
             version: reference.version.clone(),
         }])
@@ -112,6 +141,7 @@ fn comment_citation_has_authorized_parent_without_source_content() {
             kind: "comment".into(),
             id: 23,
             post_id: 0,
+            group_id: 0,
             content: "x".into(),
             version: reference.version.clone()
         }])),

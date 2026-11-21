@@ -145,7 +145,7 @@ impl SessionExecutor for Executor {
     fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((sql, binds));
-            if sql.starts_with("SELECT COUNT") {
+            if sql.starts_with("WITH ranked") && self.metadata == "fixture-empty-page" {
                 return Ok(vec![DbRow::from([("TOTAL".into(), DbValue::I64(3))])]);
             }
             if self.metadata == "fixture-missing" {
@@ -155,6 +155,7 @@ impl SessionExecutor for Executor {
                 return Err(SessionStoreError);
             }
             Ok(vec![DbRow::from([
+                ("TOTAL".into(), DbValue::I64(3)),
                 ("NOTIFICATION_ID".into(), DbValue::I64(12)),
                 ("ACTOR_ID".into(), DbValue::I64(7)),
                 ("TYPE".into(), DbValue::String("like".into())),
@@ -257,7 +258,7 @@ async fn repository_scopes_filters_binds_and_metadata() {
             _ => assert_eq!(items[0]["metadata"]["event"], "post_like"),
         };
         let calls = repo.executor.calls.lock().unwrap();
-        assert_eq!(calls.len(), 2);
+        assert_eq!(calls.len(), 1);
         for (sql, binds) in calls.iter() {
             assert!(
                 sql.contains("user_id=:user_id")
@@ -266,8 +267,24 @@ async fn repository_scopes_filters_binds_and_metadata() {
                     && sql.contains("type=:type")
             );
             assert!(!sql.contains("like"));
+            assert!(sql.contains("ORDER BY created_at DESC, notification_id DESC"));
+            assert!(sql.ends_with("ORDER BY page_rows.rn"));
             assert_eq!(binds["user_id"], DbValue::I64(42));
             assert_eq!(binds["type"], DbValue::String("like".into()));
         }
     }
+}
+
+#[tokio::test]
+async fn repository_empty_page_preserves_total() {
+    let repo = OracleSessions {
+        executor: Executor {
+            calls: Mutex::new(vec![]),
+            metadata: "fixture-empty-page".into(),
+        },
+    };
+    let query = parse_notification_query("page=4&page_size=1");
+    let (items, total) = repo.list_notifications(42, &query).await.unwrap();
+    assert_eq!(total, 3);
+    assert!(items.is_empty());
 }

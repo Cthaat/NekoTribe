@@ -1,6 +1,8 @@
-# NekoTribe Rust 后端（兼容模式与原生业务开发）
+# NekoTribe Rust 后端
 
-原生模式已接入本地公开文件读取、媒体上传和删除的开发中路径，规则见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。图片尺寸可读取；音视频使用 `FFPROBE_PATH` 指定的 ffprobe，留空时从 PATH 查找。未读取到时长时标准 PCM WAV 可通过文件头补算，其余无法解析的元数据为空。Linux 使用可寻址文件句柄，Windows 使用流输入，Windows 原生构建及更多格式仍需实测。S3、私密附件权限、跨后端存储及真实依赖验收尚未完成。
+原生公开媒体和头像已接入 `STORAGE_TYPE=s3`，支持上传、文件读取和删除。真实 S3、Oracle 及跨后端共享对象待统一验收。当前边界见 [媒体存储契约](contracts/requirements/media-upload.md)。
+
+原生模式已接入本地公开文件读取、媒体上传和删除的开发中路径，规则见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。图片尺寸可读取。音视频使用 `FFPROBE_PATH` 指定的工具，留空时从 PATH 查找。源码镜像从 Oracle Linux 仓库安装工具并执行 `ffprobe -version`。未读取到时长时标准 PCM WAV 可通过文件头补算，其余无法解析的元数据为空。Linux 使用可寻址文件句柄，Windows 使用上传暂存文件。原生构建、私密附件权限、跨后端存储及真实依赖仍待统一验收。
 
 原生 PATCH/PUT 帖子部分更新已接入，省略保留、明确空关系清空；行锁及全部关系写入在同一连接事务中完成，失败回滚。53 条共同请求向量及隔离事务/HTTP 检查通过，真实 Oracle、并发及双客户端仍待验收。规则见 `contracts/requirements/post-update.md`。
 
@@ -12,7 +14,7 @@
 
 原生 `POST /api/v2/posts/{id}/likes` 已接入点赞写入、可见性检查、首次点赞通知存储、完整通知及作者映射和 Redis 发布；重复点赞不重复通知。Redis 发布器按同一配置惰性连接，点赞与通知不是单个事务，通知错误可能在点赞提交后返回 500，Redis 失败时实时推送降级。当前仅通过隔离仓储与模拟 Redis 测试，真实 Oracle 触发器、并发、Redis、客户端和跨后端联调仍待验收。
 
-本分支是独立 Rust 工程。缺省 `RUST_BACKEND_MODE=compat` 保留 Nuxt 代理；显式 `native` 注册认证、用户资料、帖子读取与创建/转发、评论互动、标签、通知及通知 WebSocket 等原生切片，直接访问共享基础设施，不注册业务、存储或 WebSocket 代理。完整原生业务迁移仍在进行中。
+本分支是独立 Rust 工程，默认原生启动并直接连接共享 Oracle、Redis 和媒体存储。旧 Nuxt 代理通过 `RUST_BACKEND_MODE=compat` 单独启用。两种模式的运行验收分别记录。
 
 原生 `/_ws` 提供个人通知、共享在线状态事件订阅和心跳：连接时验证 access token、Oracle 会话与浏览器来源；投递前和定期检查会话，撤销或过期后断开。使用 `REDIS_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、`REDIS_PASSWORD` 配置共享 Redis，支持 `rediss://`；浏览器跨域来源和反向代理外部来源需显式加入 `CORS_ALLOWED_ORIGINS`。在线状态事件已通过隔离测试；连接、断线和心跳驱动的完整状态生命周期、群聊、私信、真实 Redis/Oracle 联调仍未完成。
 
@@ -21,6 +23,8 @@
 媒体结构只读检查已复用共享迁移目录；帖子详情、部分列表和收藏等已有原生切片，真实 Oracle 与完整业务验收仍待进行。
 
 原生 `GET /api/v2/users/{id}` 已接入公开资料、关系和在线状态隐私；共同隔离场景通过，真实 Oracle、时区和客户端联调仍待验收。
+
+原生 `GET /api/v2/users` 和 `GET /api/v2/users/recommendations` 共用搜索、推荐与分页契约。真实 Oracle 和客户端联调待验收。
 
 原生 `GET /api/v2/users/me` 已复用会话验证、自身资料查询和公共头像地址映射；当前只经过合成场景及替身检查，实际 Oracle 视图、跨后端数据更新和两个客户端仍待联测。
 
@@ -77,33 +81,29 @@ cargo test --locked -j 2
 cargo build --locked -j 2
 ```
 
-Windows 需要 Rust MSVC 工具链及 Visual C++ 链接器。本次机器缺少 `link.exe`，原生 Windows check/test 未能通过；格式检查通过。当前源码的 Linux 默认测试结果见上文；真实 Oracle/Redis 测试的 ignored 不等于本轮已经验证。此前 Docker/独立克隆构建属于历史证据，不能替代本轮新代码验收。
+Windows 上从源码原生构建时使用 Rust MSVC 工具链及 Visual C++ 链接器。Windows x64 发布包也可从 Linux 或 WSL 使用 LLVM-MinGW 交叉构建，详见 [交叉构建命令](../nuxt/docs/deployment.md#复制预编译后端到另一台机器)。该发布包已在 Windows 上通过离线配置检查，真实 Oracle/Redis 和业务流程仍待验收。Linux 默认测试结果见上文。
 
 真实 Oracle 连通还需要进程可加载的 Oracle Instant Client。只在显式配置的隔离测试服务上运行 `cargo test --locked -j 2 --test connectivity_test -- --ignored`。这两项测试只读取本工程根 `.env`，不会向父目录寻找配置。
 
 ## 配置与启动
 
-参考 `env.example`，把所选变量注入启动进程；应用本身不自动加载 `.env`。PowerShell 示例：
+### Windows 或 Linux 直接运行
 
-```powershell
-$env:HOST = '127.0.0.1'
-$env:RUST_BACKEND_PORT = '30003'
-$env:LEGACY_BACKEND_BASE_URL = 'http://127.0.0.1:30001'
-cargo run --locked -j 2
-```
+按 `env.example` 向进程注入 Oracle、Redis 和签名配置，安装进程可加载的 Oracle Instant Client，再运行 `cargo run --locked` 或预编译的 `nekotribe-backend`。服务默认监听 `127.0.0.1:30003`，使用 `HOST` 调整监听地址，`RUST_BACKEND_PORT` 优先于 `PORT`。原生启动在监听前只读检查 Oracle 结构。
 
-Nuxt 上游不可用时，代理业务接口无法正常工作。Docker 内监听 8080，需按实际网络设置 `DOCKER_LEGACY_BACKEND_BASE_URL`；`docker build -t nekotribe-rust:local .` 仅构建本工程，不创建或初始化 Oracle、Redis、Nuxt。继承自旧混合分支的 Nuxt Compose 与发布工作流已经移除。
+在 Rust 工作树根目录可运行 `node scripts/start-native.mjs rust --env-file .env.rust`。追加 `--check` 只检查启动参数，传入 `--binary PATH` 可启动预编译程序。从同一目录运行 `node scripts/package-native.mjs rust --build --out native-rust-release` 可独立编译和打包。也可在四工作树的父目录通过 `nuxt/scripts/` 调用同一套工具。
 
-原生会话服务启动：在同一进程显式设置 `RUST_BACKEND_MODE=native`、与 Nuxt/Go 一致的对应 access/refresh key 及 Oracle 变量后运行同一 `cargo run`。需要可加载的 Oracle Instant Client；隔离单元/HTTP 测试不需要它。native 不读取 Docker/legacy 后备数据库地址，不注册 Nuxt fallback；未实现业务返回404。下列既有 Compose 与代理说明描述 compat 模式，不作为 native 部署或真实库验证证据。
+从 `env.example` 准备本目录的私有 `.env.rust` 后，Windows 可双击 `start.cmd`，Linux 可运行 `sh start.sh`。追加 `--check` 可在启动前离线检查配置，追加 `--env-file PATH` 选择其他配置文件。进程环境仍然优先。
 
-本目录 `compose.yaml` 只定义 Rust 容器，构建上下文为本目录，不挂载或读取兄弟源码。未来需要实际部署时，可复制 `env.example` 为自行保管的配置文件，例如 `.env.deploy`，检查变量后执行：
+使用预编译发布包时，在包目录准备私有 `.env.rust`，然后运行 `node start-native.mjs --check` 和 `node start-native.mjs`。启动器会从同目录的清单读取平台和程序名。
 
-```text
-docker compose --env-file .env.deploy config --quiet
-docker compose --env-file .env.deploy up -d --build
-```
+共用 Oracle schema 由同一套显式迁移工具维护。可以在 Nuxt 部署包中执行迁移命令，Rust 原生模式的启动不依赖 Nuxt 进程。[Oracle 迁移命令](../nuxt/docs/deployment.md#nuxt-独立-node-部署包)
 
-`RUST_PUBLISH_HOST` / `RUST_PUBLISH_PORT` 控制宿主机发布地址，默认 `127.0.0.1:30003`；容器固定监听 `0.0.0.0:8080`。`DOCKER_LEGACY_BACKEND_BASE_URL` 必须指向容器可访问的既有 Nuxt，默认通过 `host.docker.internal:30001` 访问宿主机；Nuxt 监听地址和防火墙也必须允许来自容器的连接。若使用已有 Docker 网络，请按实际网络配置服务地址及网络接入。Compose 的 `--env-file` 用于变量替换，仅 `environment` 列出的变量传入容器；当前代理启动不连接 Oracle/Redis，所以该文件没有数据库凭证传递或依赖服务定义，也不自动创建 schema。Nuxt 仍需自行配置其已有数据库、Redis 与上传存储。
+### Docker 部署
+
+从 `env.example` 准备私有 `.env.rust`，把 Oracle 和 Redis 地址改为容器可访问的地址。执行 `docker compose --env-file .env.rust up -d --build`。也可显式选择 `-f compose.native.yaml`。默认宿主机发布在 `127.0.0.1:30003`，容器监听 `0.0.0.0:8080`。用 `RUST_PUBLISH_HOST` 和 `RUST_PUBLISH_PORT` 调整发布地址，用 `NEKO_STORAGE_SOURCE` 指定宿主机媒体目录。
+
+若要保留旧 Nuxt 代理部署，使用 `docker compose -f compose.compat.yaml up -d --build`。通过 `DOCKER_LEGACY_BACKEND_BASE_URL` 指定容器可访问的 Nuxt 上游，默认是 `http://host.docker.internal:30001`。
 
 历史 `.verification/docker-build.log` 已记录完整镜像构建结束（`Successfully built 42350cdba5fe`）；这是修改前的历史证据。本轮只做静态开发与格式检查，新增 Compose 和代理头过滤测试尚未执行，不能据此声称本轮镜像或联调已通过。
 
@@ -112,7 +112,7 @@ docker compose --env-file .env.deploy up -d --build
 - compat 的规范内 v2 路由 OPTIONS 转发给 Nuxt；native 使用上述原生 CORS。规范外路径仍返回 404。
 - 代理过滤标准逐跳头及 `Connection` 指定的头；上游 CORS 响应头与多条 `Set-Cookie` 保留。当前请求和响应仍整包缓冲，且 HTTP 客户端仍使用默认重定向策略；流式传输和重定向链上的 Cookie/CORS 行为尚未完成真实联调。
 - 既有 SentimentFlow 非 OPTIONS 前缀例外暂时保留；该可选集成预检未覆盖，不表示已经联调。
-- compat 的 `/storage/**`、`/uploads/**` 读取依赖 Nuxt 上游；native 的 `/storage/**` 读取配置的本地存储，私密附件及 S3 仍未完成。
+- compat 的 `/storage/**`、`/uploads/**` 读取依赖 Nuxt 上游；native 的 `/storage/**` 按配置读取本地或 S3 的公开对象，私密附件仍待补齐。
 - native 的 `/_ws` 提供通知、在线状态事件接收与心跳；群聊、私信和完整在线状态生命周期尚未完成。
 
 ## 规范与历史

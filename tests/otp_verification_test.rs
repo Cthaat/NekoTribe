@@ -1,3 +1,6 @@
+#[path = "support/otp_attempt.rs"]
+mod otp_attempt;
+
 use axum::{body::Body, http::Request};
 use http_body_util::BodyExt;
 use nekotribe_backend::auth::{
@@ -71,7 +74,7 @@ async fn shared_otp_verification() {
     ))
     .unwrap();
     let cases = f["cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 16);
+    assert_eq!(cases.len(), 18);
     for case in cases {
         let repo = Arc::new(Fake {
             base: f["fixture"].clone(),
@@ -85,7 +88,12 @@ async fn shared_otp_verification() {
             repo.clone(),
             CorsPolicy::default(),
             Arc::new(|| 1_700_000_000),
-        );
+        )
+        .layer(otp_attempt::fixture(match case["fault"].as_str() {
+            Some("exhausted") => 429,
+            Some("unavailable") => 503,
+            _ => 200,
+        }));
         let n = if case["repeat"].as_bool().unwrap_or(false) {
             2
         } else {

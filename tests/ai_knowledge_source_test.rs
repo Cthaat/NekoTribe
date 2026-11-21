@@ -76,6 +76,7 @@ impl Reader for MixedReader {
                 kind: "post".into(),
                 id: 11,
                 post_id: 11,
+                group_id: 0,
                 content: "public post".into(),
                 version: String::new(),
             }))
@@ -155,6 +156,7 @@ fn hydration_reloads_and_rejects_stale_duplicate_and_inconsistent_sources() {
         kind: "post".into(),
         id: 11,
         post_id: 11,
+        group_id: 0,
         content: "public".into(),
         version: String::new(),
     };
@@ -184,6 +186,7 @@ fn hydration_reloads_and_rejects_stale_duplicate_and_inconsistent_sources() {
     let corrupt = Fake {
         source: Some(Source {
             post_id: 12,
+            group_id: 0,
             ..source
         }),
         fail: false,
@@ -251,6 +254,7 @@ fn validation_happens_before_reads_and_oversized_content_is_omitted() {
             kind: "post".into(),
             id: 11,
             post_id: 11,
+            group_id: 0,
             content: "猫".repeat(21846),
             version: String::new(),
         }),

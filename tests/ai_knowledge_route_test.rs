@@ -1,3 +1,6 @@
+#[path = "support/ai_model_quota.rs"]
+mod ai_model_quota;
+
 use axum::{
     body::{to_bytes, Body},
     http::Request,
@@ -47,6 +50,7 @@ fn source() -> Source {
         kind: "post".into(),
         id: 1,
         post_id: 1,
+        group_id: 0,
         content: "资料".into(),
         version: "a".repeat(64),
     }
@@ -74,7 +78,20 @@ impl SessionRepository for LiveStore {
                 AiOperation::Recent(_) => {
                     Ok(json!([{"sequence_no":1,"role":"user","content":self.question}]))
                 }
-                AiOperation::KnowledgeAssistant { input, sources, .. } => {
+                AiOperation::KnowledgeSkill(_, _) => {
+                    if self.question == "技能关闭" {
+                        Err(Error::SchemaUnavailable)
+                    } else {
+                        Ok(json!(7))
+                    }
+                }
+                AiOperation::KnowledgeAssistant {
+                    input,
+                    sources,
+                    cancel,
+                    ..
+                } => {
+                    assert!(cancel.is_some_and(|signal| !*signal.borrow()));
                     assert_eq!(
                         (
                             input.content.as_str(),
@@ -116,8 +133,9 @@ impl KnowledgeStore for LiveStore {
 async fn knowledge_route_generates_or_rejects_without_false_writes() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
-    let provider = Router::new().route("/chat/completions", post(|| async {
-        let content = json!({"answer":"answer","citations":[{"kind":"post","id":1,"version":"a".repeat(64)}]}).to_string();
+    let provider = Router::new().route("/chat/completions", post(|Json(request): Json<Value>| async move {
+        assert_eq!(request["response_format"]["json_schema"]["schema"]["properties"]["citations"]["items"]["enum"], json!([1]));
+        let content = json!({"answer":"answer","citations":[1]}).to_string();
         Json(json!({"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":content}}]}))
     }));
     let task = tokio::spawn(async move { axum::serve(listener, provider).await.unwrap() });
@@ -147,6 +165,7 @@ async fn knowledge_route_generates_or_rejects_without_false_writes() {
         ),
         ("writing", false, false, 400, "", 0, "猫", ""),
         ("knowledge", false, true, 409, "", 0, "猫", ""),
+        ("knowledge", false, false, 503, "", 0, "技能关闭", ""),
         (
             "knowledge",
             false,
@@ -199,7 +218,8 @@ async fn knowledge_route_generates_or_rejects_without_false_writes() {
             Arc::new(|| 1_700_000_000),
         )
         .layer(Extension(KnowledgeRuntime(store.clone())))
-        .layer(Extension(settings));
+        .layer(Extension(settings))
+        .layer(Extension(ai_model_quota::single_call_quota()));
         let response = app.oneshot(Request::post("/api/v2/ai/conversations/f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb/knowledge-generate").header("authorization",format!("Bearer {token}")).body(Body::from(input.to_owned())).unwrap()).await.unwrap();
         assert_eq!(response.status(), expected);
         assert_eq!(response.headers()["cache-control"], "private, no-store");

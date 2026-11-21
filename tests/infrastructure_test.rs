@@ -28,7 +28,7 @@ fn app_config_maps_existing_oracle_and_redis_environment_names() {
         port: 5501,
         service_name: "ORCLPDB1".to_string(),
         user: "neko_app".to_string(),
-        password: "NekoApp2026#".to_string(),
+        password: "fixture-oracle-password".to_string(),
         pool_min: 2,
         pool_max: 10,
     };
@@ -39,11 +39,11 @@ fn app_config_maps_existing_oracle_and_redis_environment_names() {
         host: "localhost".to_string(),
         port: 6379,
         db: 0,
-        password: Some("NekoRedis2026Local".to_string()),
+        password: Some("fixture-redis-password".to_string()),
     };
     assert_eq!(
         redis.connection_url(),
-        "redis://:NekoRedis2026Local@localhost:6379/0"
+        "redis://:fixture-redis-password@localhost:6379/0"
     );
 
     let redis_with_url_and_password = RedisConfig {
@@ -51,11 +51,11 @@ fn app_config_maps_existing_oracle_and_redis_environment_names() {
         host: "ignored".to_string(),
         port: 1,
         db: 0,
-        password: Some("NekoRedis2026Local".to_string()),
+        password: Some("fixture-redis-password".to_string()),
     };
     assert_eq!(
         redis_with_url_and_password.connection_url(),
-        "redis://:NekoRedis2026Local@localhost:6379/0"
+        "redis://:fixture-redis-password@localhost:6379/0"
     );
 
     let config = AppConfig::for_test();

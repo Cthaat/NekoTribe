@@ -17,7 +17,7 @@ impl DiscoveryReader for Fake {
     ) -> Result<Vec<Source>, Error> {
         self.calls.set(self.calls.get() + 1);
         assert_eq!((viewer, term, limit), (42, "猫", 2));
-        if kind == "terms" {
+        if matches!(kind, "terms" | "group_post" | "group_comment") {
             return Ok(vec![]);
         }
         let id = if kind == "post" { 11 } else { 21 };
@@ -26,6 +26,7 @@ impl DiscoveryReader for Fake {
             kind: kind.into(),
             id,
             post_id,
+            group_id: 0,
             content: format!("{kind}猫"),
             version: String::new(),
         }])
@@ -46,7 +47,7 @@ fn interleaves_sources_and_calculates_current_version() {
         result[1].version,
         source_version("comment", 21, 11, "comment猫")
     );
-    assert_eq!(f.calls.get(), 3);
+    assert_eq!(f.calls.get(), 5);
 }
 
 struct TermsAuth {
@@ -94,12 +95,15 @@ impl DiscoveryReader for Mixed {
                 limit,
                 &self.catalog,
             )
+        } else if matches!(kind, "group_post" | "group_comment") {
+            Ok(vec![])
         } else {
             let id = if kind == "post" { 11 } else { 21 };
             Ok(vec![Source {
                 kind: kind.into(),
                 id,
                 post_id: 11,
+                group_id: 0,
                 content: "账户内容".into(),
                 version: String::new(),
             }])
@@ -145,6 +149,10 @@ struct VectorCase {
     limit: usize,
     posts: Vec<i64>,
     comments: Vec<i64>,
+    #[serde(default, rename = "groupPosts")]
+    group_posts: Vec<i64>,
+    #[serde(default, rename = "groupComments")]
+    group_comments: Vec<i64>,
     authority: String,
     expected: Option<Vec<String>>,
     error: Option<bool>,
@@ -171,10 +179,12 @@ impl DiscoveryReader for VectorReader {
                 &self.catalog,
             );
         }
-        let ids = if kind == "post" {
-            &self.item.posts
-        } else {
-            &self.item.comments
+        let ids = match kind {
+            "post" => &self.item.posts,
+            "comment" => &self.item.comments,
+            "group_post" => &self.item.group_posts,
+            "group_comment" => &self.item.group_comments,
+            _ => return Err(Error::Invalid),
         };
         Ok(ids
             .iter()
@@ -182,7 +192,16 @@ impl DiscoveryReader for VectorReader {
             .map(|id| Source {
                 kind: kind.into(),
                 id: *id,
-                post_id: if kind == "post" { *id } else { 11 },
+                post_id: if matches!(kind, "post" | "group_post") {
+                    *id
+                } else {
+                    11
+                },
+                group_id: if matches!(kind, "group_post" | "group_comment") {
+                    7
+                } else {
+                    0
+                },
                 content: format!("{term} {id}"),
                 version: String::new(),
             })

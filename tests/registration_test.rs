@@ -1,3 +1,6 @@
+#[path = "support/otp_attempt.rs"]
+mod otp_attempt;
+
 use axum::{body::Body, http::Request};
 use http_body_util::BodyExt;
 use nekotribe_backend::auth::{
@@ -66,14 +69,16 @@ impl SessionRepository for Store {
             Ok(123)
         })
     }
-    fn registration_insert<'a>(&'a self, record: &'a RegistrationRecord) -> StoreFuture<'a, ()> {
+    fn registration_insert<'a>(&'a self, record: &'a RegistrationRecord, _: &'a str) -> StoreFuture<'a, nekotribe_backend::auth::registration::Outcome> {
+        use nekotribe_backend::auth::registration::Outcome;
         Box::pin(async move {
+            if self.fault == "consumed" { return Ok(Outcome::MissingOtp); }
             if self.fault == "insert" {
                 return Err(SessionStoreError);
             };
             self.inserts.fetch_add(1, Ordering::SeqCst);
             *self.record.lock().unwrap() = Some(record.clone());
-            Ok(())
+            Ok(Outcome::Registered)
         })
     }
     fn login_profile<'a>(&'a self, _: u64) -> StoreFuture<'a, Option<Value>> {
@@ -130,7 +135,7 @@ async fn shared_registration() {
     ))
     .unwrap();
     let cases = f["cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 29);
+    assert_eq!(cases.len(), 30);
     let interop = &f["hashInterop"];
     let hashes = interop["hashes"].as_array().unwrap();
     assert_eq!(hashes.len(), 2);
@@ -282,6 +287,12 @@ async fn registration_rejects_unsafe_storage_configuration_after_insert() {
 struct RegistrationFlowMail {
     code: Mutex<String>,
 }
+struct RegistrationFlowLimit;
+impl nekotribe_backend::auth::otp_send_limit::OtpSendLimiter for RegistrationFlowLimit {
+    fn reserve<'a>(&'a self, _: &'a str) -> nekotribe_backend::auth::otp_send_limit::ReserveFuture<'a> {
+        Box::pin(async { Ok(0) })
+    }
+}
 impl nekotribe_backend::auth::otp::OtpMailer for RegistrationFlowMail {
     fn send<'a>(
         &'a self,
@@ -328,7 +339,7 @@ async fn isolated_otp_to_registration_flow() {
         RefreshPolicy::default(),
         StorageUrlPolicy::default(),
         mail.clone(),
-    );
+    ).layer(axum::Extension(nekotribe_backend::auth::otp_send_limit::OtpSendLimit(Arc::new(RegistrationFlowLimit)))).layer(otp_attempt::fixture(200));
     async fn post(app: &axum::Router, path: &str, body: Value) -> axum::response::Response {
         let req = Request::builder()
             .method("POST")

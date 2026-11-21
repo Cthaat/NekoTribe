@@ -1,14 +1,18 @@
 use axum::{body::Body, http::Request, Extension};
 use nekotribe_backend::{
     auth::{
-        session_repository::{OracleSessions, SessionExecutor},
         sessions::{
             build_native_router, CorsPolicy, SessionRepository, SessionStoreError, StoreFuture,
         },
         TokenClaims, TokenCodec,
     },
-    db::{oracle::BindMap, row::DbRow, value::DbValue},
-    media::delete::MediaDelete,
+    db::{
+        oracle::{BindMap, DbError},
+        row::DbRow,
+        tx::Transaction,
+        value::DbValue,
+    },
+    media::delete::{self, MediaDelete, MediaDeleteOutcome},
     storage::local_http::LocalStorageConfig,
 };
 use std::{
@@ -18,7 +22,7 @@ use std::{
 use tower::ServiceExt;
 
 struct Store {
-    result: Result<Option<MediaDelete>, SessionStoreError>,
+    result: Result<MediaDeleteOutcome, SessionStoreError>,
     calls: Mutex<Vec<(u64, f64)>>,
 }
 impl SessionRepository for Store {
@@ -31,7 +35,7 @@ impl SessionRepository for Store {
     fn revoke_others<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> {
         Box::pin(async { Ok(0) })
     }
-    fn delete_media(&self, user: u64, id: f64) -> StoreFuture<'_, Option<MediaDelete>> {
+    fn delete_media(&self, user: u64, id: f64) -> StoreFuture<'_, MediaDeleteOutcome> {
         Box::pin(async move {
             self.calls.lock().unwrap().push((user, id));
             self.result.clone()
@@ -56,7 +60,7 @@ async fn native_route_cleans_only_after_confirmed_delete() {
     let file = root.join("owned/a.txt");
     for (result, status, exists) in [
         (
-            Ok(Some(MediaDelete {
+            Ok(MediaDeleteOutcome::Deleted(MediaDelete {
                 key: Some("owned/a.txt".into()),
                 public_url: None,
                 thumbnail_url: None,
@@ -64,7 +68,8 @@ async fn native_route_cleans_only_after_confirmed_delete() {
             200,
             false,
         ),
-        (Ok(None), 404, true),
+        (Ok(MediaDeleteOutcome::Missing), 404, true),
+        (Ok(MediaDeleteOutcome::InUse), 409, true),
         (Err(SessionStoreError), 500, true),
     ] {
         fs::write(&file, b"safe").unwrap();
@@ -86,6 +91,7 @@ async fn native_route_cleans_only_after_confirmed_delete() {
         .layer(Extension(LocalStorageConfig {
             root: root.clone(),
             unsupported: false,
+            s3: None,
         }));
         let req = Request::delete("/api/v2/media/2e1")
             .header("authorization", format!("Bearer {token}"))
@@ -102,65 +108,104 @@ async fn native_route_cleans_only_after_confirmed_delete() {
 
 struct Executor {
     rows: Vec<DbRow>,
+    referenced: bool,
     affected: u64,
     fail: bool,
-    calls: Mutex<Vec<(&'static str, BindMap)>>,
+    calls: Mutex<Vec<(String, BindMap)>>,
 }
-impl SessionExecutor for Executor {
-    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
-        Box::pin(async { Ok(()) })
-    }
-    fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
-        Box::pin(async move {
-            self.calls.lock().unwrap().push((sql, binds));
-            Ok(self.rows.clone())
-        })
-    }
-    fn execute(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, u64> {
-        Box::pin(async move {
-            self.calls.lock().unwrap().push((sql, binds));
-            if self.fail {
-                Err(SessionStoreError)
+impl Transaction for Executor {
+    fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
+        self.calls.lock().unwrap().push((sql.to_owned(), binds));
+        if sql.starts_with("SELECT 1 AS in_use") {
+            Ok(if self.referenced {
+                vec![DbRow::new()]
             } else {
-                Ok(self.affected)
-            }
-        })
+                vec![]
+            })
+        } else {
+            Ok(self.rows.clone())
+        }
+    }
+    fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError> {
+        self.calls.lock().unwrap().push((sql.to_owned(), binds));
+        Ok(self.affected)
+    }
+    fn commit(&self) -> Result<(), DbError> {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(("commit".into(), BindMap::new()));
+        if self.fail {
+            Err(DbError::SchemaNotReady)
+        } else {
+            Ok(())
+        }
+    }
+    fn rollback(&self) -> Result<(), DbError> {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(("rollback".into(), BindMap::new()));
+        Ok(())
     }
 }
 #[tokio::test]
 async fn repository_scopes_owner_and_returns_only_confirmed_row() {
-    for (exists, affected, fail) in [
-        (false, 0, false),
-        (true, 0, false),
-        (true, 1, false),
-        (true, 2, false),
-        (true, 1, true),
+    for (exists, referenced, affected, fail) in [
+        (false, false, 0, false),
+        (true, true, 0, false),
+        (true, false, 0, false),
+        (true, false, 1, false),
+        (true, false, 2, false),
+        (true, false, 1, true),
     ] {
         let row = DbRow::from([
             ("STORAGE_KEY".into(), DbValue::String("owned/a.txt".into())),
             ("PUBLIC_URL".into(), DbValue::Null),
             ("THUMBNAIL_URL".into(), DbValue::Null),
         ]);
-        let repo = OracleSessions {
-            executor: Executor {
-                rows: if exists { vec![row] } else { vec![] },
-                affected,
-                fail,
-                calls: Mutex::new(vec![]),
-            },
+        let executor = Executor {
+            rows: if exists { vec![row] } else { vec![] },
+            referenced,
+            affected,
+            fail,
+            calls: Mutex::new(vec![]),
         };
-        let result = repo.delete_media(42, 20.0).await;
+        let result = delete::run(&executor, 42, 20.0);
         assert_eq!(result.is_err(), fail || affected > 1);
         if let Ok(value) = result {
-            assert_eq!(value.is_some(), exists && affected == 1)
+            assert_eq!(
+                matches!(value, MediaDeleteOutcome::Deleted(_)),
+                exists && affected == 1
+            );
+            assert_eq!(value == MediaDeleteOutcome::InUse, referenced);
         }
-        let calls = repo.executor.calls.lock().unwrap();
-        assert!(calls[0].0.contains("owner_user_id=:user_id"));
+        let calls = executor.calls.lock().unwrap();
+        assert!(calls[0].0.contains("owner_user_id=:user_id FOR UPDATE"));
         assert_eq!(calls[0].1["user_id"], DbValue::I64(42));
         if exists {
-            assert!(calls[1].0.contains("owner_user_id=:user_id"));
+            for table in [
+                "n_post_media",
+                "n_chat_message_media",
+                "avatar_media_id",
+                "g.avatar_url",
+                "g.cover_url",
+            ] {
+                assert!(calls[1].0.contains(table));
+            }
             assert_eq!(calls[1].1["media_id"], DbValue::F64(20.0));
+            if !referenced {
+                assert!(calls[2].0.contains("owner_user_id=:user_id"));
+            }
         }
+        assert_eq!(
+            calls.last().unwrap().0,
+            if exists && affected == 1 && !fail {
+                "commit"
+            } else {
+                "rollback"
+            }
+        );
     }
 }
 
@@ -182,7 +227,7 @@ async fn unauthenticated_and_invalid_ids_never_reach_store() {
     )
     .unwrap();
     let store = Arc::new(Store {
-        result: Ok(None),
+        result: Ok(MediaDeleteOutcome::Missing),
         calls: Mutex::new(vec![]),
     });
     let app = build_native_router(

@@ -1,3 +1,6 @@
+#[path = "support/otp_attempt.rs"]
+mod otp_attempt;
+
 use axum::{body::Body, http::Request};
 use http_body_util::BodyExt;
 use nekotribe_backend::auth::{
@@ -89,12 +92,25 @@ impl OtpMailer for Mail {
 }
 #[tokio::test]
 async fn shared_otp_creation() {
+    use nekotribe_backend::auth::otp_send_limit::{LimitUnavailable, OtpSendLimit, OtpSendLimiter, ReserveFuture};
+    struct Limit(String);
+    impl OtpSendLimiter for Limit {
+        fn reserve<'a>(&'a self, _: &'a str) -> ReserveFuture<'a> {
+            Box::pin(async move {
+                match self.0.as_str() {
+                    "limited" => Ok(42),
+                    "unavailable" => Err(LimitUnavailable),
+                    _ => Ok(0),
+                }
+            })
+        }
+    }
     let f: Value = serde_json::from_str(include_str!(
         "../contracts/scenarios/auth-otp-creation.json"
     ))
     .unwrap();
     let cases = f["cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 12);
+    assert_eq!(cases.len(), 14);
     for case in cases {
         let fault = case["fault"].as_str().unwrap_or("").to_owned();
         let store = Arc::new(Store {
@@ -107,7 +123,7 @@ async fn shared_otp_creation() {
             store: store.clone(),
             sends: AtomicUsize::new(0),
             code: Mutex::new(String::new()),
-            fault,
+            fault: fault.clone(),
         });
         let codec = TokenCodec::new(b"synthetic-access-key", b"synthetic-refresh-key").unwrap();
         let app = build_native_router_with_mail(
@@ -118,7 +134,7 @@ async fn shared_otp_creation() {
             RefreshPolicy::default(),
             StorageUrlPolicy::default(),
             mail.clone(),
-        );
+        ).layer(axum::Extension(OtpSendLimit(Arc::new(Limit(fault))))).layer(otp_attempt::fixture(200));
         let before = chrono::Utc::now();
         let req = Request::builder()
             .method("POST")
@@ -135,6 +151,9 @@ async fn shared_otp_creation() {
             case["id"]
         );
         assert_eq!(response.headers().get_all("set-cookie").iter().count(), 0);
+        if case["status"] == 429 {
+            assert_eq!(response.headers()["retry-after"], "42");
+        }
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
         let text = String::from_utf8(bytes.to_vec()).unwrap();
         assert!(!text.contains("private"));

@@ -53,7 +53,7 @@ async fn health_endpoint_returns_existing_contract_and_security_headers() {
 
 #[tokio::test]
 async fn unmatched_v2_route_returns_40404_envelope() {
-    let (status, _, body) = json_response(
+    let (status, headers, body) = json_response(
         Request::builder()
             .uri("/api/v2/not-exists")
             .body(Body::empty())
@@ -62,6 +62,7 @@ async fn unmatched_v2_route_returns_40404_envelope() {
     .await;
 
     assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(headers["cache-control"], "private, no-store");
     assert_eq!(
         body,
         json!({

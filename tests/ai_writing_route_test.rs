@@ -1,3 +1,6 @@
+#[path = "support/ai_model_quota.rs"]
+mod ai_model_quota;
+
 use axum::{body::Body, extract::State, http::Request, routing::post, Extension, Json, Router};
 use nekotribe_backend::{
     ai::{
@@ -16,7 +19,9 @@ use tower::ServiceExt;
 struct Store {
     purpose: &'static str,
     conflict: bool,
+    disabled: bool,
     writes: Mutex<Vec<(String, i64, String, i64)>>,
+    skills: Mutex<Vec<Option<&'static str>>>,
 }
 impl SessionRepository for Store {
     fn touch<'a>(&'a self, claims: &'a TokenClaims) -> StoreFuture<'a, u64> {
@@ -41,7 +46,22 @@ impl SessionRepository for Store {
                 AiOperation::Recent(_) => Ok(
                     json!([{"sequence_no":3,"role":"assistant","content":"old"},{"sequence_no":4,"role":"user","content":"write"}]),
                 ),
-                AiOperation::Assistant { input, .. } => {
+                AiOperation::WritingSkill(_, skill_id) => {
+                    self.skills.lock().unwrap().push(skill_id);
+                    if self.disabled {
+                        Err(Error::SchemaUnavailable)
+                    } else {
+                        Ok(json!(7))
+                    }
+                }
+                AiOperation::Assistant {
+                    input,
+                    skill_generation,
+                    cancel,
+                    ..
+                } => {
+                    assert_eq!(skill_generation, 7);
+                    assert!(cancel.is_some_and(|signal| !*signal.borrow()));
                     if self.conflict {
                         Err(Error::Conflict)
                     } else {
@@ -72,6 +92,7 @@ async fn run_case(
     purpose: &'static str,
     conflict: bool,
     finish: &'static str,
+    body: &'static str,
 ) -> (u16, Arc<Store>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -100,7 +121,9 @@ async fn run_case(
     let store = Arc::new(Store {
         purpose,
         conflict,
+        disabled: finish == "disabled",
         writes: Mutex::new(vec![]),
+        skills: Mutex::new(vec![]),
     });
     let app = build_native_router(
         codec,
@@ -108,11 +131,12 @@ async fn run_case(
         CorsPolicy::default(),
         Arc::new(|| 1_700_000_000),
     )
-    .layer(Extension(settings));
+    .layer(Extension(settings))
+    .layer(Extension(ai_model_quota::single_call_quota()));
     let req =
         Request::post("/api/v2/ai/conversations/f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb/generate")
             .header("authorization", format!("Bearer {token}"))
-            .body(Body::empty())
+            .body(Body::from(body))
             .unwrap();
     let response = app.oneshot(req).await.unwrap();
     assert_eq!(response.headers()["cache-control"], "private, no-store");
@@ -122,8 +146,10 @@ async fn run_case(
 
 #[tokio::test]
 async fn generates_and_stores_a_reply_with_fixed_model_and_sequence() {
-    let (status, store) = run_case("writing", false, "stop").await;
+    let (status, store) =
+        run_case("writing", false, "stop", r#"{"skill_id":"writing-draft"}"#).await;
     assert_eq!(status, 200);
+    assert_eq!(*store.skills.lock().unwrap(), vec![Some("writing-draft")]);
     assert_eq!(
         *store.writes.lock().unwrap(),
         vec![("draft".into(), 4, "writer".into(), 7)]
@@ -136,8 +162,9 @@ async fn rejects_non_writing_stale_and_truncated_responses() {
         ("knowledge", false, "stop", 400),
         ("writing", true, "stop", 409),
         ("writing", false, "length", 503),
+        ("writing", false, "disabled", 503),
     ] {
-        let (status, store) = run_case(purpose, conflict, finish).await;
+        let (status, store) = run_case(purpose, conflict, finish, "").await;
         assert_eq!(status, expected);
         assert!(store.writes.lock().unwrap().is_empty());
     }

@@ -13,6 +13,8 @@ impl Fixture {
         fs::create_dir_all(path.join("images")).unwrap();
         fs::write(path.join("images/cat.png"), b"0123456789").unwrap();
         fs::write(path.join("images/empty.txt"), b"").unwrap();
+        fs::create_dir(path.join("Private")).unwrap();
+        fs::write(path.join("Private/file.txt"), b"reserved").unwrap();
         Self(path)
     }
 }
@@ -23,11 +25,129 @@ impl Drop for Fixture {
 }
 
 #[tokio::test]
+async fn public_media_head_uses_shared_content_types() {
+    let vectors: serde_json::Value = serde_json::from_str(include_str!(
+        "../contracts/scenarios/storage-local-policy.json"
+    ))
+    .unwrap();
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.0.join("posts")).unwrap();
+    let app = local_http::router(LocalStorageConfig {
+        root: fixture.0.clone(),
+        unsupported: false,
+        s3: None,
+    });
+    for (key, expected) in vectors["publicContentTypes"].as_object().unwrap() {
+        fs::write(fixture.0.join(key), b"fixture").unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::head(format!("/storage/{key}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{key}");
+        assert_eq!(
+            response.headers()["content-type"],
+            expected.as_str().unwrap(),
+            "{key}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn retired_upload_links_never_read_storage() {
+    let app = local_http::router(LocalStorageConfig {
+        root: PathBuf::new(),
+        unsupported: true,
+        s3: None,
+    });
+    for prefix in ["/upload", "/uploads"] {
+        let path = format!("{prefix}/images/cat%20photo.png");
+        let url = format!("{path}?ignored=1");
+        for method in ["GET", "HEAD"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(&url)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::GONE);
+            assert_eq!(response.headers()["cache-control"], "no-store");
+            let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+            if method == "HEAD" {
+                assert!(bytes.is_empty());
+            } else {
+                let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                assert_eq!(
+                    body,
+                    serde_json::json!({
+                        "code":410,
+                        "message":format!("Legacy {prefix} path removed. Public files are served from /storage."),
+                        "data":{"requested_path":path,"storage_base":"/storage"},
+                        "meta":null
+                    })
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn public_read_with_invalid_s3_configuration() {
+    let fixture = Fixture::new();
+    fs::create_dir(fixture.0.join("posts")).unwrap();
+    fs::write(fixture.0.join("posts/existing.txt"), b"must stay local").unwrap();
+    let app = local_http::router(LocalStorageConfig::from_lookup(|key| match key {
+        "STORAGE_TYPE" => Some("s3".into()),
+        "STORAGE_PATH" => Some(fixture.0.to_string_lossy().into_owned()),
+        _ => None,
+    }));
+    for method in ["GET", "HEAD"] {
+        for (path, status) in [
+            ("/storage/posts/existing.txt", 503),
+            ("/storage/avatars/current.png", 503),
+            ("/storage/posts/CON.txt", 400),
+            ("/storage/Private/hidden.txt", 404),
+            ("/storage/temp/hidden.txt", 404),
+            ("/storage/images/cat.png", 404),
+            ("/storage/default-avatar.png", 200),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), status, "{method} {path}");
+            let body = to_bytes(response.into_body(), 4096).await.unwrap();
+            assert_ne!(body.as_ref(), b"must stay local");
+            if method == "HEAD" {
+                assert!(body.is_empty(), "{path}");
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn public_file_http_enforces_rules_and_streams_ranges() {
     let fixture = Fixture::new();
     let app = local_http::router(LocalStorageConfig {
         root: fixture.0.clone(),
         unsupported: false,
+        s3: None,
     });
     for (url, range, status, expected, content_range) in [
         ("/storage/images/cat.png", "", 200, "0123456789", ""),
@@ -61,6 +181,8 @@ async fn public_file_http_enforces_rules_and_streams_ranges() {
         ),
         ("/storage/%2e%2e/secret", "", 400, "", ""),
         ("/storage/temp/private", "", 404, "", ""),
+        ("/storage/Private/file.txt", "bytes=0-1", 404, "", ""),
+        ("/storage/Private%5cfile.txt", "", 404, "", ""),
         ("/storage/images", "", 404, "", ""),
     ] {
         let mut req = Request::builder().uri(url);
@@ -89,6 +211,42 @@ async fn public_file_http_enforces_rules_and_streams_ranges() {
             assert_eq!(&body[..], expected.as_bytes());
         }
     }
+    let reserved_head = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("HEAD")
+                .uri("/storage/Private/file.txt")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(reserved_head.status(), StatusCode::NOT_FOUND);
+    assert!(!reserved_head.headers().contains_key("etag"));
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("HEAD")
+                .uri("/storage/images/cat.png")
+                .header("range", "bytes=999-")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-length"], "10");
+    assert_eq!(response.headers()["content-type"], "image/png");
+    assert_eq!(response.headers()["accept-ranges"], "bytes");
+    assert!(!response.headers().contains_key("content-range"));
+    assert!(to_bytes(response.into_body(), 1024)
+        .await
+        .unwrap()
+        .is_empty());
+
     let response = app
         .oneshot(
             Request::builder()
@@ -110,6 +268,7 @@ async fn rejects_symlink_even_when_target_is_inside_root() {
     let app = local_http::router(LocalStorageConfig {
         root: fixture.0.clone(),
         unsupported: false,
+        s3: None,
     });
     let response = app
         .oneshot(
@@ -173,5 +332,5 @@ async fn s3_does_not_fall_back_to_local() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

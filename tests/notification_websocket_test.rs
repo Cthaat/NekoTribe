@@ -9,7 +9,8 @@ use nekotribe_backend::{
         storage_urls::StorageUrlPolicy,
         IssuedToken, TokenClaims, TokenCodec, TokenKind,
     },
-    notification_events::EventError,
+    local_presence::LocalPresenceEvents,
+    notification_events::{EventError, NotificationPublisher},
     notification_source::{NotificationSource, SubscriptionFuture},
 };
 use serde_json::{json, Value};
@@ -28,8 +29,14 @@ use tokio_tungstenite::{
 };
 
 #[derive(Default)]
-struct Repository(AtomicBool);
+struct Repository(AtomicBool, AtomicBool);
 impl SessionRepository for Repository {
+    fn can_read_chat_channel(&self, user: u64, channel: u64) -> StoreFuture<'_, bool> {
+        Box::pin(async move { Ok(user == 42 && channel == 7 && self.1.load(Ordering::SeqCst)) })
+    }
+    fn can_deliver_direct_message(&self, user: u64, conversation: u64, message: u64, deleted: bool) -> StoreFuture<'_, bool> {
+        Box::pin(async move { Ok(user == 42 && conversation == 11 && message == if deleted { 13 } else { 12 }) })
+    }
     fn touch<'a>(&'a self, _claims: &'a TokenClaims) -> StoreFuture<'a, u64> {
         Box::pin(async move { Ok(u64::from(!self.0.load(Ordering::SeqCst))) })
     }
@@ -46,9 +53,17 @@ impl SessionRepository for Repository {
 #[derive(Default)]
 struct Source {
     subscribers: Mutex<HashMap<u64, mpsc::Sender<Vec<u8>>>>,
+    rooms: Mutex<HashMap<u64, mpsc::Sender<Vec<u8>>>>,
     unavailable: AtomicBool,
 }
 impl NotificationSource for Source {
+    fn subscribe_chat_channel(&self, channel: u64) -> SubscriptionFuture<'_> {
+        Box::pin(async move {
+            let (sender, receiver) = mpsc::channel(16);
+            self.rooms.lock().unwrap().insert(channel, sender);
+            Ok(receiver)
+        })
+    }
     fn subscribe(&self, user: u64) -> SubscriptionFuture<'_> {
         Box::pin(async move {
             if self.unavailable.load(Ordering::SeqCst) {
@@ -59,6 +74,84 @@ impl NotificationSource for Source {
             Ok(receiver)
         })
     }
+}
+
+#[tokio::test]
+async fn chat_channel_rechecks_permission_and_delivers_only_matching_events() {
+    let repo = Arc::new(Repository::default());
+    let source = Arc::new(Source::default());
+    let (url, first, _, stop, task) =
+        server(repo.clone(), source.clone(), Arc::new(AtomicU64::new(150))).await;
+    let (mut socket, _) = connect_async(format!("{url}?token={first}")).await.unwrap();
+    let _welcome = receive(&mut socket).await;
+    let join = || {
+        Message::Text(
+            json!({"type":"chat_join_channel","data":{"channelId":7}})
+                .to_string()
+                .into(),
+        )
+    };
+    socket.send(join()).await.unwrap();
+    assert_eq!(receive(&mut socket).await["type"], "error");
+    assert!(source.rooms.lock().unwrap().is_empty());
+    repo.1.store(true, Ordering::SeqCst);
+    socket.send(join()).await.unwrap();
+    assert_eq!(receive(&mut socket).await["data"]["room"], "chat:channel:7");
+    assert_eq!(receive(&mut socket).await["data"]["code"], "chat_channel_ready");
+    let room = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            if let Some(sender) = source.rooms.lock().unwrap().get(&7).cloned() {
+                break sender;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    for id in [8, 7] {
+        room.send(
+            json!({"type":"chat_message","data":{"channel_id":id},"timestamp":1})
+                .to_string()
+                .into_bytes(),
+        )
+        .await
+        .unwrap();
+    }
+    assert_eq!(receive(&mut socket).await["data"]["channel_id"], 7);
+    for message in [10, 12] {
+        source.publish(42, json!({"type":"direct_message","data":{"conversation_id":11,"direct_message":{"conversation_id":11,"message_id":message}},"timestamp":1})).await;
+    }
+    let direct = receive(&mut socket).await;
+    assert_eq!(direct["type"], "direct_message");
+    assert_eq!(direct["data"]["direct_message"]["message_id"], 12);
+    for message in [12, 13] {
+        source.publish(42, json!({"type":"direct_message_deleted","data":{"conversation_id":11,"message_id":message},"timestamp":1})).await;
+    }
+    let deletion = receive(&mut socket).await;
+    assert_eq!(deletion["type"], "direct_message_deleted");
+    assert_eq!(deletion["data"]["message_id"], 13);
+    repo.1.store(false, Ordering::SeqCst);
+    room.send(
+        json!({"type":"chat_message","data":{"channel_id":7},"timestamp":1})
+            .to_string()
+            .into_bytes(),
+    )
+    .await
+    .unwrap();
+    tokio::time::timeout(Duration::from_secs(3), room.closed())
+        .await
+        .unwrap();
+    socket
+        .send(Message::Text(json!({"type":"ping"}).to_string().into()))
+        .await
+        .unwrap();
+    assert_eq!(receive(&mut socket).await["type"], "pong");
+    drop(socket);
+    let _ = stop.send(());
+    tokio::time::timeout(Duration::from_secs(3), task)
+        .await
+        .unwrap()
+        .unwrap();
 }
 impl Source {
     async fn publish(&self, user: u64, event: Value) {
@@ -81,7 +174,7 @@ fn token(codec: &TokenCodec, user: u64) -> String {
 }
 async fn server(
     repo: Arc<Repository>,
-    source: Arc<Source>,
+    source: Arc<dyn NotificationSource>,
     clock: Arc<AtomicU64>,
 ) -> (
     String,
@@ -131,6 +224,61 @@ fn status(error: Error) -> StatusCode {
     match error {
         Error::Http(response) => response.status(),
         other => panic!("unexpected error: {other}"),
+    }
+}
+
+struct PendingSource;
+impl NotificationSource for PendingSource {
+    fn subscribe(&self, _: u64) -> SubscriptionFuture<'_> {
+        Box::pin(std::future::pending())
+    }
+}
+
+#[tokio::test]
+async fn local_presence_degraded_socket_reports_status_and_checks_revocation() {
+    for pending in [false, true] {
+        let repo = Arc::new(Repository::default());
+        let source: Arc<dyn NotificationSource> = if pending {
+            Arc::new(PendingSource)
+        } else {
+            let source = Source::default();
+            source.unavailable.store(true, Ordering::SeqCst);
+            Arc::new(source)
+        };
+        let hub = Arc::new(LocalPresenceEvents::new(Some(source), None).unwrap());
+        let (url, first, _, stop, task) =
+            server(repo.clone(), hub.clone(), Arc::new(AtomicU64::new(150))).await;
+        let (mut socket, _) = connect_async(format!("{url}?token={first}")).await.unwrap();
+        assert_eq!(receive(&mut socket).await["data"]["user_id"], 42);
+        let expected = if pending { "connecting" } else { "unavailable" };
+        loop {
+            let event = receive(&mut socket).await;
+            assert_eq!(event["type"], "system_notification");
+            assert_eq!(event["data"]["code"], "realtime_status");
+            assert_eq!(event["data"]["local_presence"], true);
+            assert_eq!(event["data"]["user_id"], 42);
+            if event["data"]["remote_events"] == expected {
+                break;
+            }
+        }
+        let hidden = json!({"user_id":9,"online_status":"hidden","last_seen_at":"private"});
+        let _ = hub.publish_presence(hidden.as_object().unwrap()).await;
+        let event = receive(&mut socket).await;
+        assert_eq!(event["type"], "presence_update");
+        assert!(event["data"]["last_seen_at"].is_null());
+        repo.0.store(true, Ordering::SeqCst);
+        let _ = hub.publish_presence(hidden.as_object().unwrap()).await;
+        let event = tokio::time::timeout(Duration::from_secs(3), socket.next())
+            .await
+            .unwrap();
+        assert!(event.is_none() || matches!(event, Some(Ok(Message::Close(_))) | Some(Err(_))));
+        drop(socket);
+        hub.close();
+        let _ = stop.send(());
+        tokio::time::timeout(Duration::from_secs(3), task)
+            .await
+            .unwrap()
+            .unwrap();
     }
 }
 

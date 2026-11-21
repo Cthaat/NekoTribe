@@ -1,3 +1,6 @@
+#[path = "support/otp_attempt.rs"]
+mod otp_attempt;
+
 use axum::{body::Body, http::Request};
 use http_body_util::BodyExt;
 use nekotribe_backend::auth::{
@@ -107,7 +110,7 @@ async fn shared_password_reset() {
             store.clone(),
             CorsPolicy::default(),
             Arc::new(|| 1_700_000_000),
-        );
+        ).layer(otp_attempt::fixture(200));
         let mut body = fixture["base"].as_object().unwrap().clone();
         for (key, value) in case["patch"].as_object().unwrap() {
             body.insert(key.clone(), value.clone());
@@ -186,7 +189,7 @@ async fn concurrent_reset_accepts_only_one_request() {
         store.clone(),
         CorsPolicy::default(),
         Arc::new(|| 1_700_000_000),
-    );
+    ).layer(otp_attempt::fixture(200));
     let request = || {
         Request::builder().method("POST").uri("/api/v2/auth/password-reset")
         .header("content-type", "application/json")

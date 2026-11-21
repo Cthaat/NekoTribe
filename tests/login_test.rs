@@ -2,8 +2,8 @@ use axum::{body::Body, http::Request};
 use http_body_util::BodyExt;
 use nekotribe_backend::auth::{
     login::{
-        ChallengeRow, EncryptedSecret, LoginAccount, LoginChallenge, LoginDevice, LoginSession,
-        RecoveryCode,
+        ChallengeRow, EncryptedSecret, LoginAccount, LoginAlertDelivery, LoginChallenge,
+        LoginDevice, LoginSession, RecoveryCode,
     },
     sessions::{
         build_native_router, build_native_router_with_storage, CorsPolicy, RefreshPolicy,
@@ -73,13 +73,10 @@ impl SessionRepository for SecondReadinessFails {
     fn login_two_factor<'a>(&'a self, _: u64) -> StoreFuture<'a, bool> {
         Box::pin(async { Ok(true) })
     }
-    fn login_trusted_device<'a>(&'a self, _: u64, _: &'a LoginDevice) -> StoreFuture<'a, bool> {
-        Box::pin(async { Ok(false) })
-    }
-    fn login_challenge<'a>(&'a self, _: &'a LoginChallenge) -> StoreFuture<'a, ()> {
+    fn login_challenge<'a>(&'a self, _: &'a LoginChallenge) -> StoreFuture<'a, bool> {
         Box::pin(async move {
             self.writes.fetch_add(1, Ordering::SeqCst);
-            Ok(())
+            Ok(true)
         })
     }
     fn challenge_lookup<'a>(&'a self, _: &'a str) -> StoreFuture<'a, Option<ChallengeRow>> {
@@ -87,6 +84,7 @@ impl SessionRepository for SecondReadinessFails {
             Ok(Some(ChallengeRow {
                 user_id: 1,
                 username: "test".into(),
+                verified_password_hash: "fixture-verified-hash".into(),
                 remember: false,
                 device: LoginDevice {
                     fingerprint: "unknown".into(),
@@ -140,6 +138,7 @@ async fn second_readiness_failure_does_not_create_or_consume_credentials() {
 }
 
 struct LoginStore {
+    changed_credentials: bool,
     two_factor: bool,
     profile_fails: bool,
     schema_fails: bool,
@@ -189,29 +188,58 @@ impl SessionRepository for LoginStore {
             }
         })
     }
-    fn login_trusted_device<'a>(&'a self, _: u64, _: &'a LoginDevice) -> StoreFuture<'a, bool> {
-        Box::pin(async move { Ok(self.trusted) })
-    }
-    fn login_challenge<'a>(&'a self, c: &'a LoginChallenge) -> StoreFuture<'a, ()> {
+    fn login_challenge<'a>(&'a self, c: &'a LoginChallenge) -> StoreFuture<'a, bool> {
         Box::pin(async move {
+            if self.changed_credentials {
+                assert!(!c.verified_password_hash.is_empty());
+                return Ok(false);
+            }
             self.challenges.lock().unwrap().push(c.id.clone());
-            Ok(())
+            Ok(true)
         })
     }
-    fn login_insert_session<'a>(&'a self, s: &'a LoginSession) -> StoreFuture<'a, ()> {
+    fn login_insert_session<'a>(&'a self, s: &'a LoginSession) -> StoreFuture<'a, bool> {
         Box::pin(async move {
+            if self.changed_credentials {
+                assert!(!s.verified_password_hash.is_empty());
+                return Ok(false);
+            }
+            if s.trusted_device_key.is_some() && !self.trusted {
+                return Ok(false);
+            }
+            if let Some(completion) = &s.factor_completion {
+                let mut consumed = self.consumed.lock().unwrap();
+                if consumed.contains(&completion.challenge_id) {
+                    return Ok(false);
+                }
+                if completion.recovery_code_id.is_some() {
+                    self.recovery_attempts.fetch_add(1, Ordering::SeqCst);
+                    let mut recovery = self.recovery_used.lock().unwrap();
+                    if *recovery {
+                        return Ok(false);
+                    }
+                    *recovery = true;
+                }
+                consumed.insert(completion.challenge_id.clone());
+                if completion.remembered_device.is_some() {
+                    self.trust_calls.fetch_add(1, Ordering::SeqCst);
+                }
+            }
             self.sessions
                 .lock()
                 .unwrap()
                 .push((s.id.clone(), s.refresh_hash.clone()));
-            Ok(())
+            Ok(true)
         })
     }
     fn known_login_device<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, bool> {
         Box::pin(async { Ok(false) })
     }
-    fn record_login_alert<'a>(&'a self, _: &'a LoginSession) -> StoreFuture<'a, ()> {
-        Box::pin(async { Ok(()) })
+    fn record_login_alert<'a>(
+        &'a self,
+        _: &'a LoginSession,
+    ) -> StoreFuture<'a, LoginAlertDelivery> {
+        Box::pin(async { Ok(Default::default()) })
     }
     fn login_profile<'a>(&'a self, _: u64) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async move {
@@ -232,9 +260,10 @@ impl SessionRepository for LoginStore {
             Ok(exists.then(|| ChallengeRow {
                 user_id: 1,
                 username: "test".into(),
+                verified_password_hash: "fixture-verified-hash".into(),
                 remember: self.remember,
                 device: LoginDevice {
-                    fingerprint: "unknown".into(),
+                    fingerprint: if self.remember { "fixture-device" } else { "unknown" }.into(),
                     info: "unknown".into(),
                     ip: "unknown".into(),
                     user_agent: "unknown".into(),
@@ -281,41 +310,16 @@ impl SessionRepository for LoginStore {
             Ok(rows)
         })
     }
-    fn consume_recovery<'a>(&'a self, _: u64) -> StoreFuture<'a, u64> {
-        Box::pin(async move {
-            self.recovery_attempts.fetch_add(1, Ordering::SeqCst);
-            let mut x = self.recovery_used.lock().unwrap();
-            if *x {
-                Ok(0)
-            } else {
-                *x = true;
-                Ok(1)
-            }
-        })
-    }
-    fn consume_challenge<'a>(&'a self, id: &'a str) -> StoreFuture<'a, u64> {
-        Box::pin(async move {
-            Ok(u64::from(
-                self.consumed.lock().unwrap().insert(id.to_owned()),
-            ))
-        })
-    }
-    fn trust_challenge_device<'a>(
-        &'a self,
-        _: &'a ChallengeRow,
-        _: &'a str,
-    ) -> StoreFuture<'a, ()> {
-        Box::pin(async move {
-            self.trust_calls.fetch_add(1, Ordering::SeqCst);
-            Ok(())
-        })
-    }
+
 }
 
 #[tokio::test]
 async fn password_login_issues_persisted_session_and_challenge_never_issues_tokens() {
-    for two_factor in [false, true] {
+    for (two_factor, changed_credentials) in
+        [(false, false), (true, false), (false, true), (true, true)]
+    {
         let store = Arc::new(LoginStore {
+            changed_credentials,
             two_factor,
             profile_fails: false,
             schema_fails: false,
@@ -353,6 +357,13 @@ async fn password_login_issues_persisted_session_and_challenge_never_issues_toke
             ))
             .unwrap();
         let response = app.oneshot(request).await.unwrap();
+        if changed_credentials {
+            assert_eq!(response.status(), 401);
+            assert!(!response.headers().contains_key("set-cookie"));
+            assert!(store.sessions.lock().unwrap().is_empty());
+            assert!(store.challenges.lock().unwrap().is_empty());
+            continue;
+        }
         assert_eq!(response.status(), 200);
         assert_eq!(
             response.headers().get_all("set-cookie").iter().count(),
@@ -391,6 +402,7 @@ async fn password_login_issues_persisted_session_and_challenge_never_issues_toke
 #[tokio::test]
 async fn unsafe_storage_configuration_does_not_emit_login_cookies() {
     let store = Arc::new(LoginStore {
+        changed_credentials: false,
         two_factor: false,
         profile_fails: false,
         schema_fails: false,
@@ -446,6 +458,7 @@ async fn unsafe_storage_configuration_does_not_emit_login_cookies() {
 #[tokio::test]
 async fn failed_profile_does_not_send_cookies_even_if_session_was_inserted() {
     let store = Arc::new(LoginStore {
+        changed_credentials: false,
         two_factor: false,
         profile_fails: true,
         schema_fails: false,
@@ -482,6 +495,7 @@ async fn failed_profile_does_not_send_cookies_even_if_session_was_inserted() {
 #[tokio::test]
 async fn missing_two_factor_schema_fails_closed_even_when_user_has_no_2fa() {
     let store = Arc::new(LoginStore {
+        changed_credentials: false,
         two_factor: false,
         profile_fails: false,
         schema_fails: true,
@@ -519,6 +533,7 @@ async fn missing_two_factor_schema_fails_closed_even_when_user_has_no_2fa() {
 async fn two_factor_challenge_accepts_totp_and_recovery_once() {
     for code in ["324550", "ABCDE-FGHIJ-KLMNO"] {
         let store = Arc::new(LoginStore {
+            changed_credentials: false,
             two_factor: true,
             profile_fails: false,
             schema_fails: false,
@@ -565,6 +580,7 @@ async fn concurrent_same_challenge_or_shared_recovery_issues_at_most_one_session
         ("2fa_a", "2fa_b", "ABCDE-FGHIJ-KLMNO"),
     ] {
         let store = Arc::new(LoginStore {
+            changed_credentials: false,
             two_factor: true,
             profile_fails: false,
             schema_fails: false,
@@ -626,6 +642,7 @@ async fn concurrent_same_challenge_or_shared_recovery_issues_at_most_one_session
 #[tokio::test]
 async fn login_uses_javascript_whitespace_for_account_and_password() {
     let store = Arc::new(LoginStore {
+        changed_credentials: false,
         two_factor: false,
         profile_fails: false,
         schema_fails: false,
@@ -667,14 +684,16 @@ async fn login_uses_javascript_whitespace_for_account_and_password() {
 
 #[tokio::test]
 async fn wrong_credentials_inactive_and_trusted_device_follow_login_decisions() {
-    for (account, password, two_factor, trusted, status, challenge) in [
-        ("missing", "correct-password", false, false, 401, false),
-        ("test", "wrong", false, false, 401, false),
-        ("disabled", "wrong", false, false, 403, false),
-        ("test", "correct-password", true, true, 200, false),
-        ("test", "correct-password", true, false, 200, true),
+    for (account, password, two_factor, proof_present, trusted, status, challenge) in [
+        ("missing", "correct-password", false, false, false, 401, false),
+        ("test", "wrong", false, false, false, 401, false),
+        ("disabled", "wrong", false, false, false, 403, false),
+        ("test", "correct-password", true, true, true, 200, false),
+        ("test", "correct-password", true, true, false, 200, true),
+        ("test", "correct-password", true, false, false, 200, true),
     ] {
         let store = Arc::new(LoginStore {
+            changed_credentials: false,
             two_factor,
             profile_fails: false,
             schema_fails: false,
@@ -695,12 +714,17 @@ async fn wrong_credentials_inactive_and_trusted_device_follow_login_decisions() 
             Arc::new(|| 1700000000),
         );
         let body = serde_json::json!({"account":account,"password":password}).to_string();
-        let req = Request::builder()
+        let mut request = Request::builder()
             .method("POST")
             .uri("/api/v2/auth/tokens")
-            .header("content-type", "application/json")
-            .body(Body::from(body))
-            .unwrap();
+            .header("content-type", "application/json");
+        if proof_present {
+            request = request.header(
+                "cookie",
+                format!("nekotribe_trusted_device=td1_{}", "a".repeat(64)),
+            );
+        }
+        let req = request.body(Body::from(body)).unwrap();
         let response = app.oneshot(req).await.unwrap();
         assert_eq!(response.status(), status);
         assert_eq!(
@@ -717,6 +741,7 @@ async fn wrong_credentials_inactive_and_trusted_device_follow_login_decisions() 
 #[tokio::test]
 async fn invalid_challenge_or_code_fails_and_remembered_device_is_recorded() {
     let store = Arc::new(LoginStore {
+        changed_credentials: false,
         two_factor: true,
         profile_fails: false,
         schema_fails: false,
@@ -736,22 +761,32 @@ async fn invalid_challenge_or_code_fails_and_remembered_device_is_recorded() {
         CorsPolicy::default(),
         Arc::new(|| 1700000000),
     );
-    for (id, code, status) in [
-        ("missing", "324550", 401),
-        ("2fa_valid", "111111", 401),
-        ("2fa_valid", "324550", 200),
+    for (id, code, fingerprint, status) in [
+        ("missing", "324550", "fixture-device", 401),
+        ("2fa_valid", "324550", "other-device", 401),
+        ("2fa_valid", "111111", "fixture-device", 401),
+        ("2fa_valid", "324550", "fixture-device", 200),
     ] {
         let body = serde_json::json!({"challenge_id":id,"code":code}).to_string();
         let req = Request::builder()
             .method("POST")
             .uri("/api/v2/auth/two-factor/challenges")
             .header("content-type", "application/json")
+            .header("x-device-fingerprint", fingerprint)
             .body(Body::from(body))
             .unwrap();
         let response = app.clone().oneshot(req).await.unwrap();
         assert_eq!(response.status(), status);
         if status != 200 {
             assert_eq!(response.headers().get_all("set-cookie").iter().count(), 0);
+        } else {
+            let cookies = response.headers().get_all("set-cookie");
+            assert!(cookies.iter().any(|value| {
+                let value = value.to_str().unwrap();
+                value.starts_with("nekotribe_trusted_device=td1_")
+                    && value.contains("HttpOnly")
+                    && value.contains("SameSite=Lax")
+            }));
         }
     }
     assert_eq!(store.trust_calls.load(Ordering::SeqCst), 1);

@@ -33,10 +33,12 @@ struct MemoryTransaction {
     calls: RefCell<Vec<(String, BindMap)>>,
     events: RefCell<Vec<&'static str>>,
     source_exists: bool,
+    muted: bool,
     source_deleted: bool,
     source_visible: bool,
     source_changes: bool,
     media: Vec<(f64, u64, &'static str)>,
+    private_media: Option<(&'static str, bool)>,
     fail_at: Option<&'static str>,
     fail_commit: bool,
     commit_applies_before_failure: bool,
@@ -52,10 +54,12 @@ impl Default for MemoryTransaction {
             calls: RefCell::default(),
             events: RefCell::default(),
             source_exists: true,
+            muted: false,
             source_deleted: false,
             source_visible: true,
             source_changes: false,
             media: vec![(1.0, 42, "ready"), (2.0, 42, "uploaded")],
+            private_media: None,
             fail_at: None,
             fail_commit: false,
             commit_applies_before_failure: false,
@@ -78,9 +82,33 @@ fn decimal(binds: &BindMap, name: &str) -> f64 {
 impl PostCreateTransaction for MemoryTransaction {
     fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
         self.calls.borrow_mut().push((sql.to_owned(), binds));
+        let (lock, allowed) = nekotribe_backend::moderation::publish_policy::queries();
+        if sql == lock {
+            return Ok(vec![DbRow::from([("USER_ID".into(), DbValue::I64(42))])]);
+        }
+        if sql == allowed {
+            return Ok(vec![DbRow::from([(
+                "ALLOWED".into(),
+                DbValue::I64(i64::from(!(self.muted))),
+            )])]);
+        }
         if sql.contains("seq_post_id") {
             self.sequences.set(self.sequences.get() + 1);
             return Ok(vec![DbRow::from([("ID".into(), DbValue::I64(100))])]);
+        }
+        if sql.starts_with("SELECT media_id,storage_key FROM n_media_assets")
+            && sql.ends_with("FOR UPDATE")
+        {
+            let key = self.private_media.map_or("posts/a.txt", |(key, _)| key);
+            return Ok(vec![DbRow::from([
+                ("MEDIA_ID".into(), DbValue::I64(1)),
+                ("STORAGE_KEY".into(), DbValue::String(key.into())),
+            ])]);
+        }
+        if sql.starts_with("SELECT 1 AS permitted") {
+            assert!(sql.contains("a.access_scope = 'post'"));
+            let permitted = self.private_media.is_some_and(|(_, allowed)| allowed);
+            return Ok(if permitted { vec![DbRow::new()] } else { vec![] });
         }
         assert!(sql.contains("p.is_deleted=0") && sql.contains("fn_can_view_post"));
         Ok(
@@ -178,6 +206,35 @@ impl PostCreateTransaction for MemoryTransaction {
     }
 }
 
+#[test]
+fn private_post_media_requires_a_restricted_visibility_and_binding() {
+    for (visibility, key, permitted, expected, query_binding) in [
+        ("private", "private/post/42/a.txt", true, PostCreation::Created(100), true),
+        ("followers", "private/post/42/a.txt", false, PostCreation::MediaUnavailable, true),
+        ("public", "private/post/42/a.txt", true, PostCreation::MediaUnavailable, false),
+        ("mentioned", "private/chat/42/a.txt", true, PostCreation::MediaUnavailable, false),
+        ("private", "PRIVATE\\post\\42\\a.txt", true, PostCreation::MediaUnavailable, false),
+    ] {
+        let tx = MemoryTransaction {
+            private_media: Some((key, permitted)),
+            ..Default::default()
+        };
+        let mut data = input();
+        data.visibility = visibility.into();
+        data.media_ids = vec![1.0];
+        assert_eq!(run(&tx, 42, &data).unwrap(), expected);
+        let calls = tx.calls.borrow();
+        let lock = calls.iter().position(|(sql, _)| sql.starts_with("SELECT media_id,storage_key")).unwrap();
+        let binding = calls.iter().position(|(sql, _)| sql.starts_with("SELECT 1 AS permitted"));
+        assert_eq!(binding.is_some(), query_binding);
+        if let Some(position) = binding {
+            assert!(position > lock);
+            assert_eq!(calls[position].1["media_id"], DbValue::F64(1.0));
+            assert_eq!(calls[position].1["post_id"], DbValue::I64(100));
+        }
+    }
+}
+
 fn input() -> PostCreateInput {
     PostCreateInput {
         content: " hello ".into(),
@@ -190,6 +247,25 @@ fn input() -> PostCreateInput {
         repost_of_post_id: None,
         quoted_post_id: None,
     }
+}
+
+#[test]
+fn denies_muted_account_without_post_writes() {
+    let tx = MemoryTransaction {
+        muted: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        run(&tx, 42, &input()).unwrap(),
+        PostCreation::PublishForbidden
+    );
+    assert_eq!(*tx.events.borrow(), ["rollback"]);
+    assert!(tx
+        .calls
+        .borrow()
+        .iter()
+        .all(|(sql, _)| sql.starts_with("SELECT ")));
+    assert!(tx.persisted.borrow().posts.is_empty());
 }
 
 #[test]

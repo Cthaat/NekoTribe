@@ -115,9 +115,50 @@ impl SessionRepository for Store {
             match self.0 {
                 "schema" => Ok(SettingsRead::SchemaUnavailable),
                 "error" => Err(SessionStoreError),
-                _ => Ok(SettingsRead::Ready(serde_json::json!({"user_id":user}))),
+                "missing-user" => Ok(SettingsRead::UserMissing),
+                "missing-settings" => Ok(SettingsRead::SettingsMissing),
+                _ => Ok(SettingsRead::Ready(serde_json::json!({
+                    "user_id":user,"two_factor_enabled":false,"login_alerts":false,
+                    "profile_visibility":"public","show_online_status":false,
+                    "allow_dm_from_strangers":false,"push_notification_enabled":false,
+                    "email_notification_enabled":false,"ai_sentiment_enabled":false,
+                    "ai_sentiment_model_id":null,"ai_sentiment_return_probabilities":true,
+                    "ai_sentiment_include_metadata":false,"ai_sentiment_top_k":3,"updated_at":""
+                }))),
             }
         })
+    }
+}
+
+#[tokio::test]
+async fn settings_shared_native_http_cases() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!("../contracts/scenarios/auth-tokens.json")).unwrap();
+    let token = fixture["cases"].as_array().unwrap().iter().find(|x| x["id"] == "access-hs256").unwrap()["token"].as_str().unwrap();
+    let vectors: serde_json::Value = serde_json::from_str(include_str!("../contracts/scenarios/user-settings-native.json")).unwrap();
+    for method in ["GET", "PATCH"] {
+        for case in vectors["cases"].as_array().unwrap() {
+            let mode = match case["mode"].as_str().unwrap() {
+                "schema" => "schema", "error" => "error", "missing-user" => "missing-user", "missing-settings" => "missing-settings", _ => "ok"
+            };
+            let codec = TokenCodec::new(fixture["keys"]["access"].as_str().unwrap().as_bytes(), fixture["keys"]["refresh"].as_str().unwrap().as_bytes()).unwrap();
+            let app = build_native_router(codec, Arc::new(Store(mode)), CorsPolicy::default(), Arc::new(|| 1_700_000_000));
+            let mut request = Request::builder().method(method).uri("/api/v2/users/me/settings").header("Content-Type", "application/json");
+            match case["credential"].as_str().unwrap() {
+                "valid" => request = request.header("Authorization", format!("Bearer {token}")),
+                "invalid" => request = request.header("Authorization", "Bearer invalid-token"),
+                _ => {}
+            }
+            let response = app.oneshot(request.body(Body::from("{}")).unwrap()).await.unwrap();
+            assert_eq!(response.status().as_u16(), case["status"].as_u64().unwrap() as u16, "{method} {case}");
+            assert_eq!(response.headers().get("cache-control").and_then(|v| v.to_str().ok()), Some("private, no-store"), "{method} {case}");
+            let bytes = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+            let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            if let Some(message) = case["message"].as_str() { assert_eq!(body["message"], message); }
+            if case["status"] == 200 {
+                assert_eq!(body["data"].as_object().unwrap().len(), 14);
+                assert_eq!(body["data"]["ai_sentiment_top_k"], 3);
+            }
+        }
     }
 }
 

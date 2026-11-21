@@ -37,7 +37,10 @@ impl SessionExecutor for Executor {
                     .then(|| DbRow::from([("POST_ID".into(), DbValue::I64(1))]))
             } else if sql.contains("n_post_stats") {
                 Some(DbRow::from([("LIKES_COUNT".into(), DbValue::I64(3))]))
-            } else if sql.starts_with("SELECT user_id,post_id,DBMS_LOB.SUBSTR") {
+            } else if sql.starts_with("SELECT c.user_id,c.post_id,DBMS_LOB.SUBSTR") {
+                assert!(sql.contains("comment_author.is_active=1"));
+                assert!(sql.contains("FROM n_user_blocks"));
+                assert_eq!(calls.last().unwrap().1["viewer_id"], DbValue::I64(42));
                 self.author.map(|v| {
                     DbRow::from([
                         ("USER_ID".into(), DbValue::I64(v)),

@@ -1,0 +1,27 @@
+services:
+  rust:
+    image: ${RUST_APP_IMAGE:-}
+    build:
+      context: .
+    env_file:
+      - ${RUST_APP_ENV_FILE:-./.env.rust}
+    environment:
+      HOST: 0.0.0.0
+      RUST_BACKEND_PORT: "8080"
+      RUST_BACKEND_MODE: native
+      RUST_BACKEND_DOCKER: "true"
+      STORAGE_PATH: /app/storage
+      STORAGE_ROOT_DIR: /app/storage
+    ports:
+      - "${RUST_PUBLISH_HOST:-127.0.0.1}:${RUST_PUBLISH_PORT:-30003}:8080"
+    volumes:
+      - "${NEKO_STORAGE_SOURCE:-./storage}:/app/storage"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/api/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s

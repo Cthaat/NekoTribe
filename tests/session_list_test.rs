@@ -1,18 +1,63 @@
 use axum::{body::Body, http::Request};
 use http_body_util::BodyExt;
 use nekotribe_backend::auth::{
+    session_repository::{OracleSessions, SessionExecutor},
     session_list::{session_pagination, SessionItem, SessionPage},
     sessions::{
         build_native_router, CorsPolicy, SessionRepository, SessionStoreError, StoreFuture,
     },
     TokenClaims, TokenCodec,
 };
+use nekotribe_backend::db::{oracle::BindMap, row::DbRow, value::DbValue};
 use serde_json::{json, Value};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
 use tower::ServiceExt;
+
+struct EmptyPageExecutor(AtomicUsize);
+
+impl SessionExecutor for EmptyPageExecutor {
+    fn execute(&self, _: &'static str, _: BindMap) -> StoreFuture<'_, u64> {
+        panic!("session listing cannot write");
+    }
+
+    fn preflight(&self, _: &'static str) -> StoreFuture<'_, ()> {
+        panic!("session listing should issue only its read query");
+    }
+
+    fn query(&self, sql: &'static str, binds: BindMap) -> StoreFuture<'_, Vec<DbRow>> {
+        Box::pin(async move {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            assert!(sql.contains("WHERE user_id = :user_id AND revoked_at IS NULL"));
+            assert!(sql.contains("ORDER BY last_accessed_at DESC, session_id ASC"));
+            assert!(sql.contains("LEFT JOIN eligible e ON e.rn BETWEEN :start_row AND :end_row"));
+            assert!(sql.ends_with("ORDER BY e.rn"));
+            assert_eq!(binds["user_id"], DbValue::I64(42));
+            assert_eq!(binds["start_row"], DbValue::F64(10.0));
+            assert_eq!(binds["end_row"], DbValue::F64(10.0));
+            Ok(vec![DbRow::from([
+                ("TOTAL".into(), DbValue::I64(3)),
+                ("SESSION_ID".into(), DbValue::Null),
+            ])])
+        })
+    }
+}
+
+#[tokio::test]
+async fn session_repository_keeps_total_for_an_empty_page() {
+    let repository = OracleSessions {
+        executor: EmptyPageExecutor(AtomicUsize::new(0)),
+    };
+    let (sessions, total) = repository
+        .list_sessions(42, session_pagination("page=10&page_size=1"))
+        .await
+        .unwrap();
+    assert!(sessions.is_empty());
+    assert_eq!(total, 3);
+    assert_eq!(repository.executor.0.load(Ordering::SeqCst), 1);
+}
 
 #[test]
 fn shared_session_pagination() {
