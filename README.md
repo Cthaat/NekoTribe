@@ -1,824 +1,155 @@
 # NekoTribe
 
-English | [中文](doc/README.md)
+[![最新 Release](https://img.shields.io/github/v/release/Cthaat/NekoTribe?label=Release)](https://github.com/Cthaat/NekoTribe/releases/latest)
+[![Nuxt CI](https://github.com/Cthaat/NekoTribe/actions/workflows/ci-nuxt.yml/badge.svg?branch=master)](https://github.com/Cthaat/NekoTribe/actions/workflows/ci-nuxt.yml)
+[![Docker 镜像](https://img.shields.io/badge/GHCR-nuxt-2496ED?logo=docker&logoColor=white)](https://github.com/Cthaat/NekoTribe/pkgs/container/nekotribe-nuxt)
+[![Nuxt 4](https://img.shields.io/badge/Nuxt-4-00DC82?logo=nuxt&logoColor=white)](https://nuxt.com/)
 
-NekoTribe is a full-stack social application built on Nuxt 4. It bundles a Vue frontend, Nitro Server API, Oracle data model, Redis realtime messaging, media uploads, notifications, account security flows, and parallel v1/v2 APIs.
+NekoTribe 是可自托管的社区平台，提供社交动态、群组、实时聊天、内容审核和 AI 助手。
 
-This repo is organized so a new developer can start quickly after clone: copy and review the env sample, start Docker dependencies with Compose-driven Oracle initialization, run the local dev server, then begin integration.
+| 分支 | 组件 | 适用场景 | Release 主包 |
+| --- | --- | --- | --- |
+| [`master`](https://github.com/Cthaat/NekoTribe/tree/master)（当前分支） | Nuxt 4 全栈 | 一次部署社区 Web、API 和实时服务，或单独作为 Web 界面 | `NekoTribe-<version>-nuxt.zip` |
+| [`codex/go`](https://github.com/Cthaat/NekoTribe/tree/codex/go) | Go 原生后端 | 复用已有 Oracle / Redis，以纯 Go 二进制或容器提供 API | `NekoTribe-<version>-go.zip` |
+| [`Rust`](https://github.com/Cthaat/NekoTribe/tree/Rust) | Rust 原生后端 | 复用已有 Oracle / Redis，以 Rust 二进制或容器提供 API | `NekoTribe-<version>-rust.zip` |
+| [`Flutter`](https://github.com/Cthaat/NekoTribe/tree/Flutter) | 跨端客户端 | 安装 Windows、Android 应用或部署独立 Web，连接任一后端 | `NekoTribe-<version>-flutter.zip` |
 
-## Highlights
+## ⚡ 快速开始
 
-- Full-stack Nuxt 4 app with a clear frontend/backend boundary.
-- Parallel v1/v2 API evolution to avoid risky big-bang migration.
-- Oracle 19c, Redis 7, and WebSocket realtime messaging.
-- Media upload pipeline with validation and local storage.
-- Docker-first local dev and full-stack runtime scripts.
+### A. Docker 部署（推荐）
 
-## Quick Links
+准备 Docker Engine 或 Docker Desktop（Linux 容器模式）和 Docker Compose。完整栈启动 **4 个常驻容器 + 1 个一次性初始化容器**。下表是 Compose 服务名，生成的容器名带项目名前缀，例如 `nekotribe-app-1`。默认宿主机端口绑定在 `127.0.0.1`。
 
-- API docs: https://3kjlg46jpj.apifox.cn
-- Config before startup: [Configure `.env`](#before-quick-start-configure-env)
-- Quick start: [Local Development](#quick-start-local-development)
-- Quick start: [Full Docker Stack](#quick-start-full-docker-stack)
-- Config: [Environment Variables](#environment-variables)
-- Docs: [Documentation Index](#documentation-index)
+| 服务名 | 镜像 | 用途 | 默认端口（宿主机 → 容器） | 常驻 |
+| --- | --- | --- | --- | --- |
+| `app` | `ghcr.io/cthaat/nekotribe-nuxt:master` | Nuxt Web、API 和 WebSocket | `30001 → 3000` | 是 |
+| `nginx` | `nginx:1.27-alpine` | 统一 HTTP、WebSocket 和媒体入口 | `30002 → 80` | 是 |
+| `oracle19c` | `container-registry.oracle.com/database/enterprise:19.3.0.0`（由 `ORACLE_IMAGE` 覆盖） | Oracle 数据库 | `5501 → 1521`，EM Express `5500 → 5500` | 是 |
+| `redis` | `redis:7-alpine` | 共享缓存和实时事件 | `6379 → 6379` | 是 |
+| `db-init` | 同 `oracle19c` | 检查开发基线标记，显式授权后可初始化空库 | 无 | 否 |
 
-## Table of Contents
-
-- [Project Overview](#project-overview)
-- [Core Capabilities](#core-capabilities)
-- [User-Facing Pages](#user-facing-pages)
-- [Architecture](#architecture)
-- [API and Data Model](#api-and-data-model)
-- [Tech Stack](#tech-stack)
-- [Requirements](#requirements)
-- [Before Quick Start: Configure `.env`](#before-quick-start-configure-env)
-- [Quick Start: Local Development](#quick-start-local-development)
-- [Quick Start: Full Docker Stack](#quick-start-full-docker-stack)
-- [SentimentFlow Runtime](#sentimentflow-runtime)
-- [Scripts](#scripts)
-- [Environment Variables](#environment-variables)
-- [External Services](#external-services)
-- [Documentation Index](#documentation-index)
-- [Engineering Conventions](#engineering-conventions)
-- [Directory Structure](#directory-structure)
-- [Development and Verification](#development-and-verification)
-- [Production Deployment](#production-deployment)
-- [FAQ](#faq)
-
-## Project Overview
-
-NekoTribe aims to build a full-stack application for social content publishing, group interaction, and account security management. It is not a simple frontend demo project; it includes complete server APIs, database models, auth sessions, file uploads, realtime communication, and a containerized runtime.
-
-The project is currently evolving in parallel from v1 to v2:
-
-- v1 keeps legacy endpoints and business paths for compatibility.
-- v2 is rebuilt with resource-oriented APIs, the Oracle v2 data model, and clearer service layering.
-- The frontend can migrate to v2 gradually, while the backend keeps v1/v2 in parallel to avoid risky big-bang switches.
-- Operations include `.env.example`, Docker Compose, Nginx config, and Compose-driven database initialization to reduce environment setup cost.
-
-## Core Capabilities
-
-| Module                  | Description                                                                                                       | Primary Locations                                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Authentication          | Registration, login, refresh tokens, logout, OTP, password reset, session management.                             | `server/api/v2/auth`, `server/services/v2/auth.ts`, `app/pages/auth`                                          |
-| User Profile            | Current user profile, public profile, avatar, email, settings, follow/followers, block, mute, user stats.         | `server/api/v2/users`, `server/services/v2/users.ts`, `app/pages/user`, `app/pages/account`                   |
-| Content Publishing      | Post creation, list, detail, delete, trends, replies, reposts, bookmarks, likes, comments.                        | `server/api/v2/posts`, `server/api/v2/comments`, `server/services/v2/posts.ts`                                |
-| Groups                  | Group creation, list, detail, members, roles, mutes, approvals, invites, group posts, group comments, audit logs. | `server/api/v2/groups`, `server/services/v2/groups.ts`, `app/pages/groups`                                    |
-| Notifications           | Notification list, read status, restore, delete, batch status handling.                                           | `server/api/v2/notifications`, `server/services/v2/notifications.ts`, `app/pages/user/[id]/notifications.vue` |
-| Media Upload            | Avatars, post media, standalone media assets, with image/video/audio validation and local storage.                | `server/api/v2/media`, `server/services/v2/media.ts`, `upload/`                                               |
-| Tags and Search         | Tag list, hot tags, tag posts, tag analytics.                                                                     | `server/api/v2/tags`, `app/pages/tweet/search/[search].vue`                                                   |
-| Recommendation Feedback | User recommendations, content recommendation feedback entry.                                                      | `server/api/v2/recommendations`, `server/api/v2/users/recommendations.get.ts`                                 |
-| Account Security        | Security settings, email change, password reset, login devices, account statements and appeals.                   | `server/api/v2/users/me/account-statements`, `app/pages/account/security.vue`                                 |
-| Moderation Console      | Admin pages for content, users, reports, and moderation config.                                                   | `app/pages/moderation`, `app/components/Moderation*.vue`                                                      |
-| Realtime Messaging      | WebSocket connections, room messages, broadcasts, Redis pub/sub.                                                  | `server/routes/_ws.ts`, `server/utils/redis.ts`, `app/pages/ws/index.vue`                                     |
-| i18n and Theme          | Chinese/English locales, light/dark theme, UI preferences.                                                        | `i18n/`, `app/plugins/ui-preferences.client.ts`, `app/components/ColorModeIcon.vue`                           |
-
-## User-Facing Pages
-
-| Page                              | Path                                    | Description                                                                             |
-| --------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------- |
-| Home                              | `app/pages/index.vue`                   | Feed and main entry.                                                                    |
-| Login / Register / Password Reset | `app/pages/auth/*`                      | Auth flows, terms, and password recovery.                                               |
-| Account Center                    | `app/pages/account/*`                   | Overview, profile, security, appearance, settings, active sessions, account statements. |
-| User Profile                      | `app/pages/user/[id]/profile.vue`       | Public profile, user posts, user interactions.                                          |
-| User Notifications                | `app/pages/user/[id]/notifications.vue` | Notification display and handling.                                                      |
-| Post Detail                       | `app/pages/tweet/[id].vue`              | Post content, comments, interactions.                                                   |
-| Post List / Search                | `app/pages/tweet/*`                     | Content by type, user, or query.                                                        |
-| Groups                            | `app/pages/groups*.vue`                 | Group home, discover, my groups, invites.                                               |
-| Chat                              | `app/pages/chat.vue`                    | Chat entry page.                                                                        |
-| Moderation Console                | `app/pages/moderation*.vue`             | Content moderation, user review, reports, configuration.                                |
-| WebSocket Test                    | `app/pages/ws/index.vue`                | Local verification for realtime messaging.                                              |
-
-## Architecture
-
-### System Flow
-
-```text
-Browser
-  ↓
-Nuxt 4 frontend app/
-  ↓  $fetch / useApi / useApiFetch
-Nitro Server API server/api
-  ↓
-Business services server/services
-  ↓
-Shared models server/models + common utils server/utils
-  ↓
-Oracle / Redis / SMTP / local upload storage
-```
-
-### Responsibility Boundaries
-
-- The frontend only handles pages, components, state, and user interaction.
-- API routes only parse requests, call services, and return responses.
-- The service layer owns business flows and database orchestration.
-- The model layer maps database rows to business objects.
-- The utils layer holds generic, non-domain utilities such as DB execution, request parsing, response wrappers, auth parsing, and Redis communication.
-
-### Frontend Architecture
-
-The frontend follows Nuxt 4's `app/` directory structure:
-
-- `app/pages`: file-based routes for home, auth, account, users, posts, groups, chat, moderation, and test pages.
-- `app/components`: business components such as post cards, comment sections, group cards, account forms, moderation lists, chat widgets.
-- `app/components/ui`: shadcn-nuxt style base UI components such as buttons, forms, dialogs, dropdowns, pagination, sidebars.
-- `app/stores`: Pinia state management, currently user preferences and tweet state.
-- `app/composables`: API wrappers and shared composables.
-- `app/middleware`: route middleware for auth state and main flow control.
-- `app/plugins`: client plugins such as error handling, UI preferences, and a deprecated heartbeat plugin.
-- `app/assets/css`: Tailwind CSS entry.
-
-Frontend requests are wrapped by `useApi.ts` and `useApiFetch.ts` to centralize API base URLs, auth-failure retries, and error notifications. This reduces page-level changes when migrating v1/v2 APIs.
-
-### Backend Architecture
-
-The backend is based on Nuxt Nitro:
-
-- `server/api/v1`: legacy APIs. Avoid structural changes unless fixing an explicit bug.
-- `server/api/v2`: new APIs, organized by resource like `auth`, `users`, `posts`, `groups`, `notifications`, `media`, `tags`.
-- `server/services/v2`: v2 service layer. Complex business logic stays out of route files.
-- `server/models`: shared models and DB mapping, reducing coupling between SQL rows and response objects.
-- `server/types`: global type definitions, including DTOs, VOs, response structures, and domain types.
-- `server/utils`: generic utilities, including v2 response wrappers, DB execution, auth parsing, Redis, WebSocket sessions, and upload validation.
-- `server/plugins`: Nitro plugins, currently Redis lazy injection, Oracle pools, logging, and global hooks.
-- `server/middleware`: server middleware for auth, logging, and rate limits.
-- `server/routes/_ws.ts`: WebSocket route.
-
-### v2 API Pattern
-
-```text
-server/api/v2/xxx/*.ts
-  Parse path params and HTTP methods
-  ↓
-server/services/v2/*.ts
-  Validate body, auth, business rules, transaction orchestration
-  ↓
-server/utils/v2.ts
-  Execute SQL, paginate, wrap responses, throw errors
-  ↓
-server/models/v2.ts
-  Map DB rows into frontend-ready objects
-```
-
-### Key Runtime Flows
-
-#### Auth and Sessions
-
-1. Users complete registration or password reset with an email OTP.
-2. After login, the server issues access and refresh tokens and writes them to HttpOnly cookies.
-3. Session data is stored in Oracle; refresh tokens are stored as hashes only.
-4. When access tokens expire, frontend request wrappers can trigger refresh flow.
-5. Logout or session deletion revokes the session in Oracle and clears cookies.
-
-#### Database Access
-
-1. `server/plugins/02-oracle.ts` creates the Oracle pool lazily.
-2. Requests get a connection via `event.context.getOracleConnection`.
-3. v2 services use execution helpers in `server/utils/v2.ts` for queries, pagination, and transactions.
-4. Responses are mapped via `server/models/v2.ts` before return.
-
-#### Redis and Realtime Messaging
-
-1. `server/plugins/01-redisClient.ts` provides a lazy Redis instance for normal requests.
-2. `server/utils/api-cache.ts` caches v2 GET responses with per-route, per-user, and tag-versioned Redis keys.
-3. `server/utils/oracle-query-cache.ts` wraps request Oracle connections and caches safe `SELECT`/`WITH` query results before the database is hit.
-4. `server/utils/v2.ts` checks Redis before Oracle on v2 GET requests, then writes successful responses with TTLs.
-5. Successful write queries bump related cache tag versions, so stale response and query caches become unreachable and expire naturally.
-6. Sequence, lock, password, token, and verification-code queries are intentionally skipped because caching them would be incorrect or unsafe.
-7. `server/utils/redis.ts` provides publishers, subscribers, and fallbacks for WebSocket.
-8. `server/routes/_ws.ts` maintains sessions, rooms, broadcasts, and heartbeat.
-9. In multi-instance deployments, Redis pub/sub enables cross-instance broadcasts.
-
-#### Media Uploads
-
-1. The frontend uploads avatars or media files via form submissions.
-2. The server uses `formidable` to receive multipart files.
-3. `file-type` validates real MIME types and limits file types and sizes.
-4. Files are saved to `upload/`, and Nginx serves them from `/upload/`.
-5. Media metadata is stored in Oracle, while business objects only store public URLs and storage keys.
-
-#### Containerized Startup
-
-1. `Dockerfile` builds Nuxt production artifacts.
-2. `docker-compose.yml` orchestrates app, Redis, Oracle, one-shot database initialization, and Nginx.
-3. `.env` provides app, DB, cache, SMTP, and port configuration.
-4. The `db-init` service writes the v2 Oracle baseline before the app starts.
-
-## API and Data Model
-
-### v2 API Module Overview
-
-| API Module        | Scope                                                                                                                                                                                   |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auth`            | OTP, registration, login, refresh current token, logout, session list, delete session, delete other sessions, password reset.                                                           |
-| `users`           | User list, current user, user detail, follow, followers, mutual follow, user posts, analytics, settings, avatar, email, bookmarks, block, mute, groups, account statements and appeals. |
-| `posts`           | Post list, create, detail, delete, trends, comments, likes, like list, repost, reply, bookmarks, analytics.                                                                             |
-| `comments`        | Comment delete, comment like, unlike.                                                                                                                                                   |
-| `groups`          | Group CRUD, query by slug, hot groups, member management, role changes, mute, approvals, invites, invite codes, group posts, group comments, pin, audit logs, ownership transfer.       |
-| `notifications`   | Notification list, delete, restore, single or batch read status.                                                                                                                        |
-| `media`           | Media upload and delete.                                                                                                                                                                |
-| `tags`            | Tag list, hot tags, tag posts, tag analytics.                                                                                                                                           |
-| `recommendations` | Recommendation feedback.                                                                                                                                                                |
-
-### Data Model Overview
-
-The v2 database baseline is in `doc/neko_tribe-oracle-v2.sql`, aiming to upgrade the old tweet/action models into clearer resource models.
-
-| Domain             | Primary Tables/Objects                                                                        | Description                                                |
-| ------------------ | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Users              | `n_users`, `n_user_stats`, `n_user_settings`                                                  | User master, stats, and preference settings.               |
-| Auth               | `n_auth_otp_events`, `n_auth_sessions`                                                        | OTP events, access/refresh token sessions and device info. |
-| Social Graph       | `n_user_follows`, `n_user_blocks`, `n_user_mutes`                                             | Follow, block, mute tables to avoid mixing relation types. |
-| Content            | `n_posts`, `n_post_stats`, `n_post_likes`, `n_post_bookmarks`                                 | Posts, post stats, likes, bookmarks.                       |
-| Comments           | `n_comments`, `n_comment_stats`, `n_comment_likes`                                            | Comments, comment stats, comment likes.                    |
-| Media              | `n_media_assets`, `n_post_media`                                                              | Media assets and post media relations.                     |
-| Tags               | `n_tags`, `n_post_tags`, `n_post_mentions`                                                    | Tags, post tags, mentions.                                 |
-| Notifications      | `n_notifications`, `n_notification_preferences`                                               | Notification records and preferences.                      |
-| Account Governance | `n_account_statements`, `n_statement_appeals`                                                 | Account statements, enforcement records, and appeal flow.  |
-| Groups             | `n_groups`, `n_group_members`, `n_group_posts`, `n_group_invites`, `n_group_audit_logs`, etc. | Groups, members, invites, group content, audit logs.       |
-
-Legacy SQL and stage SQL remain in `doc/` and `data/` to trace historical designs. New environments should use `doc/neko_tribe-oracle-v2.sql` first.
-
-## Tech Stack
-
-| Area               | Technology                                                                                                               |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Frontend           | Nuxt 4, Vue 3, TypeScript, Pinia, Nuxt UI, shadcn-nuxt, Tailwind CSS 4                                                   |
-| Backend            | Nitro Server API, h3, TypeScript                                                                                         |
-| API Versioning     | Legacy `server/api/v1`, resource-style `server/api/v2`                                                                   |
-| Database           | Oracle 19c, accessed via `oracledb`                                                                                      |
-| Cache and Realtime | Redis 7 via `ioredis` for Oracle query cache, v2 response cache, OTP/rate-limit state, and WebSocket pub/sub             |
-| Auth               | JWT access/refresh tokens, HttpOnly cookies, bcrypt                                                                      |
-| Email              | SMTP via `nodemailer`                                                                                                    |
-| Media              | Local file uploads, `formidable`, `file-type`, `sharp`, `ffprobe-static`, optional system `ffmpeg` for legacy thumbnails |
-| Runtime            | Node.js 22, Yarn 1.x, Docker Compose                                                                                     |
-
-## Requirements
-
-- Node.js 22+
-- Yarn 1.x; if `yarn` is missing, run `corepack enable` first.
-- Docker Desktop or Docker Engine with Compose v2.
-- Windows is recommended with PowerShell; Git Bash, WSL, macOS shell, or Linux shell can run `.sh` scripts.
-- If switching `ORACLE_IMAGE` to the official Oracle image, Oracle Container Registry access and license acceptance are required.
-- Optional: for legacy v1 media thumbnails outside Docker, install `ffmpeg` locally.
-
-## Before Quick Start: Configure `.env`
-
-Copy the env template first, then review the required fields for your startup mode. `.env` contains secrets, database settings, Redis settings, SMTP settings, ports, and SentimentFlow settings; skipping this check commonly causes auth failures, Oracle connection failures, missing OTP email delivery, or Docker containers trying to reach host-only addresses.
-
-```bash
+```sh
+git clone --branch master --single-branch https://github.com/Cthaat/NekoTribe.git nekotribe
+cd nekotribe
 cp .env.example .env
 ```
 
-PowerShell:
+Windows PowerShell 可用 `Copy-Item .env.example .env`。已有 `.env` 时直接编辑。
 
-```powershell
-Copy-Item .env.example .env
+| 需要填写的配置 | 填法 |
+| --- | --- |
+| `ACCESS_SECRET`、`REFRESH_SECRET` | 两个不同的随机长字符串 |
+| `ORACLE_IMAGE`、`ORACLE_PWD` | 可用且已授权的 Oracle 19c 镜像，以及该容器的 SYS/SYSTEM 密码 |
+| `ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD` | 内置开发基线固定 `ORCLPDB1`、`neko_app`，密码与实际 schema 一致。使用内置 SQL 初始化时，`.env` 中的密码应与 SQL 为该账号设置的密码一致 |
+| `REDIS_PASSWORD` | 内置 Redis 的访问密码 |
+| `COOKIE_SECURE` | 本机 HTTP 用 `false`，正式 HTTPS 用 `true` |
+
+`.env.example` 中的 `ORACLE_IMAGE` 使用 `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c`。使用 Oracle 官方 19c Enterprise 时，在 Oracle Container Registry 接受相应条款并取得镜像访问权限，执行 `docker login container-registry.oracle.com`，再把 `ORACLE_IMAGE` 改为上表的官方镜像。使用 Oracle Free 23 或已有 Oracle，请走下方的外部依赖方案。
+
+仅在**确认目标为独立空开发库**后执行下面的 `db-init` 命令。已有的 Oracle 库按部署手册检查和迁移 schema。
+
+```sh
+docker compose --env-file .env up -d --wait redis oracle19c
+docker compose --env-file .env run --rm -e DB_INIT_ALLOW_EMPTY=true db-init
 ```
 
-At minimum, confirm these fields:
+由管理员在 `ORCLPDB1` 内授予应用账号 `EXECUTE ON SYS.DBMS_LOCK` 后运行迁移并启动。使用官方 19c 镜像时，可执行 `docker compose --env-file .env exec oracle19c sqlplus / as sysdba`，在 SQL*Plus 执行 `ALTER SESSION SET CONTAINER = ORCLPDB1;` 和 `GRANT EXECUTE ON SYS.DBMS_LOCK TO NEKO_APP;`，然后输入 `EXIT`。
 
-| Scenario          | Required or must-check fields                                                                                | Recommended values and notes                                                                                                                                                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Common            | `ACCESS_SECRET`, `REFRESH_SECRET`                                                                            | Replace with random long strings. Template values are acceptable only for temporary local debugging, not shared or production environments. Generate with a password manager or `openssl rand -base64 48`.                                                                                                |
-| Common            | `ACCESS_EXPIRES_IN`, `REFRESH_EXPIRES_IN`                                                                    | Template values can start the app: 15 minutes for access tokens and 30 days for refresh tokens. Change only if you need a different login lifetime.                                                                                                                                                       |
-| Common            | `COOKIE_SECURE`, `TRUST_PROXY`, `ENABLE_V1_API`, `MODERATION_ADMIN_ACCOUNTS`                                 | For production HTTPS, set `COOKIE_SECURE=true`. Keep `TRUST_PROXY=false` unless the app only receives traffic from a trusted reverse proxy. Keep `ENABLE_V1_API=false` unless legacy APIs have been reviewed. Set moderation admin usernames or emails explicitly.                                        |
-| Host dev          | `NODE_ENV`                                                                                                   | Keep `development`; otherwise local HTTP login can fail because secure-cookie behavior changes.                                                                                                                                                                                                           |
-| Host dev          | `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`                        | With built-in Compose Oracle, keep the template values: `localhost`, `5501`, `ORCLPDB1`, `neko_app`, `replace-with-oracle-password`. For an external Oracle instance, replace them with the real host, service name, user, and password.                                                                                  |
-| Full Docker stack | `APP_PORT`, `NGINX_PORT`, `DOCKER_PUBLIC_WS_URL`                                                             | Defaults are app `30001` and Nginx `30002`. Keep `DOCKER_PUBLIC_WS_URL` empty for same-origin WebSocket auto-detection. If exposing the site through HTTPS or Cloudflare Tunnel, the browser must use `wss://.../_ws`, not `ws://.../_ws`.                                                                |
-| Full Docker stack | `DOCKER_ORACLE_HOST`, `DOCKER_ORACLE_PORT`, `DOCKER_REDIS_URL`, `DOCKER_REDIS_HOST`, `DOCKER_REDIS_PORT`     | Keep these values when using built-in Compose services. They must point to Docker-network names `oracle19c` and `redis`, not `localhost`.                                                                                                                                                                 |
-| Oracle init/storage | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE`, `ORACLE_DATA_VOLUME`, `ORACLE_DATA_MOUNT_OPTIONS` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `replace-with-oracle-password`. Oracle data uses the Docker named volume `oracle-data` by default to avoid Rocky Linux/SELinux bind-mount permission failures. |
-| Redis             | `REDIS_PASSWORD`                                                                                             | The built-in Redis service reads this password. Changing it after a Redis volume already exists can break old clients or health checks unless you also reset/update the volume.                                                                                                                           |
-| Email features    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`                                                           | The app can start without SMTP, but registration OTP, password reset, and account emails require a real SMTP account. 163/QQ/Gmail usually require an app-specific password or authorization code, not the web login password.                                                                            |
-| SentimentFlow | `--profile sentimentflow-legacy` | Explicitly enable this profile for standalone legacy services. |
+```sh
+docker compose --env-file .env run --rm --no-deps --entrypoint node app scripts/migrate-db.mjs --apply
+docker compose --env-file .env up -d
+docker compose --env-file .env ps -a
+curl --fail http://127.0.0.1:30002/api/ready
+```
 
-If `.env` already exists, do not copy the template over it again; only fill in or adjust the fields above.
+浏览器打开 **http://127.0.0.1:30002**，也可直连 Nuxt 的 `http://127.0.0.1:30001`。Oracle 与 Redis 就绪时 `/api/ready` 返回 HTTP 200。Windows PowerShell 中可使用 `curl.exe`。
 
-## Quick Start: Local Development
+**Oracle Free 23 或外部已有 Oracle / Redis。** 可独立运行 Oracle Free 23（例如 `gvenzl/oracle-free:23-slim`，PDB 为 `FREEPDB1`）或连接已经存在的 Oracle。为新库先由管理员建立空的应用 schema，再按纯结构基线初始化并执行增量迁移。内置 `db-init` 适用固定的 19c 开发基线。复制 `.env.example` 为 `.env.external`，添加 `ENV_FILE=./.env.external` 和 `NUXT_IMAGE=ghcr.io/cthaat/nekotribe-nuxt:master`，填写容器可达的 `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD` 及 `REDIS_URL` 或 `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`。宿主机依赖可使用 `host.docker.internal`，前提是数据库和 Redis 在该地址上可达。[纯结构基线及权限](docs/deployment.md#新-oracle-库只创建应用结构) · [Oracle Free 镜像用法](https://github.com/gvenzl/oci-oracle-free#readme)
 
-For "frontend and Nitro dev servers run on the host, Oracle/Redis run in Docker":
+此模式只启动 **1 个常驻 app 容器**，入口为 `http://127.0.0.1:30001`。
 
-```bash
-corepack enable
+```sh
+docker compose --env-file .env.external -f docker-compose.external.yml pull app
+docker compose --env-file .env.external -f docker-compose.external.yml up -d --no-build
+curl --fail http://127.0.0.1:30001/api/ready
+```
+
+**按需接入 AI。** 默认栈包含社区核心组件。以下服务独立部署，具体接线见知识索引部署手册。
+
+| 可选服务 | 镜像或来源 | 默认或示例端口 | 运行方式 |
+| --- | --- | --- | --- |
+| `knowledge-index` | `Dockerfile.knowledge-index` 的 `retrieval` 构建目标 | `127.0.0.1:3818 → 3818` | 常驻检索 |
+| `knowledge-index-updater` | 同一 Dockerfile 的 `updater` 构建目标 | 无 | 显式启用 `index-update` profile，可常驻更新 |
+| Qdrant | 外部向量数据库 | 示例 `6333` | 按需常驻 |
+| Ollama | 外部模型服务，可选择 OpenAI 兼容服务 | 示例 `11434` | 按需常驻 |
+
+### B. 运行 Release 预编译包
+
+[最新正式版](https://github.com/Cthaat/NekoTribe/releases/latest) 和 [滚动预发布](https://github.com/Cthaat/NekoTribe/releases/tag/rolling-latest) 各提供四个主包。`<version>` 为版本号（如 `v2.0.0`），滚动版使用 `latest`。可用同页的 `SHA256SUMS.txt` 核对下载文件。
+
+1. 下载 `NekoTribe-<version>-nuxt.zip`，解压后进入对应的 `windows-x64/` 或 `linux-x64/`。运行需要 x64 Node.js 22（至少 22.12.0）。
+2. 把 `.env.example` 复制为 `.env`，填写宿主机可达的 Oracle、Redis 和签名配置。首次部署或升级先执行 `node scripts/package-nuxt.mjs --prepare .` 并按下文完成数据库初始化或迁移。
+3. Windows 双击 `start.cmd`，Linux 执行 `sh start.sh`。打开 `http://127.0.0.1:3000`，或执行 `curl --fail http://127.0.0.1:3000/api/ready`。
+
+### C. 本地源码运行
+
+准备 Node.js 22（至少 22.12.0）、Yarn Classic 1.22.22，以及可用的 Oracle 和 Redis。从 `master` 分支根目录执行以下命令。先把 `.env.example` 复制为 `.env` 并填入依赖地址、schema 凭据及签名密钥。
+
+```sh
 yarn install --frozen-lockfile
-test -f .env || cp .env.example .env
-# Review and save the required fields from "Before Quick Start: Configure .env"
-docker compose up -d redis oracle19c db-init
+node scripts/migrate-db.mjs --plan
+node scripts/migrate-db.mjs --apply --dotenv .env
+node scripts/migrate-db.mjs --check --dotenv .env
 yarn dev
 ```
 
-To get the AI capabilities with a local backend build, run this in the project root:
+空 schema 先安装基线。准备 SQL*Plus 并在目标私有配置显式设置 `DB_INIT_ALLOW_EMPTY=true`，然后运行 `node scripts/init-db.mjs --schema-only --dotenv .env`，再执行上述迁移。默认开发地址为 `http://127.0.0.1:3000`。[新 Oracle 库部署](docs/deployment.md#新-oracle-库只创建应用结构) · [迁移权限](docs/architecture/schema-migrations.md)
 
-```bash
-git clone https://github.com/Cthaat/SentimentFlow.git
-docker compose -f docker-compose.local.yml up -d --build sentimentflow sentimentflow-frontend
+## 核心功能
+
+- 发布和发现动态，评论、点赞、关注用户，上传图片和附件。
+- 创建和管理群组，使用频道聊天、私信和实时通知。
+- 处理举报、审核内容与账号，管理申诉和发布策略。
+- 按需启用 AI 写作、群知识问答、群运营和审核助手。
+
+## 常用配置与连接
+
+| 入口 | 默认地址 |
+| --- | --- |
+| Nuxt 本地或预编译包 | `http://127.0.0.1:3000` |
+| Nuxt 容器 / Nginx | `http://127.0.0.1:30001` / `http://127.0.0.1:30002` |
+| Go / Rust | `http://127.0.0.1:30006` / `http://127.0.0.1:30003` |
+| 默认 WebSocket 与公开媒体 | `/_ws` / `/storage/` |
+
+- **切换后端**：Nuxt、Go、Rust 可以共用 Oracle schema、Redis 实例及逻辑库。对应的 JWT 密钥和有效期、媒体位置、审核账号及 AI 配额保持一致。统一入口也可用可选的 `gateway` 服务，默认宿主端口 `30005`。[共用部署与切换](docs/deployment.md#同一个公共入口切换-nuxtgorust)
+- **连接客户端**：Nuxt Web 的 `NUXT_PUBLIC_API_BASE` 填浏览器可达的 API 基址，实时和公开媒体默认跟随 API。独立部署时用 `NUXT_PUBLIC_WS_URL`、`NUXT_PUBLIC_STORAGE_BASE` 指定其他入口。服务端渲染可单独配置 `NUXT_API_SERVER_BASE`。Flutter 可直接填写选定后端的 API 地址。[地址约定](doc/runtime-addresses.md)
+- **邮件与审核**：`SMTP_HOST`、`SMTP_PORT`、`SMTP_USER` 和 `SMTP_PASS` 用于邮箱验证码。用 `MODERATION_ADMIN_ACCOUNTS` 指定有权使用审核后台的账号。
+- **AI 模型**：使用 `AI_MODEL_CONFIG_FILE` 或 `AI_MODEL_CONFIG_JSON` 配置模型和用途绑定，凭据由配置引用的环境变量提供。语义检索通过 `AI_KNOWLEDGE_INDEX_URL` 和 `AI_INDEX_SERVICE_TOKEN` 对接。[模型配置](docs/ai-writing-development.md) · [知识索引部署](docs/deployment.md#独立公开知识索引)
+- **媒体存储**：`STORAGE_TYPE=local` 时使用 `STORAGE_ROOT_DIR` 与 `STORAGE_PATH`。`STORAGE_TYPE=s3` 时填写模板的 `STORAGE_S3_*`。共用后端时使用同一媒体目录或桶，统一公开路径及 CDN 地址。
+
+## 架构与目录
+
+<details>
+<summary>Nuxt 4、Vue 3、Nitro、Oracle、Redis</summary>
+
+| 路径 | 内容 |
+| --- | --- |
+| `app/` | Web 页面和客户端逻辑 |
+| `server/` | Nitro API、实时连接、数据访问和存储 |
+| `data/`、`scripts/` | Oracle 基线、迁移、部署和打包工具 |
+| `doc/`、`specifications/` | OpenAPI、共享运行约定和验收台账 |
+| `docs/` | 架构文档与部署手册 |
+
+</details>
+
+## 参与开发
+
+在 Nuxt 根目录运行测试和契约检查。四个工作树位于同一父目录时，加 `--workspace-root ..` 核对所有副本。
+
+```sh
+yarn test
+node scripts/contracts.mjs check --workspace-root ..
+node scripts/parity.mjs check --workspace-root ..
 ```
 
-Please make sure to give write permissions to the `sentimentflow-models` folder and the `upload` folder for the local backend build, otherwise the backend may fail to start or save uploaded media:
-
-```bash
-chmod -R 777 ./sentimentflow-models
-chmod -R 777 ./upload
-chmod -R 777 ./server/logs
-chmod -R 777 ./storage
-chmod -R 777 ./upload
-```
-
-Access:
-
-- App: `http://localhost:3000`
-- WebSocket test page: `http://localhost:3000/ws`
-- Host Oracle: `localhost:5501/ORCLPDB1`
-- Host Redis: `localhost:6379`
-
-PowerShell equivalent:
-
-```powershell
-corepack enable
-yarn install --frozen-lockfile
-if (!(Test-Path .env)) { Copy-Item .env.example .env }
-# Review and save the required fields from "Before Quick Start: Configure .env"
-docker compose up -d redis oracle19c db-init
-yarn dev
-```
-
-## Quick Start: Full Docker Stack
-
-For "app, Redis, Oracle, Nginx all run in Docker":
-
-```bash
-test -f .env || cp .env.example .env
-# Review and save the required fields from "Before Quick Start: Configure .env"
-docker compose up -d
-```
-
-PowerShell:
-
-```powershell
-if (!(Test-Path .env)) { Copy-Item .env.example .env }
-# Review and save the required fields from "Before Quick Start: Configure .env"
-docker compose up -d
-```
-
-Access:
-
-- App container port: `http://localhost:30001`
-- Nginx reverse proxy and upload static: `http://localhost:30002`
-- SentimentFlow backend API: `http://localhost:8846/health`, `http://localhost:8846/docs`
-- SentimentFlow frontend UI: `http://localhost:30008`
-- Oracle listener port: `localhost:5501`
-- Oracle EM Express: `http://localhost:5500/em`
-
-Oracle usually needs a few minutes on first boot. `.env.example` defaults to a domestic Oracle 19c mirror. If you switch `ORACLE_IMAGE` to the official image, run `docker login container-registry.oracle.com` first and accept the database image license in the Oracle Container Registry. You can also use an external Oracle instance and update `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, and `ORACLE_PASSWORD` in `.env`.
-
-Oracle data is persisted in the Docker named volume `oracle-data` by default. This avoids Rocky Linux/SELinux permission failures that commonly happen when Oracle writes directly into a project bind mount such as `./data/oracle-data`. If an old `./data/oracle-data` directory already exists, Compose will ignore it unless you explicitly set `ORACLE_DATA_VOLUME=./data/oracle-data`.
-
-## SentimentFlow Runtime
-
-SentimentFlow is included in both Compose files as two services:
-
-- `sentimentflow`: FastAPI backend for prediction, training, models, and statistics.
-- `sentimentflow-frontend`: Next.js frontend UI that talks to the backend through `BACKEND_API_URL`.
-
-The platform has retired its old sentiment endpoints. Configure these ports in `.env` for standalone SentimentFlow.
-
-```env
-SENTIMENTFLOW_HOST_PORT=8846
-SENTIMENTFLOW_CONTAINER_PORT=8846
-SENTIMENTFLOW_FRONTEND_HOST_PORT=30008
-SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
-```
-
-Select the `sentimentflow-legacy` profile or explicitly target both services to start them. The old environment flags do not activate this profile.
-
-Port changes are centralized in `.env`. `SENTIMENTFLOW_HOST_PORT` controls host/browser access to the backend, for example `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`; `SENTIMENTFLOW_CONTAINER_PORT` controls the backend process port, Docker target port, backend healthcheck, and the frontend container's `BACKEND_API_URL`. `SENTIMENTFLOW_FRONTEND_HOST_PORT` controls host/browser access to the SentimentFlow UI, and `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` controls the Next.js server port inside the frontend container.
-
-### Docker Deployment: GHCR Images
-
-`docker-compose.yml` pulls the published GitHub Container Registry images:
-
-- Backend: `ghcr.io/cthaat/sentimentflow-backend:latest`
-- Frontend: `ghcr.io/cthaat/sentimentflow-frontend:latest`
-
-```bash
-cp .env.example .env
-docker compose --profile sentimentflow-legacy pull sentimentflow sentimentflow-frontend
-docker compose --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
-```
-
-PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-docker compose --profile sentimentflow-legacy pull sentimentflow sentimentflow-frontend
-docker compose --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
-```
-
-If the backend image appears stuck at `Pulling`, stop the current Compose command first and use the progress helper. It prints the remote image layers before pulling and then uses Compose plain progress:
-
-```powershell
-.\scripts\pull-sentimentflow-remote.ps1
-```
-
-After the pull finishes, the script can also start the stack without pulling again:
-
-```powershell
-.\scripts\pull-sentimentflow-remote.ps1 -Up
-```
-
-Default URLs:
-
-- NekoTribe app: `http://localhost:30001`
-- SentimentFlow backend health: `http://localhost:8846/health`
-- SentimentFlow backend docs: `http://localhost:8846/docs`
-- SentimentFlow frontend UI: `http://localhost:30008`
-
-To pin an automatic build, set image variables to specific tags in `.env`, for example:
-
-```env
-SENTIMENTFLOW_IMAGE=ghcr.io/cthaat/sentimentflow-backend:sha-a7f50e1
-SENTIMENTFLOW_FRONTEND_IMAGE=ghcr.io/cthaat/sentimentflow-frontend:sha-a7f50e1
-```
-
-### Docker Deployment: Build From GitHub
-
-`docker-compose.local.yml` builds NekoTribe locally and builds both SentimentFlow services from the Git source configured by `SENTIMENTFLOW_GIT_REPO` and `SENTIMENTFLOW_GIT_REF`. This avoids Docker Compose remote build-context path issues on Windows because the inline Dockerfiles clone the repository inside the build stage.
-
-```bash
-cp .env.example .env
-docker compose -f docker-compose.local.yml up -d --build
-```
-
-PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-docker compose -f docker-compose.local.yml up -d --build
-```
-
-To rebuild only SentimentFlow:
-
-```bash
-docker compose -f docker-compose.local.yml up -d --build sentimentflow sentimentflow-frontend
-```
-
-`SENTIMENTFLOW_GIT_REPO` defaults to `https://github.com/Cthaat/SentimentFlow.git`, and `SENTIMENTFLOW_GIT_REF` defaults to `main`; change `SENTIMENTFLOW_GIT_REF` to another branch, tag, or commit when needed. For example, use `SENTIMENTFLOW_GIT_REF=1d3ecf9` to build that commit. Model artifacts are kept in the `sentimentflow-models` Docker volume or the local `./sentimentflow-models` folder in local-build mode.
-
-`SENTIMENTFLOW_PIP_INDEX_URL` and `SENTIMENTFLOW_TORCH_INDEX_URL` both default to `https://pypi.org/simple` for the local backend build. The backend installs torch in its own cacheable layer so CUDA-capable torch dependencies can be reused across rebuilds instead of being downloaded every time. If package downloads are slow, you can change the PyPI index to a mirror, but hash mismatch errors usually mean the mirror or network returned a different file, so switch back to the official index before retrying.
-
-By default, the Compose files do not request GPU devices, so `docker compose up -d` works on machines without Docker GPU/CDI support. CUDA training requires Docker GPU access; only use the GPU override on hosts where the NVIDIA driver, Docker Desktop/Engine GPU support, and CUDA container runtime are working.
-
-GHCR mode with GPU:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
-```
-
-Local-build mode with GPU:
-
-```bash
-docker compose -f docker-compose.local.yml -f docker-compose.gpu.yml --profile sentimentflow-legacy up -d --build sentimentflow sentimentflow-frontend
-```
-
-`docker-compose.gpu.yml` requests all available GPUs for the `sentimentflow` backend with `gpus: all`, passes `NVIDIA_DRIVER_CAPABILITIES=compute,utility` into the container, and uses `SENTIMENTFLOW_GPUS` for `NVIDIA_VISIBLE_DEVICES`.
-
-### Non-Docker SentimentFlow Deployment
-
-Use this when NekoTribe runs on the host and only Oracle/Redis are in Docker, or when SentimentFlow is started manually.
-
-1. Start NekoTribe host development dependencies:
-
-```powershell
-Copy-Item .env.example .env
-docker compose up -d redis oracle19c db-init
-```
-
-2. Start the SentimentFlow backend:
-
-```powershell
-git clone https://github.com/Cthaat/SentimentFlow.git
-Set-Location SentimentFlow\backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-$env:SENTIMENTFLOW_PROJECT_ROOT = (Resolve-Path ..)
-$env:SENTIMENTFLOW_CONTAINER_PORT = "8846"
-uvicorn app.main:app --host 0.0.0.0 --port 8846
-```
-
-3. Start the SentimentFlow frontend in another terminal:
-
-```powershell
-Set-Location SentimentFlow\frontend
-corepack enable
-yarn install --frozen-lockfile
-$env:BACKEND_API_URL = "http://localhost:8846"
-$env:BACKEND_API_TIMEOUT_MS = "10000"
-yarn dev --hostname 0.0.0.0 --port 30008
-```
-
-For a production-style frontend outside Docker:
-
-```powershell
-yarn build
-$env:PORT = "30008"
-$env:HOSTNAME = "0.0.0.0"
-$env:BACKEND_API_URL = "http://localhost:8846"
-yarn start
-```
-
-Verify the standalone backend at `http://localhost:8846/health` and `http://localhost:8846/docs`, and its UI at `http://localhost:30008`.
-
-## Scripts
-
-| Script                                  | Purpose                                                                                                                                      |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/dev.sh`                        | If `.env` is missing, copy template, start Redis/Oracle containers, install dependencies, then run `yarn dev`.                               |
-| `scripts/start.sh`                      | If `.env` is missing, copy template, then build and start full Docker stack.                                                                 |
-| `scripts/pull-sentimentflow-remote.ps1` | Show remote GHCR image layer sizes, pull NekoTribe and SentimentFlow images with plain progress, and optionally start without pulling again. |
-| `scripts/init-db.sh`                    | Manual fallback for executing `doc/neko_tribe-oracle-v2.sql` outside the default Compose flow.                                               |
-| `scripts/docker-init-db.sh`             | Internal Compose entrypoint used by the `db-init` service.                                                                                   |
-| `scripts/dev.ps1`                       | PowerShell equivalent of `scripts/dev.sh`.                                                                                                   |
-| `scripts/start.ps1`                     | PowerShell equivalent of `scripts/start.sh`.                                                                                                 |
-| `scripts/init-db.ps1`                   | PowerShell equivalent of `scripts/init-db.sh`.                                                                                               |
-| `yarn dev`                              | Start Nuxt dev server.                                                                                                                       |
-| `yarn build`                            | Build Nuxt production output.                                                                                                                |
-| `yarn start` / `yarn preview`           | Preview the built Nuxt output locally.                                                                                                       |
-| `yarn typecheck`                        | Run Nuxt TypeScript type checking.                                                                                                           |
-| `yarn docker:up`                        | Run `docker compose up -d`.                                                                                                                  |
-| `yarn docker:down`                      | Stop the Docker Compose stack.                                                                                                               |
-
-The default Compose flow runs `db-init` once before `app` starts. It checks `NEKO_APP.N_USERS` first and skips initialization when the schema already exists. The v2 SQL creates users, tablespaces, tables, sequences, triggers, views, and seed data; manual `scripts/init-db.*` is kept for external Oracle instances or recovery work.
-
-## Environment Variables
-
-Copy `.env.example` to `.env`. For non-local environments, replace all example secrets and passwords.
-
-| Variable                                                                 | Required     | Example                                                 | Purpose                                                                                                                                                             |
-| ------------------------------------------------------------------------ | ------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                                                               | Yes          | `development`                                           | Runtime environment.                                                                                                                                                |
-| `APP_PORT`                                                               | Docker       | `30001`                                                 | App container port mapped to host.                                                                                                                                  |
-| `NGINX_PORT`                                                             | Docker       | `30002`                                                 | Nginx container port mapped to host.                                                                                                                                |
-| `ACCESS_SECRET`                                                          | Yes          | Replace with a random long secret                       | JWT access token signing secret.                                                                                                                                    |
-| `ACCESS_EXPIRES_IN`                                                      | Yes          | `900`                                                   | Access token TTL in seconds.                                                                                                                                        |
-| `REFRESH_SECRET`                                                         | Yes          | Replace with a random long secret                       | JWT refresh token signing secret.                                                                                                                                   |
-| `REFRESH_EXPIRES_IN`                                                     | Yes          | `2592000`                                               | Refresh token TTL in seconds.                                                                                                                                       |
-| `COOKIE_SECURE`                                                          | No           | `false`                                                 | Set `true` only when serving over HTTPS; Compose defaults app runtime to secure cookies.                                                                            |
-| `TRUST_PROXY`                                                            | No           | `false`                                                 | Trust forwarded client IP headers only behind a trusted reverse proxy.                                                                                              |
-| `ENABLE_V1_API`                                                          | No           | `false`                                                 | Re-enable legacy `/api/v1` routes only after a security review.                                                                                                     |
-| `MODERATION_ADMIN_ACCOUNTS`                                              | No           | `v2_admin`                                              | Comma-separated usernames or emails allowed to use moderation admin APIs.                                                                                           |
-| `MODERATION_ALLOW_ALL`                                                   | No           | `false`                                                 | Temporary bypass for moderation admin checks; keep disabled in production.                                                                                          |
-| `ORACLE_HOST`                                                            | Yes          | `localhost`                                             | Oracle host for host dev mode.                                                                                                                                      |
-| `ORACLE_PORT`                                                            | Yes          | `5501`                                                  | Oracle port for host dev mode.                                                                                                                                      |
-| `ORACLE_SERVICE_NAME`                                                    | Yes          | `ORCLPDB1`                                              | Oracle service name for connection pool.                                                                                                                            |
-| `ORACLE_SID`                                                             | No           | empty                                                   | Compatibility field; pool uses service name.                                                                                                                        |
-| `ORACLE_USER`                                                            | Yes          | `neko_app`                                              | App schema user.                                                                                                                                                    |
-| `ORACLE_PASSWORD`                                                        | Yes          | From v2 SQL                                             | App schema password for local dev.                                                                                                                                  |
-| `ORACLE_POOL_MIN`                                                        | No           | `2`                                                     | Oracle pool minimum connections.                                                                                                                                    |
-| `ORACLE_POOL_MAX`                                                        | No           | `10`                                                    | Oracle pool maximum connections.                                                                                                                                    |
-| `ORACLE_POOL_INCREMENT`                                                  | No           | `1`                                                     | Oracle pool growth step.                                                                                                                                            |
-| `ORACLE_HOST_PORT`                                                       | Docker       | `5501`                                                  | Oracle container `1521` mapped to host.                                                                                                                             |
-| `ORACLE_EM_PORT`                                                         | Docker       | `5500`                                                  | Oracle EM Express mapped port.                                                                                                                                      |
-| `ORACLE_IMAGE`                                                           | Docker       | `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c` | Oracle image used by `oracle19c` and `db-init`; can be switched to the official Oracle Registry image.                                                              |
-| `ORACLE_PWD`                                                             | Docker/Init  | Replace with a strong password                          | SYS/SYSTEM password for the Oracle container and init scripts.                                                                                                      |
-| `ORACLE_DATA_VOLUME`                                                     | Docker       | `oracle-data`                                           | Source mounted to `/opt/oracle/oradata`. Keep the named volume default on Rocky Linux/SELinux unless you intentionally manage a host directory.                     |
-| `ORACLE_DATA_MOUNT_OPTIONS`                                              | Docker/Linux | empty                                                   | Optional short-syntax mount suffix. Use `:Z` only when `ORACLE_DATA_VOLUME` is a host path such as `./data/oracle-data`; leave empty for named volumes.             |
-| `ORACLE_SYS_SERVICE_NAME`                                                | Init         | `ORCLCDB`                                               | CDB service name used by `db-init` and `scripts/init-db.*`.                                                                                                         |
-| `DB_INIT_CHECK_TABLE`                                                    | Init         | `N_USERS`                                               | App schema table used by `db-init` to detect an initialized DB.                                                                                                     |
-| `DOCKER_ORACLE_HOST`                                                     | Docker       | `oracle19c`                                             | Oracle host inside the app container.                                                                                                                               |
-| `DOCKER_ORACLE_PORT`                                                     | Docker       | `1521`                                                  | Oracle port inside the app container.                                                                                                                               |
-| `DOCKER_NODE_ENV`                                                        | Docker       | `production`                                            | App container runtime, fixed to production.                                                                                                                         |
-| `DOCKER_REDIS_URL`                                                       | Docker       | `redis://redis:6379`                                    | Redis URL inside the app container, overrides host `REDIS_URL`.                                                                                                     |
-| `REDIS_URL`                                                              | No           | empty                                                   | Optional Redis URL; preferred by Redis utils if set.                                                                                                                |
-| `REDIS_HOST`                                                             | Yes          | `localhost`                                             | Redis host for host dev mode.                                                                                                                                       |
-| `REDIS_PORT`                                                             | Yes          | `6379`                                                  | Redis port.                                                                                                                                                         |
-| `REDIS_DB`                                                               | No           | `0`                                                     | Redis database number.                                                                                                                                              |
-| `REDIS_PASSWORD`                                                         | No           | Replace with a strong password                          | Redis password; compose service reads it from `.env`.                                                                                                               |
-| `DOCKER_REDIS_HOST`                                                      | Docker       | `redis`                                                 | Redis host inside the app container.                                                                                                                                |
-| `DOCKER_REDIS_PORT`                                                      | Docker       | `6379`                                                  | Redis port inside the app container.                                                                                                                                |
-| `SMTP_HOST`                                                              | Email        | `smtp.example.com`                                      | SMTP host for OTP and account emails.                                                                                                                               |
-| `SMTP_PORT`                                                              | Email        | `465`                                                   | SMTP port; current code uses secure SMTP.                                                                                                                           |
-| `SMTP_USER`                                                              | Email        | empty                                                   | SMTP username and sender.                                                                                                                                           |
-| `SMTP_PASS`                                                              | Email        | empty                                                   | SMTP password or app-specific password.                                                                                                                             |
-| `NUXT_PUBLIC_WS_URL`                                                     | No           | empty                                                   | Public WebSocket URL override. Empty means same-origin `/_ws`, automatically using `ws://` on HTTP and `wss://` on HTTPS.                                           |
-| `NUXT_DEV_HMR_PROTOCOL`, `NUXT_DEV_HMR_HOST`, `NUXT_DEV_HMR_CLIENT_PORT` | Dev only     | empty                                                   | Optional Vite HMR override for `yarn dev` behind HTTPS or Cloudflare Tunnel. Typical tunnel values are `wss`, your public host, and `443`.                          |
-| `DOCKER_PUBLIC_WS_URL`                                                   | Docker       | empty                                                   | Docker WebSocket URL override. Keep empty behind Nginx, HTTPS, or Cloudflare Tunnel; use `wss://your-domain/_ws` only when an explicit public endpoint is required. |
-| `NUXT_PUBLIC_API_BASE`                                                   | No           | empty                                                   | Client API base; empty means same origin.                                                                                                                           |
-| `SENTIMENTFLOW_TIMEOUT_MS` | No | `10000` | Standalone frontend timeout for the SentimentFlow backend, in milliseconds. |
-| `SENTIMENTFLOW_IMAGE`                                                    | Docker       | `ghcr.io/cthaat/sentimentflow-backend:latest`           | GHCR image pulled by `docker-compose.yml`.                                                                                                                          |
-| `SENTIMENTFLOW_LOCAL_IMAGE`                                              | Docker local | `sentimentflow-backend:local`                           | Local image tag produced by `docker-compose.local.yml`.                                                                                                             |
-| `SENTIMENTFLOW_FRONTEND_IMAGE`                                           | Docker       | `ghcr.io/cthaat/sentimentflow-frontend:latest`          | SentimentFlow frontend GHCR image pulled by `docker-compose.yml`.                                                                                                   |
-| `SENTIMENTFLOW_FRONTEND_LOCAL_IMAGE`                                     | Docker local | `sentimentflow-frontend:local`                          | SentimentFlow frontend image tag produced by `docker-compose.local.yml`.                                                                                            |
-| `SENTIMENTFLOW_GIT_REPO`                                                 | Docker local | `https://github.com/Cthaat/SentimentFlow.git`           | Git repository fetched inside the `docker-compose.local.yml` image build.                                                                                           |
-| `SENTIMENTFLOW_GIT_REF`                                                  | Docker local | `main`                                                  | Git branch, tag, or commit fetched for local SentimentFlow builds.                                                                                                  |
-| `SENTIMENTFLOW_PIP_INDEX_URL`                                            | Docker local | `https://pypi.org/simple`                               | Python package index used by the local SentimentFlow backend build.                                                                                                 |
-| `SENTIMENTFLOW_TORCH_INDEX_URL`                                          | Docker local | `https://pypi.org/simple`                               | PyTorch package index used by the local SentimentFlow backend build; default keeps CUDA-capable torch available.                                                    |
-| `SENTIMENTFLOW_TORCH_PACKAGE`                                            | Docker local | `torch`                                                 | Torch package spec installed before the remaining backend requirements so Docker can cache the heavy CUDA dependency layer.                                         |
-| `SENTIMENTFLOW_GPUS`                                                     | Docker GPU   | `all`                                                   | Used only with `docker-compose.gpu.yml`; value passed to `NVIDIA_VISIBLE_DEVICES` while the override adds schema-valid `gpus: all`.                                |
-| `SENTIMENTFLOW_NVIDIA_DRIVER_CAPABILITIES`                               | Docker GPU   | `compute,utility`                                       | Used only with `docker-compose.gpu.yml`; NVIDIA driver capabilities exposed to the SentimentFlow backend container for CUDA training.                               |
-| `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT`                                   | Docker       | `/workspace`                                            | SentimentFlow project root inside the image/container.                                                                                                              |
-| `SENTIMENTFLOW_MODELS_DIR`                                               | Docker       | `/workspace/models`                                     | Persistent model artifact mount target in the SentimentFlow container.                                                                                              |
-| `SENTIMENTFLOW_HOST_PORT`                                                | Docker       | `8846`                                                  | Host/browser port for SentimentFlow; change this for `localhost:<port>` access.                                                                                     |
-| `SENTIMENTFLOW_CONTAINER_PORT`                                           | Docker       | `8846`                                                  | Container/internal port used by Uvicorn, Docker target port, healthcheck, and the standalone frontend backend URL.                                                     |
-| `SENTIMENTFLOW_FRONTEND_HOST_PORT`                                       | Docker       | `30008`                                                 | Host/browser port for the SentimentFlow frontend UI.                                                                                                                |
-| `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`                                  | Docker       | `3000`                                                  | Container/internal port used by the Next.js frontend server, Docker target port, and frontend healthcheck.                                                          |
-
-## External Services
-
-| Service                          | Purpose                                                                                                                     | Local Startup                                                                                                    | Configuration                                                                                                                                                                                     |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Oracle 19c                       | Primary DB for users, posts, groups, notifications, auth sessions, media metadata.                                          | Included in `docker compose up -d`; `db-init` applies the v2 baseline before app startup.                        | `ORACLE_*` in `.env`.                                                                                                                                                                             |
-| Redis 7                          | Oracle SELECT query cache, v2 API response cache, v1 OTP storage, rate-limit state, WebSocket pub/sub, realtime broadcasts. | `docker compose up -d redis`.                                                                                    | `REDIS_*` in `.env`.                                                                                                                                                                              |
-| SMTP                             | Send OTP, password reset, and account emails.                                                                               | Any SMTP-compatible provider.                                                                                    | `SMTP_*` in `.env`.                                                                                                                                                                               |
-| Nginx | Proxies application requests, including `/storage/`, to Nuxt. | Included in `docker compose up -d`. | `nginx/nginx.compose.conf` for Docker and `nginx/nginx.conf` for the host dev proxy. |
-| File Upload Storage              | Store user avatars and media files.                                                                                         | Create under `upload/` as needed; git-ignored.                                                                   | Mount to `/usr/share/nginx/upload` in Nginx.                                                                                                                                                      |
-| Media Toolchain                  | Validate images/video/audio and generate legacy thumbnails.                                                                 | Docker image includes `ffmpeg`; host legacy flow needs system `ffmpeg`.                                          | `sharp`, `file-type`, `ffprobe-static`, optional system `ffmpeg`.                                                                                                                                 |
-| SentimentFlow backend + frontend | External sentiment analysis API and UI for predict, training, models, and admin operations.                                 | Use `--profile sentimentflow-legacy` with the image or local-build Compose file. | `SENTIMENTFLOW_*`; backend ports use `SENTIMENTFLOW_HOST_PORT` / `SENTIMENTFLOW_CONTAINER_PORT`, frontend ports use `SENTIMENTFLOW_FRONTEND_HOST_PORT` / `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`. |
-
-Note: `doc/neko_tribe-oracle-v2.sql` is the current v2 dev baseline and is mounted into the `db-init` service. Files under `data/oracle-init/` are kept as historical group-module scripts because these scripts are not a full DB baseline.
-
-## Documentation Index
-
-| Document                                    | Description                                                                             |
-| ------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `README.md`                                 | Project overview, architecture, startup, configuration, and deployment entry (English). |
-| `doc/README.md`                             | Project overview and setup guide (Chinese).                                             |
-| `docs/README.md`                            | New ops docs directory overview.                                                        |
-| `doc/NekoTribe-V2接口与Oracle重构总设计.md` | v2 API and Oracle refactor design overview.                                             |
-| `doc/NekoTribe-V2-Apifox接口详细文档.md`    | v2 API detailed specification.                                                          |
-| `doc/NekoTribe-V2-Apifox导入.json`          | Apifox import file.                                                                     |
-| `doc/API v2平滑迁移实战指南(新手版).md`     | v1 to v2 migration guide.                                                               |
-| `doc/neko_tribe-oracle-v2.sql`              | v2 Oracle database baseline.                                                            |
-| `doc/群组功能API文档.md`                    | Group API specification.                                                                |
-| `doc/Token无感刷新实现文档.md`              | Token silent refresh design.                                                            |
-| `doc/NekoTribe长期最终可执行路线图.md`      | Long-term roadmap.                                                                      |
-| `config/versions/README.md`                 | Service version metadata.                                                               |
-| `script/github/README.md`                   | Tagging and release automation scripts.                                                 |
-
-## Engineering Conventions
-
-- Prefer TypeScript types for business code to avoid implicit data drift.
-- Keep v1 and v2 APIs isolated; v2 must not call v1 route logic.
-- Shared capabilities may only live in `server/utils` or `server/models`, and must not depend on business modules.
-- New APIs should use REST-style paths and HTTP methods.
-- New env config must update `.env.example` and the README env table.
-- New external services must be described in "External Services" with purpose, startup, and configuration.
-- Uploads, database runtime data, caches, and build artifacts must not be committed to Git.
-
-## Directory Structure
-
-```text
-NekoTribe/
-├── app/                         # Nuxt 4 frontend: pages, layouts, components, stores, composables
-├── server/                      # Nitro backend
-│   ├── api/
-│   │   ├── v1/                  # Legacy APIs, kept isolated
-│   │   └── v2/                  # v2 API routes
-│   ├── services/                # Business services, including services/v2
-│   ├── models/                  # Shared DB models and domain mapping
-│   ├── utils/                   # Request/response, DB, Redis common utilities
-│   ├── types/                   # Global server/API types
-│   ├── middleware/              # Server middleware
-│   ├── plugins/                 # Nitro plugins: Redis, Oracle, logging, hooks
-│   └── routes/                  # Non-API Nitro routes, including WebSocket
-├── config/                      # Version metadata and service config
-├── doc/                         # Existing product, API, and SQL docs
-├── docs/                        # New ops manuals and runtime notes
-├── data/                        # Local DB resources; runtime data is ignored
-├── i18n/                        # Locale files
-├── nginx/                       # Nginx reverse proxy and upload static config
-├── public/                      # Public static assets
-├── script/                      # Existing release automation scripts, do not rename
-├── scripts/                     # Local dev, startup, and init scripts
-├── .env.example                 # Redacted env template
-├── docker-compose.yml           # Local dependencies and app orchestration
-├── docker-compose.gpu.yml       # Optional GPU override for SentimentFlow CUDA training
-├── docker-compose.local.yml     # Local image build orchestration
-├── Dockerfile                   # Container build entry
-└── README.md
-```
-
-Nuxt 4's standard frontend directory is `app/`. This project keeps `app/` (instead of forcing `client/`) to avoid routing, alias, and component path migration risk.
-
-## Development and Verification
-
-```bash
-yarn install --frozen-lockfile
-yarn typecheck
-yarn build
-```
-
-Common checks:
-
-```bash
-docker compose config --quiet
-bash -n scripts/dev.sh scripts/start.sh scripts/init-db.sh scripts/docker-init-db.sh
-```
-
-PowerShell script syntax check:
-
-```powershell
-$errors = @()
-foreach ($f in 'scripts/dev.ps1','scripts/start.ps1','scripts/init-db.ps1') {
-  [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$null, [ref]$errors) | Out-Null
-}
-if ($errors.Count) { $errors; exit 1 }
-```
-
-## Production Deployment
-
-1. Prepare Oracle, Redis, SMTP, and persistent upload storage.
-2. Create production `.env` from `.env.example`, replacing all secrets and passwords.
-3. Review and run production DB init or migration SQL.
-4. Build and run the app image:
-
-```bash
-docker build -t nekotribe:prod .
-docker run --env-file .env -p 3000:3000 nekotribe:prod
-```
-
-5. Place Nginx or another reverse proxy in front of the app. Make sure it forwards WebSocket upgrade headers for `/_ws`.
-6. Mount persistent `upload/` storage and serve `/upload/` via the proxy or an equivalent object store.
-7. Use HTTPS in production so auth cookies can safely enable `secure`. Keep the public WebSocket URL empty for same-origin `wss://` auto-detection, or set it explicitly to `wss://your-domain/_ws`.
-
-The bundled `docker-compose.yml` targets local dev and small test environments. For production, prefer managed Oracle/Redis and avoid example passwords.
-
-## FAQ
-
-### Docker cannot pull the Oracle image
-
-Set `ORACLE_IMAGE` in `.env` to choose the Oracle source. `.env.example` defaults to `registry.cn-hangzhou.aliyuncs.com/zhuyijun/oracle:19c`. If you switch to `container-registry.oracle.com/database/enterprise:19.3.0.0`, log in to Oracle Container Registry and accept the image license first.
-
-### Oracle errors after app startup
-
-Confirm the `db-init` service exited successfully with `docker compose logs db-init`. Also confirm host dev uses `ORACLE_HOST=localhost`, `ORACLE_PORT=5501`, while Docker app mode uses `DOCKER_ORACLE_HOST=oracle19c`, `DOCKER_ORACLE_PORT=1521`.
-
-### Oracle reports permission denied on Rocky Linux
-
-The default Compose config now stores Oracle files in the Docker named volume `oracle-data`, which avoids SELinux relabeling and host directory ownership problems. If your `.env` contains an old host-path override, remove it or set:
-
-```env
-ORACLE_DATA_VOLUME=oracle-data
-ORACLE_DATA_MOUNT_OPTIONS=
-```
-
-Then restart Oracle:
-
-```bash
-docker compose down
-docker compose up -d oracle19c db-init
-```
-
-Only use a project directory bind mount when you intentionally need database files under the repo. On Rocky Linux, configure both ownership and SELinux labeling:
-
-```bash
-mkdir -p ./data/oracle-data
-sudo chown -R 54321:54321 ./data/oracle-data
-sudo chmod -R u+rwX,g+rwX ./data/oracle-data
-```
-
-```env
-ORACLE_DATA_VOLUME=./data/oracle-data
-ORACLE_DATA_MOUNT_OPTIONS=:Z
-```
-
-Back up existing database data before switching between named volumes and host-path mounts.
-
-### Redis authentication failure
-
-Confirm `REDIS_PASSWORD` in `.env` matches the Redis container password. The built-in compose service reads the value from `.env`.
-
-### Cloudflare Tunnel or HTTPS reports an insecure WebSocket
-
-Yes, this is a mixed-content issue when an HTTPS page tries to open `ws://...`. Keep `DOCKER_PUBLIC_WS_URL` and `NUXT_PUBLIC_WS_URL` empty so the client connects to same-origin `wss://your-domain/_ws`, or set the public URL explicitly to `wss://your-domain/_ws`. Do not expose `ws://localhost:30001/_ws` to browsers that load the page through Cloudflare or any HTTPS reverse proxy. If this happens during `yarn dev`, set `NUXT_DEV_HMR_PROTOCOL=wss`, `NUXT_DEV_HMR_HOST=your-domain`, and `NUXT_DEV_HMR_CLIENT_PORT=443`.
-
-### `docker compose up -d` shows `dependency failed to start`, but `app` later becomes `healthy`
-
-This is usually not a real failure, but a cold-start phase exceeding the early health check window. Current config has been adjusted:
-
-- Health checks use `GET /api/health` instead of homepage SSR.
-- Docker mode forces `DOCKER_REDIS_URL=redis://redis:6379` to avoid localhost inside containers.
-- The `app` health window was widened to cover Oracle cold start and Nuxt first init.
-
-If it still happens, check:
-
-1. `docker logs -f nekotribe-app-1`
-2. `docker inspect nekotribe-app-1 --format '{{json .State.Health}}'`
-3. Whether `.env` mistakenly uses host-only addresses for Docker mode
-
-### Email OTP not sending
-
-Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASS`. The app can start without SMTP, but email OTP flow depends on it.
-
-### Do I need Oracle Instant Client locally?
-
-Current code does not call `oracledb.initOracleClient`, so it defaults to node-oracledb thin mode. Install Oracle Instant Client only if your target deployment needs thick mode features.
-
-### Why both `doc/` and `docs/`
-
-`doc/` stores existing product, API, and SQL docs with historical references. `docs/` is for new ops manuals and runtime notes, avoiding breaking old links.
-
-### Why both `script/` and `scripts/`
-
-`script/` is used by existing release/version automation. `scripts/` holds new dev, startup, and deployment helpers.
+单独克隆时，两条检查命令可省略工作区参数。参阅 [部署手册](docs/deployment.md)、[启动与初始化](docs/startup-safety.md)、[共享 API 架构](docs/architecture/shared-api.md) 和 [OpenAPI](doc/v2.openapi.json)。

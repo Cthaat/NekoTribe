@@ -2,7 +2,8 @@ name: Release All Stacks
 on:
   push:
     tags:
-      - release/v*
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
     inputs:
       version:
@@ -53,20 +54,22 @@ jobs:
           REQUESTED_PRERELEASE: ${{ inputs.prerelease }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            version="${GITHUB_REF_NAME#release/}"
+            version="$GITHUB_REF_NAME"
             prerelease=false
             if [[ "$version" == *-* ]]; then prerelease=true; fi
           else
             version="$REQUESTED_VERSION"
             prerelease="$REQUESTED_PRERELEASE"
           fi
-          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9]+([.-][A-Za-z0-9]+)*)?$ ]] || [[ "${#version}" -gt 128 ]]; then
+          number='(0|[1-9][0-9]*)'
+          identifier='(0|[1-9][0-9]*|[0-9]*[A-Za-z-][A-Za-z0-9-]*)'
+          if [[ ! "$version" =~ ^v$number\.$number\.$number(-$identifier(\.$identifier)*)?$ ]] || [[ "${#version}" -gt 128 ]]; then
             echo "::error::Use a version such as v2.0.0 or v2.0.0-rc9."
             exit 1
           fi
           {
             echo "value=$version"
-            echo "tag=release/$version"
+            echo "tag=$version"
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
   contracts:
@@ -123,16 +126,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check version is unused and any existing tag matches Nuxt
+      - name: Check release and tag ownership
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.version.outputs.tag }}
           NUXT_SHA: ${{ needs.contracts.outputs.nuxt }}
         run: |
-          # Paginated lookup distinguishes an unused tag from a GitHub API failure.
-          matches=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | .tag_name')
-          if grep -Fxq "$TAG" <<< "$matches"; then
-            echo "::error::An archived release already exists for $TAG."
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+            jq -s --arg tag "$TAG" 'add | map(select(.tag_name == $tag))' > matching-releases.json
+          if ! jq -e --arg sha "$NUXT_SHA" --arg tag "$TAG" '
+            length <= 1 and all(.[]; .draft and .target_commitish == $sha and
+              all(.assets[]; .name == "SHA256SUMS.txt" or
+                (.name as $asset | ["nuxt", "go", "rust", "flutter"] |
+                  any(.[]; $asset == ("NekoTribe-" + $tag + "-" + . + ".zip")))))
+          ' matching-releases.json >/dev/null; then
+            echo "::error::A published release or unrelated draft already exists for $TAG."
             exit 1
           fi
           existing=$(git ls-remote "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "refs/tags/$TAG" "refs/tags/$TAG^{}" | tail -n1 | cut -f1)
@@ -177,6 +185,11 @@ jobs:
           channel: stable
           flutter-version: 3.41.9
           cache: true
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'flutter-android'
+        with:
+          distribution: temurin
+          java-version: "17"
       - name: Name target package
         id: package
         run: |
@@ -190,6 +203,7 @@ jobs:
             go|rust) stem="native-$TARGET-$os-x64" ;;
             flutter-web) stem=flutter-web ;;
             flutter-windows) stem=flutter-windows-x64 ;;
+            flutter-android) stem=flutter-android ;;
             *) echo "::error::Unsupported package target"; exit 1 ;;
           esac
           if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then exit 1; fi
@@ -232,20 +246,39 @@ jobs:
         if: matrix.target == 'flutter-web'
         run: |
           flutter pub get
-          flutter build web --release
+          flutter build web --no-pub --no-web-resources-cdn --pwa-strategy=none
           node scripts/package-web.mjs build/web --out "$PACKAGE_DIR"
           node "$PACKAGE_DIR/configure-web.mjs" "$PACKAGE_DIR/site" --check
-      - name: Build Flutter Windows
+      - name: Build Flutter Windows and compile installer
         if: matrix.target == 'flutter-windows'
         run: |
           flutter config --enable-windows-desktop
           flutter pub get
-          flutter build windows --release
-          bundle=build/windows/x64/runner/Release
-          test -f "$bundle/nekotribe.exe"
-          test -f "$bundle/flutter_windows.dll"
-          test -f "$bundle/data/flutter_assets/AssetManifest.bin"
-          mv "$bundle" "$PACKAGE_DIR"
+          build_name="${VERSION#v}"
+          flutter build windows --release --no-pub --build-name "${build_name%%-*}"
+          node scripts/package-windows.mjs --version "$VERSION" --out "$PACKAGE_DIR" --require-installer
+      - name: Build and verify signed Flutter APK
+        if: matrix.target == 'flutter-android'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
+            umask 077
+            export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/nekotribe-release.jks"
+            trap 'rm -f -- "$ANDROID_KEYSTORE_PATH"' EXIT
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          fi
+          unset ANDROID_KEYSTORE_BASE64
+          build_name="${VERSION#v}"
+          flutter pub get
+          flutter build apk --release --no-pub --build-name "${build_name%%-*}"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -mindepth 2 -maxdepth 2 -name apksigner -type f | sort -V | tail -n1)"
+          test -x "$apksigner"
+          "$apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          node scripts/package-android.mjs --version "$VERSION" --out "$PACKAGE_DIR"
       - name: Archive package and compute SHA-256
         env:
           PACKAGE_NAME: ${{ steps.package.outputs.name }}
@@ -304,6 +337,9 @@ jobs:
           - target: flutter-windows
             stack: flutter
             runner: windows-latest
+          - target: flutter-android
+            stack: flutter
+            runner: ubuntu-latest
   images:
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -317,7 +353,7 @@ jobs:
         env:
           IMAGE: ghcr.io/cthaat/nekotribe-${{ matrix.stack }}
           VERSION: ${{ needs.version.outputs.value }}
-          ROLLING: "false"
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
         run: |
           case "$IMAGE" in
             ghcr.io/cthaat/nekotribe-nuxt|ghcr.io/cthaat/nekotribe-go|ghcr.io/cthaat/nekotribe-rust) ;;
@@ -327,9 +363,8 @@ jobs:
           {
             echo 'images<<TAGS'
             echo "$IMAGE:$VERSION"
-            if [[ "$ROLLING" == true ]]; then
-              sha=$(git rev-parse --short=7 HEAD)
-              echo "$IMAGE:sha-$sha"
+            if [[ "$PRERELEASE" == false ]]; then
+              echo "$IMAGE:latest"
             fi
             echo 'TAGS'
           } >> "$GITHUB_OUTPUT"
@@ -384,96 +419,89 @@ jobs:
           - go
           - rust
   publish:
-    needs:
-      - version
-      - contracts
-      - packages
-      - images
+    needs: [version, contracts, packages, images]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: write
       actions: read
     env:
       VERSION: ${{ needs.version.outputs.value }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           pattern: "*-${{ needs.version.outputs.value }}"
           merge-multiple: true
-          path: dist
-      - uses: actions/checkout@v4
-        with:
-          path: nuxt
-          ref: ${{ needs.contracts.outputs.nuxt }}
-          fetch-depth: 12
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          path: go
-          ref: ${{ needs.contracts.outputs.go }}
-          fetch-depth: 12
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          path: rust
-          ref: ${{ needs.contracts.outputs.rust }}
-          fetch-depth: 12
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          path: flutter
-          ref: ${{ needs.contracts.outputs.flutter }}
-          fetch-depth: 12
-          persist-credentials: false
-      - name: Verify eight packages and assemble the release
-        shell: bash
+          path: release-input
+      - name: Verify nine platform artifacts and assemble four main archives
         run: |
           {
-            echo "## NekoTribe $VERSION"
-            echo
-            echo '### 四端对应提交与近期变更'
-            for stack in nuxt go rust flutter; do
-              printf '\n#### %s（%s）\n\n' "$stack" "$(git -C "$stack" rev-parse HEAD)"
-              git -C "$stack" log -n 10 --pretty=format:'- %h %s%n'
-            done
-            echo
-            echo '### 下载与校验'
-            echo
-            echo '合集包含四端安装包。校验文件 SHA256SUMS.txt 可用于核对单独下载的 ZIP。'
-          } > release-notes.md
-          {
-            cat release-notes.md
-            printf '\n### 容器镜像\n\n'
-            for stack in nuxt go rust; do
-              printf -- '- `ghcr.io/cthaat/nekotribe-%s:%s`\n' "$stack" "$VERSION"
-            done
-          } > publish-notes.md
-          cd dist
-          packages=(
-            "nuxt-node-linux-x64-$VERSION.zip" "nuxt-node-windows-x64-$VERSION.zip"
-            "native-go-linux-x64-$VERSION.zip" "native-go-windows-x64-$VERSION.zip"
-            "native-rust-linux-x64-$VERSION.zip" "native-rust-windows-x64-$VERSION.zip"
-            "flutter-web-$VERSION.zip" "flutter-windows-x64-$VERSION.zip"
-          )
-          for package in "${packages[@]}"; do
-            sha256sum --check --status "$package.sha256"
-          done
-          sha256sum "${packages[@]}" > SHA256SUMS.txt
-          zip -q -0 "NekoTribe-$VERSION.zip" "${packages[@]}" SHA256SUMS.txt
-          unzip -tq "NekoTribe-$VERSION.zip"
-          sha256sum "NekoTribe-$VERSION.zip" > "NekoTribe-$VERSION.zip.sha256"
-          cat ../publish-notes.md >> "$GITHUB_STEP_SUMMARY"
+            echo '| 文件 | 大小（字节） | SHA-256 |'
+            echo '| --- | ---: | --- |'
+            python scripts/assemble-release.py "$VERSION" release-input release-output
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Write release notes
+        env:
+          NUXT_SHA: ${{ needs.contracts.outputs.nuxt }}
+          GO_SHA: ${{ needs.contracts.outputs.go }}
+          RUST_SHA: ${{ needs.contracts.outputs.rust }}
+          FLUTTER_SHA: ${{ needs.contracts.outputs.flutter }}
+        run: |
+          cat > release-notes.md <<EOF
+          ## 下载
+
+          - **Nuxt** — \`NekoTribe-$VERSION-nuxt.zip\`，包含 Windows 和 Linux x64 全栈运行包、启动器和数据库迁移脚本。
+          - **Go** — \`NekoTribe-$VERSION-go.zip\`，包含 Windows 和 Linux x64 原生后端。连接共享 Oracle 和 Redis。
+          - **Rust** — \`NekoTribe-$VERSION-rust.zip\`，包含 Windows 和 Linux x64 原生后端。本机连接 Oracle 需要 Instant Client。
+          - **Flutter** — \`NekoTribe-$VERSION-flutter.zip\`，包含 Windows x64 安装器和绿色版、已签名 Android APK、Web 静态站点和 Nginx 配置示例。
+
+          解压后按各包的 \`README.txt\` 操作。校验值见 \`SHA256SUMS.txt\`。在 Linux 可执行 \`sha256sum -c SHA256SUMS.txt\`，Windows 可用 \`Get-FileHash -Algorithm SHA256\`。
+
+          ## 源码提交
+
+          - Nuxt — [$NUXT_SHA]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$NUXT_SHA)
+          - Go — [$GO_SHA]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GO_SHA)
+          - Rust — [$RUST_SHA]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$RUST_SHA)
+          - Flutter — [$FLUTTER_SHA]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$FLUTTER_SHA)
+
+          ## Docker 镜像
+
+          - \`ghcr.io/cthaat/nekotribe-nuxt:$VERSION\`
+          - \`ghcr.io/cthaat/nekotribe-go:$VERSION\`
+          - \`ghcr.io/cthaat/nekotribe-rust:$VERSION\`
+          EOF
       - uses: softprops/action-gh-release@v2
+        id: release
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ needs.contracts.outputs.nuxt }}
           name: NekoTribe ${{ needs.version.outputs.value }}
           prerelease: ${{ needs.version.outputs.prerelease }}
-          make_latest: ${{ needs.version.outputs.prerelease == 'false' }}
-          body_path: publish-notes.md
+          make_latest: false
+          draft: true
+          body_path: release-notes.md
           fail_on_unmatched_files: true
           files: |
-            dist/*.zip
-            dist/*.zip.sha256
-            dist/SHA256SUMS.txt
+            release-output/NekoTribe-${{ needs.version.outputs.value }}-nuxt.zip
+            release-output/NekoTribe-${{ needs.version.outputs.value }}-go.zip
+            release-output/NekoTribe-${{ needs.version.outputs.value }}-rust.zip
+            release-output/NekoTribe-${{ needs.version.outputs.value }}-flutter.zip
+            release-output/SHA256SUMS.txt
+      - name: Verify uploaded files and publish the release
+        working-directory: release-output
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+          MAKE_LATEST: ${{ needs.version.outputs.prerelease == 'false' }}
+        run: |
+          endpoint="repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"
+          gh api --paginate "$endpoint/assets?per_page=100" |
+            jq -sr 'add | .[] | "\\(.digest | ltrimstr("sha256:"))  \\(.name)"' |
+            sort -k2 > uploaded-checksums.txt
+          { cat SHA256SUMS.txt; sha256sum SHA256SUMS.txt; } | sort -k2 > local-checksums.txt
+          diff -u local-checksums.txt uploaded-checksums.txt
+          gh api --method PATCH "$endpoint" -F draft=false -f make_latest="$MAKE_LATEST" --jq .html_url

@@ -1,6 +1,6 @@
 services:
   app:
-    image: ${NUXT_IMAGE:-ghcr.io/cthaat/nekotribe:master}
+    image: ${NUXT_IMAGE:-ghcr.io/cthaat/nekotribe-nuxt:master}
     restart: unless-stopped
     pull_policy: ${NUXT_IMAGE_PULL_POLICY:-always}
     ports:

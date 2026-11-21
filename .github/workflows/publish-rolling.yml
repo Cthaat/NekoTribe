@@ -1,0 +1,82 @@
+name: Publish rolling package
+on:
+  workflow_call:
+    inputs:
+      stack:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    concurrency:
+      group: publish-rolling-latest
+      queue: max
+    permissions:
+      contents: write
+      actions: read
+    env:
+      STACK: ${{ inputs.stack }}
+    steps:
+      - name: Check the producing branch
+        id: branch
+        run: |
+          case "$STACK:$GITHUB_REF" in
+            nuxt:refs/heads/master) pattern=nuxt-node-*-latest ;;
+            go:refs/heads/codex/go) pattern=native-go-*-latest ;;
+            rust:refs/heads/Rust) pattern=native-rust-*-latest ;;
+            flutter:refs/heads/Flutter) pattern=flutter-*-latest ;;
+            *) echo "::error::Unexpected rolling publisher"; exit 1 ;;
+          esac
+          echo "pattern=$pattern" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.stack == 'nuxt' && github.sha || 'refs/heads/master' }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ steps.branch.outputs.pattern }}
+          merge-multiple: true
+          path: release-input
+      - name: Assemble and verify stack archive
+        run: |
+          {
+            echo '| 文件 | 大小（字节） | SHA-256 |'
+            echo '| --- | ---: | --- |'
+            python scripts/assemble-release.py latest release-input release-output --stack "$STACK"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Update rolling package and refresh checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(git ls-remote --exit-code "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$GITHUB_REF" | cut -f1)
+          if [[ "$current" != "$GITHUB_SHA" ]]; then
+            echo 'A newer commit is on this branch. This archive was verified but will not be published.'
+            exit 0
+          fi
+
+          tag=rolling-latest
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target master \
+              --title 'NekoTribe rolling-latest' --prerelease --latest=false \
+              --notes '四个分支各发布一个平台合集 ZIP。下载 SHA256SUMS.txt 校验文件。'
+          fi
+          archive="NekoTribe-latest-$STACK.zip"
+          digest=$(sha256sum "release-output/$archive" | cut -d' ' -f1)
+          gh release upload "$tag" "release-output/$archive" --clobber --repo "$GITHUB_REPOSITORY"
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq .id)
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" |
+            jq -esr '
+              add | map(select(.name | test("^NekoTribe-latest-(nuxt|go|rust|flutter)\\.zip$"))) |
+              sort_by(.name)[] |
+              if .state == "uploaded" and (.digest // "" | test("^sha256:[a-f0-9]{64}$"))
+              then . else error("Invalid GitHub release asset: " + .name) end |
+              "\(.digest | ltrimstr("sha256:"))  \(.name)"
+            ' > release-output/SHA256SUMS.txt
+          grep -Fx "$digest  $archive" release-output/SHA256SUMS.txt
+          gh release upload "$tag" release-output/SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
