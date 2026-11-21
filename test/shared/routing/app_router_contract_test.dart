@@ -1,8 +1,61 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nekotribe/shared/routing/app_shell.dart';
 import 'package:nekotribe/shared/routing/app_router.dart';
+import 'package:nekotribe/core/utils/group_invite.dart';
+import 'package:nekotribe/core/utils/group_post_link.dart';
 
 void main() {
+  test('group shares use the frontend and strip old browser parameters', () {
+    const link = (groupId: 42, postId: 9, commentId: 17);
+    expect(
+      groupPostShareUrl(
+        link,
+        configuredBase: 'https://community.test/site/en/',
+      ).toString(),
+      'https://community.test/site/en/groups/posts?group=42&post=9&comment=17',
+    );
+    final web = groupPostShareUrl(
+      link,
+      configuredBase: '',
+      browserEntry: Uri.parse('https://flutter.test/client/?old=1#/feed'),
+    )!;
+    expect(web.path, '/client/');
+    expect(web.hasQuery, isFalse);
+    expect(web.fragment, '/groups/posts?group=42&post=9&comment=17');
+    expect(groupPostShareUrl(link, configuredBase: ''), isNull);
+    for (final invalid in [
+      'https://user:pass@site.test',
+      'file:///tmp',
+      'https://site.test?q=1',
+      'https://site.test/#/',
+    ]) {
+      expect(groupPostShareUrl(link, configuredBase: invalid), isNull);
+    }
+  });
+
+  test('shared group posts round-trip through internal login params', () {
+    final shared = Uri.parse(
+      '/groups/posts?group=42&post=9&comment=17&report=1',
+    );
+    final link = readGroupPostLink(shared)!;
+    final login = Uri(
+      path: '/auth/login',
+      queryParameters: groupPostLinkQuery(link),
+    );
+    expect(
+      groupPostLocation(readGroupPostLink(login)!),
+      '/groups/posts?group=42&post=9&comment=17',
+    );
+    expect(isPublicRoutePath(shared.toString()), isFalse);
+    for (final invalid in [
+      'group=42&group=43&post=9',
+      'group=042&post=9',
+      'group=42&post=9007199254740992',
+      'group=42%0A&post=9',
+    ]) {
+      expect(readGroupPostLink(Uri.parse('/groups/posts?$invalid')), isNull);
+    }
+  });
   test('production parity route paths are registered', () {
     expect(
       productionRoutePaths,
@@ -34,6 +87,8 @@ void main() {
         '/groups/discover',
         '/groups/my',
         '/groups/invites',
+        '/groups/invite',
+        '/groups/invite/:code',
         '/groups/posts',
         '/groups/:slug',
         '/groups/:slug/manage',
@@ -69,7 +124,8 @@ void main() {
         '/moderation/users',
         '/moderation/appeals',
         '/moderation/settings',
-        '/sentiment',
+        '/ai/knowledge',
+        '/ai/writing',
         '/about',
       }),
     );
@@ -81,7 +137,24 @@ void main() {
     expect(productionRoutePaths, contains('/account/data'));
   });
 
-  test('public read-only routes do not require login', () {
+  test('invite continuation stays local and accepts a pasted share link', () {
+    expect(
+      parseGroupInviteInput(' https://example.test/en/groups/invite/aBc '),
+      'ABC',
+    );
+    expect(parseGroupInviteInput(' a1b '), 'A1B');
+    expect(
+      parseGroupInviteInput('https://example.test/groups/invite/a%2Fb'),
+      isNull,
+    );
+    expect(parseGroupInviteInput('https://example.test/other/ABC'), isNull);
+    expect(groupInviteLocation('abc'), '/groups/invite/ABC');
+    expect(groupInviteLocation('//example.test'), isNull);
+    expect(groupInviteLocation('https://example.test'), isNull);
+    expect(isPublicRoutePath('/groups/invite/ABC'), isFalse);
+  });
+
+  test('public and local endpoint routes do not require login', () {
     for (final path in <String>[
       '/feed',
       '/discover',
@@ -95,6 +168,7 @@ void main() {
       '/users/1/posts',
       '/about',
       '/auth/terms',
+      '/settings/endpoint',
     ]) {
       expect(isPublicRoutePath(path), isTrue, reason: path);
     }
@@ -106,6 +180,8 @@ void main() {
       '/groups',
       '/moderation',
       '/settings',
+      '/settings/security',
+      '/settings/endpoint/private',
     ]) {
       expect(isPublicRoutePath(path), isFalse, reason: path);
     }
@@ -122,9 +198,11 @@ void main() {
         '/me',
         '/groups',
         '/moderation',
-        '/sentiment',
+        '/ai/knowledge',
+        '/ai/writing',
       }),
     );
+    expect(desktopAppShellPaths, isNot(contains('/sentiment')));
   });
 
   test('desktop shell keeps profile entry at the bottom', () {
@@ -136,7 +214,8 @@ void main() {
       '/chat',
       '/groups',
       '/moderation',
-      '/sentiment',
+      '/ai/knowledge',
+      '/ai/writing',
       '/me',
     ]);
   });

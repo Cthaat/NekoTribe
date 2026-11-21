@@ -8,21 +8,24 @@ try {
     }
 
     $defaults = (Get-Content 'assets/config/app_config.json' -Raw -Encoding UTF8 | ConvertFrom-Json).defaults
+    $deriveOrigin = [bool]$env:API_BASE_URL
     $endpoints = @{
         API_BASE_URL = $defaults.apiBaseUrl
-        WS_BASE_URL = $defaults.wsBaseUrl
-        STORAGE_BASE_URL = $defaults.storageBaseUrl
+        WS_BASE_URL = if ($deriveOrigin) { '' } else { $defaults.wsBaseUrl }
+        STORAGE_BASE_URL = if ($deriveOrigin) { '' } else { $defaults.storageBaseUrl }
     }
     foreach ($name in @('API_BASE_URL', 'WS_BASE_URL', 'STORAGE_BASE_URL')) {
         $override = [Environment]::GetEnvironmentVariable($name)
         if ($override) { $endpoints[$name] = $override }
-        $uri = $null
+        if ($name -ne 'API_BASE_URL' -and -not $endpoints[$name]) { continue }
+        [Uri]$uri = $null
         $schemes = if ($name -eq 'WS_BASE_URL') { @('ws', 'wss') } else { @('http', 'https') }
-        if ($endpoints[$name] -match '\s' -or
-            -not [Uri]::TryCreate($endpoints[$name], [UriKind]::Absolute, [ref]$uri) -or
-            $uri.Scheme -notin $schemes -or -not $uri.Host -or $uri.UserInfo -or
-            $uri.AbsolutePath -ne '/' -or $uri.Query -or $uri.Fragment) {
-            throw "$name must be an origin, without /api/v2, /_ws, /storage, credentials, query, or fragment."
+        $address = [string]$endpoints[$name]
+        if ($address -match '[\\\s?#]' -or $address -notmatch '^[a-z]+://[^/]+' -or
+            $address -match '^[a-z]+://[^/]*@' -or
+            -not [Uri]::TryCreate($address, [UriKind]::Absolute, [ref]$uri) -or
+            $uri.Scheme -notin $schemes -or -not $uri.Host -or $uri.Port -eq 0) {
+            throw "$name must be an absolute base URL without credentials, query, or fragment."
         }
     }
 
@@ -32,7 +35,7 @@ try {
     finally { $listener.Stop() }
 
     Write-Host 'Flutter Web: http://127.0.0.1:30004 (open manually once Flutter is ready).'
-    Write-Host 'Saved endpoint settings override these build defaults. Nuxt must be started separately.'
+    Write-Host 'Saved endpoint settings override these build defaults. Start the selected backend separately.'
     & $flutter.Source run -d web-server --web-hostname 127.0.0.1 --web-port 30004 --no-pub `
         "--dart-define=API_BASE_URL=$($endpoints.API_BASE_URL)" `
         "--dart-define=WS_BASE_URL=$($endpoints.WS_BASE_URL)" `

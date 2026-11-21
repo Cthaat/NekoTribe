@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { startWebPreview } from '../scripts/serve-web.mjs';
+
+test('packaged preview serves a prefixed site and reads updated public configuration', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'neko-web-preview-'));
+  const site = join(directory, 'site');
+  const config = join(site, 'assets/assets/config');
+  const entry = '<!doctype html><base href="/community/"><title>Flutter preview</title>';
+  await mkdir(config, {recursive:true});
+  await mkdir(join(site, 'canvaskit'));
+  await writeFile(join(site, 'index.html'), entry);
+  await writeFile(join(site, 'canvaskit/canvaskit.wasm'), Buffer.from([1,2,3]));
+  await writeFile(join(config, 'app_config.json'), '{"backend":"go"}');
+  await writeFile(join(directory, 'private.json'), '{"shouldServe":false}');
+  const {server,url} = await startWebPreview(site,0);
+  t.after(async () => {
+    await new Promise(resolve => server.close(resolve));
+    if (!directory.startsWith(join(tmpdir(), 'neko-web-preview-'))) throw Error('Unexpected test directory');
+    await rm(directory,{recursive:true,force:true});
+  });
+  assert.equal(server.address().address,'127.0.0.1');
+  assert.equal(await (await fetch(url)).text(),entry);
+  const configUrl = new URL('assets/assets/config/app_config.json',url);
+  const initial = await fetch(configUrl);
+  assert.equal(initial.headers.get('cache-control'),'no-store');
+  assert.deepEqual(await initial.json(),{backend:'go'});
+  await writeFile(join(config, 'app_config.json'), '{"backend":"rust"}');
+  assert.deepEqual(await (await fetch(configUrl)).json(),{backend:'rust'});
+  const wasm = await fetch(new URL('canvaskit/canvaskit.wasm',url),{method:'HEAD'});
+  assert.equal(wasm.headers.get('content-type'),'application/wasm');
+  assert.equal(wasm.headers.get('content-length'),'3');
+  assert.equal(await wasm.text(),'');
+  assert.equal(await (await fetch(new URL('groups/original',url),{headers:{accept:'text/html'}})).text(),entry);
+  assert.equal((await fetch(new URL('missing.js',url),{headers:{accept:'text/html'}})).status,404);
+  assert.equal((await fetch(new URL('/private.json',url))).status,404);
+  assert.equal((await fetch(url,{method:'POST'})).status,405);
+});

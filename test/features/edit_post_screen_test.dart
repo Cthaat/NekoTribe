@@ -11,6 +11,56 @@ import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets('an unconfirmed save keeps the draft in the editor', (
+    tester,
+  ) async {
+    final posts = _FakePostsApi()..unconfirmed = true;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(_AuthenticatedTokenStore()),
+          postsApiProvider.overrideWithValue(posts),
+        ],
+        child: const MaterialApp(home: EditPostScreen(postId: 100001)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final field = find.byKey(const Key('edit-post-content-field'));
+    await tester.enterText(field, 'My revised draft');
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+    expect(posts.content, 'My revised draft');
+    expect(tester.widget<TextField>(field).controller?.text, 'My revised draft');
+    expect(
+      find.text('无法确认编辑是否已保存。当前改动仍保留，请先查看帖子，再决定是否重试。'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('edit route does not accept a response for another post', (
+    tester,
+  ) async {
+    final posts = _FakePostsApi();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(_AuthenticatedTokenStore()),
+          postsApiProvider.overrideWithValue(posts),
+        ],
+        child: const MaterialApp(home: EditPostScreen(postId: 100002)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('edit-post-content-field')), findsNothing);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '保存'))
+          .onPressed,
+      isNull,
+    );
+    expect(posts.updatedPostId, isNull);
+  });
+
   testWidgets('edit screen updates location, mentioned visibility, and tags', (
     tester,
   ) async {
@@ -53,14 +103,144 @@ void main() {
     await tester.tap(find.text('提及的人').last);
     await tester.pumpAndSettle();
 
+    final languageField = find.byKey(const Key('edit-post-language-field'));
+    await tester.ensureVisible(languageField);
+    await tester.tap(languageField);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('英文').last);
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('保存').last);
     await tester.pumpAndSettle();
 
     expect(posts.updatedPostId, 100001);
     expect(posts.content, 'Updated #Flutter');
     expect(posts.visibility, 'mentioned');
+    expect(posts.language, 'en');
     expect(posts.location, 'Shanghai');
     expect(posts.tags, ['flutter', 'cats']);
+  });
+
+  testWidgets('location-only edit leaves the other patch fields absent', (
+    tester,
+  ) async {
+    final posts = _FakePostsApi();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(_AuthenticatedTokenStore()),
+          postsApiProvider.overrideWithValue(posts),
+        ],
+        child: const MaterialApp(home: EditPostScreen(postId: 100001)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('edit-post-location-field')),
+      '',
+    );
+    await tester.tap(find.text('保存').last);
+    await tester.pumpAndSettle();
+    expect(posts.updatedPostId, 100001);
+    expect(posts.location, '');
+    expect(posts.content, isNull);
+    expect(posts.visibility, isNull);
+    expect(posts.language, isNull);
+    expect(posts.tags, isNull);
+  });
+
+  testWidgets('making a private post public requires attachment confirmation', (
+    tester,
+  ) async {
+    final posts = _FakePostsApi()
+      ..originalVisibility = 'followers'
+      ..originalMedia = [
+        V2MediaAsset.fromJson({
+          'media_id': 1,
+          'public_url': '/api/v2/media/1/content',
+        }),
+        V2MediaAsset.fromJson({
+          'media_id': 2,
+          'public_url': '/storage/public.png',
+        }),
+      ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(_AuthenticatedTokenStore()),
+          postsApiProvider.overrideWithValue(posts),
+        ],
+        child: const MaterialApp(home: EditPostScreen(postId: 100001)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final field = find.byKey(const Key('edit-post-visibility-field'));
+    await tester.ensureVisible(field);
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('公开').last);
+    await tester.pumpAndSettle();
+
+    final save = find.widgetWithText(FilledButton, '保存');
+    await tester.tap(save);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('移除私有附件并公开？'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(posts.updatedPostId, isNull);
+
+    await tester.tap(save);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('确认'));
+    await tester.pumpAndSettle();
+    expect(posts.updatedPostId, 100001);
+    expect(posts.visibility, 'public');
+    expect(posts.mediaIds, [2]);
+  });
+
+  testWidgets('attachment removal is reversible until the edit is saved', (
+    tester,
+  ) async {
+    final posts = _FakePostsApi()
+      ..originalMedia = [
+        for (final id in [3, 2])
+          V2MediaAsset.fromJson({
+            'media_id': id,
+            'file_name': 'attachment-$id.png',
+            'public_url': '/storage/attachment-$id.png',
+          }),
+      ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(_AuthenticatedTokenStore()),
+          postsApiProvider.overrideWithValue(posts),
+        ],
+        child: const MaterialApp(home: EditPostScreen(postId: 100001)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final keep = find.byKey(const ValueKey('edit-post-keep-media-3'));
+    await tester.ensureVisible(keep);
+    await tester.tap(keep);
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(keep).value, isFalse);
+    await tester.tap(keep);
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(keep).value, isTrue);
+    final remove = find.byKey(const ValueKey('edit-post-keep-media-2'));
+    await tester.ensureVisible(remove);
+    await tester.tap(remove);
+    await tester.pumpAndSettle();
+    expect(posts.updatedPostId, isNull);
+
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+    expect(posts.updatedPostId, 100001);
+    expect(posts.mediaIds, [3]);
+    expect(posts.content, isNull);
   });
 }
 
@@ -71,15 +251,21 @@ class _FakePostsApi extends PostsApi {
   int? updatedPostId;
   String? content;
   String? visibility;
+  String? language;
   String? location;
   List<String>? tags;
+  List<int>? mediaIds;
+  bool unconfirmed = false;
+  String originalVisibility = 'public';
+  List<V2MediaAsset> originalMedia = const [];
 
   @override
   Future<V2Post> getPost(int postId) async => _post(
     content: 'Original #Old',
-    visibility: 'public',
+    visibility: originalVisibility,
     location: 'Old Place',
     tags: const ['old'],
+    media: originalMedia,
   );
 
   @override
@@ -90,12 +276,16 @@ class _FakePostsApi extends PostsApi {
     String? language,
     String? location,
     List<String>? tags,
+    List<int>? mediaIds,
   }) async {
     updatedPostId = postId;
     this.content = content;
     this.visibility = visibility;
+    this.language = language;
     this.location = location;
     this.tags = tags;
+    this.mediaIds = mediaIds;
+    if (unconfirmed) throw const UnconfirmedPostUpdateError();
     return _post(
       content: content ?? 'Original #Old',
       visibility: visibility ?? 'public',
@@ -110,6 +300,7 @@ V2Post _post({
   required String visibility,
   String? location,
   List<String> tags = const [],
+  List<V2MediaAsset> media = const [],
 }) {
   return V2Post(
     postId: 100001,
@@ -119,7 +310,7 @@ V2Post _post({
     visibility: visibility,
     language: 'zh',
     location: location ?? '',
-    media: const [],
+    media: media,
     tags: tags,
     mentions: const [],
     stats: V2PostStats(

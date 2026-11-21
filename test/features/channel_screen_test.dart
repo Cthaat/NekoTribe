@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,26 +40,116 @@ void main() {
     }
   });
 
-  testWidgets('channel loads message content and uses channel name in app bar', (
+  testWidgets(
+    'channel loads message content and uses channel name in app bar',
+    (tester) async {
+      final chatApi = _FakeChatApi(
+        initialMessages: [_message(messageId: 42, content: 'hello')],
+      );
+      final mediaApi = _FakeMediaApi();
+
+      await tester.pumpWidget(
+        _testApp(chatApi: chatApi, mediaApi: mediaApi, channelName: 'general'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('#general'), findsOneWidget);
+      expect(find.text('hello'), findsOneWidget);
+      expect(chatApi.reads, [(7, 42)]);
+    },
+  );
+
+  testWidgets('failed read acknowledgement keeps loaded history visible', (
     tester,
   ) async {
     final chatApi = _FakeChatApi(
-      initialMessages: [_message(messageId: 42, content: 'hello')],
+      initialMessages: [_message(messageId: 42, content: 'still visible')],
     );
-    final mediaApi = _FakeMediaApi();
-
+    chatApi.failRead = true;
     await tester.pumpWidget(
-      _testApp(
-        chatApi: chatApi,
-        mediaApi: mediaApi,
-        channelName: 'general',
-      ),
+      _testApp(chatApi: chatApi, mediaApi: _FakeMediaApi()),
     );
     await tester.pumpAndSettle();
-
-    expect(find.text('#general'), findsOneWidget);
-    expect(find.text('hello'), findsOneWidget);
+    expect(chatApi.reads, [(7, 42)]);
+    expect(find.text('still visible'), findsOneWidget);
   });
+
+  testWidgets('channel opens its group roster and returns to messages', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi(
+      initialMessages: [_message(messageId: 42, content: 'channel history')],
+    );
+    await tester.pumpWidget(
+      _testApp(chatApi: chatApi, mediaApi: _FakeMediaApi()),
+    );
+    await tester.pumpAndSettle();
+    expect(chatApi.memberRequests, isEmpty);
+    await tester.tap(find.byKey(const Key('chat-channel-members')));
+    await tester.pumpAndSettle();
+    expect(chatApi.memberRequests, [42]);
+    expect(find.text('channel history'), findsNothing);
+    expect(find.text('Quiet Member'), findsOneWidget);
+    expect(find.text('群主'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('chat-channel-members')));
+    await tester.pumpAndSettle();
+    expect(find.text('channel history'), findsOneWidget);
+  });
+
+  testWidgets('a previous endpoint cannot display a late member list', (
+    tester,
+  ) async {
+    final reply = Completer<List<V2ChatMember>>();
+    final tokens = _FakeTokenStore();
+    final chatApi = _FakeChatApi()..pendingMembers = reply.future;
+    await tester.pumpWidget(
+      _testApp(chatApi: chatApi, mediaApi: _FakeMediaApi(), tokenStore: tokens),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-channel-members')));
+    await tester.pump();
+    expect(chatApi.memberRequests, [42]);
+    await tokens.switchEndpoint(() {});
+    reply.complete([
+      V2ChatMember.fromJson({'display_name': 'Previous member'}),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('Previous member'), findsNothing);
+    expect(find.text('#7'), findsOneWidget);
+  });
+
+  testWidgets(
+    'channel search reads matching history without acknowledging it',
+    (tester) async {
+      final chatApi = _FakeChatApi(
+        initialMessages: [
+          _message(messageId: 41, content: 'other message'),
+          _message(messageId: 42, content: 'match this'),
+        ],
+      );
+      await tester.pumpWidget(
+        _testApp(chatApi: chatApi, mediaApi: _FakeMediaApi()),
+      );
+      await tester.pumpAndSettle();
+      final toggle = find.byKey(const Key('chat-channel-search-toggle'));
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('chat-channel-search-input')),
+        ' match ',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(chatApi.lastSearch, 'match');
+      expect(find.text('match this'), findsOneWidget);
+      expect(find.text('other message'), findsNothing);
+      expect(chatApi.reads, [(7, 42)]);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(chatApi.lastSearch, '');
+      expect(find.text('other message'), findsOneWidget);
+    },
+  );
 
   testWidgets('channel reverses ASC page so newest sits nearest composer', (
     tester,
@@ -81,9 +174,10 @@ void main() {
   testWidgets('channel composer uploads attachment media before sending', (
     tester,
   ) async {
-    final chatApi = _FakeChatApi();
+    final chatApi = _FakeChatApi()..failSend = true;
     final mediaApi = _FakeMediaApi();
-    FilePicker.platform = _FakeFilePicker([_pickedFile('chat.pdf')]);
+    final picker = _FakeFilePicker([_pickedFile('chat.pdf')]);
+    FilePicker.platform = picker;
 
     await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
     await tester.pumpAndSettle();
@@ -92,15 +186,85 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('chat.pdf'), findsOneWidget);
+    expect(picker.withEagerData, isFalse);
 
     await tester.tap(find.byKey(const Key('chat-channel-send-button')));
     await tester.pumpAndSettle();
 
     expect(mediaApi.uploadedFileNames, ['chat.pdf']);
+    expect(chatApi.sentMediaIds, [501]);
+    expect(find.byTooltip('下载附件'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    chatApi.failSend = false;
+    await tester.tap(find.byKey(const Key('chat-channel-send-button')));
+    await tester.pumpAndSettle();
+
+    expect(mediaApi.uploadedFileNames, ['chat.pdf']);
+    expect(mediaApi.accessScopes, ['chat']);
     expect(chatApi.sentChannelId, 7);
     expect(chatApi.sentContent, '');
     expect(chatApi.sentMediaIds, [501]);
     expect(find.text('chat.pdf'), findsOneWidget);
+    expect(find.byTooltip('下载附件'), findsOneWidget);
+  });
+
+  testWidgets('channel rejects oversized selections before adding files', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi();
+    final mediaApi = _FakeMediaApi();
+    FilePicker.platform = _FakeFilePicker([
+      _pickedFile('existing.pdf'),
+      FilePickerResult([
+        PlatformFile(name: 'large.mp4', size: 500 * 1024 * 1024 + 1),
+        ..._pickedFile('other.pdf').files,
+      ]),
+    ]);
+    await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
+    await tester.pumpAndSettle();
+    final attach = find.byKey(const Key('chat-channel-attach-button'));
+    await tester.tap(attach);
+    await tester.pumpAndSettle();
+    await tester.tap(attach);
+    await tester.pumpAndSettle();
+
+    expect(find.text('existing.pdf'), findsOneWidget);
+    expect(find.text('large.mp4'), findsNothing);
+    expect(find.text('other.pdf'), findsNothing);
+    expect(find.text('单个附件大小不能超过 500 MiB。'), findsOneWidget);
+    expect(mediaApi.uploadedFileNames, isEmpty);
+  });
+
+  testWidgets('failed attachment stream requires reselection before sending', (
+    tester,
+  ) async {
+    final chatApi = _FakeChatApi();
+    final mediaApi = _FakeMediaApi()..failStream = true;
+    Stream<List<int>> chunks() async* {
+      yield [1, 2, 3];
+    }
+
+    FilePicker.platform = _FakeFilePicker([
+      FilePickerResult([
+        ..._pickedFile('existing.pdf').files,
+        PlatformFile(name: 'video.mp4', size: 3, readStream: chunks()),
+      ]),
+    ]);
+    await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-channel-attach-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-channel-send-button')));
+    await tester.pumpAndSettle();
+
+    expect(chatApi.sentChannelId, isNull);
+    expect(mediaApi.uploadedFileNames, ['existing.pdf', 'video.mp4']);
+    expect(mediaApi.accessScopes, ['chat', 'chat']);
+    expect(find.text('existing.pdf'), findsOneWidget);
+    expect(find.text('video.mp4'), findsNothing);
+    expect(find.text('video.mp4: 附件上传失败，请重新选择。'), findsOneWidget);
   });
 
   testWidgets('channel composer exposes web toolbar actions', (tester) async {
@@ -154,7 +318,13 @@ void main() {
     );
     final mediaApi = _FakeMediaApi();
 
-    await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
+    await tester.pumpWidget(
+      _testApp(
+        chatApi: chatApi,
+        mediaApi: mediaApi,
+        tokenStore: _FakeTokenStore(userId: 1),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('chat-channel-more-1002')));
@@ -184,6 +354,27 @@ void main() {
     expect(chatApi.deletedMessageId, 1002);
     expect(find.text('Edited message'), findsNothing);
   });
+
+  testWidgets(
+    'permission to delete another user message does not grant editing',
+    (tester) async {
+      final api = _FakeChatApi(
+        initialMessages: [_message(messageId: 1002, content: 'Other author')],
+      );
+      await tester.pumpWidget(
+        _testApp(
+          chatApi: api,
+          mediaApi: _FakeMediaApi(),
+          tokenStore: _FakeTokenStore(userId: 2),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat-channel-more-1002')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-channel-edit-1002')), findsNothing);
+      expect(find.byKey(const Key('chat-channel-delete-1002')), findsOneWidget);
+    },
+  );
 
   testWidgets('channel reply is available from message overflow menu', (
     tester,
@@ -227,22 +418,47 @@ void main() {
       ],
     );
     final mediaApi = _FakeMediaApi();
+    final realtime = _FakeRealtimeService();
+    final pending = Completer<void>();
+    chatApi.beforeReaction = () => pending.future;
 
-    await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
+    await tester.pumpWidget(
+      _testApp(chatApi: chatApi, mediaApi: mediaApi, realtime: realtime),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('🔥'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('chat-channel-reaction-1003-🔥')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('chat-channel-reaction-1003-🔥')));
+    expect(chatApi.reactionCalls, 1);
+    realtime.emit({
+      'type': 'chat_message_updated',
+      'data': {
+        'channel_id': 7,
+        'viewer_neutral': true,
+        'message': _messageJson(
+          messageId: 1003,
+          content: 'Edited during reaction',
+          reactions: [
+            {'emoji': '🔥', 'count': 2, 'reacted_by_me': false},
+          ],
+        ),
+      },
+    });
+    pending.complete();
     await tester.pumpAndSettle();
 
     expect(chatApi.unreactedMessageId, 1003);
     expect(chatApi.unreactedEmoji, '🔥');
+    expect(find.text('7'), findsOneWidget);
     expect(chatApi.reactedMessageId, isNull);
+    expect(find.text('Edited during reaction'), findsOneWidget);
   });
 
-  testWidgets('channel realtime inserts server chat message events', (
+  testWidgets('channel realtime inserts messages and batches read status', (
     tester,
   ) async {
     final chatApi = _FakeChatApi();
@@ -254,16 +470,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    realtime.emit({
-      'type': 'chat_message',
-      'data': {
-        'channel_id': 7,
-        'message': _messageJson(messageId: 1004, content: 'Realtime message'),
-      },
-    });
+    for (final id in [1004, 1005]) {
+      realtime.emit({
+        'type': 'chat_message',
+        'data': {
+          'channel_id': 7,
+          'message': _messageJson(messageId: id, content: 'Realtime $id'),
+        },
+      });
+    }
+    expect(chatApi.reads, isEmpty);
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    expect(find.text('Realtime message'), findsOneWidget);
+    expect(find.text('Realtime 1004'), findsOneWidget);
+    expect(find.text('Realtime 1005'), findsOneWidget);
+    expect(chatApi.reads, [(7, 1005)]);
   });
 
   testWidgets('channel realtime updates server chat message events', (
@@ -323,7 +545,15 @@ void main() {
     tester,
   ) async {
     final chatApi = _FakeChatApi(
-      initialMessages: [_message(messageId: 1007, content: 'React live')],
+      initialMessages: [
+        _message(
+          messageId: 1007,
+          content: 'React live',
+          reactions: [
+            V2ChatReactionSummary(emoji: '✨', count: 1, reactedByMe: true),
+          ],
+        ),
+      ],
     );
     final mediaApi = _FakeMediaApi();
     final realtime = _FakeRealtimeService();
@@ -337,11 +567,12 @@ void main() {
       'type': 'chat_reaction_updated',
       'data': {
         'channel_id': 7,
+        'viewer_neutral': true,
         'message': _messageJson(
           messageId: 1007,
           content: 'React live',
           reactions: [
-            {'emoji': '✨', 'count': 3, 'reacted_by_me': true},
+            {'emoji': '✨', 'count': 3, 'reacted_by_me': false},
           ],
         ),
       },
@@ -350,6 +581,10 @@ void main() {
 
     expect(find.text('✨'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('chat-channel-reaction-1007-✨')));
+    await tester.pumpAndSettle();
+    expect(chatApi.unreactedMessageId, 1007);
+    expect(find.text('7'), findsOneWidget);
   });
 }
 
@@ -358,6 +593,7 @@ Widget _testApp({
   required MediaApi mediaApi,
   _FakeRealtimeService? realtime,
   String? channelName,
+  TokenStore? tokenStore,
 }) {
   return ProviderScope(
     overrides: [
@@ -365,16 +601,13 @@ Widget _testApp({
       appConfigInitialProvider.overrideWithValue(_testConfig),
       chatApiProvider.overrideWithValue(chatApi),
       mediaApiProvider.overrideWithValue(mediaApi),
+      if (tokenStore != null) tokenStoreProvider.overrideWithValue(tokenStore),
       realtimeServiceProvider.overrideWithValue(
         realtime ?? _FakeRealtimeService(),
       ),
     ],
     child: MaterialApp(
-      home: ChannelScreen(
-        groupId: 42,
-        channelId: 7,
-        channelName: channelName,
-      ),
+      home: ChannelScreen(groupId: 42, channelId: 7, channelName: channelName),
     ),
   );
 }
@@ -396,24 +629,55 @@ class _FakeChatApi extends ChatApi {
   String? reactedEmoji;
   int? unreactedMessageId;
   String? unreactedEmoji;
+  int reactionCalls = 0;
+  Future<void> Function()? beforeReaction;
   int? lastListPage;
   int? lastBeforeMessageId;
+  String? lastSearch;
+  bool failRead = false;
+  bool failSend = false;
+  final reads = <(int, int?)>[];
+  final memberRequests = <int>[];
+  Future<List<V2ChatMember>>? pendingMembers;
+
+  @override
+  Future<List<V2ChatMember>> listMembers(int groupId) async {
+    memberRequests.add(groupId);
+    final pending = pendingMembers;
+    if (pending != null) return pending;
+    return [
+      V2ChatMember.fromJson({
+        'user_id': 7,
+        'username': 'quiet',
+        'display_name': 'Quiet Member',
+        'role': 'owner',
+        'status': 'active',
+        'online_status': 'hidden',
+        'last_seen_at': '2026-11-19T10:00:00Z',
+      }),
+    ];
+  }
 
   @override
   Future<PagedResult<V2ChatMessage>> listMessages({
     required int channelId,
     int page = 1,
     int size = 30,
+    String? search,
     int? beforeMessageId,
   }) async {
     lastListPage = page;
     lastBeforeMessageId = beforeMessageId;
+    lastSearch = search;
+    final matching = messages
+        .where((message) => message.content.contains(search ?? ''))
+        .toList();
     return PagedResult(
-      items: List.of(messages),
+      items: matching,
       meta: ApiMeta(
         page: page,
         pageSize: size,
-        total: messages.length,
+        total: matching.length,
         hasNext: false,
       ),
     );
@@ -423,7 +687,10 @@ class _FakeChatApi extends ChatApi {
   Future<void> setChannelReadStatus({
     required int channelId,
     int? lastReadMessageId,
-  }) async {}
+  }) async {
+    reads.add((channelId, lastReadMessageId));
+    if (failRead) throw StateError('read unavailable');
+  }
 
   @override
   Future<V2ChatMessage> sendChannelMessage({
@@ -437,7 +704,13 @@ class _FakeChatApi extends ChatApi {
     sentContent = content;
     sentReplyToMessageId = replyToMessageId;
     sentMediaIds = mediaIds;
-    return _message(content: content, media: [_asset()]);
+    if (failSend) throw StateError('send failed');
+    return _message(
+      content: content,
+      media: mediaIds.isEmpty
+          ? []
+          : [_asset(publicUrl: '/api/v2/media/501/content')],
+    );
   }
 
   @override
@@ -460,21 +733,39 @@ class _FakeChatApi extends ChatApi {
   }
 
   @override
-  Future<void> reactMessage({
+  Future<V2ChatMessage> reactMessage({
     required int messageId,
     required String emoji,
   }) async {
     reactedMessageId = messageId;
     reactedEmoji = emoji;
+    reactionCalls++;
+    await beforeReaction?.call();
+    return _reactionResult(messageId, emoji, true);
   }
 
   @override
-  Future<void> unreactMessage({
+  Future<V2ChatMessage> unreactMessage({
     required int messageId,
     required String emoji,
   }) async {
     unreactedMessageId = messageId;
     unreactedEmoji = emoji;
+    reactionCalls++;
+    await beforeReaction?.call();
+    return _reactionResult(messageId, emoji, false);
+  }
+
+  V2ChatMessage _reactionResult(int id, String emoji, bool reacted) {
+    return _message(
+      messageId: id,
+      content: messages
+          .firstWhere((message) => message.messageId == id)
+          .content,
+      reactions: [
+        V2ChatReactionSummary(emoji: emoji, count: 7, reactedByMe: reacted),
+      ],
+    );
   }
 }
 
@@ -483,6 +774,31 @@ class _FakeMediaApi extends MediaApi {
     : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
 
   final uploadedFileNames = <String>[];
+  final accessScopes = <String?>[];
+  bool failStream = false;
+
+  @override
+  Future<V2MediaAsset> uploadStream({
+    required Stream<List<int>> chunks,
+    required int length,
+    required String fileName,
+    required String mediaType,
+    String? altText,
+    String? accessScope,
+    CancelToken? cancelToken,
+  }) async {
+    final bytes = await chunks.expand((chunk) => chunk).toList();
+    expect(bytes.length, length);
+    expect(altText, fileName);
+    uploadedFileNames.add(fileName);
+    accessScopes.add(accessScope);
+    if (failStream) throw StateError('failed upload');
+    return _asset(
+      fileName: fileName,
+      mediaType: mediaType,
+      publicUrl: '/api/v2/media/501/content',
+    );
+  }
 
   @override
   Future<V2MediaAsset> uploadBytes({
@@ -492,10 +808,17 @@ class _FakeMediaApi extends MediaApi {
     String? mimeType,
     String? altText,
     String? description,
+    String? accessScope,
+    CancelToken? cancelToken,
     void Function(int sent, int total)? onProgress,
   }) async {
     uploadedFileNames.add(fileName);
-    return _asset(fileName: fileName, mediaType: mediaType);
+    accessScopes.add(accessScope);
+    return _asset(
+      fileName: fileName,
+      mediaType: mediaType,
+      publicUrl: '/api/v2/media/501/content',
+    );
   }
 }
 
@@ -518,7 +841,7 @@ class _FakeRealtimeService extends RealtimeService {
   Future<void> disconnect() async {}
 
   @override
-  void send(Map<String, dynamic> payload) {}
+  bool send(Map<String, dynamic> payload) => true;
 
   @override
   void addListener(RealtimeListener listener) {
@@ -541,6 +864,7 @@ class _FakeFilePicker extends FilePicker {
   _FakeFilePicker(this._results);
 
   final List<FilePickerResult> _results;
+  bool? withEagerData;
 
   @override
   Future<FilePickerResult?> pickFiles({
@@ -557,6 +881,7 @@ class _FakeFilePicker extends FilePicker {
     bool lockParentWindow = false,
     bool readSequential = false,
   }) async {
+    withEagerData = withData;
     return _results.removeAt(0);
   }
 }
@@ -613,12 +938,16 @@ Map<String, dynamic> _messageJson({
   };
 }
 
-V2MediaAsset _asset({String fileName = 'chat.pdf', String mediaType = 'file'}) {
+V2MediaAsset _asset({
+  String fileName = 'chat.pdf',
+  String mediaType = 'file',
+  String? publicUrl,
+}) {
   return V2MediaAsset(
     mediaId: 501,
     mediaType: mediaType,
     fileName: fileName,
-    publicUrl: '/uploads/$fileName',
+    publicUrl: publicUrl ?? '/uploads/$fileName',
     fileSize: 4,
     mimeType: mediaType == 'image' ? 'image/png' : 'application/pdf',
     status: 'active',
@@ -676,8 +1005,22 @@ const _testConfig = AppConfig(
 const _testBundle = AppConfigBundle(defaults: _testConfig, presets: []);
 
 class _FakeTokenStore extends TokenStore {
+  _FakeTokenStore({this.userId});
+
+  final int? userId;
+
   @override
-  Future<TokenPair?> read() async => null;
+  Future<TokenPair?> read() async {
+    if (userId == null) return null;
+    final payload = base64Url.encode(
+      utf8.encode(jsonEncode({'userId': userId})),
+    );
+    return TokenPair(
+      accessToken: 'fixture.$payload.signature',
+      refreshToken: '',
+      sessionId: 'fixture',
+    );
+  }
 
   @override
   Future<void> write(TokenPair pair) async {}

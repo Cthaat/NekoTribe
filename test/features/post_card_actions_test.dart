@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
 import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
@@ -11,6 +13,113 @@ import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets('card reports deletion only for its own returned post ID', (
+    tester,
+  ) async {
+    var deleted = 0;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: PostCard(post: _likedPost, onDeleted: () => deleted++),
+          ),
+        ),
+        GoRoute(
+          path: '/posts/:id',
+          builder: (_, _) => const Scaffold(body: Text('Post detail')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    final tokens = _AuthenticatedTokenStore();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appConfigBundleProvider.overrideWithValue(_testBundle),
+          appConfigInitialProvider.overrideWithValue(_testConfig),
+          tokenStoreProvider.overrideWithValue(tokens),
+          postsApiProvider.overrideWithValue(_FakePostsApi()),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final result in [null, _likedPost.postId + 1, _likedPost.postId]) {
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.pumpAndSettle();
+      expect(find.text('Post detail'), findsOneWidget);
+      router.pop(result);
+      await tester.pumpAndSettle();
+      expect(deleted, result == _likedPost.postId ? 1 : 0);
+    }
+  });
+
+  testWidgets(
+    'post card opens or copies a public video URL and protects private video',
+    (tester) async {
+      String? copied;
+      MethodCall? opened;
+      var browserAvailable = true;
+      final messenger = tester.binding.defaultBinaryMessenger;
+      const launcher = MethodChannel('plugins.flutter.io/url_launcher');
+      messenger.setMockMethodCallHandler(launcher, (call) async {
+        opened = call;
+        return browserAvailable;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(launcher, null));
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await _pumpPostCard(
+        tester,
+        api: _FakePostsApi(),
+        post: _samplePost(
+          media: [
+            V2MediaAsset.fromJson({
+              'media_id': 7,
+              'media_type': 'video',
+              'file_name': 'public.mp4',
+              'public_url': '/storage/public.mp4',
+            }),
+            V2MediaAsset.fromJson({
+              'media_id': 8,
+              'mime_type': 'video/mp4',
+              'file_name': 'private.mp4',
+              'public_url': '/api/v2/media/8/content',
+            }),
+          ],
+        ),
+      );
+      expect(find.byTooltip('复制视频链接'), findsOneWidget);
+      expect(find.byTooltip('下载附件'), findsOneWidget);
+      final open = find.text('在浏览器中播放');
+      expect(open, findsOneWidget);
+      await tester.tap(open);
+      await tester.pump();
+      expect(opened?.method, 'launch');
+      expect(
+        opened?.arguments['url'],
+        'http://example.test/storage/public.mp4',
+      );
+      expect(opened?.arguments['headers'], isEmpty);
+      expect(opened?.arguments['useWebView'], isFalse);
+      browserAvailable = false;
+      await tester.tap(open);
+      await tester.pump();
+      expect(find.text('无法打开浏览器，请复制视频链接。'), findsOneWidget);
+      await tester.tap(find.text('public.mp4'));
+      await tester.pump();
+      expect(copied, 'http://example.test/storage/public.mp4');
+    },
+  );
+
   testWidgets('post card bookmark keeps current liked state', (tester) async {
     final api = _FakePostsApi();
     V2Post? updated;
@@ -50,6 +159,21 @@ void main() {
     expect(updated?.viewerState.isLiked, isTrue);
     expect(find.byIcon(Icons.favorite), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
+  });
+
+  testWidgets('post card uses the server count after unliking', (tester) async {
+    V2Post? updated;
+    await _pumpPostCard(
+      tester,
+      api: _FakePostsApi(),
+      post: _likedPost,
+      onChanged: (post) => updated = post,
+    );
+    await tester.tap(find.byIcon(Icons.favorite));
+    await tester.pumpAndSettle();
+    expect(updated?.viewerState.isLiked, isFalse);
+    expect(updated?.stats.likesCount, 42);
+    expect(find.text('42'), findsOneWidget);
   });
 
   testWidgets('post card exposes retweet action and updates count', (
@@ -122,6 +246,26 @@ void main() {
 
     expect((first.dx - second.dx).abs(), lessThan(1));
   });
+
+  testWidgets('an unconfirmed retweet leaves the count unchanged', (
+    tester,
+  ) async {
+    final api = _FakePostsApi()..retweetUnconfirmed = true;
+    await _pumpPostCard(
+      tester,
+      api: api,
+      post: _likedPost.copyWith(
+        stats: _likedPost.stats.copyWith(retweetsCount: 2),
+      ),
+      onChanged: (_) => fail('Unconfirmed receipt changed the post'),
+    );
+    await tester.tap(find.byKey(const Key('post-retweet-button-200001')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '发布'));
+    await tester.pumpAndSettle();
+    expect(find.text('2'), findsOneWidget);
+    expect(find.textContaining('无法确认转发是否已发布'), findsOneWidget);
+  });
 }
 
 class _FakePostsApi extends PostsApi {
@@ -131,6 +275,11 @@ class _FakePostsApi extends PostsApi {
   int bookmarkCalls = 0;
   int? retweetPostId;
   String? retweetContent;
+  bool retweetUnconfirmed = false;
+
+  @override
+  Future<PostLikeReceipt> unlikePost(int postId) async =>
+      (isLiked: false, likesCount: 42);
 
   @override
   Future<V2ViewerPostState> bookmarkPost(int postId) async {
@@ -150,6 +299,7 @@ class _FakePostsApi extends PostsApi {
   }) async {
     retweetPostId = postId;
     retweetContent = content;
+    if (retweetUnconfirmed) throw const UnconfirmedRetweetError();
     return _likedPost.copyWith(
       stats: _likedPost.stats.copyWith(retweetsCount: 3),
     );
@@ -189,7 +339,9 @@ List<Override> _overrides(_FakePostsApi api) {
   ];
 }
 
-final _likedPost = V2Post(
+final _likedPost = _samplePost();
+
+V2Post _samplePost({List<V2MediaAsset> media = const []}) => V2Post(
   postId: 200001,
   author: _user,
   content: '3213213',
@@ -197,7 +349,7 @@ final _likedPost = V2Post(
   visibility: 'public',
   language: 'zh',
   location: '',
-  media: const [],
+  media: media,
   tags: const [],
   mentions: const [],
   stats: V2PostStats(

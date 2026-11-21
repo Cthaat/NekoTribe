@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,12 +7,100 @@ import 'package:go_router/go_router.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
 import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
+import 'package:nekotribe/core/network/api_response.dart';
 import 'package:nekotribe/features/chat/data/chat_api.dart';
 import 'package:nekotribe/features/chat/domain/chat_models.dart';
 import 'package:nekotribe/features/chat/presentation/chat_home_screen.dart';
+import 'package:nekotribe/features/realtime/data/realtime_service.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets(
+    'switching the API endpoint clears an open group channel picker',
+    (tester) async {
+      final original = _FakeChatApi();
+      final replacement = _FakeChatApi();
+      final switched = StateProvider<bool>((_) => false);
+      await _pumpChatHome(
+        tester,
+        original,
+        selectApi: (ref) => ref.watch(switched) ? replacement : original,
+      );
+      await _openGroupPicker(tester);
+      expect(find.text('#general'), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatHomeScreen)),
+      );
+      container.read(switched.notifier).state = true;
+      await tester.pumpAndSettle();
+      expect(find.text('#general'), findsNothing);
+      expect(find.text('会话已变化，请重新打开频道列表。'), findsOneWidget);
+    },
+  );
+
+  testWidgets('realtime deletion refreshes the selected conversation page', (
+    tester,
+  ) async {
+    final api = _FakeChatApi()
+      ..conversations = [_conversation(9, 'recent page')]
+      ..secondConversationPage = [_conversation(8, 'older page')];
+    final realtime = _HomeRealtime();
+    addTearDown(realtime.dispose);
+    await _pumpChatHome(tester, api, realtime: realtime);
+    await tester.tap(find.text('下一页'));
+    await tester.pumpAndSettle();
+    expect(find.text('older page'), findsOneWidget);
+    api.secondConversationPage = [_conversation(7, 'new preview')];
+    realtime.deliver({
+      'type': 'direct_message_deleted',
+      'data': {'conversation_id': 11, 'message_id': 8},
+    });
+    await tester.pump();
+    expect(find.text('older page'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pumpAndSettle();
+    expect(find.text('new preview'), findsOneWidget);
+    expect(find.text('recent page'), findsNothing);
+    expect(api.conversationPages, [1, 2, 2]);
+  });
+  testWidgets('group chat appends the next page without duplicating groups', (
+    tester,
+  ) async {
+    final api = _FakeChatApi()..hasSecondGroupPage = true;
+    await _pumpChatHome(tester, api);
+    await tester.tap(find.text('群聊'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cat Town'), findsOneWidget);
+    await tester.tap(find.text('加载更多群组'));
+    await tester.pumpAndSettle();
+    expect(api.groupPages, [1, 2]);
+    expect(find.text('Cat Town'), findsOneWidget);
+    expect(find.text('Dog Town'), findsOneWidget);
+    expect(find.text('加载更多群组'), findsNothing);
+  });
+  testWidgets(
+    'deleted private preview is hidden before the list refresh finishes',
+    (tester) async {
+      final api = _FakeChatApi()
+        ..conversations = [_conversation(8, 'deleted text')];
+      final realtime = _HomeRealtime();
+      addTearDown(realtime.dispose);
+      await _pumpChatHome(tester, api, realtime: realtime);
+      expect(find.text('deleted text'), findsOneWidget);
+      api.conversations = [_conversation(7, 'previous message')];
+      realtime.deliver({
+        'type': 'direct_message_deleted',
+        'data': {'conversation_id': 11, 'message_id': 8},
+      });
+      await tester.pump();
+      expect(find.text('deleted text'), findsNothing);
+      expect(find.text('previous message'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(find.text('previous message'), findsOneWidget);
+    },
+  );
+
   testWidgets('group chat opens a channel picker before navigation', (
     tester,
   ) async {
@@ -47,8 +137,23 @@ void main() {
 
     await tester.enterText(
       find.byKey(const Key('chat-channel-name-field')),
+      List.filled(34, '猫').join(),
+    );
+    await tester.pump();
+    expect(find.text('频道名称最多 100 个 UTF-8 字节。'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.byKey(const Key('chat-channel-save-button')),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(
+      find.byKey(const Key('chat-channel-name-field')),
       'team-chat',
     );
+    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '创建'));
     await tester.pumpAndSettle();
 
@@ -83,6 +188,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.updatedChannelId, 7);
     expect(api.updatedChannelName, 'ops-chat');
+    expect(api.updatedChannelCategory, '');
     expect(find.text('#ops-chat'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('chat-channel-actions-8')));
@@ -94,9 +200,50 @@ void main() {
     expect(api.deletedChannelId, 8);
     expect(find.text('#announcements'), findsNothing);
   });
+
+  testWidgets('mute control waits for the confirmed channel state', (
+    tester,
+  ) async {
+    final api = _FakeChatApi()..muteReceipt = Completer<bool>();
+    await _pumpChatHome(tester, api);
+    await _openGroupPicker(tester);
+    final actions = find.byKey(const Key('chat-channel-actions-7'));
+    final mute = find.byKey(const Key('chat-channel-mute-7'));
+    await tester.tap(actions);
+    await tester.pumpAndSettle();
+    await tester.tap(mute);
+    await tester.pumpAndSettle();
+    await tester.tap(actions);
+    await tester.pumpAndSettle();
+    expect(tester.widget<PopupMenuItem<String>>(mute).enabled, isFalse);
+    expect(api.muteCalls, 1);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    api.muteReceipt!.complete(false);
+    await tester.pumpAndSettle();
+    expect(api.mutedValue, isTrue);
+    final channelTile = find.ancestor(
+      of: actions,
+      matching: find.byType(ListTile),
+    );
+    expect(
+      find.descendant(of: channelTile, matching: find.byTooltip('已静音')),
+      findsNothing,
+    );
+    await tester.tap(actions);
+    await tester.pumpAndSettle();
+    expect(tester.widget<PopupMenuItem<String>>(mute).enabled, isTrue);
+  });
 }
 
-Future<void> _pumpChatHome(WidgetTester tester, _FakeChatApi api) async {
+Future<void> _pumpChatHome(
+  WidgetTester tester,
+  _FakeChatApi api, {
+  _HomeRealtime? realtime,
+  ChatApi Function(Ref)? selectApi,
+}) async {
+  final socket = realtime ?? _HomeRealtime();
+  if (realtime == null) addTearDown(socket.dispose);
   final router = GoRouter(
     routes: [
       GoRoute(path: '/', builder: (_, _) => const ChatHomeScreen()),
@@ -115,12 +262,41 @@ Future<void> _pumpChatHome(WidgetTester tester, _FakeChatApi api) async {
       overrides: [
         appConfigBundleProvider.overrideWithValue(_testBundle),
         appConfigInitialProvider.overrideWithValue(_testConfig),
-        chatApiProvider.overrideWithValue(api),
+        chatApiProvider.overrideWith(selectApi ?? (_) => api),
+        realtimeServiceProvider.overrideWithValue(socket),
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
   );
   await tester.pumpAndSettle();
+}
+
+V2DirectConversation _conversation(int message, String content) =>
+    V2DirectConversation.fromJson({
+      'conversation_id': 11,
+      'participant': {'user_id': 22, 'username': 'peer'},
+      'last_message': {'message_id': message, 'content': content},
+    });
+
+class _HomeRealtime extends RealtimeService {
+  _HomeRealtime() : super(config: _testConfig, tokenStore: _FakeTokenStore());
+
+  final _listeners = <RealtimeListener>[];
+
+  @override
+  Future<void> connect() async {}
+
+  @override
+  void addListener(RealtimeListener listener) => _listeners.add(listener);
+
+  @override
+  void removeListener(RealtimeListener listener) => _listeners.remove(listener);
+
+  void deliver(Map<String, dynamic> event) {
+    for (final listener in List.of(_listeners)) {
+      listener(event);
+    }
+  }
 }
 
 Future<void> _openGroupPicker(WidgetTester tester) async {
@@ -140,9 +316,17 @@ class _FakeChatApi extends ChatApi {
   String? createdChannelName;
   int? mutedChannelId;
   bool? mutedValue;
+  Completer<bool>? muteReceipt;
+  int muteCalls = 0;
+  bool hasSecondGroupPage = false;
+  final groupPages = <int>[];
   int? updatedChannelId;
   String? updatedChannelName;
+  String? updatedChannelCategory;
   int? deletedChannelId;
+  List<V2DirectConversation> conversations = [];
+  List<V2DirectConversation>? secondConversationPage;
+  final conversationPages = <int>[];
   final channels = <V2ChatChannel>[
     V2ChatChannel(
       channelId: 7,
@@ -175,11 +359,23 @@ class _FakeChatApi extends ChatApi {
   ];
 
   @override
-  Future<List<V2DirectConversation>> listConversations() async => [];
+  Future<PagedResult<V2DirectConversation>> listConversations({
+    int page = 1,
+  }) async {
+    conversationPages.add(page);
+    return PagedResult(
+      items: page == 1 ? conversations : secondConversationPage ?? [],
+      meta: ApiMeta(
+        page: page,
+        hasNext: page == 1 && secondConversationPage != null,
+      ),
+    );
+  }
 
   @override
-  Future<List<V2ChatGroup>> listChatGroups() async => [
-    V2ChatGroup(
+  Future<PagedResult<V2ChatGroup>> listChatGroups({int page = 1}) async {
+    groupPages.add(page);
+    final first = V2ChatGroup(
       groupId: 42,
       name: 'Cat Town',
       memberCount: 3,
@@ -187,8 +383,24 @@ class _FakeChatApi extends ChatApi {
       unreadCount: 0,
       role: 'owner',
       canManage: true,
-    ),
-  ];
+    );
+    return PagedResult(
+      items: [
+        first,
+        if (page == 2)
+          V2ChatGroup(
+            groupId: 44,
+            name: 'Dog Town',
+            memberCount: 1,
+            channelCount: 1,
+            unreadCount: 0,
+            role: 'member',
+            canManage: false,
+          ),
+      ],
+      meta: ApiMeta(page: page, hasNext: page == 1 && hasSecondGroupPage),
+    );
+  }
 
   @override
   Future<List<V2ChatChannel>> listChannels(int groupId) async =>
@@ -222,18 +434,21 @@ class _FakeChatApi extends ChatApi {
   }
 
   @override
-  Future<void> setChannelMuteStatus({
+  Future<bool> setChannelMuteStatus({
     required int channelId,
     required bool isMuted,
   }) async {
+    muteCalls++;
     mutedChannelId = channelId;
     mutedValue = isMuted;
+    final confirmed = await muteReceipt?.future ?? isMuted;
     final index = channels.indexWhere(
       (channel) => channel.channelId == channelId,
     );
-    if (index < 0) return;
-    final old = channels[index];
-    channels[index] = _channelCopy(old, isMutedByMe: isMuted);
+    if (index >= 0) {
+      channels[index] = _channelCopy(channels[index], isMutedByMe: confirmed);
+    }
+    return confirmed;
   }
 
   @override
@@ -245,6 +460,7 @@ class _FakeChatApi extends ChatApi {
   }) async {
     updatedChannelId = channelId;
     updatedChannelName = name;
+    updatedChannelCategory = category;
     final index = channels.indexWhere(
       (channel) => channel.channelId == channelId,
     );

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ import 'package:nekotribe/features/groups/domain/group_models.dart';
 import 'package:nekotribe/features/groups/presentation/group_manage_screen.dart';
 import 'package:nekotribe/features/media/data/media_api.dart';
 import 'package:nekotribe/features/posts/domain/post_models.dart';
+import 'package:nekotribe/features/users/data/users_api.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
@@ -35,6 +38,139 @@ void main() {
     } else {
       FilePicker.platform = _FakeFilePicker([]);
     }
+  });
+
+  testWidgets('group drafts appear only for public group managers', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testApp(_FakeGroupsApi(), const GroupManageScreen(slug: 'cats')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.edit_note_outlined), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      _testApp(
+        _FakeGroupsApi(privacy: 'public'),
+        const GroupManageScreen(slug: 'cats'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.edit_note_outlined), findsOneWidget);
+  });
+
+  testWidgets(
+    'audit log paginates and discards replies after identity changes',
+    (tester) async {
+      final api = _FakeGroupsApi();
+      final tokens = _FakeTokenStore();
+      await tester.pumpWidget(
+        _testApp(
+          api,
+          const GroupManageScreen(slug: 'cats'),
+          tokenStore: tokens,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.history));
+      await tester.pumpAndSettle();
+      expect(find.text('first_action'), findsOneWidget);
+      await tester.tap(find.text('下一页'));
+      await tester.pump();
+      expect(api.auditPages, [1, 2]);
+      expect(find.text('first_action'), findsNothing);
+      tokens.beginSessionChange();
+      api.nextAudit.complete(PagedResult(items: [_auditEntry('stale_action')]));
+      await tester.pumpAndSettle();
+      expect(find.text('stale_action'), findsNothing);
+      expect(find.text('会话已变化，请重新打开群组管理'), findsOneWidget);
+    },
+  );
+
+  testWidgets('invite history paginates and clears old results on sign-out', (
+    tester,
+  ) async {
+    final api = _FakeGroupsApi();
+    final tokens = _FakeTokenStore();
+    _useLargeDesktopView(tester);
+    await tester.pumpWidget(
+      _testApp(api, const GroupManageScreen(slug: 'cats'), tokenStore: tokens),
+    );
+    await tester.pumpAndSettle();
+    final history = find.byKey(const Key('group-manage-invite-history'));
+    await tester.scrollUntilVisible(
+      history,
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(history);
+    await tester.pumpAndSettle();
+    expect(find.text('PUBLIC2026'), findsOneWidget);
+    expect(find.text('@recipient'), findsOneWidget);
+    expect(find.text('DIRECT2026'), findsNothing);
+    expect(find.byTooltip('复制邀请码'), findsOneWidget);
+    await tester.tap(find.text('下一页'));
+    await tester.pump();
+    expect(api.invitePages, [1, 2]);
+    tokens.beginSessionChange();
+    api.nextInvite.complete(PagedResult(items: [_invite(3, 'STALE2026')]));
+    await tester.pumpAndSettle();
+    expect(find.text('STALE2026'), findsNothing);
+    expect(find.text('会话已变化，请重新打开群组管理'), findsOneWidget);
+  });
+
+  testWidgets('directed invite sends only the explicitly selected account', (
+    tester,
+  ) async {
+    final api = _FakeGroupsApi();
+    _useLargeDesktopView(tester);
+    await tester.pumpWidget(
+      _testApp(
+        api,
+        const GroupManageScreen(slug: 'cats'),
+        usersApi: _FakeInviteUsers(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final open = find.byKey(const Key('group-manage-invite-recipient'));
+    await tester.scrollUntilVisible(
+      open,
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(open);
+    await tester.pumpAndSettle();
+    final query = find.byKey(const Key('group-invite-recipient-query'));
+    final send = find.byKey(const Key('group-invite-recipient-send'));
+    await tester.enterText(query, 'recipient');
+    await tester.pump();
+    await tester.tap(find.byTooltip('搜索用户'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(send).onPressed, isNull);
+    await tester.tap(find.text('@recipient'));
+    await tester.pumpAndSettle();
+    await tester.enterText(query, 'recip');
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(send).onPressed, isNull);
+    expect(api.inviteBody, isNull);
+    await tester.tap(find.byTooltip('搜索用户'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('@recipient'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('group-invite-recipient-message')),
+      '欢迎加入',
+    );
+    await tester.tap(send);
+    await tester.pumpAndSettle();
+    expect(api.inviteGroupId, 42);
+    expect(api.inviteBody, {
+      'invitee_id': 77,
+      'max_uses': 1,
+      'expire_hours': 168,
+      'message': '欢迎加入',
+    });
+    expect(find.text('邀请已发送'), findsOneWidget);
   });
 
   testWidgets('manage screen saves group metadata and invite limits', (
@@ -200,39 +336,51 @@ void main() {
     expect(api.transferredOwnerId, 2);
   });
 
-  testWidgets('manage screen filters active members by search text', (
-    tester,
-  ) async {
-    final api = _FakeGroupsApi();
-    _useLargeDesktopView(tester);
+  testWidgets(
+    'manage screen searches newly loaded members without duplicates',
+    (tester) async {
+      final api = _FakeGroupsApi()..paginateMembers = true;
+      _useLargeDesktopView(tester);
 
-    await tester.pumpWidget(
-      _testApp(api, const GroupManageScreen(slug: 'cats')),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _testApp(api, const GroupManageScreen(slug: 'cats')),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('group-member-search-field')),
-      220,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.enterText(
-      find.byKey(const Key('group-member-search-field')),
-      'mika',
-    );
-    await tester.pumpAndSettle();
+      final loadMore = find.byKey(const Key('group-manage-members-load-more'));
+      await tester.scrollUntilVisible(
+        loadMore,
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(loadMore);
+      await tester.pumpAndSettle();
+      expect(api.memberPages, [1, 2]);
+      expect(find.text('Edge'), findsOneWidget);
 
-    expect(find.text('Mika'), findsOneWidget);
-    expect(find.text('Edge'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('group-member-search-field')),
+        220,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.enterText(
+        find.byKey(const Key('group-member-search-field')),
+        'mika',
+      );
+      await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byKey(const Key('group-member-search-field')),
-      'nobody',
-    );
-    await tester.pumpAndSettle();
+      expect(find.text('Mika'), findsOneWidget);
+      expect(find.text('Edge'), findsNothing);
 
-    expect(find.text('暂无成员'), findsOneWidget);
-  });
+      await tester.enterText(
+        find.byKey(const Key('group-member-search-field')),
+        'nobody',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('暂无成员'), findsOneWidget);
+    },
+  );
 
   testWidgets('manage screen deletes group after owner confirmation', (
     tester,
@@ -275,7 +423,13 @@ void _useLargeDesktopView(WidgetTester tester) {
   addTearDown(tester.view.resetPhysicalSize);
 }
 
-Widget _testApp(GroupsApi api, Widget child, {MediaApi? mediaApi}) {
+Widget _testApp(
+  GroupsApi api,
+  Widget child, {
+  MediaApi? mediaApi,
+  TokenStore? tokenStore,
+  UsersApi? usersApi,
+}) {
   final router = GoRouter(
     initialLocation: '/groups/cats/manage',
     routes: [
@@ -288,16 +442,60 @@ Widget _testApp(GroupsApi api, Widget child, {MediaApi? mediaApi}) {
       appConfigBundleProvider.overrideWithValue(_testBundle),
       appConfigInitialProvider.overrideWithValue(_testConfig),
       groupsApiProvider.overrideWithValue(api),
+      if (tokenStore != null) tokenStoreProvider.overrideWithValue(tokenStore),
+      if (usersApi != null) usersApiProvider.overrideWithValue(usersApi),
       mediaApiProvider.overrideWithValue(mediaApi ?? _FakeMediaApi()),
     ],
     child: MaterialApp.router(routerConfig: router),
   );
 }
 
-class _FakeGroupsApi extends GroupsApi {
-  _FakeGroupsApi()
+V2GroupAuditEntry _auditEntry(String action) => V2GroupAuditEntry.fromJson({
+  'log_id': 1,
+  'group_id': 42,
+  'actor_id': 15,
+  'action': action,
+  'created_at': '2026-05-25T00:00:00.000Z',
+});
+
+V2GroupInvite _invite(int id, String code, {bool directed = false}) =>
+    V2GroupInvite.fromJson({
+      'invite_id': id,
+      'invite_code': code,
+      'group': {'group_id': 42},
+      'inviter': {'username': 'owner'},
+      if (directed) 'invitee': {'username': 'recipient'},
+      'status': 'pending',
+      'is_valid': true,
+    });
+
+class _FakeInviteUsers extends UsersApi {
+  _FakeInviteUsers()
     : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
 
+  @override
+  Future<PagedResult<V2PublicUser>> searchUsers(
+    String query, {
+    int page = 1,
+    int size = 20,
+  }) async => PagedResult(
+    items: [
+      V2PublicUser.fromJson({'user_id': 77, 'username': 'recipient'}),
+    ],
+  );
+}
+
+class _FakeGroupsApi extends GroupsApi {
+  _FakeGroupsApi({this.privacy = 'private'})
+    : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
+
+  final String privacy;
+  bool paginateMembers = false;
+  final memberPages = <int>[];
+  final auditPages = <int>[];
+  final invitePages = <int>[];
+  final nextInvite = Completer<PagedResult<V2GroupInvite>>();
+  final nextAudit = Completer<PagedResult<V2GroupAuditEntry>>();
   int? updatedGroupId;
   String? updatedName;
   String? updatedDescription;
@@ -315,7 +513,39 @@ class _FakeGroupsApi extends GroupsApi {
   int? transferredOwnerId;
 
   @override
-  Future<V2Group> getGroup(String slug) async => _group();
+  Future<PagedResult<V2GroupAuditEntry>> auditLogs(
+    int groupId, {
+    required int page,
+    required CancelToken cancelToken,
+  }) async {
+    auditPages.add(page);
+    if (page > 1) return nextAudit.future;
+    return PagedResult(
+      items: [_auditEntry('first_action')],
+      meta: const ApiMeta(hasNext: true),
+    );
+  }
+
+  @override
+  Future<PagedResult<V2GroupInvite>> groupInvites(
+    int groupId, {
+    int page = 1,
+    int size = 20,
+    CancelToken? cancelToken,
+  }) async {
+    invitePages.add(page);
+    if (page > 1) return nextInvite.future;
+    return PagedResult(
+      items: [
+        _invite(1, 'PUBLIC2026'),
+        _invite(2, 'DIRECT2026', directed: true),
+      ],
+      meta: const ApiMeta(hasNext: true),
+    );
+  }
+
+  @override
+  Future<V2Group> getGroup(String slug) async => _group(privacy: privacy);
 
   @override
   Future<PagedResult<V2GroupMember>> members(
@@ -324,6 +554,15 @@ class _FakeGroupsApi extends GroupsApi {
     int size = 30,
     String? role,
   }) async {
+    memberPages.add(page);
+    if (paginateMembers) {
+      return PagedResult(
+        items: page == 1
+            ? [_ownerMember, _pendingMember]
+            : [_ownerMember, _activeMember],
+        meta: ApiMeta(page: page, pageSize: size, total: 3, hasNext: page == 1),
+      );
+    }
     return PagedResult(
       items: [_ownerMember, _activeMember, _pendingMember],
       meta: const ApiMeta(page: 1, pageSize: 30, total: 3, hasNext: false),
@@ -385,7 +624,7 @@ class _FakeGroupsApi extends GroupsApi {
     inviteBody = body;
     return V2GroupInvite(
       inviteId: 100,
-      inviteCode: 'abc',
+      inviteCode: body['invitee_id'] == null ? 'abc' : null,
       status: 'pending',
       maxUses: body['max_uses'] as int?,
       usedCount: 0,
@@ -439,6 +678,8 @@ class _FakeMediaApi extends MediaApi {
     String? mimeType,
     String? altText,
     String? description,
+    String? accessScope,
+    CancelToken? cancelToken,
     void Function(int sent, int total)? onProgress,
   }) async {
     uploadedFileNames.add(fileName);
@@ -511,7 +752,11 @@ V2Group _group({
     memberCount: 1,
     postCount: 0,
     isActive: 1,
-    membership: V2GroupMembership(isMember: true, role: 'owner'),
+    membership: V2GroupMembership(
+      isMember: true,
+      role: 'owner',
+      status: 'active',
+    ),
     createdAt: '2026-05-25T00:00:00.000Z',
     updatedAt: '2026-05-25T00:00:00.000Z',
   );

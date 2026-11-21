@@ -12,56 +12,41 @@ import 'package:nekotribe/features/users/presentation/settings_screen.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
-  testWidgets('settings page exposes SentimentFlow model and top-k controls', (
-    tester,
-  ) async {
-    final users = _FakeUsersRepository();
+  testWidgets(
+    'settings offer AI assistants without loading old classifier or editing old settings',
+    (tester) async {
+      final users = _FakeUsersRepository();
+      final legacy = _FakeSentimentFlowApi();
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          appConfigBundleProvider.overrideWithValue(_testBundle),
-          appConfigInitialProvider.overrideWithValue(_testConfig),
-          usersRepositoryProvider.overrideWithValue(users),
-          sentimentFlowApiProvider.overrideWithValue(_FakeSentimentFlowApi()),
-        ],
-        child: const MaterialApp(home: SettingsScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appConfigBundleProvider.overrideWithValue(_testBundle),
+            appConfigInitialProvider.overrideWithValue(_testConfig),
+            usersRepositoryProvider.overrideWithValue(users),
+            sentimentFlowApiProvider.overrideWithValue(legacy),
+          ],
+          child: const MaterialApp(home: SettingsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      await tester.pumpAndSettle();
 
-    expect(find.text('BERT v1'), findsOneWidget);
-    expect(
-      find.textContaining('预测 12 次', skipOffstage: false),
-      findsOneWidget,
-    );
-    expect(find.text('Top-K 结果数'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('BERT v1'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('BERT v1'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('LSTM v1').last);
-    await tester.pumpAndSettle();
-
-    expect(users.lastPatch?['ai_sentiment_model_id'], 'lstm-v1');
-
-    await tester.ensureVisible(find.text('2').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('2').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('5').last);
-    await tester.pumpAndSettle();
-
-    expect(users.lastPatch?['ai_sentiment_top_k'], 5);
-  });
+      expect(find.text('AI 知识助手'), findsOneWidget);
+      expect(find.text('AI 写作助手'), findsOneWidget);
+      expect(find.text('BERT v1'), findsNothing);
+      expect(legacy.calls, 0);
+      expect(users.lastPatch, isNull);
+    },
+  );
 }
 
 class _FakeUsersRepository extends UsersRepository {
   _FakeUsersRepository()
-    : super(UsersApi(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore())));
+    : super(
+        UsersApi(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore())),
+      );
 
   Map<String, dynamic>? lastPatch;
   V2UserSettings _settings = _settingsWith(modelId: 'bert-v1', topK: 2);
@@ -73,12 +58,11 @@ class _FakeUsersRepository extends UsersRepository {
   Future<V2UserSettings> updateSettings(Map<String, dynamic> body) async {
     lastPatch = body;
     _settings = _settingsWith(
-      modelId: body['ai_sentiment_model_id'] as String? ??
+      modelId:
+          body['ai_sentiment_model_id'] as String? ??
           _settings.aiSentimentModelId ??
           'bert-v1',
-      topK: body['ai_sentiment_top_k'] as int? ??
-          _settings.aiSentimentTopK ??
-          3,
+      topK: body['ai_sentiment_top_k'] as int? ?? _settings.aiSentimentTopK,
     );
     return _settings;
   }
@@ -88,16 +72,21 @@ class _FakeSentimentFlowApi extends SentimentFlowApi {
   _FakeSentimentFlowApi()
     : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
 
+  int calls = 0;
+
   @override
-  Future<V2SentimentFlowConfig> config() async => V2SentimentFlowConfig(
-    enabled: true,
-    baseUrl: '',
-    baseUrlConfigured: true,
-    proxyBasePath: '/api/v2/integrations/sentiment-flow',
-    defaultModel: 'bert-v1',
-    availableModels: const ['bert-v1', 'lstm-v1'],
-    timeoutMs: 10000,
-  );
+  Future<V2SentimentFlowConfig> config() async {
+    calls++;
+    return V2SentimentFlowConfig(
+      enabled: true,
+      baseUrl: '',
+      baseUrlConfigured: true,
+      proxyBasePath: '/api/v2/integrations/sentiment-flow',
+      defaultModel: 'bert-v1',
+      availableModels: const ['bert-v1', 'lstm-v1'],
+      timeoutMs: 10000,
+    );
+  }
 
   @override
   Future<V2SentimentModelsData> listModels() async => V2SentimentModelsData(

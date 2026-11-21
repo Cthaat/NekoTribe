@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
 import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
@@ -14,53 +15,70 @@ import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
-  testWidgets('compose screen can analyze the current draft text', (
+  testWidgets('composer opens writing without submitting or losing the draft', (
     tester,
   ) async {
     final sentiment = _FakeSentimentFlowApi();
-
-    await _pump(
+    final router = await _pump(
       tester,
       sentiment: sentiment,
       child: const ComposePostScreen(),
     );
-
-    await tester.enterText(find.byType(TextField).first, 'NekoTribe is lovely');
-    await tester.tap(find.byTooltip('AI 情感分析'));
+    await tester.enterText(find.byType(TextField).first, 'My draft');
+    await tester.tap(find.byTooltip('AI 写作助手'));
     await tester.pumpAndSettle();
-
-    expect(sentiment.predictedText, 'NekoTribe is lovely');
-    expect(find.text('positive'), findsWidgets);
-    expect(find.textContaining('91.0%'), findsWidgets);
+    expect(find.text('Writing destination'), findsOneWidget);
+    expect(sentiment.predictedText, isNull);
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('My draft'), findsOneWidget);
   });
-
-  testWidgets('post card exposes AI sentiment prediction from its menu', (
-    tester,
-  ) async {
-    final sentiment = _FakeSentimentFlowApi();
-
-    await _pump(
-      tester,
-      sentiment: sentiment,
-      child: Scaffold(body: PostCard(post: _post)),
-    );
-
-    await tester.tap(find.byIcon(Icons.more_horiz));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('AI 情感分析'));
-    await tester.pumpAndSettle();
-
-    expect(sentiment.predictedText, _post.content);
-    expect(find.text('positive'), findsWidgets);
-    expect(find.textContaining('BERT v1'), findsOneWidget);
-  });
+  testWidgets(
+    'post menu opens the knowledge assistant without sending the post',
+    (tester) async {
+      final sentiment = _FakeSentimentFlowApi();
+      await _pump(
+        tester,
+        sentiment: sentiment,
+        child: Scaffold(body: PostCard(post: _post)),
+      );
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      expect(find.text('AI 情感分析'), findsNothing);
+      await tester.tap(find.text('AI 知识助手'));
+      await tester.pumpAndSettle();
+      expect(find.text('Knowledge destination'), findsOneWidget);
+      expect(sentiment.predictedText, isNull);
+    },
+  );
 }
 
-Future<void> _pump(
+Future<GoRouter> _pump(
   WidgetTester tester, {
   required _FakeSentimentFlowApi sentiment,
   required Widget child,
 }) async {
+  Widget assistant(GoRouterState state, String title) {
+    expect(state.extra, isNull);
+    expect(state.uri.queryParameters, isEmpty);
+    return Scaffold(body: Text(title));
+  }
+
+  final router = GoRouter(
+    initialLocation: '/entry',
+    routes: [
+      GoRoute(path: '/entry', builder: (_, __) => child),
+      GoRoute(
+        path: '/ai/writing',
+        builder: (_, state) => assistant(state, 'Writing destination'),
+      ),
+      GoRoute(
+        path: '/ai/knowledge',
+        builder: (_, state) => assistant(state, 'Knowledge destination'),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -75,10 +93,11 @@ Future<void> _pump(
         usersRepositoryProvider.overrideWithValue(_FakeUsersRepository()),
         sentimentFlowApiProvider.overrideWithValue(sentiment),
       ],
-      child: MaterialApp(home: child),
+      child: MaterialApp.router(routerConfig: router),
     ),
   );
   await tester.pumpAndSettle();
+  return router;
 }
 
 class _FakeSentimentFlowApi extends SentimentFlowApi {
@@ -130,7 +149,9 @@ class _FakeSentimentFlowApi extends SentimentFlowApi {
 
 class _FakeUsersRepository extends UsersRepository {
   _FakeUsersRepository()
-    : super(UsersApi(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore())));
+    : super(
+        UsersApi(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore())),
+      );
 
   @override
   Future<V2UserSettings> getSettings() async => V2UserSettings(

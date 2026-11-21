@@ -1,8 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nekotribe/core/auth/token_store.dart';
+import 'package:nekotribe/core/config/app_config.dart';
+import 'package:nekotribe/core/network/api_client.dart';
+import 'package:nekotribe/features/notifications/data/notifications_api.dart';
+import 'package:nekotribe/features/realtime/data/realtime_service.dart';
 import 'package:nekotribe/shared/i18n/app_localizations.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 import 'package:nekotribe/shared/routing/app_shell.dart';
@@ -157,6 +164,73 @@ void main() {
     expect(find.text('3'), findsOneWidget);
   });
 
+  testWidgets('notification events and recovery refresh the badge on feed', (
+    tester,
+  ) async {
+    final router = buildRouter();
+    addTearDown(router.dispose);
+    final store = _BadgeSession();
+    final socket = _BadgeRealtime(store);
+    final alternate = _BadgeRealtime(store);
+    final api = _BadgeNotifications(store);
+    addTearDown(socket.dispose);
+    addTearDown(alternate.dispose);
+    final selectedSocket = StateProvider<RealtimeService>((_) => socket);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(store),
+          realtimeServiceProvider.overrideWith(
+            (ref) => ref.watch(selectedSocket),
+          ),
+          notificationsApiProvider.overrideWithValue(api),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('feed route'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(api.reads, 1);
+
+    api.count = 7;
+    socket.emit('notification_created');
+    socket.emit('notification_restored');
+    socket.recovered.add(1);
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pumpAndSettle();
+    expect(find.text('7'), findsOneWidget);
+    expect(api.reads, 2);
+
+    final switching = Completer<void>();
+    final transition = store.runSessionChange((_) => switching.future);
+    socket.emit('notification_deleted');
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(find.text('7'), findsNothing);
+    expect(api.reads, 2);
+    api.count = 9;
+    switching.complete();
+    await transition;
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pumpAndSettle();
+    expect(find.text('9'), findsOneWidget);
+    expect(api.reads, 3);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AppShell)),
+    );
+    container.read(selectedSocket.notifier).state = alternate;
+    socket.emit('notification_created');
+    await tester.pump();
+    expect(find.text('9'), findsNothing);
+
+    api.count = 11;
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pumpAndSettle();
+    expect(find.text('11'), findsOneWidget);
+    expect(api.reads, 4);
+  });
+
   testWidgets('mobile bottom nav shows groups destination', (tester) async {
     tester.view
       ..physicalSize = const Size(390, 844)
@@ -242,4 +316,65 @@ void main() {
     expect(find.text('groups'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
   });
+}
+
+const _badgeConfig = AppConfig(
+  apiBaseUrl: 'http://example.test',
+  wsBaseUrl: 'ws://example.test',
+  storageBaseUrl: 'http://example.test',
+);
+
+class _BadgeSession extends TokenStore {
+  @override
+  Future<TokenPair?> read() async => const TokenPair(
+    accessToken: 'test-token',
+    refreshToken: 'test-refresh',
+    sessionId: 'test-session',
+  );
+}
+
+class _BadgeNotifications extends NotificationsApi {
+  _BadgeNotifications(TokenStore store)
+    : super(ApiClient(config: _badgeConfig, tokenStore: store));
+
+  int reads = 0;
+  int count = 3;
+
+  @override
+  Future<int> unreadCount() async {
+    reads++;
+    return count;
+  }
+}
+
+class _BadgeRealtime extends RealtimeService {
+  _BadgeRealtime(TokenStore store)
+    : super(config: _badgeConfig, tokenStore: store);
+
+  final recovered = StreamController<int>.broadcast(sync: true);
+  final listeners = <RealtimeListener>{};
+
+  @override
+  Stream<int> get recovery => recovered.stream;
+
+  @override
+  Future<void> connect() async {}
+
+  @override
+  void addListener(RealtimeListener listener) => listeners.add(listener);
+
+  @override
+  void removeListener(RealtimeListener listener) => listeners.remove(listener);
+
+  void emit(String type) {
+    for (final listener in listeners.toList()) {
+      listener({'type': type});
+    }
+  }
+
+  @override
+  Future<void> dispose() async {
+    await recovered.close();
+    await super.dispose();
+  }
 }

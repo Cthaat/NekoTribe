@@ -12,27 +12,31 @@ import json
 import os
 with open('assets/config/app_config.json', encoding='utf-8') as config_file:
     defaults = json.load(config_file)['defaults']
+derive_origin = bool(os.environ.get('API_BASE_URL'))
 for name, key in [('API_BASE_URL', 'apiBaseUrl'), ('WS_BASE_URL', 'wsBaseUrl'), ('STORAGE_BASE_URL', 'storageBaseUrl')]:
-    print(os.environ.get(name) or defaults[key])
+    default = '' if derive_origin and name != 'API_BASE_URL' else defaults.get(key, '')
+    print(os.environ.get(name) or default)
 PY
 )
 [[ ${#endpoints[@]} -eq 3 ]] || fail 'Cannot read endpoint configuration.'
 python3 - "${endpoints[@]}" <<'PY'
 import socket
 import sys
+import re
 from urllib.parse import urlsplit
 for name, value in zip(('API_BASE_URL', 'WS_BASE_URL', 'STORAGE_BASE_URL'), sys.argv[1:]):
+    if name != 'API_BASE_URL' and not value:
+        continue
     try:
         uri = urlsplit(value)
         schemes = ('ws', 'wss') if name == 'WS_BASE_URL' else ('http', 'https')
-        valid = (uri.scheme in schemes and uri.hostname and uri.path in ('', '/')
-                 and not uri.query and not uri.fragment and not uri.username
-                 and not uri.password and not any(c.isspace() for c in value))
-        uri.port  # Validate a supplied port as well.
+        valid = (re.match(r'^[a-z]+://[^/]+', value, re.IGNORECASE)
+                 and uri.scheme in schemes and uri.hostname and uri.port != 0
+                 and '@' not in uri.netloc and not re.search(r'[\\\s?#]', value))
     except ValueError:
         valid = False
     if not valid:
-        sys.exit(f'ERROR: {name} must be an origin without /api/v2, /_ws, /storage, credentials, query, or fragment.')
+        sys.exit(f'ERROR: {name} must be an absolute base URL without credentials, query, or fragment.')
 try:
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 30004))
@@ -41,7 +45,7 @@ except OSError:
 PY
 
 printf '%s\n' 'Flutter Web: http://127.0.0.1:30004 (open manually once Flutter is ready).' \
-    'Saved endpoint settings override these build defaults. Nuxt must be started separately.'
+    'Saved endpoint settings override these build defaults. Start the selected backend separately.'
 exec flutter run -d web-server --web-hostname 127.0.0.1 --web-port 30004 --no-pub \
     "--dart-define=API_BASE_URL=${endpoints[0]}" \
     "--dart-define=WS_BASE_URL=${endpoints[1]}" \
