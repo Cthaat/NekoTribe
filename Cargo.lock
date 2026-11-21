@@ -1477,7 +1477,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "futures-util",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "hex",
  "hmac",
  "http",

@@ -19,7 +19,7 @@ base64 = "=0.22.1"
 bcrypt = "=0.17.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 hex = "0.4"
-getrandom = "=0.3.4"
+getrandom = "=0.4.2"
 hmac = "=0.12.1"
 http = "1"
 jsonwebtoken = { version = "=10.3.0", default-features = false, features = ["rust_crypto"] }
