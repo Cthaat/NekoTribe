@@ -268,6 +268,7 @@ fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportErro
             body["max_tokens"] = json!(s.max_output_tokens)
         }
         "ollama" => {
+            body["think"] = json!(false);
             body["options"] =
                 json!({"num_predict":s.max_output_tokens,"num_ctx":s.context_window_tokens})
         }

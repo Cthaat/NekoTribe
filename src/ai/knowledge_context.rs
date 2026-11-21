@@ -78,11 +78,25 @@ pub fn select(
                         .and_then(Value::as_i64)
                         .filter(|n| (1..=999_999_999_999_999).contains(n))
                         .ok_or(ContextError::Invalid)?;
-                    if kind == "post" && id != n {
-                        return Err(ContextError::Invalid);
-                    }
                     Some(n)
                 };
+                let group_id = citation
+                    .get("group_id")
+                    .map(|value| {
+                        value
+                            .as_i64()
+                            .filter(|n| *n > 0)
+                            .ok_or(ContextError::Invalid)
+                    })
+                    .transpose()?;
+                if !knowledge_source::valid_location(
+                    kind,
+                    id,
+                    post_id.unwrap_or(0),
+                    group_id.unwrap_or(0),
+                ) {
+                    return Err(ContextError::Invalid);
+                }
                 refs.push(Candidate {
                     kind: kind.into(),
                     id,
@@ -91,6 +105,9 @@ pub fn select(
                 let mut entry = json!({"kind":kind,"id":id,"version":version});
                 if let Some(post_id) = post_id {
                     entry["post_id"] = json!(post_id)
+                }
+                if let Some(group_id) = group_id {
+                    entry["group_id"] = json!(group_id);
                 }
                 clean.push(entry);
             }

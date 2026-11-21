@@ -29,6 +29,8 @@ pub struct SelectionSnapshot {
     pub adapter: String,
     pub base_url: String,
     pub model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_version: Option<String>,
     pub api_key_env: Option<String>,
     pub capabilities: Vec<String>,
     pub context_window_tokens: u32,
@@ -37,6 +39,7 @@ pub struct SelectionSnapshot {
 
 const INVALID: ModelConfigError = ModelConfigError("INVALID_CONFIGURATION");
 const CAPABILITIES: [&str; 3] = ["tools", "structured-output", "vision"];
+const MAX_STORED_MODEL_REVISION: u64 = 999_999_999_999_999;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -65,6 +68,7 @@ struct Model {
     id: String,
     provider_id: String,
     model: String,
+    model_version: Option<String>,
     capabilities: Vec<String>,
     #[serde(deserialize_with = "integer")]
     context_window_tokens: u64,
@@ -102,6 +106,12 @@ fn integer<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u64, D::
         return Err(serde::de::Error::custom("invalid integer"));
     }
     Ok(number as u64)
+}
+
+pub(crate) fn valid_model_version(value: &str) -> bool {
+    value.len() <= 128
+        && value.as_bytes().first().is_some_and(u8::is_ascii_alphanumeric)
+        && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'+' | b'-'))
 }
 
 fn valid_id(value: &str) -> bool {
@@ -163,7 +173,7 @@ fn valid_host(host: &str) -> bool {
     })
 }
 
-fn valid_url(raw: &str) -> bool {
+pub(super) fn valid_url(raw: &str) -> bool {
     let Some(remainder) = raw
         .strip_prefix("http://")
         .or_else(|| raw.strip_prefix("https://"))
@@ -220,8 +230,16 @@ fn valid_url(raw: &str) -> bool {
 
 impl Configuration {
     fn parse(input: &Value) -> Result<Self, ModelConfigError> {
-        let mut config: Self = serde_json::from_value(input.clone()).map_err(|_| INVALID)?;
-        if config.schema_version != 1 || config.providers.is_empty() || config.models.is_empty() {
+        let config: Self = serde_json::from_value(input.clone()).map_err(|_| INVALID)?;
+        Self::validate(config)
+    }
+
+    fn validate(mut config: Self) -> Result<Self, ModelConfigError> {
+        if config.schema_version != 1
+            || config.revision > MAX_STORED_MODEL_REVISION
+            || config.providers.is_empty()
+            || config.models.is_empty()
+        {
             return Err(INVALID);
         }
         let mut provider_ids = HashSet::new();
@@ -260,6 +278,7 @@ impl Configuration {
                 || model.model.is_empty()
                 || model.model.trim_matches(configuration_whitespace) != model.model
                 || model.model.chars().count() > 256
+                || model.model_version.as_deref().is_some_and(|version| !valid_model_version(version))
                 || !valid_capabilities(&model.capabilities)
                 || model.context_window_tokens > i32::MAX as u64
                 || model.max_output_tokens > i32::MAX as u64
@@ -299,6 +318,18 @@ impl ModelRouter {
     pub fn new(input: &Value) -> Result<Self, ModelConfigError> {
         Ok(Self {
             configuration: RwLock::new(Configuration::parse(input)?),
+        })
+    }
+
+    /// Decode the wire format before materializing any JSON object that could
+    /// overwrite a duplicate field.
+    pub fn from_json(input: &str) -> Result<Self, ModelConfigError> {
+        if input.len() > 65536 {
+            return Err(INVALID);
+        }
+        let config = serde_json::from_str::<Configuration>(input).map_err(|_| INVALID)?;
+        Ok(Self {
+            configuration: RwLock::new(Configuration::validate(config)?),
         })
     }
 
@@ -345,6 +376,7 @@ impl ModelRouter {
             adapter: provider.adapter.clone(),
             base_url: provider.base_url.clone(),
             model: model.model.clone(),
+            model_version: model.model_version.clone(),
             api_key_env: provider.api_key_env.clone(),
             capabilities: model.capabilities.clone(),
             context_window_tokens: model.context_window_tokens as u32,

@@ -20,6 +20,8 @@ pub struct Citation {
     pub version: String,
     #[serde(skip_serializing_if = "is_zero")]
     pub post_id: i64,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub group_id: i64,
 }
 fn is_zero(value: &i64) -> bool {
     *value == 0
@@ -111,10 +113,7 @@ pub fn restore(
         let key = (row.kind.as_str(), row.id, row.version.as_str());
         if !expected.contains(&key)
             || !seen.insert(key)
-            || (row.kind == "terms" && row.post_id != 0)
-            || (row.kind != "terms"
-                && (!(1..=999_999_999_999_999).contains(&row.post_id)
-                    || (row.kind == "post" && row.post_id != row.id)))
+            || !knowledge_source::valid_location(&row.kind, row.id, row.post_id, row.group_id)
         {
             return Err(HistoryError::SourceChanged);
         }
@@ -136,6 +135,7 @@ pub fn restore(
                 id: reference.id,
                 version: reference.version.clone(),
                 post_id: row.post_id,
+                group_id: row.group_id,
             })
         })
         .collect::<Result<Vec<_>, HistoryError>>()?;

@@ -7,6 +7,10 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
 pub fn parse(text: &str, verified: &[Candidate]) -> Result<TurnResult, TurnError> {
+    parse_with_mode(text, verified, false)
+}
+
+pub fn parse_with_mode(text: &str, verified: &[Candidate], numbered: bool) -> Result<TurnResult, TurnError> {
     let fail = || TurnError::InvalidCitations;
     let value: Value = serde_json::from_str(text).map_err(|_| fail())?;
     let object = value
@@ -30,33 +34,46 @@ pub fn parse(text: &str, verified: &[Candidate]) -> Result<TurnResult, TurnError
     let mut seen = HashSet::new();
     let mut sources = Vec::new();
     for citation in citations {
-        let item = citation
-            .as_object()
-            .filter(|o| o.len() == 3)
-            .ok_or_else(fail)?;
-        let kind = item
-            .get("kind")
-            .and_then(Value::as_str)
-            .filter(|v| matches!(*v, "post" | "comment" | "terms"))
-            .ok_or_else(fail)?;
-        let id = item
-            .get("id")
-            .and_then(Value::as_f64)
-            .filter(|v| *v >= 1.0 && *v <= 999_999_999_999_999.0 && v.fract() == 0.0)
-            .ok_or_else(fail)? as i64;
-        if kind == "terms" && id > 8 {
-            return Err(fail());
-        }
-        let version = item
-            .get("version")
-            .and_then(Value::as_str)
-            .ok_or_else(fail)?;
-        let key = (kind, id, version);
+        let source = if numbered {
+            let reference = citation
+                .as_f64()
+                .filter(|v| *v >= 1.0 && *v <= verified.len() as f64 && v.fract() == 0.0)
+                .ok_or_else(fail)? as usize;
+            &verified[reference - 1]
+        } else {
+            let item = citation
+                .as_object()
+                .filter(|o| o.len() == 3)
+                .ok_or_else(fail)?;
+            let kind = item
+                .get("kind")
+                .and_then(Value::as_str)
+                .filter(|v| {
+                    matches!(
+                        *v,
+                        "post" | "comment" | "terms" | "group_post" | "group_comment"
+                    )
+                })
+                .ok_or_else(fail)?;
+            let id = item
+                .get("id")
+                .and_then(Value::as_f64)
+                .filter(|v| *v >= 1.0 && *v <= 999_999_999_999_999.0 && v.fract() == 0.0)
+                .ok_or_else(fail)? as i64;
+            if kind == "terms" && id > 8 {
+                return Err(fail());
+            }
+            let version = item
+                .get("version")
+                .and_then(Value::as_str)
+                .ok_or_else(fail)?;
+            allowed.get(&(kind, id, version)).copied().ok_or_else(fail)?
+        };
+        let key = (source.kind.as_str(), source.id, source.version.as_str());
         if !seen.insert(key) {
             return Err(fail());
         }
-        let source = allowed.get(&key).ok_or_else(fail)?;
-        sources.push((*source).clone());
+        sources.push(source.clone());
     }
     Ok(TurnResult {
         answer: Some(answer.to_owned()),
