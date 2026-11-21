@@ -188,15 +188,28 @@ class _TweetTimelineScreenState extends ConsumerState<TweetTimelineScreen> {
                             child: Center(child: CircularProgressIndicator()),
                           );
                         }
+                        final post = _items[i];
                         return PostCard(
-                          post: _items[i],
-                          onChanged: (updated) =>
-                              setState(() => _items[i] = updated),
+                          key: ValueKey(post.postId),
+                          post: post,
+                          onDeleted: () => setState(() {
+                            _items = _items
+                                .where((item) => item.postId != post.postId)
+                                .toList();
+                          }),
+                          onChanged: (updated) {
+                            final index = _items.indexWhere(
+                              (item) => item.postId == updated.postId,
+                            );
+                            if (index >= 0) {
+                              setState(() => _items[index] = updated);
+                            }
+                          },
                           onReport: () => showReportDialog(
                             context,
                             ref,
                             targetType: 'post',
-                            targetId: _items[i].postId,
+                            targetId: post.postId,
                           ),
                         );
                       },

@@ -5,21 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/utils/group_post_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../realtime/data/realtime_service.dart';
+import '../data/notifications_api.dart';
 import '../domain/notification_models.dart';
-
-const _notificationRealtimeTypes = {
-  'notification_created',
-  'notification_read_status_updated',
-  'notifications_read_status_updated',
-  'notification_deleted',
-  'notification_restored',
-};
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -38,38 +32,124 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   int _page = 1;
   Object? _error;
   bool _unreadOnly = false;
+  bool _showDeleted = false;
+  bool _markingListed = false;
   String? _type;
   int? _unreadCount;
   int _loadGen = 0;
-  late final RealtimeService _realtime;
+  int _openRevision = 0;
+  late RealtimeService _realtime;
+  StreamSubscription<RemoteEvents>? _statusSub;
+  StreamSubscription<int>? _recoverySub;
+  late final void Function() _stopSessionListener;
+  RemoteEvents _remoteEvents = RemoteEvents.unknown;
 
   @override
   void initState() {
     super.initState();
-    _realtime = ref.read(realtimeServiceProvider);
-    unawaited(_realtime.connect());
-    _realtime.addListener(_onRealtimeEvent);
+    _attachRealtime(ref.read(realtimeServiceProvider));
+    final store = ref.read(tokenStoreProvider);
+    var sessionRevision = store.revision;
+    _stopSessionListener = store.listenSessionChanges(() {
+      if (!mounted) return;
+      if (sessionRevision != store.revision) {
+        sessionRevision = store.revision;
+        _resetMailbox();
+      }
+      if (!store.isSessionChanging) {
+        scheduleMicrotask(() {
+          if (mounted &&
+              !store.isSessionChanging &&
+              ref.read(authSessionProvider).isAuthenticated) {
+            unawaited(_load());
+          }
+        });
+      }
+    });
+    ref.listenManual(realtimeServiceProvider, (_, next) {
+      _detachRealtime();
+      _resetMailbox();
+      _attachRealtime(next);
+      unawaited(_load());
+    });
     _load();
+  }
+
+  void _resetMailbox() {
+    _loadGen++;
+    setState(() {
+      _items = [];
+      _unreadCount = null;
+      _remoteEvents = RemoteEvents.unknown;
+      _page = 1;
+      _hasNext = false;
+      _error = null;
+      _loading = true;
+      _refreshing = false;
+      _loadingMore = false;
+    });
+  }
+
+  void _attachRealtime(RealtimeService service) {
+    _realtime = service;
+    _remoteEvents = service.remoteEvents;
+    service.addListener(_onRealtimeEvent);
+    _statusSub = service.remoteStatus.listen((state) {
+      if (!mounted ||
+          !identical(_realtime, service) ||
+          state != service.remoteEvents) {
+        return;
+      }
+      setState(() => _remoteEvents = state);
+    });
+    _recoverySub = service.recovery.listen((_) {
+      if (!mounted ||
+          !identical(_realtime, service) ||
+          service.remoteEvents != RemoteEvents.connected) {
+        return;
+      }
+      unawaited(_load());
+    });
+    unawaited(service.connect());
+  }
+
+  void _detachRealtime() {
+    _realtime.removeListener(_onRealtimeEvent);
+    unawaited(_statusSub?.cancel());
+    unawaited(_recoverySub?.cancel());
   }
 
   @override
   void dispose() {
-    _realtime.removeListener(_onRealtimeEvent);
+    _stopSessionListener();
+    _detachRealtime();
     super.dispose();
   }
 
   void _onRealtimeEvent(Map<String, dynamic> event) {
-    final type = event['type'];
-    if (type is! String || !_notificationRealtimeTypes.contains(type)) {
+    if (!isNotificationRealtimeEvent(event['type'])) {
       return;
     }
     if (!mounted) return;
     unawaited(_load(soft: true));
-    unawaited(ref.read(notificationsUnreadProvider.notifier).refresh());
+  }
+
+  bool Function() _captureMailboxOwner() {
+    final store = ref.read(tokenStoreProvider);
+    final revision = store.revision;
+    final realtime = _realtime;
+    return () =>
+        mounted &&
+        identical(_realtime, realtime) &&
+        revision == store.revision &&
+        !store.isSessionChanging;
   }
 
   Future<void> _load({bool soft = false}) async {
     final gen = ++_loadGen;
+    final sameOwner = _captureMailboxOwner();
+    if (!sameOwner()) return;
+    bool current() => gen == _loadGen && sameOwner();
     if (!soft) {
       setState(() {
         _loading = true;
@@ -86,26 +166,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         page: 1,
         type: _type,
         unreadOnly: _unreadOnly,
+        showDeleted: _showDeleted,
       );
+      if (!current()) return;
       final unreadCount = await api.unreadCount();
-      if (!mounted || gen != _loadGen) return;
+      if (!current()) return;
       setState(() {
-        if (soft) {
-          // Soft refresh merges page 1 without wiping pages 2+.
-          final page1Ids = page.items.map((n) => n.notificationId).toSet();
-          final tail = _items
-              .where((n) => !page1Ids.contains(n.notificationId))
-              .toList();
-          _items = [...page.items, ...tail];
-          if (_page <= 1) {
-            _page = 1;
-            _hasNext = page.hasNext;
-          }
-        } else {
-          _items = page.items;
-          _page = 1;
-          _hasNext = page.hasNext;
-        }
+        _items = page.items;
+        _page = 1;
+        _hasNext = page.hasNext;
         _unreadCount = unreadCount;
         _loading = false;
         _refreshing = false;
@@ -114,7 +183,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       });
       ref.read(notificationsUnreadProvider.notifier).set(unreadCount);
     } catch (e) {
-      if (!mounted || gen != _loadGen) return;
+      if (!current()) return;
       setState(() {
         if (!soft) {
           _error = e;
@@ -132,23 +201,35 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasNext || _loading) return;
+    if (_loadingMore || !_hasNext || _loading || _refreshing) return;
     final gen = _loadGen;
+    final sameOwner = _captureMailboxOwner();
+    if (!sameOwner()) return;
+    bool current() => gen == _loadGen && sameOwner();
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
       final page = await ref
           .read(notificationsApiProvider)
-          .list(page: next, type: _type, unreadOnly: _unreadOnly);
-      if (!mounted || gen != _loadGen) return;
+          .list(
+            page: next,
+            type: _type,
+            unreadOnly: _unreadOnly,
+            showDeleted: _showDeleted,
+          );
+      if (!current()) return;
       setState(() {
-        _items = [..._items, ...page.items];
+        final seen = _items.map((item) => item.notificationId).toSet();
+        _items = [
+          ..._items,
+          ...page.items.where((item) => seen.add(item.notificationId)),
+        ];
         _page = next;
         _hasNext = page.hasNext;
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted || gen != _loadGen) return;
+      if (!current()) return;
       setState(() => _loadingMore = false);
       ScaffoldMessenger.of(
         context,
@@ -156,115 +237,68 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
   }
 
-  Future<void> _markAllRead() async {
+  Future<void> _mutate(
+    Future<void> Function(NotificationsApi) change, {
+    bool refreshOnFailure = false,
+  }) async {
+    final sameOwner = _captureMailboxOwner();
+    if (!sameOwner()) return;
     try {
-      await ref.read(notificationsApiProvider).markAllRead();
-      if (!mounted) return;
-      setState(
-        () => _items = _items
-            .map(
-              (n) => n.copyWith(
-                isRead: 1,
-                readAt: DateTime.now().toIso8601String(),
-              ),
-            )
-            .toList(),
+      await change(ref.read(notificationsApiProvider));
+      if (sameOwner()) await _load(soft: true);
+    } catch (error) {
+      if (!sameOwner()) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ErrorView.describe(context, error))),
       );
-      _unreadCount = 0;
-      ref.read(notificationsUnreadProvider.notifier).set(0);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      if (refreshOnFailure || error is FormatException) await _load(soft: true);
     }
   }
 
-  Future<void> _setRead(V2Notification n, bool isRead) async {
-    try {
-      await ref
-          .read(notificationsApiProvider)
-          .setReadStatus(notificationId: n.notificationId, isRead: isRead);
-      if (!mounted) return;
-      setState(() {
-        _items = _items
-            .map(
-              (item) => item.notificationId == n.notificationId
-                  ? item.copyWith(
-                      isRead: isRead ? 1 : 0,
-                      readAt: isRead ? DateTime.now().toIso8601String() : '',
-                    )
-                  : item,
-            )
-            .toList();
-        final current = _unreadCount ?? 0;
-        _unreadCount = isRead ? (current - 1).clamp(0, 1 << 30) : current + 1;
-      });
-      ref.read(notificationsUnreadProvider.notifier).set(_unreadCount ?? 0);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
-    }
-  }
+  Future<void> _markAllRead() => _mutate((api) => api.markAllRead());
 
-  Future<void> _delete(V2Notification n) async {
+  bool get _canMarkListed =>
+      !_showDeleted &&
+      !_loading &&
+      !_refreshing &&
+      !_markingListed &&
+      _items.any(
+        (item) => !item.readFlag && !item.isDeleted && item.notificationId > 0,
+      );
+
+  Future<void> _markListedRead() async {
+    if (!_canMarkListed) return;
+    final ids = _items
+        .where((item) => !item.readFlag && !item.isDeleted)
+        .map((item) => item.notificationId)
+        .where((id) => id > 0 && id <= 9007199254740991)
+        .toSet()
+        .toList();
+    final sameOwner = _captureMailboxOwner();
+    if (ids.isEmpty || !sameOwner()) return;
+    setState(() => _markingListed = true);
     try {
-      await ref
-          .read(notificationsApiProvider)
-          .deleteNotification(n.notificationId);
-      if (!mounted) return;
-      setState(() {
-        _items = _items
-            .map(
-              (item) => item.notificationId == n.notificationId
-                  ? item.copyWith(deletedAt: DateTime.now().toIso8601String())
-                  : item,
-            )
-            .toList();
-        if (!n.readFlag) {
-          final next = ((_unreadCount ?? 0) - 1).clamp(0, 1 << 30);
-          _unreadCount = next;
-          ref.read(notificationsUnreadProvider.notifier).set(next);
+      await _mutate((api) async {
+        for (var start = 0; start < ids.length && sameOwner(); start += 1000) {
+          final end = start + 1000 < ids.length ? start + 1000 : ids.length;
+          await api.markRead(ids.sublist(start, end));
         }
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      }, refreshOnFailure: true);
+    } finally {
+      if (mounted) setState(() => _markingListed = false);
     }
   }
 
-  Future<void> _restore(V2Notification n) async {
-    try {
-      await ref
-          .read(notificationsApiProvider)
-          .restoreNotification(n.notificationId);
-      if (!mounted) return;
-      setState(() {
-        _items = _items
-            .map(
-              (item) => item.notificationId == n.notificationId
-                  ? item.copyWith(deletedAt: '')
-                  : item,
-            )
-            .toList();
-        // n still carries the original readFlag (deletedAt only was cleared).
-        if (!n.readFlag) {
-          final next = (_unreadCount ?? 0) + 1;
-          _unreadCount = next;
-          ref.read(notificationsUnreadProvider.notifier).set(next);
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
-    }
-  }
+  Future<void> _setRead(V2Notification item, bool isRead) => _mutate(
+    (api) =>
+        api.setReadStatus(notificationId: item.notificationId, isRead: isRead),
+  );
+
+  Future<void> _delete(V2Notification item) =>
+      _mutate((api) => api.deleteNotification(item.notificationId));
+
+  Future<void> _restore(V2Notification item) =>
+      _mutate((api) => api.restoreNotification(item.notificationId));
 
   Map<String, dynamic> _metadataRecord(V2Notification n) {
     final metadata = n.metadata;
@@ -281,14 +315,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (value is int) return value;
     if (value is num) return value.toInt();
     if (value is String) return int.tryParse(value);
-    return null;
-  }
-
-  int? _firstMetadataNumber(Map<String, dynamic> metadata, List<String> keys) {
-    for (final key in keys) {
-      final value = _metadataNumber(metadata, key);
-      if (value != null) return value;
-    }
     return null;
   }
 
@@ -331,32 +357,44 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<String?> _detailRouteFor(V2Notification n) async {
     final metadata = _metadataRecord(n);
-    if (n.type == 'group_invite') return '/groups/invites';
+    if (n.type == 'group_invite' || n.resourceType == 'group_invite') {
+      final cited = notificationTargetId(metadata['invite_id']);
+      final resource = n.resourceType == 'group_invite'
+          ? notificationTargetId(n.resourceId)
+          : null;
+      final invite = cited != null && resource != null && cited != resource
+          ? null
+          : cited ?? resource;
+      return invite == null ? '/groups/invites' : '/groups/invites?invite=$invite';
+    }
     if (n.type == 'login_alert') return '/account/active';
-
-    final conversationId = _metadataNumber(metadata, 'conversation_id');
-    if ((n.type == 'direct_message' || n.resourceType == 'direct_message') &&
-        conversationId != null &&
-        conversationId > 0) {
-      return '/chat/conversation/$conversationId';
+    if (_isGroupPostNotification(n)) {
+      final target = groupPostFromNotification(
+        isComment:
+            n.type == 'group_comment' || n.resourceType == 'group_comment',
+        resourceType: n.resourceType,
+        resourceId: n.resourceId,
+        metadata: metadata,
+      );
+      return target == null ? null : groupPostLocation(target);
     }
 
     final postId =
-        _firstMetadataNumber(metadata, [
-          'target_post_id',
-          'post_id',
-          'source_post_id',
-        ]) ??
-        (n.resourceType == 'post' || n.resourceType == 'group_post'
-            ? n.resourceId
-            : null);
-    if (postId != null && postId > 0) {
-      if (_isGroupPostNotification(n)) {
-        final groupSlug = await _groupSlugFor(n, metadata);
-        if (groupSlug == null || groupSlug.isEmpty) return null;
-        return '/groups/$groupSlug/posts/$postId';
-      }
-      return '/posts/$postId';
+        notificationTargetId(metadata['target_post_id']) ??
+        notificationTargetId(metadata['post_id']) ??
+        notificationTargetId(metadata['source_post_id']) ??
+        (n.resourceType == 'post' ? notificationTargetId(n.resourceId) : null);
+    if (postId != null) {
+      final cited = notificationTargetId(metadata['comment_id']);
+      final resource = n.resourceType == 'comment'
+          ? notificationTargetId(n.resourceId)
+          : null;
+      final commentId = cited != null && resource != null && cited != resource
+          ? null
+          : cited ?? resource;
+      return commentId == null
+          ? '/posts/$postId'
+          : '/posts/$postId?comment=$commentId';
     }
 
     if (n.resourceType == 'user' && n.resourceId != null) {
@@ -377,43 +415,56 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _onTap(V2Notification n) async {
     if (n.isDeleted) return;
-    final metadata = _metadataRecord(n);
-    final conversationId = _metadataNumber(metadata, 'conversation_id');
-    final isDm =
-        (n.type == 'direct_message' || n.resourceType == 'direct_message') &&
-        conversationId != null &&
-        conversationId > 0;
+    final sameOwner = _captureMailboxOwner();
+    if (!sameOwner()) return;
+    final revision = ++_openRevision;
+    bool current() =>
+        sameOwner() &&
+        revision == _openRevision &&
+        ModalRoute.of(context)?.isCurrent == true;
 
-    if (isDm) {
-      final title =
-          _metadataString(metadata, 'participant_name') ??
-          _metadataString(metadata, 'actor_display_name') ??
-          (n.actor != null
-              ? (n.actor!.displayName.isNotEmpty
-                    ? n.actor!.displayName
-                    : n.actor!.username)
-              : null);
-      if (!mounted) return;
-      // Don't await push so mark-read still runs while the detail is open.
-      unawaited(
-        context.push(
-          '/chat/conversation/$conversationId',
-          extra: title == null
-              ? null
-              : {
-                  'title': title,
-                  'name': title,
-                },
-        ),
+    if (n.type == 'direct_message' || n.resourceType == 'direct_message') {
+      final conversationId = notificationTargetId(
+        _metadataRecord(n)['conversation_id'],
       );
-      if (!n.readFlag) {
-        unawaited(_setRead(n, true));
+      try {
+        final conversation = conversationId == null
+            ? null
+            : await ref
+                  .read(chatApiProvider)
+                  .getDirectConversation(conversationId);
+        if (!current()) return;
+        if (conversation == null) {
+          final message = AppLocalizations.of(
+            context,
+          ).t('notification.direct_unavailable');
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
+          return;
+        }
+        final participant = conversation.participant;
+        final title = participant.displayName.isNotEmpty
+            ? participant.displayName
+            : participant.username;
+        unawaited(
+          context.push(
+            '/chat/conversation/${conversation.conversationId}',
+            extra: {'title': title},
+          ),
+        );
+        if (!n.readFlag) unawaited(_setRead(n, true));
+      } catch (error) {
+        if (!current()) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErrorView.describe(context, error))),
+        );
       }
       return;
     }
 
     final route = await _detailRouteFor(n);
-    if (!mounted) return;
+    if (!current()) return;
     if (route != null) {
       unawaited(context.push(route));
     }
@@ -492,11 +543,35 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ],
           ),
           IconButton(
-            key: const Key('notifications-mark-all-read'),
-            onPressed: _markAllRead,
-            icon: const Icon(Icons.done_all),
-            tooltip: l10n.t('notification.mark_all_read'),
+            key: const Key('notifications-toggle-trash'),
+            onPressed: () {
+              setState(() {
+                _showDeleted = !_showDeleted;
+                _items = [];
+              });
+              unawaited(_load());
+            },
+            icon: Icon(
+              _showDeleted ? Icons.inbox_outlined : Icons.delete_outline,
+            ),
+            tooltip: l10n.t(
+              _showDeleted ? 'notification.inbox' : 'notification.trash',
+            ),
           ),
+          if (!_showDeleted)
+            IconButton(
+              key: const Key('notifications-mark-listed-read'),
+              onPressed: _canMarkListed ? _markListedRead : null,
+              icon: const Icon(Icons.playlist_add_check),
+              tooltip: l10n.t('notification.mark_listed_read'),
+            ),
+          if (!_showDeleted)
+            IconButton(
+              key: const Key('notifications-mark-all-read'),
+              onPressed: _markAllRead,
+              icon: const Icon(Icons.done_all),
+              tooltip: l10n.t('notification.mark_all_read'),
+            ),
         ],
       ),
       body: Align(
@@ -507,6 +582,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           ),
           child: Column(
             children: [
+              if (_remoteEvents == RemoteEvents.unavailable ||
+                  _remoteEvents == RemoteEvents.connecting)
+                Semantics(
+                  liveRegion: true,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Text(
+                      l10n.t(
+                        _remoteEvents == RemoteEvents.unavailable
+                            ? 'notification.realtime_unavailable'
+                            : 'notification.realtime_connecting',
+                      ),
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: SegmentedButton<bool>(
@@ -548,7 +638,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           : _error != null
                           ? ErrorView(error: _error!, onRetry: _load)
                           : _items.isEmpty
-                          ? EmptyView(message: l10n.t('notification.empty'))
+                          ? EmptyView(
+                              message: l10n.t(
+                                _showDeleted
+                                    ? 'notification.trash_empty'
+                                    : 'notification.empty',
+                              ),
+                            )
                           : RefreshIndicator(
                               onRefresh: () => _load(soft: true),
                               child: NotificationListener<ScrollNotification>(
@@ -566,8 +662,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                     12,
                                     24,
                                   ),
-                                  itemCount:
-                                      _items.length + (_hasNext ? 1 : 0),
+                                  itemCount: _items.length + (_hasNext ? 1 : 0),
                                   itemBuilder: (_, i) {
                                     if (i >= _items.length) {
                                       return const Padding(
@@ -579,9 +674,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                     }
                                     final n = _items[i];
                                     final theme = Theme.of(context);
-                                    final unreadTint = theme
-                                        .colorScheme
-                                        .primary
+                                    final unreadTint = theme.colorScheme.primary
                                         .withValues(alpha: 0.06);
                                     final borderColor = n.readFlag
                                         ? theme.colorScheme.outlineVariant
@@ -590,9 +683,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                             alpha: 0.22,
                                           );
                                     return Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 8,
-                                      ),
+                                      padding: const EdgeInsets.only(bottom: 8),
                                       child: Material(
                                         color: n.readFlag
                                             ? theme.colorScheme.surface
@@ -646,14 +737,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                                   ),
                                                 ),
                                           title: Text(
-                                            n.title.isEmpty
-                                                ? n.type
-                                                : n.title,
+                                            n.title.isEmpty ? n.type : n.title,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: theme
-                                                .textTheme
-                                                .titleSmall
+                                            style: theme.textTheme.titleSmall
                                                 ?.copyWith(
                                                   fontWeight: n.readFlag
                                                       ? FontWeight.w500
@@ -667,8 +754,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                               Text(
                                                 n.message,
                                                 maxLines: 2,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
@@ -676,9 +762,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                                     ? l10n.t(
                                                         'notification.deleted',
                                                       )
-                                                    : _formatDate(
-                                                        n.createdAt,
-                                                      ),
+                                                    : _formatDate(n.createdAt),
                                                 style: theme
                                                     .textTheme
                                                     .labelSmall
@@ -691,6 +775,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                             ],
                                           ),
                                           trailing: PopupMenuButton<String>(
+                                            key: ValueKey(
+                                              'notification-actions-${n.notificationId}',
+                                            ),
                                             onSelected: (value) {
                                               if (value == 'read') {
                                                 _setRead(n, true);
@@ -706,18 +793,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                               }
                                             },
                                             itemBuilder: (_) => [
-                                              if (!n.readFlag &&
-                                                  !n.isDeleted)
+                                              if (!n.readFlag && !n.isDeleted)
                                                 PopupMenuItem(
                                                   value: 'read',
                                                   child: Text(
-                                                    l10n.t(
-                                                      'common.mark_read',
-                                                    ),
+                                                    l10n.t('common.mark_read'),
                                                   ),
                                                 ),
-                                              if (n.readFlag &&
-                                                  !n.isDeleted)
+                                              if (n.readFlag && !n.isDeleted)
                                                 PopupMenuItem(
                                                   value: 'unread',
                                                   child: Text(
@@ -737,9 +820,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                                 PopupMenuItem(
                                                   value: 'restore',
                                                   child: Text(
-                                                    l10n.t(
-                                                      'common.restore',
-                                                    ),
+                                                    l10n.t('common.restore'),
                                                   ),
                                                 ),
                                             ],
@@ -763,4 +844,3 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 }
-

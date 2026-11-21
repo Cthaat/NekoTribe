@@ -12,11 +12,16 @@ import '../../features/chat/presentation/channel_screen.dart';
 import '../../features/chat/presentation/chat_home_screen.dart';
 import '../../features/chat/presentation/conversation_screen.dart';
 import '../../features/groups/presentation/group_manage_screen.dart';
+import '../../features/groups/presentation/group_invite_screen.dart';
+import '../../core/utils/group_invite.dart';
+import '../../core/utils/ai_conversation_link.dart';
+import '../../core/utils/group_post_link.dart';
 import '../../features/groups/presentation/group_detail_screen.dart';
 import '../../features/groups/presentation/group_post_detail_screen.dart';
 import '../../features/groups/presentation/group_posts_screen.dart';
 import '../../features/groups/presentation/groups_screen.dart';
 import '../../features/moderation/presentation/moderation_screen.dart';
+import '../../features/notifications/domain/notification_models.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/posts/presentation/compose_post_screen.dart';
 import '../../features/posts/presentation/edit_post_screen.dart';
@@ -25,7 +30,6 @@ import '../../features/posts/presentation/post_detail_screen.dart';
 import '../../features/posts/presentation/search_screen.dart';
 import '../../features/posts/presentation/tag_screen.dart';
 import '../../features/posts/presentation/tweet_timeline_screen.dart';
-import '../../features/sentiment_flow/presentation/sentiment_screen.dart';
 import '../../features/users/presentation/about_screen.dart';
 import '../../features/users/presentation/account_analytics_screen.dart';
 import '../../features/users/presentation/account_data_analytics_screen.dart';
@@ -40,6 +44,7 @@ import '../../features/users/presentation/pro_screen.dart';
 import '../../features/users/presentation/security_screen.dart';
 import '../../features/users/presentation/sessions_screen.dart';
 import '../../features/users/presentation/settings_screen.dart';
+import '../../features/users/presentation/visibility_screen.dart';
 import '../../features/users/presentation/statements_screen.dart';
 import '../../features/users/presentation/user_posts_screen.dart';
 import '../providers/providers.dart';
@@ -73,6 +78,8 @@ const productionRoutePaths = <String>{
   '/groups/discover',
   '/groups/my',
   '/groups/invites',
+  '/groups/invite',
+  '/groups/invite/:code',
   '/groups/posts',
   '/groups/:slug',
   '/groups/:slug/manage',
@@ -84,6 +91,7 @@ const productionRoutePaths = <String>{
   '/settings/billing',
   '/settings/pro',
   '/settings/security',
+  '/settings/relationships',
   '/settings/sessions',
   '/settings/statements',
   '/settings/endpoint',
@@ -120,6 +128,7 @@ bool isPublicRoutePath(String path) {
   return uriPath == '/feed' ||
       uriPath == '/discover' ||
       uriPath == '/about' ||
+      uriPath == '/settings/endpoint' ||
       uriPath.startsWith('/posts/') ||
       uriPath.startsWith('/tweet/') ||
       uriPath.startsWith('/tags/') ||
@@ -127,24 +136,76 @@ bool isPublicRoutePath(String path) {
       uriPath.startsWith('/users/');
 }
 
+Widget _publicProfile(BuildContext _, GoRouterState state) {
+  final raw = state.pathParameters['userId'] ?? '';
+  final id = RegExp(r'^[1-9][0-9]{0,15}$').hasMatch(raw) && raw.trim() == raw
+      ? int.tryParse(raw)
+      : null;
+  return ProfileScreen(userId: id != null && id <= 9007199254740991 ? id : 0);
+}
+
+Widget _postDetail(BuildContext _, GoRouterState state) {
+  final id = int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
+  final candidates = state.uri.queryParametersAll['comment'];
+  final raw = candidates?.length == 1 ? candidates!.single : '';
+  final parsed =
+      RegExp(r'^[1-9][0-9]{0,15}$').hasMatch(raw) && raw.trim() == raw
+      ? int.tryParse(raw)
+      : null;
+  final commentId = parsed != null && parsed <= 9007199254740991
+      ? parsed
+      : null;
+  return PostDetailScreen(
+    key: ValueKey((id, commentId)),
+    postId: id,
+    commentId: commentId,
+  );
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final session = ref.watch(authSessionProvider);
+  final authRefresh = AuthRefreshNotifier(ref);
+  ref.onDispose(authRefresh.dispose);
   return GoRouter(
     initialLocation: '/feed',
     debugLogDiagnostics: false,
-    refreshListenable: AuthRefreshNotifier(ref),
+    refreshListenable: authRefresh,
     redirect: (context, state) {
+      final session = ref.read(authSessionProvider);
       if (session.loading) return null;
       final loggedIn = session.isAuthenticated;
       final path = state.matchedLocation;
       final isAuthPath = path.startsWith('/auth');
       final isPublicPath = isPublicRoutePath(state.uri.path);
-      if (!loggedIn && !isAuthPath && !isPublicPath) return '/auth/login';
-      if (loggedIn && isAuthPath) return '/feed';
+      if (!loggedIn && !isAuthPath && !isPublicPath) {
+        final groupPost = path == '/groups/posts'
+            ? readGroupPostLink(state.uri)
+            : null;
+        if (groupPost != null) {
+          return Uri(
+            path: '/auth/login',
+            queryParameters: groupPostLinkQuery(groupPost),
+          ).toString();
+        }
+        final invite = path.startsWith('/groups/invite/')
+            ? normalizeGroupInviteCode(state.pathParameters['code'])
+            : null;
+        return invite == null ? '/auth/login' : '/auth/login?code=$invite';
+      }
+      if (loggedIn && isAuthPath) {
+        final groupPost = readGroupPostLink(state.uri);
+        return groupInviteLocation(state.uri.queryParameters['code']) ??
+            (groupPost == null ? '/feed' : groupPostLocation(groupPost));
+      }
       return null;
     },
     routes: [
-      GoRoute(path: '/auth/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(
+        path: '/auth/login',
+        builder: (_, state) => LoginScreen(
+          inviteCode: state.uri.queryParameters['code'],
+          groupPostLink: readGroupPostLink(state.uri),
+        ),
+      ),
       GoRoute(
         path: '/auth/register',
         builder: (_, __) => const RegisterScreen(),
@@ -169,6 +230,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           return TwoFactorScreen(
             challengeId: extra?['challengeId'] as String? ?? '',
             account: extra?['account'] as String? ?? '',
+            inviteCode: state.uri.queryParameters['code'],
+            groupPostLink: readGroupPostLink(state.uri),
           );
         },
       ),
@@ -186,11 +249,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/chat', builder: (_, __) => const ChatHomeScreen()),
           GoRoute(
             path: '/ai/writing',
-            builder: (_, __) => const AiWritingScreen(),
+            builder: (_, state) {
+              final id = readAiConversationLink(state.uri);
+              return AiWritingRouteScreen(conversationId: id);
+            },
           ),
           GoRoute(
             path: '/ai/knowledge',
-            builder: (_, __) => const AiWritingScreen(knowledge: true),
+            builder: (_, state) {
+              final id = readAiConversationLink(state.uri);
+              return AiWritingRouteScreen(knowledge: true, conversationId: id);
+            },
           ),
           GoRoute(path: '/me', builder: (_, __) => const AccountScreen()),
           GoRoute(path: '/groups', builder: (_, __) => const GroupsScreen()),
@@ -206,26 +275,25 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/groups/invites',
-            builder: (_, __) => const GroupsScreen(initialTab: 2),
+            builder: (_, state) {
+              final ids = state.uri.queryParametersAll['invite'];
+              return GroupsScreen(
+                initialTab: 2,
+                inviteId: ids != null && ids.length == 1
+                    ? notificationTargetId(ids.single)
+                    : null,
+              );
+            },
           ),
           GoRoute(
             path: '/moderation',
             builder: (_, __) => const ModerationScreen(),
           ),
-          GoRoute(
-            path: '/sentiment',
-            builder: (_, __) => const SentimentScreen(),
-          ),
+          GoRoute(path: '/sentiment', redirect: (_, __) => '/ai/knowledge'),
           GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),
         ],
       ),
-      GoRoute(
-        path: '/posts/:postId',
-        builder: (_, state) {
-          final id = int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
-          return PostDetailScreen(postId: id);
-        },
-      ),
+      GoRoute(path: '/posts/:postId', builder: _postDetail),
       GoRoute(
         path: '/posts/:postId/edit',
         builder: (_, state) {
@@ -234,13 +302,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/meow', builder: (_, __) => const ComposePostScreen()),
-      GoRoute(
-        path: '/tweet/:postId',
-        builder: (_, state) {
-          final id = int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
-          return PostDetailScreen(postId: id);
-        },
-      ),
+      GoRoute(path: '/tweet/:postId', builder: _postDetail),
       GoRoute(
         path: '/tweet/search/:search',
         builder: (_, state) {
@@ -252,6 +314,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/tweet/:type/:userId',
         builder: (_, state) {
           final type = state.pathParameters['type'] ?? 'home';
+          if (type == 'likes') {
+            return const AccountPostsScreen(kind: AccountPostsKind.likes);
+          }
+          if (type == 'my_tweets') {
+            return const AccountPostsScreen(kind: AccountPostsKind.posts);
+          }
           final userId =
               int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
           return TweetTimelineScreen(type: type, userId: userId);
@@ -264,26 +332,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           return TagScreen(tag: tag);
         },
       ),
-      GoRoute(
-        path: '/user/:userId/profile',
-        builder: (_, state) {
-          final userId =
-              int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
-          return ProfileScreen(userId: userId);
-        },
-      ),
+      GoRoute(path: '/user/:userId/profile', builder: _publicProfile),
       GoRoute(
         path: '/user/:userId/notifications',
         builder: (_, __) => const NotificationsScreen(),
       ),
-      GoRoute(
-        path: '/users/:userId',
-        builder: (_, state) {
-          final userId =
-              int.tryParse(state.pathParameters['userId'] ?? '') ?? 0;
-          return ProfileScreen(userId: userId);
-        },
-      ),
+      GoRoute(path: '/users/:userId', builder: _publicProfile),
       GoRoute(
         path: '/users/:userId/posts',
         builder: (_, state) {
@@ -293,6 +347,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings/relationships',
+        builder: (_, __) => const VisibilityScreen(),
+      ),
       GoRoute(
         path: '/settings/appearance',
         builder: (_, __) => const AppearanceScreen(),
@@ -376,8 +434,28 @@ final routerProvider = Provider<GoRouter>((ref) {
             const AccountPostsScreen(kind: AccountPostsKind.bookmarks),
       ),
       GoRoute(
+        path: '/groups/invite',
+        builder: (_, __) => const GroupInviteScreen(),
+      ),
+      GoRoute(
+        path: '/groups/invite/:code',
+        builder: (_, state) => GroupInviteScreen(
+          key: ValueKey(state.pathParameters['code']),
+          code: state.pathParameters['code'],
+        ),
+      ),
+      GoRoute(
         path: '/groups/posts',
-        builder: (_, __) => const GroupPostsScreen(),
+        builder: (_, state) {
+          final link = readGroupPostLink(state.uri);
+          if (link == null) return const GroupPostsScreen();
+          return GroupPostDetailScreen(
+            key: ValueKey(link),
+            groupId: link.groupId,
+            postId: link.postId,
+            commentId: link.commentId,
+          );
+        },
       ),
       GoRoute(
         path: '/groups/:slug',
@@ -399,7 +477,21 @@ final routerProvider = Provider<GoRouter>((ref) {
           final slug = state.pathParameters['slug'] ?? '';
           final postId =
               int.tryParse(state.pathParameters['postId'] ?? '') ?? 0;
-          return GroupPostDetailScreen(slug: slug, postId: postId);
+          final candidates = state.uri.queryParametersAll['comment'];
+          final raw = candidates?.length == 1 ? candidates!.single : '';
+          final parsed =
+              RegExp(r'^[1-9][0-9]{0,15}$').hasMatch(raw) && raw.trim() == raw
+              ? int.tryParse(raw)
+              : null;
+          final commentId = parsed != null && parsed <= 9007199254740991
+              ? parsed
+              : null;
+          return GroupPostDetailScreen(
+            key: ValueKey((slug, postId, commentId)),
+            slug: slug,
+            postId: postId,
+            commentId: commentId,
+          );
         },
       ),
       GoRoute(

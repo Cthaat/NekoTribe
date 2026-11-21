@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/notifications/domain/notification_models.dart';
+import '../../features/realtime/data/realtime_service.dart';
 import '../i18n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../widgets/responsive.dart';
@@ -38,10 +40,16 @@ class AppShell extends ConsumerStatefulWidget {
     ('/groups', Icons.groups_outlined, Icons.groups, 'group.title'),
     ('/moderation', Icons.shield_outlined, Icons.shield, 'moderation.title'),
     (
-      '/sentiment',
+      '/ai/knowledge',
       Icons.psychology_outlined,
       Icons.psychology,
-      'sentiment.title',
+      'ai.knowledge.title',
+    ),
+    (
+      '/ai/writing',
+      Icons.edit_note_outlined,
+      Icons.edit_note,
+      'ai.writing.title',
     ),
     ('/me', Icons.person_outline, Icons.person, 'tab.profile'),
   ];
@@ -51,8 +59,92 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  var _didRequestUnread = false;
-  var _didConnectRealtime = false;
+  var _didStartRealtime = false;
+  RealtimeService? _realtime;
+  RealtimeListener? _onRealtimeEvent;
+  StreamSubscription<int>? _recovery;
+  Timer? _unreadRefresh;
+  late final VoidCallback _stopSession;
+
+  @override
+  void initState() {
+    super.initState();
+    final store = ref.read(tokenStoreProvider);
+    var revision = store.revision;
+    var changing = store.isSessionChanging;
+    _stopSession = store.listenSessionChanges(() {
+      final service = _realtime;
+      if (service != null && revision != store.revision) {
+        _unreadRefresh?.cancel();
+        _unreadRefresh = null;
+        ref.read(notificationsUnreadProvider.notifier).set(0);
+      }
+      final changed =
+          revision != store.revision || changing != store.isSessionChanging;
+      revision = store.revision;
+      changing = store.isSessionChanging;
+      if (service != null && changed && !changing) _queueUnreadRefresh(service);
+    });
+  }
+
+  @override
+  void dispose() {
+    _stopSession();
+    _unbindRealtime();
+    super.dispose();
+  }
+
+  void _unbindRealtime() {
+    _unreadRefresh?.cancel();
+    _unreadRefresh = null;
+    final listener = _onRealtimeEvent;
+    if (listener != null) _realtime?.removeListener(listener);
+    _onRealtimeEvent = null;
+    _realtime = null;
+    unawaited(_recovery?.cancel());
+    _recovery = null;
+  }
+
+  void _queueUnreadRefresh(RealtimeService service) {
+    if (!mounted || !identical(_realtime, service) || _unreadRefresh != null) {
+      return;
+    }
+    final store = ref.read(tokenStoreProvider);
+    if (store.isSessionChanging) return;
+    final revision = store.revision;
+    _unreadRefresh = Timer(const Duration(milliseconds: 120), () {
+      _unreadRefresh = null;
+      if (!mounted ||
+          !identical(_realtime, service) ||
+          store.revision != revision ||
+          store.isSessionChanging ||
+          !ref.read(authSessionProvider).isAuthenticated) {
+        return;
+      }
+      unawaited(ref.read(notificationsUnreadProvider.notifier).refresh());
+    });
+  }
+
+  void _bindRealtime(RealtimeService service) {
+    if (identical(_realtime, service)) return;
+    final replacing = _realtime != null;
+    _unbindRealtime();
+    _realtime = service;
+    void onEvent(Map<String, dynamic> event) {
+      if (isNotificationRealtimeEvent(event['type'])) {
+        _queueUnreadRefresh(service);
+      }
+    }
+
+    _onRealtimeEvent = onEvent;
+    service.addListener(onEvent);
+    _recovery = service.recovery.listen((_) => _queueUnreadRefresh(service));
+    if (replacing) {
+      ref.read(notificationsUnreadProvider.notifier).set(0);
+      _queueUnreadRefresh(service);
+    }
+    unawaited(service.connect());
+  }
 
   int _indexFor(
     String location,
@@ -82,21 +174,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
-  void _maybeRefreshUnread(bool isAuthenticated) {
-    if (!isAuthenticated || _didRequestUnread) return;
-    _didRequestUnread = true;
+  void _maybeStartRealtime(bool isAuthenticated) {
+    if (!isAuthenticated || _didStartRealtime) return;
+    _didStartRealtime = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(notificationsUnreadProvider.notifier).refresh();
-    });
-  }
-
-  void _maybeConnectRealtime(bool isAuthenticated) {
-    if (!isAuthenticated || _didConnectRealtime) return;
-    _didConnectRealtime = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      unawaited(ref.read(realtimeServiceProvider).connect());
+      if (!mounted || !ref.read(authSessionProvider).isAuthenticated) return;
+      _bindRealtime(ref.read(realtimeServiceProvider));
+      unawaited(ref.read(notificationsUnreadProvider.notifier).refresh());
     });
   }
 
@@ -115,21 +199,24 @@ class _AppShellState extends ConsumerState<AppShell> {
       authSessionProvider.select((s) => s.isAuthenticated),
     );
 
-    // Reset one-shot flags + teardown on logout so re-login reconnects.
-    ref.listen(authSessionProvider, (prev, next) {
-      if (!next.isAuthenticated) {
-        _didConnectRealtime = false;
-        _didRequestUnread = false;
-        unawaited(ref.read(realtimeServiceProvider).disconnect());
-        ref.read(notificationsUnreadProvider.notifier).set(0);
-      } else if (prev?.isAuthenticated != true) {
-        _maybeConnectRealtime(true);
-        _maybeRefreshUnread(true);
+    ref.listen(realtimeServiceProvider, (_, next) {
+      if (ref.read(authSessionProvider).isAuthenticated) {
+        _bindRealtime(next);
       }
     });
 
-    _maybeRefreshUnread(isAuthenticated);
-    _maybeConnectRealtime(isAuthenticated);
+    ref.listen(authSessionProvider, (prev, next) {
+      if (!next.isAuthenticated) {
+        _didStartRealtime = false;
+        _unbindRealtime();
+        unawaited(ref.read(realtimeServiceProvider).disconnect());
+        ref.read(notificationsUnreadProvider.notifier).set(0);
+      } else if (prev?.isAuthenticated != true) {
+        _maybeStartRealtime(true);
+      }
+    });
+
+    _maybeStartRealtime(isAuthenticated);
 
     if (isWide) {
       return Scaffold(
@@ -303,7 +390,8 @@ const desktopAppShellPathOrder = <String>[
   '/chat',
   '/groups',
   '/moderation',
-  '/sentiment',
+  '/ai/knowledge',
+  '/ai/writing',
   '/me',
 ];
 
@@ -314,7 +402,8 @@ const desktopAppShellPaths = <String>{
   '/chat',
   '/groups',
   '/moderation',
-  '/sentiment',
+  '/ai/knowledge',
+  '/ai/writing',
   '/me',
 };
 
@@ -388,10 +477,7 @@ class _NavItem extends StatelessWidget {
     final iconWidget = Icon(data, color: color);
     final count = badgeCount ?? 0;
     if (count <= 0) return iconWidget;
-    return Badge(
-      label: Text(count > 99 ? '99+' : '$count'),
-      child: iconWidget,
-    );
+    return Badge(label: Text(count > 99 ? '99+' : '$count'), child: iconWidget);
   }
 
   @override

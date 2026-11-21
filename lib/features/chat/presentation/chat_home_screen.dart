@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/chat_models.dart';
+import 'chat_realtime_binding.dart';
 
 class ChatHomeScreen extends ConsumerStatefulWidget {
   const ChatHomeScreen({super.key});
@@ -22,8 +24,19 @@ class ChatHomeScreen extends ConsumerStatefulWidget {
 class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
     with TickerProviderStateMixin {
   late final TabController _tabController;
+  late final ChatRealtimeBinding _realtime;
+  Timer? _conversationRefresh;
+  int _homeRequest = 0;
+  int _conversationRequest = 0;
+  bool _groupPickerOpen = false;
+  final _channelMutes = <int, ({int groupId, Future<bool> receipt})>{};
   List<V2DirectConversation> _conversations = [];
+  int _conversationPage = 1, _requestedConversationPage = 1;
+  bool _hasMoreConversations = false, _loadingConversationPage = false;
+  Object? _conversationError;
   List<V2ChatGroup> _groups = [];
+  int _groupPage = 1;
+  bool _hasMoreGroups = false, _loadingMoreGroups = false;
   bool _loading = true;
   Object? _error;
 
@@ -31,36 +44,189 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _load();
+    _realtime = ChatRealtimeBinding(
+      tokenStore: ref.read(tokenStoreProvider),
+      onEvent: _onRealtime,
+      onReset: _reset,
+      onReload: () => unawaited(_load()),
+    );
+    _realtime.bind(ref.read(realtimeServiceProvider));
+    ref.listenManual(
+      realtimeServiceProvider,
+      (_, next) => _realtime.bind(next),
+    );
+    unawaited(_load());
   }
 
   @override
   void dispose() {
+    _conversationRefresh?.cancel();
+    _realtime.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
+    final ownsPage = _realtime.capture();
+    if (!ownsPage()) return;
+    final request = ++_homeRequest;
+    bool current() => mounted && ownsPage() && request == _homeRequest;
     setState(() {
       _loading = true;
+      _loadingMoreGroups = false;
       _error = null;
     });
     try {
       final api = ref.read(chatApiProvider);
-      final conversations = await api.listConversations();
+      await _refreshConversations();
+      if (!current()) return;
       final groups = await api.listChatGroups();
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
-        _conversations = conversations;
-        _groups = groups;
+        _groups = groups.items;
+        _groupPage = 1;
+        _hasMoreGroups = groups.page == 1 && groups.hasNext;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMoreGroups() async {
+    if (_loading || _loadingMoreGroups || !_hasMoreGroups) return;
+    final ownsPage = _realtime.capture();
+    final request = _homeRequest;
+    bool current() => mounted && ownsPage() && _homeRequest == request;
+    if (!current()) return;
+    final next = _groupPage + 1;
+    setState(() => _loadingMoreGroups = true);
+    try {
+      final result = await ref.read(chatApiProvider).listChatGroups(page: next);
+      if (!current()) return;
+      if (result.page != next) {
+        throw const FormatException('Unexpected chat group page');
+      }
+      setState(() {
+        _groups = {
+          for (final group in _groups) group.groupId: group,
+          for (final group in result.items) group.groupId: group,
+        }.values.toList();
+        _groupPage = next;
+        _hasMoreGroups = result.hasNext;
+      });
+    } catch (error) {
+      if (current()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErrorView.describe(context, error))),
+        );
+      }
+    } finally {
+      if (current()) setState(() => _loadingMoreGroups = false);
+    }
+  }
+
+  void _reset() {
+    _conversationRefresh?.cancel();
+    _conversationRefresh = null;
+    _homeRequest++;
+    _conversationRequest++;
+    _channelMutes.clear();
+    setState(() {
+      _conversations = [];
+      _conversationPage = _requestedConversationPage = 1;
+      _hasMoreConversations = _loadingConversationPage = false;
+      _conversationError = null;
+      _groups = [];
+      _groupPage = 1;
+      _hasMoreGroups = _loadingMoreGroups = false;
+      _loading = true;
+      _error = null;
+    });
+  }
+
+  void _onRealtime(Map<String, dynamic> event) {
+    final type = event['type'];
+    if (type != 'direct_message' && type != 'direct_message_deleted') return;
+    final data = event['data'];
+    if (data is! Map || data['conversation_id'] is! int) return;
+    final conversation = data['conversation_id'] as int;
+    if (conversation <= 0 || conversation > 9007199254740991) return;
+    if (type == 'direct_message_deleted') {
+      final message = data['message_id'];
+      if (message is! int || message <= 0 || message > 9007199254740991) return;
+      final index = _conversations.indexWhere(
+        (item) =>
+            item.conversationId == conversation &&
+            item.lastMessage?.messageId == message,
+      );
+      if (index >= 0) {
+        final previous = _conversations[index];
+        final redacted = V2DirectConversation(
+          conversationId: previous.conversationId,
+          participant: previous.participant,
+          unreadCount: previous.unreadCount,
+          createdAt: previous.createdAt,
+          updatedAt: previous.updatedAt,
+        );
+        setState(
+          () => _conversations = [..._conversations]..[index] = redacted,
+        );
+      }
+    }
+    _conversationRequest++;
+    _conversationRefresh ??= Timer(const Duration(milliseconds: 150), () {
+      _conversationRefresh = null;
+      unawaited(_refreshConversations());
+    });
+  }
+
+  Future<void> _refreshConversations({
+    int? page,
+    bool userInitiated = false,
+  }) async {
+    final ownsPage = _realtime.capture();
+    if (!ownsPage()) return;
+    final request = ++_conversationRequest;
+    bool current() => mounted && ownsPage() && request == _conversationRequest;
+    var target = page ?? _requestedConversationPage;
+    _requestedConversationPage = target;
+    if (userInitiated) setState(() => _loadingConversationPage = true);
+    try {
+      final api = ref.read(chatApiProvider);
+      var result = await api.listConversations(page: target);
+      if (!current()) return;
+      if (target > 1 && result.items.isEmpty) {
+        target = 1;
+        result = await api.listConversations();
+        if (!current()) return;
+      }
+      if (result.page != target) {
+        throw const FormatException('Unexpected conversation page');
+      }
+      setState(() {
+        _conversations = result.items;
+        _conversationError = null;
+        _conversationPage = _requestedConversationPage = target;
+        _hasMoreConversations = result.hasNext;
+      });
+    } catch (error) {
+      if (!current()) return;
+      _requestedConversationPage = _conversationPage;
+      if (_conversations.isEmpty) setState(() => _conversationError = error);
+      if (_loadingConversationPage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErrorView.describe(context, error))),
+        );
+      }
+    } finally {
+      if (current() && _loadingConversationPage) {
+        setState(() => _loadingConversationPage = false);
+      }
     }
   }
 
@@ -78,17 +244,42 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
   }
 
   Future<void> _openGroup(V2ChatGroup group) async {
+    if (_groupPickerOpen) return;
+    _groupPickerOpen = true;
+    try {
+      await _showGroupPicker(group);
+    } finally {
+      _groupPickerOpen = false;
+    }
+  }
+
+  Future<void> _showGroupPicker(V2ChatGroup group) async {
+    final owner = _realtime.capture();
+    final api = ref.read(chatApiProvider);
+    bool current() =>
+        mounted && owner() && identical(api, ref.read(chatApiProvider));
+    if (!current()) return;
     List<V2ChatChannel> channels;
     try {
-      channels = await ref.read(chatApiProvider).listChannels(group.groupId);
+      // A dismissed picker can still have an authorized write in flight.
+      await Future.wait([
+        for (final write in _channelMutes.values)
+          if (write.groupId == group.groupId)
+            write.receipt.then<void>(
+              (_) {},
+              onError: (Object _, StackTrace _) {},
+            ),
+      ]);
+      if (!mounted || !current()) return;
+      channels = await api.listChannels(group.groupId);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !current()) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
       return;
     }
-    if (!mounted) return;
+    if (!mounted || !current()) return;
     if (channels.isEmpty) {
       if (!group.canManage) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -109,11 +300,30 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
       builder: (_) => _GroupChannelPicker(
         group: group,
         channels: channels,
-        onCreate: group.canManage ? () => _createChannel(group) : null,
+        isCurrent: current,
+        onMute: _writeChannelMute,
+        onCreate: group.canManage ? () => _createChannel(group, current) : null,
       ),
     );
-    if (!mounted || selected == null) return;
+    if (!mounted || !current() || selected == null) return;
     _openChannel(selected);
+  }
+
+  Future<bool> _writeChannelMute(V2ChatChannel channel, bool muted) async {
+    final receipt = ref
+        .read(chatApiProvider)
+        .setChannelMuteStatus(channelId: channel.channelId, isMuted: muted);
+    _channelMutes[channel.channelId] = (
+      groupId: channel.groupId,
+      receipt: receipt,
+    );
+    try {
+      return await receipt;
+    } finally {
+      if (_channelMutes[channel.channelId]?.receipt == receipt) {
+        _channelMutes.remove(channel.channelId);
+      }
+    }
   }
 
   void _openChannel(V2ChatChannel channel) {
@@ -135,12 +345,16 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
       '/chat/conversation/${c.conversationId}',
       extra: {'title': title, 'name': title},
     );
-    if (mounted) _load();
+    if (mounted) await _refreshConversations();
   }
 
-  Future<V2ChatChannel?> _createChannel(V2ChatGroup group) async {
+  Future<V2ChatChannel?> _createChannel(
+    V2ChatGroup group,
+    bool Function() current,
+  ) async {
+    if (!current()) return null;
     final draft = await _showCreateChannelDialog();
-    if (draft == null) return null;
+    if (draft == null || !current()) return null;
     try {
       return await ref
           .read(chatApiProvider)
@@ -151,7 +365,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
             isPrivate: draft.isPrivate,
           );
     } catch (e) {
-      if (!mounted) return null;
+      if (!current()) return null;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -193,7 +407,15 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _conversations.isEmpty
+                    _conversationError != null
+                        ? ErrorView(
+                            error: _conversationError!,
+                            onRetry: () =>
+                                _refreshConversations(userInitiated: true),
+                          )
+                        : _conversations.isEmpty &&
+                              _conversationPage == 1 &&
+                              !_hasMoreConversations
                         ? EmptyView(
                             message: l10n.t('chat.empty'),
                             icon: Icons.chat_bubble_outline,
@@ -201,13 +423,61 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                             onAction: () => context.push('/discover'),
                           )
                         : RefreshIndicator(
-                            onRefresh: _load,
+                            onRefresh: () => _refreshConversations(
+                              page: _conversationPage,
+                              userInitiated: true,
+                            ),
                             child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                              itemCount: _conversations.length,
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                12,
+                                12,
+                                24,
+                              ),
+                              itemCount:
+                                  _conversations.length +
+                                  (_conversationPage > 1 ||
+                                          _hasMoreConversations
+                                      ? 1
+                                      : 0),
                               separatorBuilder: (_, _) =>
                                   const SizedBox(height: 8),
                               itemBuilder: (_, i) {
+                                if (i == _conversations.length) {
+                                  return Wrap(
+                                    alignment: WrapAlignment.center,
+                                    children: [
+                                      if (_conversationPage > 1)
+                                        TextButton(
+                                          onPressed: _loadingConversationPage
+                                              ? null
+                                              : () => _refreshConversations(
+                                                  page: _conversationPage - 1,
+                                                  userInitiated: true,
+                                                ),
+                                          child: Text(
+                                            l10n.t(
+                                              'chat.conversations_previous_page',
+                                            ),
+                                          ),
+                                        ),
+                                      if (_hasMoreConversations)
+                                        TextButton(
+                                          onPressed: _loadingConversationPage
+                                              ? null
+                                              : () => _refreshConversations(
+                                                  page: _conversationPage + 1,
+                                                  userInitiated: true,
+                                                ),
+                                          child: Text(
+                                            l10n.t(
+                                              'chat.conversations_next_page',
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                }
                                 final c = _conversations[i];
                                 final name = c.participant.displayName.isEmpty
                                     ? c.participant.username
@@ -283,7 +553,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                               },
                             ),
                           ),
-                    _groups.isEmpty
+                    _groups.isEmpty && !_hasMoreGroups
                         ? EmptyView(
                             message: l10n.t('chat.no_groups'),
                             icon: Icons.groups_outlined,
@@ -293,11 +563,25 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                         : RefreshIndicator(
                             onRefresh: _load,
                             child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                              itemCount: _groups.length,
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                12,
+                                12,
+                                24,
+                              ),
+                              itemCount:
+                                  _groups.length + (_hasMoreGroups ? 1 : 0),
                               separatorBuilder: (_, _) =>
                                   const SizedBox(height: 8),
                               itemBuilder: (_, i) {
+                                if (i == _groups.length) {
+                                  return TextButton(
+                                    onPressed: _loadingMoreGroups
+                                        ? null
+                                        : _loadMoreGroups,
+                                    child: Text(l10n.t('chat.more_groups')),
+                                  );
+                                }
                                 final g = _groups[i];
                                 final theme = Theme.of(context);
                                 return Material(
@@ -348,9 +632,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                                           ),
                                     ),
                                     trailing: g.unreadCount > 0
-                                        ? Badge(
-                                            label: Text('${g.unreadCount}'),
-                                          )
+                                        ? Badge(label: Text('${g.unreadCount}'))
                                         : null,
                                     onTap: () => _openGroup(g),
                                   ),
@@ -391,6 +673,8 @@ class _CreateChannelDialogState extends State<_CreateChannelDialog> {
   final _name = TextEditingController();
   final _category = TextEditingController();
   bool _isPrivate = false;
+  bool get _nameTooLong => utf8.encode(_name.text.trim()).length > 100;
+  bool get _categoryTooLong => utf8.encode(_category.text.trim()).length > 50;
 
   @override
   void initState() {
@@ -412,11 +696,11 @@ class _CreateChannelDialogState extends State<_CreateChannelDialog> {
 
   void _submit() {
     final value = _name.text.trim();
-    if (value.isEmpty) return;
+    if (value.isEmpty || _nameTooLong || _categoryTooLong) return;
     Navigator.of(context).pop(
       _ChannelDraft(
         name: value,
-        category: _category.text.trim().isEmpty ? null : _category.text.trim(),
+        category: _category.text.trim(),
         isPrivate: _isPrivate,
       ),
     );
@@ -426,7 +710,11 @@ class _CreateChannelDialogState extends State<_CreateChannelDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: Text(l10n.t('chat.create_channel')),
+      title: Text(
+        l10n.t(
+          widget.initial == null ? 'chat.create_channel' : 'chat.edit_channel',
+        ),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -434,7 +722,13 @@ class _CreateChannelDialogState extends State<_CreateChannelDialog> {
             key: const Key('chat-channel-name-field'),
             controller: _name,
             autofocus: true,
-            decoration: InputDecoration(labelText: l10n.t('chat.channel_name')),
+            decoration: InputDecoration(
+              labelText: l10n.t('chat.channel_name'),
+              errorText: _nameTooLong
+                  ? l10n.t('chat.channel_name_limit')
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
             onSubmitted: (_) => _submit(),
           ),
           const SizedBox(height: 12),
@@ -442,7 +736,11 @@ class _CreateChannelDialogState extends State<_CreateChannelDialog> {
             controller: _category,
             decoration: InputDecoration(
               labelText: l10n.t('chat.channel_category'),
+              errorText: _categoryTooLong
+                  ? l10n.t('chat.channel_category_limit')
+                  : null,
             ),
+            onChanged: (_) => setState(() {}),
             onSubmitted: (_) => _submit(),
           ),
           SwitchListTile(
@@ -460,8 +758,13 @@ class _CreateChannelDialogState extends State<_CreateChannelDialog> {
         ),
         FilledButton(
           key: const Key('chat-channel-save-button'),
-          onPressed: _submit,
-          child: Text(l10n.t('common.create')),
+          onPressed:
+              _name.text.trim().isEmpty || _nameTooLong || _categoryTooLong
+              ? null
+              : _submit,
+          child: Text(
+            l10n.t(widget.initial == null ? 'common.create' : 'common.save'),
+          ),
         ),
       ],
     );
@@ -472,11 +775,15 @@ class _GroupChannelPicker extends ConsumerStatefulWidget {
   const _GroupChannelPicker({
     required this.group,
     required this.channels,
+    required this.isCurrent,
+    required this.onMute,
     this.onCreate,
   });
 
   final V2ChatGroup group;
   final List<V2ChatChannel> channels;
+  final bool Function() isCurrent;
+  final Future<bool> Function(V2ChatChannel, bool) onMute;
   final Future<V2ChatChannel?> Function()? onCreate;
 
   @override
@@ -486,20 +793,46 @@ class _GroupChannelPicker extends ConsumerStatefulWidget {
 
 class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
   late List<V2ChatChannel> _channels;
+  late final VoidCallback _stopSessionListener;
   bool _creating = false;
+  bool _expired = false;
+  final _pendingMute = <int>{};
 
   @override
   void initState() {
     super.initState();
     _channels = List.of(widget.channels);
+    _stopSessionListener = ref.read(tokenStoreProvider).listenSessionChanges(
+      () {
+        if (!widget.isCurrent()) _expire();
+      },
+    );
+    ref.listenManual(chatApiProvider, (previous, next) {
+      if (!identical(previous, next)) _expire();
+    });
+  }
+
+  void _expire() {
+    if (!mounted || _expired) return;
+    setState(() {
+      _expired = true;
+      _channels.clear();
+      _pendingMute.clear();
+    });
+  }
+
+  @override
+  void dispose() {
+    _stopSessionListener();
+    super.dispose();
   }
 
   Future<void> _handleCreate() async {
     final onCreate = widget.onCreate;
-    if (onCreate == null || _creating) return;
+    if (onCreate == null || _creating || !widget.isCurrent()) return;
     setState(() => _creating = true);
     final channel = await onCreate();
-    if (!mounted) return;
+    if (!mounted || !widget.isCurrent()) return;
     if (channel == null) {
       setState(() => _creating = false);
       return;
@@ -508,27 +841,33 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
   }
 
   Future<void> _handleMute(V2ChatChannel channel) async {
+    final id = channel.channelId;
+    if (!widget.isCurrent() || _pendingMute.contains(id)) return;
+    setState(() => _pendingMute.add(id));
     final nextMuted = !channel.isMutedByMe;
     try {
-      await ref
-          .read(chatApiProvider)
-          .setChannelMuteStatus(
-            channelId: channel.channelId,
-            isMuted: nextMuted,
-          );
-      if (!mounted) return;
+      final muted = await widget.onMute(channel, nextMuted);
+      if (!mounted || !widget.isCurrent()) return;
       setState(() {
-        _replaceChannel(_copyChannel(channel, isMutedByMe: nextMuted));
+        final index = _channels.indexWhere((item) => item.channelId == id);
+        if (index >= 0) {
+          _channels[index] = _copyChannel(_channels[index], isMutedByMe: muted);
+        }
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !widget.isCurrent()) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (mounted && widget.isCurrent()) {
+        setState(() => _pendingMute.remove(id));
+      }
     }
   }
 
   Future<void> _handleEdit(V2ChatChannel channel) async {
+    if (!widget.isCurrent()) return;
     final draft = await showDialog<_ChannelDraft>(
       context: context,
       builder: (_) => _CreateChannelDialog(
@@ -539,7 +878,7 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
         ),
       ),
     );
-    if (draft == null) return;
+    if (draft == null || !mounted || !widget.isCurrent()) return;
     try {
       final updated = await ref
           .read(chatApiProvider)
@@ -549,10 +888,14 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
             category: draft.category,
             isPrivate: draft.isPrivate,
           );
-      if (!mounted) return;
+      if (!mounted || !widget.isCurrent()) return;
+      if (updated.groupId != widget.group.groupId ||
+          updated.channelId != channel.channelId) {
+        throw const FormatException('Invalid chat channel update response');
+      }
       setState(() => _replaceChannel(updated));
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !widget.isCurrent()) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -560,6 +903,7 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
   }
 
   Future<void> _handleDelete(V2ChatChannel channel) async {
+    if (!widget.isCurrent()) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -581,15 +925,15 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
         );
       },
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted || !widget.isCurrent()) return;
     try {
       await ref.read(chatApiProvider).deleteChannel(channel.channelId);
-      if (!mounted) return;
+      if (!mounted || !widget.isCurrent()) return;
       setState(() {
         _channels.removeWhere((item) => item.channelId == channel.channelId);
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !widget.isCurrent()) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -601,13 +945,24 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
       (item) => item.channelId == channel.channelId,
     );
     if (index >= 0) {
-      _channels[index] = channel;
+      _channels[index] = _copyChannel(
+        channel,
+        isMutedByMe: _channels[index].isMutedByMe,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (_expired) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.t('chat.channel_context_changed')),
+        ),
+      );
+    }
     final theme = Theme.of(context);
     final maxListHeight = MediaQuery.sizeOf(context).height * 0.55;
     return SafeArea(
@@ -653,15 +1008,13 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
                             ),
                           ),
                         ],
-                        if (channel.unreadCount > 0) ...[
-                          if (channel.isPrivate || channel.isMutedByMe)
-                            const SizedBox(width: 8),
+                        if (channel.unreadCount > 0 &&
+                            !channel.isMutedByMe) ...[
+                          if (channel.isPrivate) const SizedBox(width: 8),
                           Badge(label: Text('${channel.unreadCount}')),
                         ],
                         PopupMenuButton<String>(
-                          key: Key(
-                            'chat-channel-actions-${channel.channelId}',
-                          ),
+                          key: Key('chat-channel-actions-${channel.channelId}'),
                           onSelected: (value) {
                             if (value == 'mute') {
                               unawaited(_handleMute(channel));
@@ -677,6 +1030,9 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
                                 'chat-channel-mute-${channel.channelId}',
                               ),
                               value: 'mute',
+                              enabled: !_pendingMute.contains(
+                                channel.channelId,
+                              ),
                               child: Text(
                                 channel.isMutedByMe
                                     ? l10n.t('chat.unmute_channel')

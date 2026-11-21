@@ -14,10 +14,12 @@ class NotificationsApi {
     int size = 20,
     String? type,
     bool? unreadOnly,
+    bool showDeleted = false,
   }) {
     final query = <String, dynamic>{'page': page, 'page_size': size};
     if (type != null) query['type'] = type;
     if (unreadOnly != null) query['unread_only'] = unreadOnly;
+    if (showDeleted) query['show_deleted'] = true;
     return _client.requestPaged<V2Notification>(
       ApiPaths.notifications,
       query: query,
@@ -48,7 +50,15 @@ class NotificationsApi {
       '${ApiPaths.notifications}/$notificationId/read-status',
       method: 'PUT',
       data: {'is_read': isRead},
-      decode: (_) {},
+      decode: (data) {
+        if (data is! Map<String, Object?> ||
+            data['notification_id'] != notificationId ||
+            data['is_read'] != (isRead ? 1 : 0) ||
+            !data.containsKey('read_at') ||
+            (isRead ? data['read_at'] is! String : data['read_at'] != null)) {
+          throw const FormatException('Invalid notification read response');
+        }
+      },
     );
   }
 
@@ -66,6 +76,17 @@ class NotificationsApi {
       '${ApiPaths.notifications}/$id',
       method: 'DELETE',
       decode: (_) {},
+      validateSuccessEnvelope: (value) {
+        if (value is! Map<String, Object?> ||
+            value['code'] != 200 ||
+            value['message'] != 'notification deleted' ||
+            !value.containsKey('data') ||
+            value['data'] != null ||
+            !value.containsKey('meta') ||
+            value['meta'] != null) {
+          throw const FormatException('Invalid notification delete response');
+        }
+      },
     );
   }
 
@@ -73,7 +94,14 @@ class NotificationsApi {
     await _client.request<void>(
       '${ApiPaths.notifications}/$id/restore-status',
       method: 'PUT',
-      decode: (_) {},
+      decode: (data) {
+        if (data is! Map<String, Object?> ||
+            data['notification_id'] != id ||
+            !data.containsKey('deleted_at') ||
+            data['deleted_at'] != null) {
+          throw const FormatException('Invalid notification restore response');
+        }
+      },
     );
   }
 }

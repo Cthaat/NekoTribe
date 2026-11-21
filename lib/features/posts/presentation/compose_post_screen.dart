@@ -1,84 +1,237 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/api_exception.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
-import '../../sentiment_flow/presentation/sentiment_prediction_dialog.dart';
+import '../../ai/presentation/ai_writing_screen.dart';
+import '../data/posts_api.dart';
 import '../domain/post_draft_metadata.dart';
 import '../domain/post_models.dart';
 
 class ComposePostScreen extends ConsumerStatefulWidget {
-  const ComposePostScreen({super.key, this.replyToPostId, this.quotedPostId});
+  const ComposePostScreen({
+    super.key,
+    this.replyToPostId,
+    this.quotedPostId,
+    this.initialDraft,
+  });
 
   final int? replyToPostId;
   final int? quotedPostId;
+  final String? initialDraft;
 
   @override
   ConsumerState<ComposePostScreen> createState() => _ComposePostScreenState();
 }
 
 class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
+  static const _maxMedia = 4;
+  static const _maxMediaBytes = 500 * 1024 * 1024;
   final _controller = TextEditingController();
   final _locationController = TextEditingController();
   final _tagController = TextEditingController();
   final List<V2MediaAsset> _media = [];
+  final _privatePreviews = <V2MediaAsset, Uint8List>{};
+  CancelToken? _mediaUpload;
   String _visibility = 'public';
   bool _busy = false;
   bool _uploading = false;
+  bool _deleting = false;
+  bool _assistantApplied = false;
   String? _error;
+  int _draftRevision = 0;
+  late final VoidCallback _stopSessionListener;
+
+  bool get _working => _busy || _uploading || _deleting;
+  bool get _public => _visibility == 'public';
+
+  @override
+  void initState() {
+    super.initState();
+    final draft = widget.initialDraft;
+    if (draft != null && draft.length <= 280) _controller.text = draft;
+    final store = ref.read(tokenStoreProvider);
+    var sessionRevision = store.revision;
+    _stopSessionListener = store.listenSessionChanges(() {
+      if (sessionRevision == store.revision) return;
+      sessionRevision = store.revision;
+      _clearAssistantDraft();
+      _clearMediaScope();
+    });
+    ref.listenManual(appConfigProvider, (_, _) {
+      _clearAssistantDraft();
+      _clearMediaScope();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant ComposePostScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.replyToPostId != widget.replyToPostId ||
+        oldWidget.quotedPostId != widget.quotedPostId) {
+      _clearMediaScope();
+    }
+  }
+
+  void _clearMediaScope() {
+    if (!mounted) return;
+    _mediaUpload?.cancel();
+    _mediaUpload = null;
+    setState(() {
+      _draftRevision++;
+      _media.clear();
+      _privatePreviews.clear();
+      _busy = _uploading = _deleting = false;
+      _error = null;
+    });
+  }
+
+  bool _isCurrent(int revision) => mounted && revision == _draftRevision;
+
+  void _clearAssistantDraft() {
+    if (widget.initialDraft != null || _assistantApplied) _controller.clear();
+    _assistantApplied = false;
+  }
 
   @override
   void dispose() {
+    _mediaUpload?.cancel();
+    _stopSessionListener();
     _controller.dispose();
     _locationController.dispose();
     _tagController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickMedia() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: true,
-      withData: true,
-    );
-    if (result == null) return;
-    setState(() => _uploading = true);
-    final api = ref.read(mediaApiProvider);
+  Future<void> _pickMedia(FileType type) async {
+    if (_working || !requireAuthenticatedAction(context, ref)) return;
+    if (ref.read(tokenStoreProvider).isSessionChanging) return;
+    final revision = _draftRevision;
+    final scope = _public ? null : 'post';
+    final isVideo = type == FileType.video;
+    final mediaType = isVideo ? 'video' : 'image';
+    final cancel = CancelToken();
+    _mediaUpload = cancel;
+    setState(() {
+      _uploading = true;
+      _error = null;
+    });
     try {
+      final result = await FilePicker.platform.pickFiles(
+        type: type,
+        allowMultiple: true,
+        withData: !isVideo,
+        withReadStream: isVideo && kIsWeb,
+      );
+      if (!_isCurrent(revision) || result == null) return;
+      if (_media.length + result.files.length > _maxMedia) {
+        setState(
+          () => _error = AppLocalizations.of(context).t('compose.media_limit'),
+        );
+        return;
+      }
+      if (result.files.any((file) => file.size > _maxMediaBytes)) {
+        setState(
+          () => _error = AppLocalizations.of(context).t('compose.media_size'),
+        );
+        return;
+      }
+      final api = ref.read(mediaApiProvider);
       for (final f in result.files) {
+        final V2MediaAsset asset;
+        final stream = f.readStream;
         if (f.bytes != null) {
-          final asset = await api.uploadBytes(
+          asset = await api.uploadBytes(
             bytes: f.bytes!,
             fileName: f.name,
-            mediaType: 'image',
+            mediaType: mediaType,
+            accessScope: scope,
+            cancelToken: cancel,
           );
-          _media.add(asset);
-        } else if (f.path != null) {
-          final asset = await api.uploadFile(
+        } else if (stream != null) {
+          asset = await api.uploadStream(
+            chunks: stream,
+            length: f.size,
+            fileName: f.name,
+            mediaType: mediaType,
+            accessScope: scope,
+            cancelToken: cancel,
+          );
+        } else if (!kIsWeb && f.path != null) {
+          asset = await api.uploadFile(
             file: File(f.path!),
-            mediaType: 'image',
+            mediaType: mediaType,
+            accessScope: scope,
+            cancelToken: cancel,
           );
-          _media.add(asset);
+        } else {
+          continue;
         }
+        if (!_isCurrent(revision)) return;
+        setState(() {
+          _media.add(asset);
+          if (scope != null && !isVideo && f.bytes != null) {
+            _privatePreviews[asset] = f.bytes!;
+          }
+        });
       }
-      if (mounted) setState(() {});
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = ErrorView.describe(context, e));
+      if (!_isCurrent(revision)) return;
+      setState(() {
+        _error = e is ApiException && e.statusCode == 401
+            ? AppLocalizations.of(context).t('compose.media_retry')
+            : ErrorView.describe(context, e);
+      });
     } finally {
-      if (mounted) setState(() => _uploading = false);
+      if (_isCurrent(revision)) {
+        _mediaUpload = null;
+        setState(() => _uploading = false);
+      }
+    }
+  }
+
+  Future<void> _removeMedia(V2MediaAsset asset) async {
+    if (_working || !requireAuthenticatedAction(context, ref)) return;
+    final revision = _draftRevision;
+    setState(() {
+      _deleting = true;
+      _error = null;
+    });
+    try {
+      await ref.read(mediaApiProvider).deleteMedia(asset.mediaId);
+      if (!_isCurrent(revision)) return;
+      setState(() {
+        _media.remove(asset);
+        _privatePreviews.remove(asset);
+      });
+    } catch (error) {
+      if (!_isCurrent(revision)) return;
+      setState(() {
+        _error = error is ApiException && error.statusCode == 409
+            ? AppLocalizations.of(context).t('compose.media_in_use')
+            : ErrorView.describe(context, error);
+      });
+    } finally {
+      if (_isCurrent(revision)) setState(() => _deleting = false);
     }
   }
 
   Future<void> _publish() async {
+    if (_working) return;
     if (_controller.text.trim().isEmpty && _media.isEmpty) return;
     if (!requireAuthenticatedAction(context, ref)) return;
+    if (ref.read(tokenStoreProvider).isSessionChanging) return;
+    final revision = _draftRevision;
     setState(() {
       _busy = true;
       _error = null;
@@ -97,21 +250,86 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                 : _locationController.text.trim(),
             tags: _tagNames(),
           );
-      if (!mounted) return;
+      if (!_isCurrent(revision)) return;
       Navigator.of(context).pop(post);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = ErrorView.describe(context, e));
+      if (!_isCurrent(revision)) return;
+      setState(() {
+        _error = e is UnconfirmedPostError
+            ? AppLocalizations.of(context).t('compose.publish_unconfirmed')
+            : ErrorView.describe(context, e);
+      });
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_isCurrent(revision)) setState(() => _busy = false);
     }
   }
 
-  Future<void> _analyzeSentiment() async {
-    if (!requireAuthenticatedAction(context, ref)) return;
-    await showSentimentPredictionDialog(
-      context: context,
-      text: _controller.text,
+  Future<void> _openWritingAssistant() async {
+    if (_working || !requireAuthenticatedAction(context, ref)) return;
+    final store = ref.read(tokenStoreProvider);
+    if (store.isSessionChanging) return;
+    final revision = _draftRevision;
+    final session = store.revision;
+    final source = _controller.text;
+    bool current() =>
+        _isCurrent(revision) &&
+        !store.isSessionChanging &&
+        store.revision == session &&
+        _controller.text == source;
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) => AiWritingScreen(composerDraft: current() ? source : ''),
+      ),
+    );
+    if (!current() || result == null || result.trim().isEmpty || result.length > 280) {
+      return;
+    }
+    _assistantApplied = true;
+    _controller.value = TextEditingValue(
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
+    );
+  }
+
+  bool _canSelectVisibility(String value) =>
+      _media.isEmpty || (value == 'public') == _public;
+
+  Widget _mediaPreview(V2MediaAsset asset, ThemeData theme) {
+    if (asset.isVideo) {
+      return Tooltip(
+        message: asset.fileName,
+        child: ColoredBox(
+          color: theme.colorScheme.surfaceContainerHighest,
+          child: Icon(
+            asset.usesContentRoute ? Icons.lock_outline : Icons.movie_outlined,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+    final placeholder = ColoredBox(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Icon(
+        asset.usesContentRoute
+            ? Icons.lock_outline
+            : Icons.broken_image_outlined,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+    if (asset.usesContentRoute) {
+      final bytes = _privatePreviews[asset];
+      return bytes == null
+          ? placeholder
+          : Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => placeholder,
+            );
+    }
+    return Image.network(
+      ref.read(assetUrlResolverProvider).resolve(asset.publicUrl),
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => placeholder,
     );
   }
 
@@ -126,7 +344,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: FilledButton(
-              onPressed: _busy ? null : _publish,
+              onPressed: _working ? null : _publish,
               child: _busy
                   ? const SizedBox(
                       height: 16,
@@ -200,28 +418,19 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                               height: 100,
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  ref
-                                      .read(assetUrlResolverProvider)
-                                      .resolve(asset.publicUrl),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => ColoredBox(
-                                    color: theme
-                                        .colorScheme
-                                        .surfaceContainerHighest,
-                                    child: Icon(
-                                      Icons.broken_image_outlined,
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
+                                child: _mediaPreview(asset, theme),
                               ),
                             ),
                             Positioned(
                               top: 4,
                               right: 4,
                               child: InkWell(
-                                onTap: () => setState(() => _media.removeAt(i)),
+                                key: ValueKey(
+                                  'compose-remove-media-${asset.mediaId}',
+                                ),
+                                onTap: _working
+                                    ? null
+                                    : () => _removeMedia(asset),
                                 customBorder: const CircleBorder(),
                                 child: const CircleAvatar(
                                   radius: 12,
@@ -244,7 +453,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                 Row(
                   children: [
                     IconButton(
-                      onPressed: _uploading ? null : _pickMedia,
+                      onPressed: _working || _media.length >= _maxMedia
+                          ? null
+                          : () => _pickMedia(FileType.image),
                       tooltip: l10n.t('compose.media'),
                       icon: _uploading
                           ? const SizedBox(
@@ -258,8 +469,18 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                             ),
                     ),
                     IconButton(
-                      onPressed: _busy ? null : _analyzeSentiment,
-                      tooltip: l10n.t('sentiment.actions.predict'),
+                      onPressed: _working || _media.length >= _maxMedia
+                          ? null
+                          : () => _pickMedia(FileType.video),
+                      tooltip: l10n.t('compose.video'),
+                      icon: Icon(
+                        Icons.video_file_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _working ? null : _openWritingAssistant,
+                      tooltip: l10n.t('ai.writing.title'),
                       icon: Icon(
                         Icons.psychology_alt_outlined,
                         color: theme.colorScheme.primary,
@@ -267,7 +488,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                     ),
                     const Spacer(),
                     Icon(
-                      Icons.public,
+                      _public ? Icons.public : Icons.lock_outline,
                       size: 18,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -277,29 +498,45 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                       value: _visibility,
                       underline: const SizedBox.shrink(),
                       isDense: true,
-                      onChanged: (v) =>
-                          setState(() => _visibility = v ?? 'public'),
+                      onChanged: _working
+                          ? null
+                          : (value) {
+                              if (value != null &&
+                                  _canSelectVisibility(value)) {
+                                setState(() => _visibility = value);
+                              }
+                            },
                       items: [
                         DropdownMenuItem(
                           value: 'public',
+                          enabled: _canSelectVisibility('public'),
                           child: Text(l10n.t('common.public')),
                         ),
                         DropdownMenuItem(
                           value: 'followers',
+                          enabled: _canSelectVisibility('followers'),
                           child: Text(l10n.t('common.followers_only')),
                         ),
                         DropdownMenuItem(
                           value: 'mentioned',
+                          enabled: _canSelectVisibility('mentioned'),
                           child: Text(l10n.t('common.mentioned_only')),
                         ),
                         DropdownMenuItem(
                           value: 'private',
+                          enabled: _canSelectVisibility('private'),
                           child: Text(l10n.t('common.private')),
                         ),
                       ],
                     ),
                   ],
                 ),
+                if (_media.isNotEmpty)
+                  Text(
+                    l10n.t('compose.media_visibility_locked'),
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.bodySmall,
+                  ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Container(

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/group_models.dart';
+import 'group_image_upload.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
   const GroupDetailScreen({super.key, required this.slug});
@@ -27,16 +30,51 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   int _page = 1;
   Object? _error;
   bool _busy = false;
+  bool _composing = false;
+  bool _expired = false;
+  int _request = 0;
+  late final VoidCallback _stopSessionListener;
 
   static const _pageSize = 20;
 
   @override
   void initState() {
     super.initState();
+    final tokens = ref.read(tokenStoreProvider);
+    _expired = tokens.isSessionChanging;
+    _stopSessionListener = tokens.listenSessionChanges(_expire);
+    ref.listenManual(groupsApiProvider, (previous, next) {
+      if (!identical(previous, next)) _expire();
+    });
     _load();
   }
 
+  @override
+  void dispose() {
+    _stopSessionListener();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant GroupDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.slug != widget.slug) _expire();
+  }
+
+  void _expire() {
+    if (!mounted || _expired) return;
+    _request++;
+    setState(() {
+      _expired = true;
+      _group = null;
+      _posts = [];
+    });
+  }
+
   Future<void> _load() async {
+    if (!mounted || _expired) return;
+    final request = ++_request;
+    bool current() => mounted && request == _request;
     setState(() {
       _loading = true;
       _error = null;
@@ -47,17 +85,25 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     try {
       final api = ref.read(groupsApiProvider);
       final group = await api.getGroup(widget.slug);
-      final posts = await api.posts(group.groupId, page: 1, size: _pageSize);
-      if (!mounted) return;
+      if (!current()) return;
+      if (group.groupId <= 0 || group.slug != widget.slug) {
+        throw const FormatException('Unexpected group');
+      }
+      final posts = group.privacy == 'public' || _activeMember(group)
+          ? await api.posts(group.groupId, page: 1, size: _pageSize)
+          : null;
+      if (!current()) return;
       setState(() {
         _group = group;
-        _posts = posts.items;
+        _posts = posts?.items ?? [];
         _page = 1;
-        _hasNext = posts.hasNext;
+        _hasNext = posts?.hasNext ?? false;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
+      _group = null;
+      _posts = [];
       setState(() {
         _error = e;
         _loading = false;
@@ -66,14 +112,17 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   }
 
   Future<void> _loadMorePosts() async {
-    if (_loadingMore || !_hasNext || _loading || _group == null) return;
+    if (_expired || _loadingMore || !_hasNext || _loading || _group == null) {
+      return;
+    }
+    final request = _request;
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
       final page = await ref
           .read(groupsApiProvider)
           .posts(_group!.groupId, page: next, size: _pageSize);
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
         _posts = [..._posts, ...page.items];
         _page = next;
@@ -81,7 +130,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() => _loadingMore = false);
       ScaffoldMessenger.of(
         context,
@@ -90,77 +139,245 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   }
 
   Future<void> _toggleMembership() async {
-    if (_group == null || _busy) return;
+    final group = _group;
+    if (_expired ||
+        _loading ||
+        group == null ||
+        _busy ||
+        !_canChangeMembership(group)) {
+      return;
+    }
+    final api = ref.read(groupsApiProvider);
+    bool current() =>
+        mounted && !_expired && identical(ref.read(groupsApiProvider), api);
     setState(() => _busy = true);
     try {
-      final api = ref.read(groupsApiProvider);
-      if (_group!.membership.isMember) {
-        await api.leaveGroup(_group!.groupId);
+      final status = group.membership.status;
+      if (status == 'active' || status == 'muted' || status == 'pending') {
+        await api.leaveGroup(group.groupId);
       } else {
-        await api.joinGroup(_group!.groupId);
+        await api.joinGroup(group.groupId);
       }
+      if (!current()) return;
       await _load();
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _busy = false);
     }
   }
 
   Future<void> _composePost() async {
-    final controller = TextEditingController();
+    final group = _group;
+    if (_expired ||
+        _loading ||
+        _composing ||
+        group == null ||
+        !_canPost(group)) {
+      return;
+    }
+    setState(() => _composing = true);
+    final api = ref.read(groupsApiProvider);
+    final request = _request;
+    bool current() =>
+        mounted &&
+        request == _request &&
+        identical(ref.read(groupsApiProvider), api);
+    var draft = '';
+    var announcement = false;
+    final attachments = <String>[];
+    var uploading = false;
+    var dialogEnded = false;
+    String? attachmentError;
+    final canAnnounce = _canManageGroup(group.membership.role);
     final l10n = AppLocalizations.of(context);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(l10n.t('group.new_post')),
-        content: TextField(
-          controller: controller,
-          maxLines: 5,
-          minLines: 3,
-          decoration: InputDecoration(hintText: l10n.t('group.compose_hint')),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.t('common.cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(l10n.t('common.post')),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (result == null || result.isEmpty) return;
     try {
-      final created = await ref
-          .read(groupsApiProvider)
-          .createPost(groupId: _group!.groupId, content: result);
-      if (!mounted) return;
-      // Local prepend keeps scroll/history; avoid full page reload flash.
-      setState(() {
-        _posts = [created, ..._posts];
-        final group = _group;
-        if (group != null) {
-          // Keep membership/meta; only post list is updated.
-          _group = group;
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, update) {
+            final bytes = utf8.encode(draft.trim()).length;
+            return AlertDialog(
+              title: Text(l10n.t('group.new_post')),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      onChanged: (value) => update(() => draft = value),
+                      maxLines: 5,
+                      minLines: 3,
+                      decoration: InputDecoration(
+                        hintText: l10n.t('group.compose_hint'),
+                        errorText: bytes > 4000
+                            ? l10n.t('group.compose_too_long')
+                            : null,
+                      ),
+                    ),
+                    if (canAnnounce)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(l10n.t('group.compose_announcement')),
+                        value: announcement,
+                        onChanged: (value) =>
+                            update(() => announcement = value ?? false),
+                      ),
+                    if (attachments.isNotEmpty)
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (
+                            var index = 0;
+                            index < attachments.length;
+                            index++
+                          )
+                            InputChip(
+                              key: ValueKey(attachments[index]),
+                              avatar: AppMediaImage(
+                                url: attachments[index],
+                                width: 24,
+                                height: 24,
+                              ),
+                              label: Text(
+                                l10n
+                                    .t('group.compose_image_number')
+                                    .replaceFirst('{number}', '${index + 1}'),
+                              ),
+                              deleteButtonTooltipMessage: l10n.t(
+                                'group.compose_remove_image',
+                              ),
+                              onDeleted: uploading
+                                  ? null
+                                  : () => update(
+                                      () => attachments.removeAt(index),
+                                    ),
+                            ),
+                        ],
+                      ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.image_outlined),
+                      label: Text(
+                        l10n.t(
+                          uploading
+                              ? 'group.compose_uploading'
+                              : 'group.compose_add_image',
+                        ),
+                      ),
+                      onPressed: uploading
+                          ? null
+                          : () async {
+                              if (!current()) return;
+                              bool dialogCurrent() =>
+                                  !dialogEnded &&
+                                  dialogContext.mounted &&
+                                  current();
+                              update(() {
+                                uploading = true;
+                                attachmentError = null;
+                              });
+                              try {
+                                final raw = await pickAndUploadGroupImage(
+                                  ref: ref,
+                                  isCurrent: dialogCurrent,
+                                );
+                                if (!dialogCurrent() || raw == null) return;
+                                final url = raw.trim();
+                                final uri = Uri.tryParse(url);
+                                if (uri == null ||
+                                    url.contains(',') ||
+                                    !((url.startsWith('/') &&
+                                            !url.startsWith('//')) ||
+                                        ((uri.scheme == 'http' ||
+                                                uri.scheme == 'https') &&
+                                            uri.host.isNotEmpty))) {
+                                  throw const FormatException(
+                                    'Invalid group image URL',
+                                  );
+                                }
+                                if (attachments.contains(url)) return;
+                                if (utf8
+                                        .encode([...attachments, url].join(','))
+                                        .length >
+                                    2000) {
+                                  update(
+                                    () => attachmentError =
+                                        'group.compose_attachment_limit',
+                                  );
+                                } else {
+                                  update(() => attachments.add(url));
+                                }
+                              } catch (_) {
+                                if (dialogCurrent()) {
+                                  update(
+                                    () => attachmentError =
+                                        'group.compose_attachment_failed',
+                                  );
+                                }
+                              } finally {
+                                if (dialogCurrent()) {
+                                  update(() => uploading = false);
+                                }
+                              }
+                            },
+                    ),
+                    if (attachmentError != null) Text(l10n.t(attachmentError!)),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(l10n.t('common.cancel')),
+                ),
+                FilledButton(
+                  onPressed: uploading || bytes == 0 || bytes > 4000
+                      ? null
+                      : () => Navigator.pop(dialogContext, true),
+                  child: Text(l10n.t('common.post')),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      dialogEnded = true;
+      if (!current() || confirmed != true) return;
+      await api.createPost(
+        groupId: group.groupId,
+        content: draft.trim(),
+        isAnnouncement: canAnnounce && announcement,
+        mediaUrls: List.of(attachments),
+      );
+      if (!current()) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      ).showSnackBar(SnackBar(content: Text(l10n.t('group.compose_success'))));
+      await _load();
+    } catch (e) {
+      if (!current()) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is FormatException
+                ? l10n.t('group.compose_unconfirmed')
+                : ErrorView.describe(context, e),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted && !_expired) setState(() => _composing = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(groupsApiProvider, (previous, next) {
+      if (!identical(previous, next)) _expire();
+    });
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
@@ -172,7 +389,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         ),
         actions: [
           // Manage is owner/admin/moderator only — not every member.
-          if (_group != null && _canManageGroup(_group!.membership.role))
+          if (!_loading &&
+              _group != null &&
+              _activeMember(_group!) &&
+              _canManageGroup(_group!.membership.role))
             IconButton(
               icon: const Icon(Icons.settings_outlined),
               tooltip: l10n.t('common.settings'),
@@ -180,14 +400,17 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             ),
         ],
       ),
-      floatingActionButton: _group != null && _group!.membership.isMember
+      floatingActionButton:
+          !_loading && !_busy && _group != null && _canPost(_group!)
           ? FloatingActionButton.extended(
-              onPressed: _composePost,
+              onPressed: _composing ? null : _composePost,
               icon: const Icon(Icons.edit),
               label: Text(l10n.t('group.new_post')),
             )
           : null,
-      body: _loading
+      body: _expired
+          ? EmptyView(message: l10n.t('visibility.sessionChanged'))
+          : _loading
           ? const LoadingView()
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
@@ -203,8 +426,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   onRefresh: _load,
                   child: NotificationListener<ScrollNotification>(
                     onNotification: (n) {
-                      if (n.metrics.pixels >=
-                          n.metrics.maxScrollExtent - 200) {
+                      if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
                         _loadMorePosts();
                       }
                       return false;
@@ -265,7 +487,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                           child: SizedBox(
                             width: double.infinity,
                             child: FilledButton(
-                              onPressed: _busy ? null : _toggleMembership,
+                              onPressed: _busy || !_canChangeMembership(_group!)
+                                  ? null
+                                  : _toggleMembership,
                               style: _group!.membership.isMember
                                   ? FilledButton.styleFrom(
                                       backgroundColor: theme
@@ -283,11 +507,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : Text(
-                                      _group!.membership.isMember
-                                          ? l10n.t('group.leave')
-                                          : l10n.t('group.join'),
-                                    ),
+                                  : Text(l10n.t(_membershipLabel(_group!))),
                             ),
                           ),
                         ),
@@ -315,7 +535,14 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                           Padding(
                             padding: const EdgeInsets.all(32),
                             child: Center(
-                              child: Text(l10n.t('group.no_posts')),
+                              child: Text(
+                                l10n.t(
+                                  _group!.privacy != 'public' &&
+                                          !_activeMember(_group!)
+                                      ? 'group.member_posts_only'
+                                      : 'group.no_posts',
+                                ),
+                              ),
                             ),
                           )
                         else
@@ -344,6 +571,42 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
 bool _canManageGroup(String? role) {
   return role == 'owner' || role == 'admin' || role == 'moderator';
+}
+
+bool _activeMember(V2Group group) => group.membership.status == 'active';
+
+bool _canPost(V2Group group) {
+  if (!_activeMember(group)) return false;
+  final role = group.membership.role;
+  return switch (group.postPermission) {
+    'all' => true,
+    'moderator_up' => _canManageGroup(role),
+    'admin_only' => role == 'owner' || role == 'admin',
+    _ => false,
+  };
+}
+
+bool _canChangeMembership(V2Group group) {
+  final status = group.membership.status;
+  if (status == 'pending') return true;
+  if (status == 'active' || status == 'muted') {
+    return group.membership.role != 'owner';
+  }
+  return !group.membership.isMember &&
+      status == null &&
+      group.privacy != 'secret';
+}
+
+String _membershipLabel(V2Group group) {
+  if (group.membership.status == 'pending') return 'group.cancel_request';
+  if (_activeMember(group) || group.membership.status == 'muted') {
+    return group.membership.role == 'owner'
+        ? 'group.membership_owner'
+        : 'group.leave';
+  }
+  return _canChangeMembership(group)
+      ? 'group.join'
+      : 'group.membership_unavailable';
 }
 
 class _MetaPiece extends StatelessWidget {

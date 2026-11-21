@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/token_store.dart';
 import '../../core/network/api_exception.dart';
 import '../i18n/app_localizations.dart';
 
@@ -12,6 +13,9 @@ class ErrorView extends StatelessWidget {
 
   static String describe(BuildContext context, Object error) {
     final l10n = AppLocalizations.of(context);
+    if (error is SessionStorageUnavailable) {
+      return l10n.t('auth.secure_browser_required');
+    }
     if (error is ApiException) {
       if (error.isUnauthorized) return l10n.t('error.unauthorized');
       if (error.isForbidden) return l10n.t('error.forbidden');
@@ -131,10 +135,7 @@ class EmptyView extends StatelessWidget {
             ),
             if (showAction) ...[
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: onAction,
-                child: Text(actionLabel!),
-              ),
+              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],
         ),

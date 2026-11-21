@@ -38,6 +38,27 @@ class V2ChatGroup {
   }
 }
 
+class V2ChatMember {
+  V2ChatMember.fromJson(Map<String, dynamic> json)
+    : username = toStr(json['username']),
+      displayName = toStr(json['display_name']),
+      avatarUrl = toStrOrNull(json['avatar_url']),
+      role = toStr(json['role']),
+      status = toStr(json['status']),
+      onlineStatus = toStr(json['online_status']),
+      lastSeenAt = json['online_status'] == 'offline'
+          ? DateTime.tryParse(toStr(json['last_seen_at']))
+          : null;
+
+  final String username;
+  final String displayName;
+  final String? avatarUrl;
+  final String role;
+  final String status;
+  final String onlineStatus;
+  final DateTime? lastSeenAt;
+}
+
 class V2ChatLastMessage {
   V2ChatLastMessage({
     required this.messageId,

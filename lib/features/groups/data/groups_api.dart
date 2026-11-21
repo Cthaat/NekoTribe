@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
@@ -9,9 +11,24 @@ class GroupsApi {
 
   final ApiClient _client;
 
+  Future<PagedResult<V2GroupAuditEntry>> auditLogs(
+    int groupId, {
+    required int page,
+    required CancelToken cancelToken,
+  }) {
+    return _client.requestPaged<V2GroupAuditEntry>(
+      '${ApiPaths.groups}/$groupId/audit-logs',
+      query: {'page': page, 'page_size': 20},
+      cancelToken: cancelToken,
+      decodeItem: (item) => V2GroupAuditEntry.fromJson(toMap(item)),
+    );
+  }
+
   Future<PagedResult<V2Group>> list({
     String mode = 'discover',
     String? category,
+    String? privacy,
+    String? search,
     int page = 1,
     int size = 20,
   }) {
@@ -21,6 +38,8 @@ class GroupsApi {
       'page_size': size,
     };
     if (category != null) query['category'] = category;
+    if (privacy != null) query['privacy'] = privacy;
+    if (search != null && search.isNotEmpty) query['q'] = search;
     return _client.requestPaged<V2Group>(
       ApiPaths.groups,
       query: query,
@@ -36,19 +55,51 @@ class GroupsApi {
     );
   }
 
-  Future<PagedResult<V2Group>> myGroups({int page = 1, int size = 20}) {
+  Future<PagedResult<V2Group>> myGroups({
+    int page = 1,
+    int size = 20,
+    String? category,
+    String? privacy,
+    String? search,
+  }) {
     return _client.requestPaged<V2Group>(
       ApiPaths.usersMeGroups,
-      query: {'page': page, 'page_size': size},
+      query: {
+        'page': page,
+        'page_size': size,
+        if (category != null) 'category': category,
+        if (privacy != null) 'privacy': privacy,
+        if (search != null && search.isNotEmpty) 'q': search,
+      },
       decodeItem: (item) => V2Group.fromJson(toMap(item)),
     );
   }
 
   Future<V2Group> getGroup(String slug) {
     return _client.requestData<V2Group>(
-      '${ApiPaths.groups}/by-slug/$slug',
-      decode: (data) => V2Group.fromJson(toMap(data)),
+      '${ApiPaths.groups}/by-slug/${Uri.encodeComponent(slug)}',
+      decode: (data) => _decodeGroupDetail(data, slug: slug),
     );
+  }
+
+  Future<V2Group> getGroupById(int groupId) {
+    return _client.requestData<V2Group>(
+      '${ApiPaths.groups}/$groupId',
+      decode: (data) => _decodeGroupDetail(data, groupId: groupId),
+    );
+  }
+
+  V2Group _decodeGroupDetail(Object? data, {int? groupId, String? slug}) {
+    final group = toMap(data);
+    final id = group['group_id'];
+    if (id is! int ||
+        id <= 0 ||
+        id > 9007199254740991 ||
+        (groupId != null && id != groupId) ||
+        (slug != null && group['slug'] != slug)) {
+      throw const FormatException('Invalid group detail response');
+    }
+    return V2Group.fromJson(group);
   }
 
   Future<V2Group> createGroup({
@@ -137,11 +188,25 @@ class GroupsApi {
     );
   }
 
-  Future<V2GroupMembership> joinGroup(int groupId, {String? message}) {
+  Future<V2GroupInvitePreview> previewInvite(String code) {
+    return _client.requestData<V2GroupInvitePreview>(
+      '${ApiPaths.groups}/invite-codes/${Uri.encodeComponent(code)}',
+      decode: (data) => V2GroupInvitePreview.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2GroupMembership> joinGroup(
+    int groupId, {
+    String? message,
+    String? inviteCode,
+  }) {
     return _client.requestData<V2GroupMembership>(
       '${ApiPaths.groups}/$groupId/members/current',
       method: 'POST',
-      data: {if (message != null) 'message': message},
+      data: {
+        if (message != null) 'message': message,
+        if (inviteCode != null) 'invite_code': inviteCode,
+      },
       decode: (data) => V2GroupMembership.fromJson(toMap(data)),
     );
   }
@@ -270,23 +335,46 @@ class GroupsApi {
     required String content,
     bool isAnnouncement = false,
     List<String> mediaUrls = const [],
+    CancelToken? cancelToken,
   }) {
     return _client.requestData<V2GroupPost>(
       '${ApiPaths.groups}/$groupId/posts',
       method: 'POST',
+      cancelToken: cancelToken,
       data: {
         'content': content,
         'is_announcement': isAnnouncement,
         if (mediaUrls.isNotEmpty) 'media_urls': mediaUrls,
       },
-      decode: (data) => V2GroupPost.fromJson(toMap(data)),
+      decode: (data) {
+        final body = toMap(data);
+        final postId = body['post_id'];
+        if (body['group_id'] != groupId ||
+            body['is_announcement'] != isAnnouncement ||
+            postId is! num ||
+            !postId.isFinite ||
+            postId < 1 ||
+            postId > 9007199254740991 ||
+            postId != postId.truncate()) {
+          throw const FormatException('Invalid group post receipt');
+        }
+        return V2GroupPost.fromJson(body);
+      },
     );
   }
 
-  Future<PagedResult<V2GroupInvite>> myInvites({int page = 1, int size = 20}) {
+  Future<PagedResult<V2GroupInvite>> myInvites({
+    int page = 1,
+    int size = 20,
+    int? inviteId,
+  }) {
     return _client.requestPaged<V2GroupInvite>(
       ApiPaths.usersMeGroupInvites,
-      query: {'page': page, 'page_size': size},
+      query: {
+        'page': page,
+        'page_size': size,
+        if (inviteId != null) 'invite_id': inviteId,
+      },
       decodeItem: (item) => V2GroupInvite.fromJson(toMap(item)),
     );
   }
@@ -304,23 +392,25 @@ class GroupsApi {
     int groupId, {
     int page = 1,
     int size = 20,
+    CancelToken? cancelToken,
   }) {
     return _client.requestPaged<V2GroupInvite>(
       '${ApiPaths.groups}/$groupId/invites',
       query: {'page': page, 'page_size': size},
+      cancelToken: cancelToken,
       decodeItem: (item) => V2GroupInvite.fromJson(toMap(item)),
     );
   }
 
-  Future<V2GroupMembership> respondInvite({
+  Future<V2GroupInviteResponse> respondInvite({
     required int inviteId,
-    required String action,
+    required bool accept,
   }) {
-    return _client.requestData<V2GroupMembership>(
+    return _client.requestData<V2GroupInviteResponse>(
       '${ApiPaths.groups}/invites/$inviteId/responses',
       method: 'POST',
-      data: {'action': action},
-      decode: (data) => V2GroupMembership.fromJson(toMap(data)),
+      data: {'accept': accept},
+      decode: (data) => V2GroupInviteResponse.fromJson(toMap(data)),
     );
   }
 
@@ -337,28 +427,35 @@ class GroupsApi {
     );
   }
 
-  Future<void> setGroupPostPinStatus({
+  Future<bool> setGroupPostPinStatus({
     required int groupId,
     required int postId,
     required bool isPinned,
-  }) async {
-    await _client.request<void>(
+  }) {
+    return _client.requestData<bool>(
       '${ApiPaths.groups}/$groupId/posts/$postId/pin-status',
       method: 'PUT',
       data: {'is_pinned': isPinned},
-      decode: (_) {},
+      decode: (data) {
+        final body = toMap(data);
+        final pinned = body['is_pinned'];
+        if (body['post_id'] != postId || pinned is! bool) {
+          throw const FormatException('Invalid group post pin receipt');
+        }
+        return pinned;
+      },
     );
   }
 
-  Future<void> setGroupPostLikeStatus({
+  Future<({bool liked, int count})> setGroupPostLikeStatus({
     required int groupId,
     required int postId,
     required bool liked,
-  }) async {
-    await _client.request<void>(
+  }) {
+    return _client.requestData<({bool liked, int count})>(
       '${ApiPaths.groups}/$groupId/posts/$postId/likes',
       method: liked ? 'POST' : 'DELETE',
-      decode: (_) {},
+      decode: (data) => _reactionReceipt(data, 'post_id', postId),
     );
   }
 
@@ -367,10 +464,17 @@ class GroupsApi {
     required int postId,
     int page = 1,
     int size = 20,
+    int? commentId,
+    String sort = 'newest',
   }) {
     return _client.requestPaged<V2GroupComment>(
       '${ApiPaths.groups}/$groupId/posts/$postId/comments',
-      query: {'page': page, 'page_size': size},
+      query: {
+        'page': page,
+        'page_size': size,
+        'sort': sort,
+        if (commentId != null) 'comment_id': commentId,
+      },
       decodeItem: (item) => V2GroupComment.fromJson(toMap(item)),
     );
   }
@@ -406,18 +510,38 @@ class GroupsApi {
     );
   }
 
-  Future<void> setCommentLikeStatus({
+  Future<({bool liked, int count})> setCommentLikeStatus({
     required int groupId,
     required int postId,
     required int commentId,
     required bool liked,
-  }) async {
-    await _client.request<void>(
+  }) {
+    return _client.requestData<({bool liked, int count})>(
       '${ApiPaths.groups}/$groupId/posts/$postId/comments/$commentId/likes',
       method: liked ? 'POST' : 'DELETE',
-      decode: (_) {},
+      decode: (data) => _reactionReceipt(data, 'comment_id', commentId),
     );
   }
+}
+
+({bool liked, int count}) _reactionReceipt(
+  Object? data,
+  String idField,
+  int id,
+) {
+  final body = toMap(data);
+  final liked = body['is_liked'];
+  final count = body['likes_count'];
+  if (body[idField] != id ||
+      liked is! bool ||
+      count is! num ||
+      !count.isFinite ||
+      count < 0 ||
+      count > 9007199254740991 ||
+      count != count.truncate()) {
+    throw const FormatException('Invalid group reaction receipt');
+  }
+  return (liked: liked, count: count.toInt());
 }
 
 String? _nullableUrl(String? value) {

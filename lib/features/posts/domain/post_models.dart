@@ -1,3 +1,4 @@
+import '../../../core/constants/api_paths.dart';
 import '../../../core/utils/json_utils.dart';
 import '../../users/domain/user_models.dart';
 
@@ -34,9 +35,30 @@ class V2MediaAsset {
   final String status;
   final String createdAt;
 
+  bool get isVideo => mediaType == 'video' || mimeType.startsWith('video/');
+
+  String? get privateContentPath {
+    if (mediaId <= 0 || mediaId > 9007199254740991) return null;
+    final path = '${ApiPaths.media}/$mediaId/content';
+    return publicUrl == path ? path : null;
+  }
+
+  /// Keeps malformed forms of the authenticated route out of public image UI.
+  bool get usesContentRoute {
+    final uri = Uri.tryParse(publicUrl.trim());
+    if (uri == null) return false;
+    final path = uri.normalizePath().pathSegments.join('/');
+    return path.startsWith('${ApiPaths.media.substring(1)}/');
+  }
+
   factory V2MediaAsset.fromJson(Map<String, dynamic> json) {
     return V2MediaAsset(
-      mediaId: toInt(json['media_id']) ?? 0,
+      mediaId: switch (json['media_id']) {
+        int id => id,
+        String id when RegExp(r'^[1-9][0-9]*$').hasMatch(id) =>
+          int.tryParse(id) ?? 0,
+        _ => 0,
+      },
       mediaType: toStr(json['media_type']),
       fileName: toStr(json['file_name']),
       publicUrl: toStr(json['public_url']),
@@ -123,29 +145,33 @@ class V2PostAnalytics {
   final double likeRate;
 
   factory V2PostAnalytics.fromJson(Map<String, dynamic> json) {
-    return V2PostAnalytics(
-      postId: toInt(json['post_id']) ?? 0,
-      viewsCount: toInt(json['views_count']) ?? 0,
-      likesCount: toInt(json['likes_count']) ?? 0,
-      commentsCount: toInt(json['comments_count']) ?? 0,
-      repliesCount: toInt(json['replies_count']) ?? 0,
-      retweetsCount: toInt(json['retweets_count']) ?? 0,
-      engagementScore: toDouble(json['engagement_score']) ?? 0,
-      likeRate: toDouble(json['like_rate']) ?? 0,
-    );
-  }
+    num number(String field) {
+      final value = json[field];
+      if (value is! num || !value.isFinite) {
+        throw const FormatException('Invalid post analytics');
+      }
+      return value;
+    }
 
-  factory V2PostAnalytics.fromPost(V2Post post) {
-    final views = post.stats.viewsCount;
+    int integer(String field, {int minimum = 0}) {
+      final value = number(field);
+      if (value < minimum ||
+          value > 9007199254740991 ||
+          value != value.truncateToDouble()) {
+        throw const FormatException('Invalid post analytics');
+      }
+      return value.toInt();
+    }
+
     return V2PostAnalytics(
-      postId: post.postId,
-      viewsCount: views,
-      likesCount: post.stats.likesCount,
-      commentsCount: post.stats.commentsCount,
-      repliesCount: post.stats.repliesCount,
-      retweetsCount: post.stats.retweetsCount,
-      engagementScore: post.stats.engagementScore,
-      likeRate: views <= 0 ? 0 : post.stats.likesCount / views,
+      postId: integer('post_id', minimum: 1),
+      viewsCount: integer('views_count'),
+      likesCount: integer('likes_count'),
+      commentsCount: integer('comments_count'),
+      repliesCount: integer('replies_count'),
+      retweetsCount: integer('retweets_count'),
+      engagementScore: number('engagement_score').toDouble(),
+      likeRate: number('like_rate').toDouble(),
     );
   }
 }
@@ -269,6 +295,8 @@ class V2Post {
   }
 }
 
+typedef CommentLikeState = ({bool isLiked, int likesCount});
+
 class V2Comment {
   V2Comment({
     required this.commentId,
@@ -298,6 +326,21 @@ class V2Comment {
   final String createdAt;
   final String updatedAt;
 
+  V2Comment withLikeState(CommentLikeState state) => V2Comment(
+    commentId: commentId,
+    postId: postId,
+    author: author,
+    parentCommentId: parentCommentId,
+    rootCommentId: rootCommentId,
+    content: content,
+    likesCount: state.likesCount,
+    repliesCount: repliesCount,
+    isLiked: state.isLiked,
+    canDelete: canDelete,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+
   factory V2Comment.fromJson(Map<String, dynamic> json) {
     final stats = toMap(json['stats']);
     final viewer = toMap(json['viewer_state']);
@@ -316,6 +359,21 @@ class V2Comment {
       updatedAt: toStr(json['updated_at']),
     );
   }
+}
+
+class V2TagAnalytics {
+  V2TagAnalytics.fromJson(Map<String, dynamic> json)
+    : totalPosts = toInt(json['total_posts']) ?? 0,
+      totalAuthors = toInt(json['total_authors']) ?? 0,
+      totalViews = toInt(json['total_views']) ?? 0,
+      totalLikes = toInt(json['total_likes']) ?? 0,
+      engagementScore = toDouble(json['engagement_score']) ?? 0;
+
+  final int totalPosts;
+  final int totalAuthors;
+  final int totalViews;
+  final int totalLikes;
+  final double engagementScore;
 }
 
 class V2TagItem {

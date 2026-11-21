@@ -1,6 +1,28 @@
 import '../../../core/utils/json_utils.dart';
 import '../../users/domain/user_models.dart';
 
+bool isNotificationRealtimeEvent(Object? type) => const {
+  'notification_created',
+  'notification_read_status_updated',
+  'notifications_read_status_updated',
+  'notification_deleted',
+  'notification_restored',
+}.contains(type);
+
+int? notificationTargetId(Object? value) {
+  if (value is String &&
+      value.trim() == value &&
+      RegExp(r'^[1-9][0-9]{0,15}$').hasMatch(value)) {
+    value = int.tryParse(value);
+  }
+  if (value is! num ||
+      !(value >= 1 && value <= 9007199254740991) ||
+      value != value.truncate()) {
+    return null;
+  }
+  return value.toInt();
+}
+
 class V2Notification {
   V2Notification({
     required this.notificationId,
@@ -42,7 +64,7 @@ class V2Notification {
       title: toStr(json['title']),
       message: toStr(json['message']),
       resourceType: toStrOrNull(json['resource_type']),
-      resourceId: toInt(json['resource_id']),
+      resourceId: notificationTargetId(json['resource_id']),
       priority: toStr(json['priority'], defaultValue: 'normal'),
       isRead: toInt(json['is_read']) ?? 0,
       readAt: toStrOrNull(json['read_at']),

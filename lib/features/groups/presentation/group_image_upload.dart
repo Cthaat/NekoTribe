@@ -9,16 +9,22 @@ import '../../../shared/providers/providers.dart';
 Future<String?> pickAndUploadGroupImage({
   required WidgetRef ref,
   String? altText,
+  bool Function()? isCurrent,
 }) async {
+  final api = ref.read(mediaApiProvider);
   final result = await FilePicker.platform.pickFiles(
     type: FileType.image,
     allowMultiple: false,
     withData: true,
   );
   if (result == null || result.files.isEmpty) return null;
+  if (!ref.context.mounted ||
+      isCurrent?.call() == false ||
+      !identical(api, ref.read(mediaApiProvider))) {
+    return null;
+  }
 
   final picked = result.files.single;
-  final api = ref.read(mediaApiProvider);
   final label = altText == null || altText.trim().isEmpty
       ? picked.name
       : altText.trim();

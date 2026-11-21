@@ -76,9 +76,8 @@ class _SentimentPredictionDialogState
           .predict(
             text: text,
             modelId: settings.aiSentimentModelId,
-            returnProbabilities:
-                settings.aiSentimentReturnProbabilities ?? true,
-            includeMetadata: settings.aiSentimentIncludeMetadata ?? false,
+            returnProbabilities: settings.aiSentimentReturnProbabilities,
+            includeMetadata: settings.aiSentimentIncludeMetadata,
             topK: settings.aiSentimentTopK,
           );
       if (!mounted) return;
@@ -225,7 +224,9 @@ class _ErrorBody extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.error.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -336,8 +337,7 @@ class _PredictionBody extends StatelessWidget {
                 _MetricRow(
                   icon: Icons.equalizer,
                   label: l10n.t('sentiment.prediction.confidence'),
-                  value:
-                      '${(prediction.confidence * 100).toStringAsFixed(1)}%',
+                  value: '${(prediction.confidence * 100).toStringAsFixed(1)}%',
                 ),
                 if ((prediction.modelName ?? '').isNotEmpty)
                   _MetricRow(

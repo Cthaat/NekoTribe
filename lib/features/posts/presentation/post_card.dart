@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/utils/ai_conversation_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/status_views.dart';
-import '../../sentiment_flow/presentation/sentiment_prediction_dialog.dart';
+import '../../media/presentation/private_attachment_button.dart';
+import '../../media/presentation/public_video_player_native.dart'
+    if (dart.library.js_interop) '../../media/presentation/public_video_player_web.dart';
+import '../data/posts_api.dart';
 import '../domain/post_models.dart';
 
 class PostCard extends ConsumerStatefulWidget {
@@ -17,14 +22,20 @@ class PostCard extends ConsumerStatefulWidget {
     super.key,
     required this.post,
     this.onChanged,
+    this.onBookmarkChanged,
+    this.onEdited,
     this.onReport,
     this.onDeleted,
+    this.onRetweeted,
   });
 
   final V2Post post;
   final void Function(V2Post updated)? onChanged;
+  final ValueChanged<bool>? onBookmarkChanged;
+  final void Function(V2Post updated)? onEdited;
   final VoidCallback? onReport;
   final VoidCallback? onDeleted;
+  final VoidCallback? onRetweeted;
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -35,6 +46,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   bool _busyLike = false;
   bool _busyBookmark = false;
   bool _busyRetweet = false;
+  bool _busyDelete = false;
 
   @override
   void initState() {
@@ -49,11 +61,21 @@ class _PostCardState extends ConsumerState<PostCard> {
       _post = widget.post;
       return;
     }
-    // Prefer syncing stats/content when parent refreshes, but avoid clobbering
-    // in-flight optimistic like/bookmark/retweet updates.
-    if (!_busyLike && !_busyBookmark && !_busyRetweet) {
+    // Keep parent refreshes available while likes and bookmarks await a receipt.
+    if (!_busyRetweet) {
       _post = widget.post;
     }
+  }
+
+  bool Function() _captureInteraction(PostsApi api, int postId) {
+    final session = ref.read(tokenStoreProvider);
+    final revision = session.revision;
+    return () =>
+        mounted &&
+        _post.postId == postId &&
+        session.revision == revision &&
+        !session.isSessionChanging &&
+        identical(ref.read(postsApiProvider), api);
   }
 
   Future<void> _toggleLike() async {
@@ -61,37 +83,27 @@ class _PostCardState extends ConsumerState<PostCard> {
     if (!requireAuthenticatedAction(context, ref)) return;
     setState(() => _busyLike = true);
     final api = ref.read(postsApiProvider);
+    final postId = _post.postId;
+    final current = _captureInteraction(api, postId);
     final wasLiked = _post.viewerState.isLiked;
-    final originalStats = _post.stats;
-    setState(() {
-      _post = _post.copyWith(
-        viewerState: _post.viewerState.copyWith(isLiked: !wasLiked),
-        stats: _post.stats.copyWith(
-          likesCount: wasLiked
-              ? (_post.stats.likesCount - 1).clamp(0, 1 << 30)
-              : _post.stats.likesCount + 1,
-        ),
-      );
-    });
     try {
       final newState = wasLiked
-          ? await api.unlikePost(_post.postId)
-          : await api.likePost(_post.postId);
-      if (!mounted) return;
+          ? await api.unlikePost(postId)
+          : await api.likePost(postId);
+      if (!current()) return;
       setState(() {
         _post = _post.copyWith(
           viewerState: _post.viewerState.copyWith(isLiked: newState.isLiked),
+          stats: _post.stats.copyWith(likesCount: newState.likesCount),
         );
       });
       widget.onChanged?.call(_post);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _post = _post.copyWith(
-          viewerState: _post.viewerState.copyWith(isLiked: wasLiked),
-          stats: originalStats,
+    } catch (error) {
+      if (current()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErrorView.describe(context, error))),
         );
-      });
+      }
     } finally {
       if (mounted) setState(() => _busyLike = false);
     }
@@ -102,17 +114,14 @@ class _PostCardState extends ConsumerState<PostCard> {
     if (!requireAuthenticatedAction(context, ref)) return;
     setState(() => _busyBookmark = true);
     final api = ref.read(postsApiProvider);
+    final postId = _post.postId;
+    final current = _captureInteraction(api, postId);
     final wasBookmarked = _post.viewerState.isBookmarked;
-    setState(() {
-      _post = _post.copyWith(
-        viewerState: _post.viewerState.copyWith(isBookmarked: !wasBookmarked),
-      );
-    });
     try {
       final newState = wasBookmarked
-          ? await api.unbookmarkPost(_post.postId)
-          : await api.bookmarkPost(_post.postId);
-      if (!mounted) return;
+          ? await api.unbookmarkPost(postId)
+          : await api.bookmarkPost(postId);
+      if (!current()) return;
       setState(
         () => _post = _post.copyWith(
           viewerState: _post.viewerState.copyWith(
@@ -121,51 +130,67 @@ class _PostCardState extends ConsumerState<PostCard> {
         ),
       );
       widget.onChanged?.call(_post);
-    } catch (_) {
-      if (!mounted) return;
-      setState(
-        () => _post = _post.copyWith(
-          viewerState: _post.viewerState.copyWith(isBookmarked: wasBookmarked),
-        ),
-      );
+      widget.onBookmarkChanged?.call(newState.isBookmarked);
+    } catch (error) {
+      if (current()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErrorView.describe(context, error))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busyBookmark = false);
     }
   }
 
   Future<void> _deletePost() async {
+    if (_busyDelete || !_post.viewerState.canDelete) return;
     if (!requireAuthenticatedAction(context, ref)) return;
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(l10n.t('post.delete.title')),
-        content: Text(l10n.t('post.delete.body')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.t('common.cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.t('common.delete')),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    final api = ref.read(postsApiProvider);
+    final tokens = ref.read(tokenStoreProvider);
+    final revision = tokens.revision;
+    final postId = _post.postId;
+    bool current() =>
+        mounted &&
+        tokens.revision == revision &&
+        !tokens.isSessionChanging &&
+        identical(ref.read(postsApiProvider), api) &&
+        _post.postId == postId;
+    _busyDelete = true;
     try {
-      await ref.read(postsApiProvider).deletePost(_post.postId);
-      if (!mounted) return;
-      widget.onDeleted?.call();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.t('post.delete.title')),
+          content: Text(l10n.t('post.delete.body')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.t('common.cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.t('common.delete')),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !current() || !_post.viewerState.canDelete) {
+        return;
+      }
+      await api.deletePost(postId);
+      if (!current()) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('post.deleted'))));
+      widget.onDeleted?.call();
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      _busyDelete = false;
     }
   }
 
@@ -173,17 +198,25 @@ class _PostCardState extends ConsumerState<PostCard> {
     if (_busyRetweet) return;
     if (!requireAuthenticatedAction(context, ref)) return;
     final l10n = AppLocalizations.of(context);
-    final text = await showDialog<String>(
-      context: context,
-      builder: (_) => _QuotePostDialog(l10n: l10n),
-    );
-    if (text == null) return;
+    final api = ref.read(postsApiProvider);
+    final session = ref.read(tokenStoreProvider);
+    final revision = session.revision;
+    final postId = _post.postId;
+    bool valid() =>
+        mounted &&
+        _post.postId == postId &&
+        session.revision == revision &&
+        !session.isSessionChanging &&
+        identical(api, ref.read(postsApiProvider));
     setState(() => _busyRetweet = true);
     try {
-      await ref
-          .read(postsApiProvider)
-          .createRetweet(postId: _post.postId, content: text);
-      if (!mounted) return;
+      final text = await showDialog<String>(
+        context: context,
+        builder: (_) => _QuotePostDialog(l10n: l10n),
+      );
+      if (text == null || !valid()) return;
+      await api.createRetweet(postId: postId, content: text);
+      if (!valid()) return;
       setState(() {
         _post = _post.copyWith(
           stats: _post.stats.copyWith(
@@ -192,14 +225,18 @@ class _PostCardState extends ConsumerState<PostCard> {
         );
       });
       widget.onChanged?.call(_post);
+      widget.onRetweeted?.call();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('post.quote.posted'))));
     } catch (e) {
-      if (!mounted) return;
+      if (!valid()) return;
+      final message = e is UnconfirmedRetweetError
+          ? l10n.t('post.quote.unconfirmed')
+          : ErrorView.describe(context, e);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _busyRetweet = false);
     }
@@ -227,21 +264,55 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
   }
 
-  Future<void> _showSentimentPrediction() async {
+  Future<void> _openPost() async {
+    final id = _post.postId;
+    final current = _captureInteraction(ref.read(postsApiProvider), id);
+    V2Post? saved;
+    final receipt = ref.listenManual(savedPostProvider(id), (_, updated) {
+      if (current() && updated?.postId == id) saved = updated;
+    });
+    try {
+      final deletedId = await context.push<int>('/posts/$id');
+      if (!current()) return;
+      if (deletedId == id) {
+        widget.onDeleted?.call();
+      } else if (saved case final updated?) {
+        _applyEdit(updated);
+      }
+    } finally {
+      receipt.close();
+    }
+  }
+
+  Future<void> _editPost() async {
     if (!requireAuthenticatedAction(context, ref)) return;
-    await showSentimentPredictionDialog(
-      context: context,
-      text: _post.content,
-      postId: _post.postId,
-    );
+    final tokens = ref.read(tokenStoreProvider);
+    if (tokens.isSessionChanging) return;
+    final revision = tokens.revision;
+    final api = ref.read(postsApiProvider);
+    final id = _post.postId;
+    final updated = await context.push<V2Post>('/posts/$id/edit');
+    if (!mounted ||
+        tokens.revision != revision ||
+        tokens.isSessionChanging ||
+        !identical(api, ref.read(postsApiProvider)) ||
+        _post.postId != id ||
+        updated == null ||
+        updated.postId != id) {
+      return;
+    }
+    _applyEdit(updated);
+  }
+
+  void _applyEdit(V2Post updated) {
+    setState(() => _post = updated);
+    (widget.onEdited ?? widget.onChanged)?.call(updated);
   }
 
   void _handleMenu(String value) {
     switch (value) {
       case 'edit':
-        if (requireAuthenticatedAction(context, ref)) {
-          context.push('/posts/${_post.postId}/edit');
-        }
+        _editPost();
         break;
       case 'delete':
         _deletePost();
@@ -253,8 +324,10 @@ class _PostCardState extends ConsumerState<PostCard> {
       case 'show_less':
         _sendFeedback(value);
         break;
-      case 'sentiment':
-        _showSentimentPrediction();
+      case 'knowledge':
+        if (requireAuthenticatedAction(context, ref)) {
+          openAiConversation(context, knowledge: true);
+        }
         break;
       case 'report':
         if (requireAuthenticatedAction(context, ref)) {
@@ -299,7 +372,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push('/posts/${_post.postId}'),
+        onTap: _openPost,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
           child: Row(
@@ -361,7 +434,9 @@ class _PostCardState extends ConsumerState<PostCard> {
                       const SizedBox(height: 8),
                       SelectableText(
                         _post.content,
-                        style: theme.textTheme.bodyLarge?.copyWith(height: 1.35),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          height: 1.35,
+                        ),
                       ),
                     ],
                     if (_post.media.isNotEmpty) ...[
@@ -377,8 +452,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                             child: _ActionButton(
                               icon: Icons.chat_bubble_outline,
                               label: '${_post.stats.commentsCount}',
-                              onTap: () =>
-                                  context.push('/posts/${_post.postId}'),
+                              onTap: _openPost,
                             ),
                           ),
                         ),
@@ -460,8 +534,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                       child: Text(l10n.t('post.feedback.show_less')),
                     ),
                     PopupMenuItem(
-                      value: 'sentiment',
-                      child: Text(l10n.t('sentiment.actions.predict')),
+                      value: 'knowledge',
+                      child: Text(l10n.t('ai.knowledge.title')),
                     ),
                     PopupMenuItem(
                       value: 'report',
@@ -530,8 +604,94 @@ class _QuotePostDialogState extends State<_QuotePostDialog> {
   }
 }
 
-class _MediaGrid extends StatelessWidget {
+class _MediaGrid extends ConsumerWidget {
   const _MediaGrid({required this.media});
+  final List<V2MediaAsset> media;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final publicImages = media
+        .where((asset) => !asset.usesContentRoute && !asset.isVideo)
+        .toList();
+    final attachments = media.where(
+      (asset) => asset.usesContentRoute || asset.isVideo,
+    );
+    if (attachments.isEmpty) return _PublicMediaGrid(media: publicImages);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (publicImages.isNotEmpty) _PublicMediaGrid(media: publicImages),
+        for (final asset in attachments)
+          Padding(
+            key: ValueKey(asset.mediaId),
+            padding: const EdgeInsets.only(top: 4),
+            child: asset.usesContentRoute
+                ? PrivateAttachmentButton(asset: asset)
+                : _publicVideo(context, ref, asset),
+          ),
+      ],
+    );
+  }
+
+  Widget _publicVideo(BuildContext context, WidgetRef ref, V2MediaAsset asset) {
+    final l10n = AppLocalizations.of(context);
+    final label = l10n.t('media.copy_video_link');
+    final url = asset.publicUrl.trim().isEmpty
+        ? null
+        : Uri.tryParse(
+            ref.watch(assetUrlResolverProvider).resolve(asset.publicUrl),
+          );
+    final canCopy =
+        url != null &&
+        (url.scheme == 'http' || url.scheme == 'https') &&
+        url.host.isNotEmpty &&
+        url.userInfo.isEmpty;
+    final copyLink = Tooltip(
+      message: label,
+      child: OutlinedButton.icon(
+        onPressed: canCopy
+            ? () async {
+                try {
+                  await Clipboard.setData(ClipboardData(text: url.toString()));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l10n.t('media.video_link_copied'))),
+                  );
+                } on PlatformException catch (error) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(ErrorView.describe(context, error))),
+                  );
+                }
+              }
+            : null,
+        icon: const Icon(Icons.video_file_outlined),
+        label: Text(
+          asset.fileName.isEmpty ? label : asset.fileName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+    if (!canCopy) return copyLink;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PublicVideoPlayer(
+          key: ValueKey(url),
+          url: url,
+          label: asset.fileName.isEmpty
+              ? l10n.t('media.open_video')
+              : asset.fileName,
+        ),
+        copyLink,
+      ],
+    );
+  }
+}
+
+class _PublicMediaGrid extends StatelessWidget {
+  const _PublicMediaGrid({required this.media});
   final List<V2MediaAsset> media;
 
   void _open(BuildContext context, int index) {

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/ai_conversation_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
@@ -22,6 +25,7 @@ class FeedScreen extends ConsumerStatefulWidget {
 class _FeedScreenState extends ConsumerState<FeedScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
+  late final VoidCallback _stopSessionListener;
   final Map<int, _FeedTabState> _tabs = {
     0: _FeedTabState(mode: 'home', sort: 'newest'),
     1: _FeedTabState(mode: 'home', sort: 'popular'),
@@ -36,45 +40,69 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       if (_tab.indexIsChanging) return;
       _loadInitial(_tab.index);
     });
+    _stopSessionListener = ref
+        .read(tokenStoreProvider)
+        .listenSessionChanges(_resetFeed);
+    ref.listenManual(postsApiProvider, (_, _) => _resetFeed());
+    ref.listenManual(authSessionProvider, (previous, next) {
+      if (previous?.isAuthenticated != next.isAuthenticated) _resetFeed();
+    });
     _loadInitial(0);
   }
 
   @override
   void dispose() {
+    _stopSessionListener();
     _tab.dispose();
     super.dispose();
   }
 
+  void _resetFeed() {
+    if (!mounted) return;
+    setState(() => _tabs.updateAll((_, state) => state.empty()));
+    unawaited(_loadInitial(_tab.index));
+  }
+
+  bool _isCurrent(int idx, _FeedTabState state) =>
+      mounted &&
+      identical(_tabs[idx], state) &&
+      !ref.read(tokenStoreProvider).isSessionChanging;
+
   Future<void> _loadInitial(int idx) async {
     final state = _tabs[idx]!;
+    if (!_isCurrent(idx, state)) return;
     if (state.requiresAuth && !ref.read(authSessionProvider).isAuthenticated) {
       return;
     }
-    if (state.items.isNotEmpty || state.loading) return;
+    if (state.loaded || state.loading) return;
     state.loading = true;
     if (mounted) setState(() {});
     try {
       final page = await ref
           .read(postsApiProvider)
           .getFeed(mode: state.mode, page: 1, size: 20, sort: state.sort);
-      state.items = page.items;
+      if (!_isCurrent(idx, state)) return;
+      state.items = [...page.items];
+      state.loaded = true;
       state.page = 1;
       state.hasMore = page.hasNext;
       state.error = null;
     } catch (e) {
+      if (!_isCurrent(idx, state)) return;
       state.error = e;
     } finally {
       state.loading = false;
-      if (mounted) setState(() {});
+      if (_isCurrent(idx, state)) setState(() {});
     }
   }
 
   Future<void> _loadMore(int idx) async {
     final state = _tabs[idx]!;
+    if (!_isCurrent(idx, state)) return;
     if (state.requiresAuth && !ref.read(authSessionProvider).isAuthenticated) {
       return;
     }
-    if (state.loadingMore || !state.hasMore) return;
+    if (state.loading || state.loadingMore || !state.hasMore) return;
     state.loadingMore = true;
     if (mounted) setState(() {});
     try {
@@ -82,37 +110,37 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       final page = await ref
           .read(postsApiProvider)
           .getFeed(mode: state.mode, page: next, size: 20, sort: state.sort);
-      state.items.addAll(page.items);
+      if (!_isCurrent(idx, state)) return;
+      final seen = state.items.map((post) => post.postId).toSet();
+      state.items.addAll(page.items.where((post) => seen.add(post.postId)));
       state.page = next;
       state.hasMore = page.hasNext;
     } catch (e) {
       // Keep hasMore so the user can scroll to retry; surface the failure.
-      if (mounted) {
+      if (_isCurrent(idx, state)) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
       }
     } finally {
       state.loadingMore = false;
-      if (mounted) setState(() {});
+      if (_isCurrent(idx, state)) setState(() {});
     }
   }
 
   Future<void> _refresh(int idx) async {
-    final state = _tabs[idx]!;
-    state.items = [];
-    state.page = 0;
-    state.hasMore = true;
+    setState(() => _tabs[idx] = _tabs[idx]!.empty());
     await _loadInitial(idx);
   }
 
   Future<void> _compose() async {
     if (!requireAuthenticatedAction(context, ref)) return;
+    final idx = _tab.index;
+    final state = _tabs[idx]!;
     final created = await Navigator.of(context).push<V2Post>(
       MaterialPageRoute(builder: (_) => const ComposePostScreen()),
     );
-    if (created != null && mounted) {
-      final state = _tabs[_tab.index]!;
+    if (created != null && _isCurrent(idx, state)) {
       setState(() => state.items.insert(0, created));
     }
   }
@@ -131,7 +159,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
             icon: const Icon(Icons.library_books_outlined),
             onPressed: () {
               if (requireAuthenticatedAction(context, ref)) {
-                context.push('/ai/knowledge');
+                openAiConversation(context, knowledge: true);
               }
             },
           ),
@@ -141,7 +169,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
             icon: const Icon(Icons.auto_awesome_outlined),
             onPressed: () {
               if (requireAuthenticatedAction(context, ref)) {
-                context.push('/ai/writing');
+                openAiConversation(context);
               }
             },
           ),
@@ -254,12 +282,21 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
                   key: ValueKey(post.postId),
                   post: post,
                   onChanged: (updated) {
-                    state.items[i] = updated;
-                    if (mounted) setState(() {});
+                    if (!_isCurrent(idx, state)) return;
+                    final index = state.items.indexWhere(
+                      (item) => item.postId == post.postId,
+                    );
+                    if (index >= 0) {
+                      setState(() => state.items[index] = updated);
+                    }
                   },
                   onDeleted: () {
-                    state.items.removeAt(i);
-                    if (mounted) setState(() {});
+                    if (!_isCurrent(idx, state)) return;
+                    setState(
+                      () => state.items.removeWhere(
+                        (item) => item.postId == post.postId,
+                      ),
+                    );
                   },
                   onReport: () => showReportDialog(
                     context,
@@ -289,8 +326,12 @@ class _FeedTabState {
   final bool requiresAuth;
   List<V2Post> items = [];
   int page = 0;
-  bool hasMore = true;
+  bool hasMore = false;
+  bool loaded = false;
   bool loading = false;
   bool loadingMore = false;
   Object? error;
+
+  _FeedTabState empty() =>
+      _FeedTabState(mode: mode, sort: sort, requiresAuth: requiresAuth);
 }

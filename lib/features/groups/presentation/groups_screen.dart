@@ -9,14 +9,16 @@ import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../core/network/api_response.dart';
 import '../domain/group_draft_metadata.dart';
 import '../domain/group_models.dart';
 import 'group_image_upload.dart';
 
 class GroupsScreen extends ConsumerStatefulWidget {
-  const GroupsScreen({super.key, this.initialTab = 0});
+  const GroupsScreen({super.key, this.initialTab = 0, this.inviteId});
 
   final int initialTab;
+  final int? inviteId;
 
   @override
   ConsumerState<GroupsScreen> createState() => _GroupsScreenState();
@@ -25,10 +27,12 @@ class GroupsScreen extends ConsumerStatefulWidget {
 class _GroupsScreenState extends ConsumerState<GroupsScreen>
     with TickerProviderStateMixin {
   late final TabController _tabController;
+  int _membershipRevision = 0;
   final List<_GroupsTab> _tabs = [
     _GroupsTab(mode: 'discover', titleKey: 'group.discover'),
     _GroupsTab(mode: 'my', titleKey: 'group.my'),
     _GroupsTab(mode: 'invites', titleKey: 'group.invites'),
+    _GroupsTab(mode: 'popular', titleKey: 'group.popular'),
   ];
 
   @override
@@ -55,7 +59,21 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('group.title'))),
+      appBar: AppBar(
+        title: Text(l10n.t('group.title')),
+        actions: [
+          if (widget.inviteId != null)
+            TextButton(
+              onPressed: () => context.replace('/groups/invites'),
+              child: Text(l10n.t('group.invites_view_all')),
+            ),
+          IconButton(
+            tooltip: l10n.t('group.invite_input'),
+            icon: const Icon(Icons.link),
+            onPressed: () => context.push('/groups/invite'),
+          ),
+        ],
+      ),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -82,12 +100,21 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
                     ),
                     _GroupsList(
                       mode: 'my',
-                      key: const PageStorageKey('my'),
+                      key: PageStorageKey(('my', _membershipRevision)),
                       emptyMessageKey: 'group.empty_my',
                       emptyActionLabelKey: 'group.discover',
                       onEmptyAction: () => _tabController.animateTo(0),
                     ),
-                    const _InvitesList(key: PageStorageKey('inv')),
+                    _InvitesList(
+                      key: PageStorageKey(('inv', widget.inviteId)),
+                      inviteId: widget.inviteId,
+                      onAccepted: () => setState(() => _membershipRevision++),
+                    ),
+                    const _GroupsList(
+                      mode: 'popular',
+                      key: PageStorageKey('popular'),
+                      emptyMessageKey: 'group.empty',
+                    ),
                   ],
                 ),
               ),
@@ -440,6 +467,10 @@ class _GroupsTab {
   final String titleKey;
 }
 
+typedef _GroupFilter = ({String search, String? privacy, String? category});
+
+const _noGroupFilter = (search: '', privacy: null, category: null);
+
 class _GroupsList extends ConsumerStatefulWidget {
   const _GroupsList({
     super.key,
@@ -464,6 +495,10 @@ class _GroupsListState extends ConsumerState<_GroupsList>
   bool _loadingMore = false;
   bool _hasNext = false;
   int _page = 1;
+  int _request = 0;
+  bool _expired = false;
+  _GroupFilter _filter = _noGroupFilter;
+  late final VoidCallback _stopSessionListener;
   Object? _error;
 
   @override
@@ -472,22 +507,158 @@ class _GroupsListState extends ConsumerState<_GroupsList>
   @override
   void initState() {
     super.initState();
+    final tokens = ref.read(tokenStoreProvider);
+    _expired = tokens.isSessionChanging;
+    _stopSessionListener = tokens.listenSessionChanges(_expire);
     _load();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _stopSessionListener();
+    super.dispose();
+  }
+
+  void _expire() {
+    if (!mounted || _expired) return;
+    _request++;
     setState(() {
+      _expired = true;
+      _items = [];
+      _filter = _noGroupFilter;
+    });
+  }
+
+  Future<PagedResult<V2Group>> _fetchPage(int page) async {
+    final api = ref.read(groupsApiProvider);
+    if (widget.mode == 'popular') {
+      return PagedResult(items: await api.popular());
+    }
+    final (:search, :privacy, :category) = _filter;
+    return widget.mode == 'my'
+        ? api.myGroups(
+            page: page,
+            search: search,
+            privacy: privacy,
+            category: category,
+          )
+        : api.list(
+            mode: widget.mode,
+            page: page,
+            search: search,
+            privacy: privacy,
+            category: category,
+          );
+  }
+
+  Future<void> _editFilters() async {
+    if (_expired) return;
+    var (:search, :privacy, :category) = _filter;
+    final l10n = AppLocalizations.of(context);
+    final choice = await showDialog<_GroupFilter>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: Text(l10n.t('group.filter.title')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  initialValue: search,
+                  onChanged: (value) => search = value,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('group.filter.search'),
+                  ),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: privacy ?? '',
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('group.privacy'),
+                  ),
+                  onChanged: (value) =>
+                      update(() => privacy = value == '' ? null : value),
+                  items: [
+                    DropdownMenuItem(
+                      value: '',
+                      child: Text(l10n.t('group.filter.all')),
+                    ),
+                    for (final value in ['public', 'private', 'secret'])
+                      DropdownMenuItem(
+                        value: value,
+                        child: Text(l10n.t('group.privacy.$value')),
+                      ),
+                  ],
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: category ?? '',
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('group.category'),
+                  ),
+                  onChanged: (value) =>
+                      update(() => category = value == '' ? null : value),
+                  items: [
+                    DropdownMenuItem(
+                      value: '',
+                      child: Text(l10n.t('group.filter.all')),
+                    ),
+                    for (final value in [
+                      'tech',
+                      'game',
+                      'music',
+                      'art',
+                      'life',
+                      'study',
+                      'work',
+                      'other',
+                    ])
+                      DropdownMenuItem(
+                        value: value,
+                        child: Text(l10n.t('group.category.$value')),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, _noGroupFilter),
+              child: Text(l10n.t('group.filter.clear')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, (
+                search: search.trim(),
+                privacy: privacy,
+                category: category,
+              )),
+              child: Text(l10n.t('group.filter.apply')),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || _expired || choice == null || choice == _filter) return;
+    _filter = choice;
+    await _load();
+  }
+
+  Future<void> _load() async {
+    if (_expired) return;
+    final request = ++_request;
+    setState(() {
+      _items = [];
+      _loadingMore = false;
       _loading = true;
       _error = null;
       _page = 1;
       _hasNext = false;
     });
     try {
-      final api = ref.read(groupsApiProvider);
-      final page = widget.mode == 'my'
-          ? await api.myGroups(page: 1)
-          : await api.list(mode: widget.mode, page: 1);
-      if (!mounted) return;
+      final page = await _fetchPage(1);
+      if (!mounted || request != _request) return;
       setState(() {
         _items = page.items;
         _page = 1;
@@ -496,7 +667,7 @@ class _GroupsListState extends ConsumerState<_GroupsList>
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -506,23 +677,23 @@ class _GroupsListState extends ConsumerState<_GroupsList>
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasNext || _loading) return;
+    if (_expired || _loadingMore || !_hasNext || _loading) return;
+    final request = _request;
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
-      final api = ref.read(groupsApiProvider);
-      final page = widget.mode == 'my'
-          ? await api.myGroups(page: next)
-          : await api.list(mode: widget.mode, page: next);
-      if (!mounted) return;
+      final page = await _fetchPage(next);
+      if (!mounted || request != _request) return;
       setState(() {
-        _items = [..._items, ...page.items];
+        _items = {
+          for (final item in [..._items, ...page.items]) item.groupId: item,
+        }.values.toList();
         _page = next;
         _hasNext = page.hasNext;
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() => _loadingMore = false);
       ScaffoldMessenger.of(
         context,
@@ -533,11 +704,60 @@ class _GroupsListState extends ConsumerState<_GroupsList>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(groupsApiProvider, (previous, next) {
+      if (!identical(previous, next)) _expire();
+    });
+    final l10n = AppLocalizations.of(context);
+    if (_expired) {
+      return EmptyView(message: l10n.t('visibility.sessionChanged'));
+    }
+    if (widget.mode == 'popular') {
+      return _buildResults(context, filtered: false);
+    }
+    final filtered = _filter != _noGroupFilter;
+    return Column(
+      children: [
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: TextButton.icon(
+            onPressed: _editFilters,
+            icon: Badge(
+              isLabelVisible: filtered,
+              child: const Icon(Icons.filter_list),
+            ),
+            label: Text(
+              l10n.t(filtered ? 'group.filter.active' : 'group.filter.title'),
+            ),
+          ),
+        ),
+        Expanded(child: _buildResults(context, filtered: filtered)),
+      ],
+    );
+  }
+
+  Widget _buildResults(BuildContext context, {required bool filtered}) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
-    if (_items.isEmpty) {
+    if (_items.isEmpty && !_hasNext) {
+      if (widget.mode == 'popular') {
+        return EmptyView(
+          message: l10n.t(widget.emptyMessageKey),
+          actionLabel: l10n.t('common.retry'),
+          onAction: _load,
+        );
+      }
+      if (filtered) {
+        return EmptyView(
+          message: l10n.t('group.filter.empty'),
+          actionLabel: l10n.t('group.filter.clear'),
+          onAction: () {
+            _filter = _noGroupFilter;
+            _load();
+          },
+        );
+      }
       final actionLabelKey = widget.emptyActionLabelKey;
       return EmptyView(
         message: l10n.t(widget.emptyMessageKey),
@@ -555,20 +775,33 @@ class _GroupsListState extends ConsumerState<_GroupsList>
           return false;
         },
         child: ListView.separated(
+          physics: widget.mode == 'popular'
+              ? const AlwaysScrollableScrollPhysics()
+              : null,
           padding: const EdgeInsets.symmetric(vertical: 4),
           itemCount: _items.length + (_hasNext ? 1 : 0),
           separatorBuilder: (_, _) =>
               Divider(height: 1, color: theme.dividerColor),
           itemBuilder: (_, i) {
             if (i >= _items.length) {
-              return const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: _loadingMore
+                      ? const CircularProgressIndicator()
+                      : OutlinedButton(
+                          onPressed: _loadMore,
+                          child: Text(l10n.t('common.more')),
+                        ),
+                ),
               );
             }
             final g = _items[i];
             return InkWell(
-              onTap: () => context.push('/groups/${g.slug}'),
+              onTap: () async {
+                await context.push('/groups/${g.slug}');
+                if (mounted && !_expired) await _load();
+              },
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 child: Row(
@@ -640,7 +873,10 @@ class _GroupsListState extends ConsumerState<_GroupsList>
 }
 
 class _InvitesList extends ConsumerStatefulWidget {
-  const _InvitesList({super.key});
+  const _InvitesList({super.key, required this.onAccepted, this.inviteId});
+
+  final VoidCallback onAccepted;
+  final int? inviteId;
 
   @override
   ConsumerState<_InvitesList> createState() => _InvitesListState();
@@ -653,6 +889,10 @@ class _InvitesListState extends ConsumerState<_InvitesList>
   bool _loadingMore = false;
   bool _hasNext = false;
   int _page = 1;
+  int _loadVersion = 0;
+  bool _responding = false;
+  bool _expired = false;
+  late final VoidCallback _stopInviteSessionListener;
   Object? _error;
 
   @override
@@ -661,10 +901,32 @@ class _InvitesListState extends ConsumerState<_InvitesList>
   @override
   void initState() {
     super.initState();
+    final store = ref.read(tokenStoreProvider);
+    _expired = store.isSessionChanging;
+    _stopInviteSessionListener = store.listenSessionChanges(_expire);
     _load();
   }
 
+  @override
+  void dispose() {
+    _stopInviteSessionListener();
+    super.dispose();
+  }
+
+  void _expire() {
+    if (!mounted || _expired) return;
+    _loadVersion++;
+    setState(() {
+      _expired = true;
+      _items = [];
+      _hasNext = false;
+      _responding = false;
+    });
+  }
+
   Future<void> _load() async {
+    if (!mounted || _expired) return;
+    final version = ++_loadVersion;
     setState(() {
       _loading = true;
       _error = null;
@@ -672,17 +934,22 @@ class _InvitesListState extends ConsumerState<_InvitesList>
       _hasNext = false;
     });
     try {
-      final page = await ref.read(groupsApiProvider).myInvites(page: 1);
-      if (!mounted) return;
+      final id = widget.inviteId;
+      final page = await ref
+          .read(groupsApiProvider)
+          .myInvites(page: 1, inviteId: id);
+      if (!mounted || version != _loadVersion) return;
       setState(() {
-        _items = page.items;
+        _items = id == null
+            ? page.items
+            : page.items.where((item) => item.inviteId == id).toList();
         _page = 1;
-        _hasNext = page.hasNext;
+        _hasNext = id == null && page.hasNext;
         _loading = false;
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || version != _loadVersion) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -692,22 +959,31 @@ class _InvitesListState extends ConsumerState<_InvitesList>
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasNext || _loading) return;
+    if (!mounted ||
+        _expired ||
+        _responding ||
+        _loadingMore ||
+        !_hasNext ||
+        _loading) {
+      return;
+    }
+    final version = _loadVersion;
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
-      final page = await ref
-          .read(groupsApiProvider)
-          .myInvites(page: next);
-      if (!mounted) return;
+      final page = await ref.read(groupsApiProvider).myInvites(page: next);
+      if (!mounted || version != _loadVersion) return;
       setState(() {
-        _items = [..._items, ...page.items];
+        _items = {
+          for (final invite in _items) invite.inviteId: invite,
+          for (final invite in page.items) invite.inviteId: invite,
+        }.values.toList();
         _page = next;
         _hasNext = page.hasNext;
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || version != _loadVersion) return;
       setState(() => _loadingMore = false);
       ScaffoldMessenger.of(
         context,
@@ -715,50 +991,105 @@ class _InvitesListState extends ConsumerState<_InvitesList>
     }
   }
 
-  Future<void> _respond(V2GroupInvite invite, String action) async {
+  Future<void> _respond(V2GroupInvite invite, bool accept) async {
+    if (_expired || _responding || _loading || _loadingMore) return;
+    final groupId = invite.group?['group_id'];
+    if (groupId is! int || groupId <= 0 || invite.inviteId <= 0) return;
+    setState(() => _responding = true);
+    final l10n = AppLocalizations.of(context);
     try {
-      await ref
+      final receipt = await ref
           .read(groupsApiProvider)
-          .respondInvite(inviteId: invite.inviteId, action: action);
-      if (!mounted) return;
-      setState(() => _items.removeWhere((i) => i.inviteId == invite.inviteId));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+          .respondInvite(inviteId: invite.inviteId, accept: accept);
+      if (!mounted || _expired) return;
+      if (receipt.inviteId != invite.inviteId ||
+          receipt.groupId != groupId ||
+          receipt.status != (accept ? 'accepted' : 'rejected')) {
+        throw const FormatException('Invalid invite response');
+      }
+      final key = accept
+          ? 'group.invite_response.accepted'
+          : 'group.invite_response.rejected';
+      final slug = invite.group?['slug'];
+      if (accept) widget.onAccepted();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.t(key)),
+          action:
+              accept &&
+                  slug is String &&
+                  slug.trim().isNotEmpty &&
+                  slug != '.' &&
+                  slug != '..' &&
+                  !slug.contains('/') &&
+                  !slug.contains('\\')
+              ? SnackBarAction(
+                  label: l10n.t('group.invite_open_group'),
+                  onPressed: () {
+                    if (mounted && !_expired) {
+                      context.push('/groups/${Uri.encodeComponent(slug)}');
+                    }
+                  },
+                )
+              : null,
+        ),
+      );
+    } catch (_) {
+      if (!mounted || _expired) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t('group.invite_response.unknown'))),
+      );
+    } finally {
+      if (mounted && !_expired) {
+        await _load();
+        if (mounted && !_expired) setState(() => _responding = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(groupsApiProvider, (previous, next) {
+      if (!identical(previous, next)) _expire();
+    });
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    if (_expired) {
+      return EmptyView(message: l10n.t('visibility.sessionChanged'));
+    }
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
-    if (_items.isEmpty) {
-      return EmptyView(message: l10n.t('group.invites_empty'));
+    if (_items.isEmpty && !_hasNext) {
+      return EmptyView(
+        message: l10n.t(
+          widget.inviteId == null
+              ? 'group.invites_empty'
+              : 'group.invites_target_unavailable',
+        ),
+      );
     }
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () async {
+        if (!_responding) await _load();
+      },
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: _items.length + (_hasNext ? 1 : 0),
         itemBuilder: (_, i) {
           if (i >= _items.length) {
-            if (!_loadingMore) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _loadMore();
-              });
-            }
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
               child: Center(
-                child: SizedBox.square(
-                  dimension: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                child: _loadingMore
+                    ? const SizedBox.square(
+                        dimension: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : OutlinedButton(
+                        onPressed: _responding ? null : _loadMore,
+                        child: Text(l10n.t('common.more')),
+                      ),
               ),
             );
           }
@@ -777,7 +1108,9 @@ class _InvitesListState extends ConsumerState<_InvitesList>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     AppAvatar(
-                      url: group != null ? group['avatar_url'] as String? : null,
+                      url: group != null
+                          ? group['avatar_url'] as String?
+                          : null,
                       size: 44,
                     ),
                     const SizedBox(width: 12),
@@ -817,16 +1150,26 @@ class _InvitesListState extends ConsumerState<_InvitesList>
                     Column(
                       children: [
                         IconButton(
-                          tooltip: l10n.t('common.confirm'),
+                          tooltip: l10n.t('group.invite_response.accept'),
                           visualDensity: VisualDensity.compact,
-                          icon: Icon(Icons.check, color: theme.colorScheme.primary),
-                          onPressed: () => _respond(inv, 'accept'),
+                          icon: Icon(
+                            Icons.check,
+                            color: theme.colorScheme.primary,
+                          ),
+                          onPressed: _responding || _loadingMore
+                              ? null
+                              : () => _respond(inv, true),
                         ),
                         IconButton(
-                          tooltip: l10n.t('common.cancel'),
+                          tooltip: l10n.t('group.invite_response.reject'),
                           visualDensity: VisualDensity.compact,
-                          icon: Icon(Icons.close, color: theme.colorScheme.error),
-                          onPressed: () => _respond(inv, 'decline'),
+                          icon: Icon(
+                            Icons.close,
+                            color: theme.colorScheme.error,
+                          ),
+                          onPressed: _responding || _loadingMore
+                              ? null
+                              : () => _respond(inv, false),
                         ),
                       ],
                     ),

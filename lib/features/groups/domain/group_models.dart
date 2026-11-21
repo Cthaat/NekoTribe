@@ -1,6 +1,24 @@
 import '../../../core/utils/json_utils.dart';
 import '../../users/domain/user_models.dart';
 
+class V2GroupAuditEntry {
+  V2GroupAuditEntry.fromJson(Map<String, dynamic> json)
+    : id = json['log_id'] as int,
+      groupId = json['group_id'] as int,
+      actorId = json['actor_id'] as int,
+      targetUserId = json['target_user_id'] as int?,
+      targetPostId = json['target_post_id'] as int?,
+      targetCommentId = json['target_comment_id'] as int?,
+      action = json['action'] as String,
+      createdAt = json['created_at'] as String,
+      details = json['details'];
+
+  final int id, groupId, actorId;
+  final int? targetUserId, targetPostId, targetCommentId;
+  final String action, createdAt;
+  final Object? details;
+}
+
 class V2GroupMembership {
   V2GroupMembership({
     required this.isMember,
@@ -80,13 +98,13 @@ class V2Group {
       category: toStrOrNull(json['category']),
       tags: toList(json['tags'], (e) => toStr(e)),
       owner: V2PublicUser.fromJson(toMap(json['owner'])),
-      privacy: toStr(json['privacy'], defaultValue: 'public'),
+      privacy: toStr(json['privacy'], defaultValue: 'private'),
       privacyDesc: toStr(json['privacy_desc']),
       joinApproval: toBool(json['join_approval']),
       postPermission: toStr(json['post_permission'], defaultValue: 'all'),
       memberCount: toInt(json['member_count']) ?? 0,
       postCount: toInt(json['post_count']) ?? 0,
-      isActive: toInt(json['is_active']) ?? 1,
+      isActive: json['is_active'] == 1 ? 1 : 0,
       membership: json['membership'] is Map<String, dynamic>
           ? V2GroupMembership.fromJson(
               json['membership'] as Map<String, dynamic>,
@@ -178,6 +196,49 @@ class V2GroupNotificationPreference {
       groupId: toInt(json['group_id']) ?? 0,
       isEnabled: toBool(json['is_enabled']),
       updatedAt: toStr(json['updated_at']),
+    );
+  }
+}
+
+class V2GroupInvitePreview {
+  const V2GroupInvitePreview({
+    required this.isValid,
+    required this.group,
+    required this.inviter,
+    this.message,
+  });
+
+  final bool isValid;
+  final V2Group group;
+  final V2PublicUser inviter;
+  final String? message;
+
+  factory V2GroupInvitePreview.fromJson(Map<String, dynamic> json) {
+    return V2GroupInvitePreview(
+      isValid: toBool(json['is_valid']),
+      group: V2Group.fromJson(toMap(json['group'])),
+      inviter: V2PublicUser.fromJson(toMap(json['inviter'])),
+      message: toStrOrNull(json['message']),
+    );
+  }
+}
+
+class V2GroupInviteResponse {
+  const V2GroupInviteResponse({
+    required this.inviteId,
+    required this.groupId,
+    required this.status,
+  });
+
+  final int inviteId;
+  final int groupId;
+  final String status;
+
+  factory V2GroupInviteResponse.fromJson(Map<String, dynamic> json) {
+    return V2GroupInviteResponse(
+      inviteId: toInt(json['invite_id']) ?? 0,
+      groupId: toInt(json['group_id']) ?? 0,
+      status: toStr(json['status']),
     );
   }
 }
@@ -353,10 +414,7 @@ class V2GroupComment {
     );
   }
 
-  V2GroupComment copyWith({
-    int? likesCount,
-    bool? isLikedByMe,
-  }) {
+  V2GroupComment copyWith({int? likesCount, bool? isLikedByMe}) {
     return V2GroupComment(
       commentId: commentId,
       postId: postId,

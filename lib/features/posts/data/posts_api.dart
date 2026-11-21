@@ -1,13 +1,43 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
 import '../../../core/utils/json_utils.dart';
+import '../../users/domain/user_models.dart';
 import '../domain/post_models.dart';
+
+class UnconfirmedPostError implements Exception {
+  const UnconfirmedPostError();
+}
+
+class UnconfirmedPostUpdateError implements Exception {
+  const UnconfirmedPostUpdateError();
+}
+
+class UnconfirmedRetweetError implements Exception {
+  const UnconfirmedRetweetError();
+}
+
+typedef PostLikeReceipt = ({bool isLiked, int likesCount});
 
 class PostsApi {
   PostsApi(this._client);
 
   final ApiClient _client;
+
+  Future<PagedResult<V2PublicUser>> postLikers(
+    int postId, {
+    required int page,
+    required CancelToken cancelToken,
+  }) {
+    return _client.requestPaged<V2PublicUser>(
+      '${ApiPaths.posts}/$postId/likes',
+      query: {'page': page, 'page_size': 20},
+      cancelToken: cancelToken,
+      decodeItem: (item) => V2PublicUser.fromJson(toMap(item)),
+    );
+  }
 
   Future<PagedResult<V2Post>> getFeed({
     String mode = 'home',
@@ -61,19 +91,29 @@ class PostsApi {
   Future<PagedResult<V2Post>> getMyPosts({
     int page = 1,
     int size = 20,
-    String mode = 'posts',
+    String sort = 'newest',
+    String? query,
   }) {
     return _client.requestPaged<V2Post>(
       ApiPaths.usersMePosts,
-      query: {'page': page, 'page_size': size, 'sort': mode},
+      query: {
+        'page': page,
+        'page_size': size,
+        'sort': sort,
+        if (query != null && query.isNotEmpty) 'q': query,
+      },
       decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
 
-  Future<PagedResult<V2Post>> getMyLikes({int page = 1, int size = 20}) {
+  Future<PagedResult<V2Post>> getMyLikes({
+    int page = 1,
+    int size = 20,
+    String sort = 'newest',
+  }) {
     return _client.requestPaged<V2Post>(
       ApiPaths.usersMeLikes,
-      query: {'page': page, 'page_size': size},
+      query: {'page': page, 'page_size': size, 'sort': sort},
       decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
@@ -89,7 +129,14 @@ class PostsApi {
   Future<V2Post> getPost(int postId) {
     return _client.requestData<V2Post>(
       '${ApiPaths.posts}/$postId',
-      decode: (data) => V2Post.fromJson(toMap(data)),
+      decode: (data) {
+        final post = toMap(data);
+        final id = post['post_id'];
+        if (id is! int || id != postId) {
+          throw const FormatException('Invalid post detail response');
+        }
+        return V2Post.fromJson(post);
+      },
     );
   }
 
@@ -130,7 +177,20 @@ class PostsApi {
       ApiPaths.posts,
       method: 'POST',
       data: body,
-      decode: (data) => V2Post.fromJson(toMap(data)),
+      decode: (data) {
+        final receipt = toMap(data);
+        final created = receipt['post_id'];
+        if (!_isPostId(created) ||
+            created == replyToPostId ||
+            created == repostOfPostId ||
+            created == quotedPostId ||
+            receipt['reply_to_post_id'] != replyToPostId ||
+            receipt['repost_of_post_id'] != repostOfPostId ||
+            receipt['quoted_post_id'] != quotedPostId) {
+          throw const UnconfirmedPostError();
+        }
+        return V2Post.fromJson(receipt);
+      },
     );
   }
 
@@ -141,6 +201,7 @@ class PostsApi {
     String? language,
     String? location,
     List<String>? tags,
+    List<int>? mediaIds,
   }) {
     return _client.requestData<V2Post>(
       '${ApiPaths.posts}/$postId',
@@ -151,6 +212,20 @@ class PostsApi {
         if (language != null) 'language': language,
         if (location != null) 'location': location,
         if (tags != null) 'tag_names': tags,
+        if (mediaIds != null) 'media_ids': mediaIds,
+      },
+      validateSuccessEnvelope: (value) {
+        final envelope = toMap(value);
+        final post = toMap(envelope['data']);
+        if (envelope['code'] != 200 ||
+            envelope['message'] != 'post updated' ||
+            !envelope.containsKey('meta') ||
+            envelope['meta'] != null ||
+            post['post_id'] != postId ||
+            !_isPostId(toMap(post['author'])['user_id']) ||
+            toMap(post['viewer_state'])['can_delete'] != true) {
+          throw const UnconfirmedPostUpdateError();
+        }
       },
       decode: (data) => V2Post.fromJson(toMap(data)),
     );
@@ -161,38 +236,64 @@ class PostsApi {
       '${ApiPaths.posts}/$postId',
       method: 'DELETE',
       decode: (_) {},
+      validateSuccessEnvelope: (value) {
+        if (value is! Map<String, Object?> ||
+            value['code'] != 200 ||
+            value['message'] != 'post deleted' ||
+            !value.containsKey('data') ||
+            value['data'] != null ||
+            !value.containsKey('meta') ||
+            value['meta'] != null) {
+          throw const FormatException('Invalid post delete response');
+        }
+      },
     );
   }
 
-  Future<V2ViewerPostState> likePost(int postId) {
-    return _client.requestData<V2ViewerPostState>(
+  Future<PostLikeReceipt> likePost(int postId) => _setPostLike(postId, 'POST');
+
+  Future<PostLikeReceipt> unlikePost(int postId) =>
+      _setPostLike(postId, 'DELETE');
+
+  Future<PostLikeReceipt> _setPostLike(int postId, String method) {
+    return _client.requestData<PostLikeReceipt>(
       '${ApiPaths.posts}/$postId/likes',
-      method: 'POST',
-      decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
+      method: method,
+      decode: (data) {
+        final body = toMap(data);
+        final count = body['likes_count'];
+        final liked = body['is_liked'];
+        if (body['post_id'] != postId ||
+            liked is! bool ||
+            count is! num ||
+            !count.isFinite ||
+            count < 0 ||
+            count > 9007199254740991 ||
+            count != count.truncate()) {
+          throw const FormatException('Invalid post like response');
+        }
+        return (isLiked: liked, likesCount: count.toInt());
+      },
     );
   }
 
-  Future<V2ViewerPostState> unlikePost(int postId) {
-    return _client.requestData<V2ViewerPostState>(
-      '${ApiPaths.posts}/$postId/likes',
-      method: 'DELETE',
-      decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
-    );
-  }
+  Future<V2ViewerPostState> bookmarkPost(int postId) =>
+      _setPostBookmark(postId, 'POST');
 
-  Future<V2ViewerPostState> bookmarkPost(int postId) {
+  Future<V2ViewerPostState> unbookmarkPost(int postId) =>
+      _setPostBookmark(postId, 'DELETE');
+
+  Future<V2ViewerPostState> _setPostBookmark(int postId, String method) {
     return _client.requestData<V2ViewerPostState>(
       '${ApiPaths.posts}/$postId/bookmarks',
-      method: 'POST',
-      decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
-    );
-  }
-
-  Future<V2ViewerPostState> unbookmarkPost(int postId) {
-    return _client.requestData<V2ViewerPostState>(
-      '${ApiPaths.posts}/$postId/bookmarks',
-      method: 'DELETE',
-      decode: (data) => V2ViewerPostState.fromJson(toMap(data)),
+      method: method,
+      decode: (data) {
+        final body = toMap(data);
+        if (body['post_id'] != postId || body['is_bookmarked'] is! bool) {
+          throw const FormatException('Invalid post bookmark response');
+        }
+        return V2ViewerPostState.fromJson(body);
+      },
     );
   }
 
@@ -205,9 +306,24 @@ class PostsApi {
       '${ApiPaths.posts}/$postId/retweets',
       method: 'POST',
       data: {'content': content, 'visibility': visibility},
-      decode: (data) => V2Post.fromJson(toMap(data)),
+      decode: (data) {
+        final body = toMap(data);
+        final created = body['post_id'];
+        if (body['repost_of_post_id'] != postId ||
+            !_isPostId(created) ||
+            created == postId) {
+          throw const UnconfirmedRetweetError();
+        }
+        return V2Post.fromJson(body);
+      },
     );
   }
+
+  static bool _isPostId(Object? value) =>
+      value is num &&
+      value >= 1 &&
+      value <= 9007199254740991 &&
+      value == value.truncate();
 
   Future<PagedResult<V2Post>> getReplies(
     int postId, {
@@ -215,8 +331,39 @@ class PostsApi {
     int size = 20,
     String sort = 'newest',
   }) {
+    return _getPostReferences(
+      postId,
+      'replies',
+      page: page,
+      size: size,
+      sort: sort,
+    );
+  }
+
+  Future<PagedResult<V2Post>> getRetweets(
+    int postId, {
+    int page = 1,
+    int size = 20,
+    String sort = 'oldest',
+  }) {
+    return _getPostReferences(
+      postId,
+      'retweets',
+      page: page,
+      size: size,
+      sort: sort,
+    );
+  }
+
+  Future<PagedResult<V2Post>> _getPostReferences(
+    int postId,
+    String kind, {
+    required int page,
+    required int size,
+    required String sort,
+  }) {
     return _client.requestPaged<V2Post>(
-      '${ApiPaths.posts}/$postId/replies',
+      '${ApiPaths.posts}/$postId/$kind',
       query: {'page': page, 'page_size': size, 'sort': sort},
       decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
@@ -232,6 +379,18 @@ class PostsApi {
       query: {'page': page, 'page_size': size},
       decodeItem: (item) => V2Comment.fromJson(toMap(item)),
     );
+  }
+
+  Future<V2Comment?> getComment(int postId, int commentId) async {
+    final page = await _client.requestPaged<V2Comment>(
+      '${ApiPaths.posts}/$postId/comments',
+      query: {'comment_id': commentId},
+      decodeItem: (item) => V2Comment.fromJson(toMap(item)),
+    );
+    for (final item in page.items) {
+      if (item.postId == postId && item.commentId == commentId) return item;
+    }
+    return null;
   }
 
   Future<V2Comment> createComment({
@@ -259,19 +418,33 @@ class PostsApi {
     );
   }
 
-  Future<void> likeComment(int commentId) async {
-    await _client.request<void>(
-      '${ApiPaths.comments}/$commentId/likes',
-      method: 'POST',
-      decode: (_) {},
-    );
-  }
+  Future<CommentLikeState> likeComment(int commentId) =>
+      _setCommentLike(commentId, liked: true);
 
-  Future<void> unlikeComment(int commentId) async {
-    await _client.request<void>(
+  Future<CommentLikeState> unlikeComment(int commentId) =>
+      _setCommentLike(commentId, liked: false);
+
+  Future<CommentLikeState> _setCommentLike(
+    int commentId, {
+    required bool liked,
+  }) {
+    return _client.requestData<CommentLikeState>(
       '${ApiPaths.comments}/$commentId/likes',
-      method: 'DELETE',
-      decode: (_) {},
+      method: liked ? 'POST' : 'DELETE',
+      decode: (data) {
+        final body = toMap(data);
+        final count = body['likes_count'];
+        final state = body['is_liked'];
+        if (body['comment_id'] != commentId ||
+            state is! bool ||
+            count is! num ||
+            !count.isFinite ||
+            count < 0 ||
+            count != count.truncate()) {
+          throw const FormatException('Invalid comment like response');
+        }
+        return (isLiked: state, likesCount: count.toInt());
+      },
     );
   }
 
@@ -298,7 +471,15 @@ class PostsApi {
   Future<List<V2TagItem>> getTrendingTags({int limit = 10}) {
     return _client.requestList<V2TagItem>(
       ApiPaths.tagsTrending,
-      query: {'limit': limit},
+      query: {'page_size': limit},
+      decodeItem: (item) => V2TagItem.fromJson(toMap(item)),
+    );
+  }
+
+  Future<List<V2TagItem>> searchTags(String query) {
+    return _client.requestList<V2TagItem>(
+      ApiPaths.tags,
+      query: {'q': query, 'page_size': 6},
       decodeItem: (item) => V2TagItem.fromJson(toMap(item)),
     );
   }
@@ -309,9 +490,16 @@ class PostsApi {
     int size = 20,
   }) {
     return _client.requestPaged<V2Post>(
-      '${ApiPaths.tags}/$tag/posts',
+      '${ApiPaths.tags}/${Uri.encodeComponent(tag)}/posts',
       query: {'page': page, 'page_size': size},
       decodeItem: (item) => V2Post.fromJson(toMap(item)),
+    );
+  }
+
+  Future<V2TagAnalytics> getTagAnalytics(String tag) {
+    return _client.requestData<V2TagAnalytics>(
+      '${ApiPaths.tags}/${Uri.encodeComponent(tag)}/analytics',
+      decode: (value) => V2TagAnalytics.fromJson(toMap(value)),
     );
   }
 
@@ -343,8 +531,18 @@ class PostsApi {
     await _client.request<void>(
       ApiPaths.recommendationsFeedback,
       method: 'POST',
-      data: {'post_id': postId, 'feedback': feedback},
-      decode: (_) {},
+      data: {
+        'resource_type': 'post',
+        'resource_id': postId,
+        'action': feedback,
+      },
+      decode: (value) {
+        if (toMap(value)['accepted'] != true) {
+          throw const FormatException(
+            'Recommendation feedback was not accepted.',
+          );
+        }
+      },
     );
   }
 }

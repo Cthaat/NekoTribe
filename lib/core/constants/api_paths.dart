@@ -2,6 +2,7 @@ class ApiPaths {
   ApiPaths._();
 
   static const String health = '/api/health';
+  static const String aiAvailability = '/api/v2/ai/availability';
   static const String aiConversations = '/api/v2/ai/conversations';
 
   // Auth
@@ -49,6 +50,7 @@ class ApiPaths {
 
   // Media
   static const String media = '/api/v2/media';
+  static const String privateMediaUpload = '$media/private';
 
   // Notifications
   static const String notifications = '/api/v2/notifications';
@@ -105,6 +107,19 @@ class ApiPaths {
   static bool isRefreshPath(String path) {
     final normalized = _normalize(path);
     return normalized == authTokensCurrent;
+  }
+
+  // Incorrect credential/OTP is also 401; keep auth headers and identity guards,
+  // but do not refresh/replay this mutation or clear a valid session on failure.
+  static bool isCredentialMutationPath(String path, {String? method}) {
+    final normalized = _normalize(path);
+    return normalized == usersMeEmail ||
+        [
+          usersMeTwoFactor,
+          usersMeTwoFactorSetup,
+          usersMeTwoFactorConfirm,
+        ].contains(normalized) ||
+        (normalized == usersMe && method?.toUpperCase() == 'DELETE');
   }
 
   static String _normalize(String path) {

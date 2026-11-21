@@ -8,7 +8,11 @@ import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../ai/presentation/ai_group_draft_screen.dart';
 import '../domain/group_draft_metadata.dart';
+import 'group_audit_log_screen.dart';
+import 'group_invite_history_screen.dart';
+import 'group_invite_recipient_dialog.dart';
 import '../domain/group_models.dart';
 import 'group_image_upload.dart';
 
@@ -37,6 +41,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   V2GroupNotificationPreference? _notificationPreference;
   List<V2GroupMember> _members = [];
   int _membersPage = 1;
+  int _membersRevision = 0;
   bool _membersHasNext = false;
   bool _membersLoadingMore = false;
   String? _avatarUrl;
@@ -97,15 +102,17 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
   }
 
   Future<void> _load() async {
+    final revision = ++_membersRevision;
     setState(() {
       _loading = true;
+      _membersLoadingMore = false;
       _error = null;
     });
     try {
       final api = ref.read(groupsApiProvider);
       final group = await api.getGroup(widget.slug);
+      if (!mounted || revision != _membersRevision) return;
       if (!_canManageGroup(group.membership.role)) {
-        if (!mounted) return;
         setState(() {
           _group = group;
           _loading = false;
@@ -114,11 +121,12 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
         return;
       }
       final members = await api.members(group.groupId, page: 1);
+      if (!mounted || revision != _membersRevision) return;
       V2GroupNotificationPreference? preference;
       try {
         preference = await api.getNotificationPreference(group.groupId);
       } catch (_) {}
-      if (!mounted) return;
+      if (!mounted || revision != _membersRevision) return;
       _memberSearch.clear();
       setState(() {
         _group = group;
@@ -149,7 +157,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || revision != _membersRevision) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -162,21 +170,25 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     if (group == null || _membersLoadingMore || !_membersHasNext || _loading) {
       return;
     }
+    final revision = ++_membersRevision;
     setState(() => _membersLoadingMore = true);
     try {
       final next = _membersPage + 1;
       final page = await ref
           .read(groupsApiProvider)
           .members(group.groupId, page: next);
-      if (!mounted) return;
+      if (!mounted || revision != _membersRevision) return;
       setState(() {
-        _members = [..._members, ...page.items];
+        _members = {
+          for (final member in _members) member.memberId: member,
+          for (final member in page.items) member.memberId: member,
+        }.values.toList();
         _membersPage = next;
         _membersHasNext = page.hasNext;
         _membersLoadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || revision != _membersRevision) return;
       setState(() => _membersLoadingMore = false);
       ScaffoldMessenger.of(
         context,
@@ -186,29 +198,34 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
 
   Future<void> _reloadMembers() async {
     final group = _group;
-    if (group == null) return;
+    if (group == null || _loading) return;
+    final revision = ++_membersRevision;
+    setState(() => _membersLoadingMore = true);
     final pages = _membersPage.clamp(1, 50);
     try {
       final api = ref.read(groupsApiProvider);
-      final all = <V2GroupMember>[];
+      final all = <int, V2GroupMember>{};
       var hasNext = false;
       var lastPage = 1;
       for (var p = 1; p <= pages; p++) {
         final page = await api.members(group.groupId, page: p);
-        all.addAll(page.items);
+        if (!mounted || revision != _membersRevision) return;
+        for (final member in page.items) {
+          all[member.memberId] = member;
+        }
         hasNext = page.hasNext;
         lastPage = p;
         if (!page.hasNext) break;
       }
-      if (!mounted) return;
       setState(() {
-        _members = all;
+        _members = all.values.toList();
         _membersPage = lastPage;
         _membersHasNext = hasNext;
         _membersLoadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || revision != _membersRevision) return;
+      setState(() => _membersLoadingMore = false);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -500,9 +517,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.t('group.invite_created'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.t('group.invite_created'))));
       }
     } catch (e) {
       if (!mounted) return;
@@ -510,6 +527,29 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     }
+  }
+
+  Future<void> _inviteRecipient(V2Group group) async {
+    final l10n = AppLocalizations.of(context);
+    final hours = int.tryParse(_inviteExpireHours.text.trim());
+    if (hours == null || hours < 1 || hours > 8760) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t('group.invite_recipient.invalid_hours'))),
+      );
+      return;
+    }
+    final sent = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => GroupInviteRecipientDialog(
+        groupId: group.groupId,
+        expireHours: hours,
+      ),
+    );
+    if (sent != true || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.t('group.invite_recipient.sent'))),
+    );
   }
 
   Future<void> _deleteGroup() async {
@@ -538,9 +578,44 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
     final theme = Theme.of(context);
     final pendingMembers = _pendingMembers;
     final managedMembers = _managedMembers;
-    final isOwner = _group?.membership.role == 'owner';
+    final group = _group;
+    final isOwner = group?.membership.role == 'owner';
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('group.manage'))),
+      appBar: AppBar(
+        title: Text(l10n.t('group.manage')),
+        actions: [
+          if (!_loading &&
+              _error == null &&
+              group != null &&
+              group.membership.status == 'active' &&
+              _canManageGroup(group.membership.role))
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: l10n.t('group.audit.title'),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => GroupAuditLogScreen(groupId: group.groupId),
+                ),
+              ),
+            ),
+          if (!_loading &&
+              _error == null &&
+              group != null &&
+              canUseGroupDrafts(group))
+            TextButton.icon(
+              icon: const Icon(Icons.edit_note_outlined),
+              label: Text(l10n.t('ai.groupDraft.title')),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => AiGroupDraftScreen(
+                    groupId: group.groupId,
+                    slug: group.slug,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
       body: _loading
           ? const LoadingView()
           : _error != null
@@ -847,6 +922,28 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                         ),
                       ],
                     ),
+                    if (group != null &&
+                        group.membership.status == 'active' &&
+                        _canManageGroup(group.membership.role)) ...[
+                      OutlinedButton.icon(
+                        key: const Key('group-manage-invite-recipient'),
+                        icon: const Icon(Icons.person_add_outlined),
+                        label: Text(l10n.t('group.invite_recipient.title')),
+                        onPressed: () => _inviteRecipient(group),
+                      ),
+                      OutlinedButton.icon(
+                        key: const Key('group-manage-invite-history'),
+                        icon: const Icon(Icons.mark_email_read_outlined),
+                        label: Text(l10n.t('group.invite_history.title')),
+                        onPressed: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => GroupInviteHistoryScreen(
+                              groupId: group.groupId,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     if (isOwner) ...[
                       Text(
@@ -883,7 +980,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.delete_outline),
                         label: Text(l10n.t('group.delete')),
@@ -966,7 +1065,10 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
                               onUnmute: () => _unmuteMember(managedMembers[i]),
                               onRemove: () => _removeMember(managedMembers[i]),
                               canTransferOwnership:
-                                  isOwner && managedMembers[i].role != 'owner',
+                                  isOwner &&
+                                  _group?.membership.status == 'active' &&
+                                  managedMembers[i].role != 'owner' &&
+                                  managedMembers[i].status == 'active',
                               onTransferOwnership: () =>
                                   _transferOwnership(managedMembers[i]),
                             ),
@@ -1099,11 +1201,13 @@ class _MemberRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isTargetOwner = member.role == 'owner';
-    final canChangeRoles = !isTargetOwner &&
+    final canChangeRoles =
+        !isTargetOwner &&
         (actorRole == 'owner' ||
             actorRole == 'admin' ||
             actorRole == 'moderator');
-    final canModerateMember = !isTargetOwner &&
+    final canModerateMember =
+        !isTargetOwner &&
         (actorRole == 'owner' ||
             actorRole == 'admin' ||
             actorRole == 'moderator');
