@@ -39,7 +39,7 @@ jobs:
       - name: Enable Yarn Classic via Corepack
         if: inputs.target == 'nuxt'
         run: corepack enable
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: inputs.target == 'go'
         with:
           go-version-file: go.mod
