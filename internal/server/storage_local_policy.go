@@ -18,6 +18,10 @@ var errLocalRange = errors.New("invalid storage byte range")
 var localDeviceName = regexp.MustCompile(`^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]|CONIN\$|CONOUT\$)$`)
 var localRangePattern = regexp.MustCompile(`^bytes=([0-9]*)-([0-9]*)$`)
 
+func isPrivateStorageKey(key string) bool {
+	return strings.HasPrefix(key, "private/chat/") || strings.HasPrefix(key, "private/post/")
+}
+
 func normalizeLocalFileKey(key string) (string, error) {
 	if !utf8.ValidString(key) {
 		return "", errLocalFileKey

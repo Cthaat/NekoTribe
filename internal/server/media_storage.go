@@ -76,12 +76,30 @@ type mediaObjectIdentity struct {
 	info os.FileInfo
 }
 
+func publishRouteMedia(ctx context.Context, media *mediaMultipart, config LocalStorageConfig, key, mime string) (cleanup func() error, release func(), err error) {
+	if config.s3 != nil {
+		if err := config.s3.put(ctx, media, key, mime); err != nil {
+			return nil, nil, err
+		}
+		return func() error { return config.s3.delete(context.WithoutCancel(ctx), key) }, func() {}, nil
+	}
+	var identity *mediaObjectIdentity
+	if err := saveMediaObjectWithIdentity(ctx, media, config, key, &identity); err != nil {
+		return nil, nil, err
+	}
+	return func() error { return cleanupPublishedMedia(media, key, identity) }, func() {
+		if identity != nil && identity.file.Close() != nil {
+			log.Print("media upload object handle close unavailable")
+		}
+	}, nil
+}
+
 func saveMediaObjectWithIdentity(ctx context.Context, m *mediaMultipart, config LocalStorageConfig, key string, identity **mediaObjectIdentity) error {
 	if config.Unsupported || m == nil || m.closed || m.root == nil || m.temp == nil || m.request == nil || m.directory == "" {
 		return errMediaStorage
 	}
 	key, err := normalizeLocalFileKey(key)
-	if err != nil || !strings.HasPrefix(key, "posts/") {
+	if err != nil || !(strings.HasPrefix(key, "posts/") || strings.HasPrefix(key, "avatars/") || isPrivateStorageKey(key)) {
 		return errMediaStorage
 	}
 	rootPath := config.Root
@@ -198,7 +216,7 @@ func cleanupPublishedMedia(m *mediaMultipart, key string, identity *mediaObjectI
 		return errMediaStorage
 	}
 	key, err := normalizeLocalFileKey(key)
-	if err != nil || !strings.HasPrefix(key, "posts/") {
+	if err != nil || !(strings.HasPrefix(key, "posts/") || strings.HasPrefix(key, "avatars/") || isPrivateStorageKey(key)) {
 		return errMediaStorage
 	}
 	parts := strings.Split(key, "/")

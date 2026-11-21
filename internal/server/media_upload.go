@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
 	_ "golang.org/x/image/webp"
@@ -21,7 +22,14 @@ type mediaUploadStore interface {
 	CreateMediaAtomic(context.Context, mediaUploadInput, StorageURLPolicy) (mediaUploadResult, error)
 }
 
-func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig) {
+type privateMediaUploadSchemaChecker interface {
+	CheckPrivateMediaUploadSchema(context.Context) error
+}
+
+const mediaUploadBodyTimeout = 15 * time.Minute
+const mediaUploadResponseGrace = 6 * time.Minute
+
+func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig, requirePrivate bool) {
 	user, ok := interactionActor(w, r, codec, repository)
 	if !ok {
 		return
@@ -36,9 +44,15 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 		respond(w, 400, 40001, "请使用 multipart/form-data 上传媒体文件", nil)
 		return
 	}
-	media, err := parseMediaMultipart(r, config.LocalStorage, defaultMediaMultipartLimits)
+	deadline := time.Now().Add(mediaUploadBodyTimeout)
+	response := http.NewResponseController(w)
+	_ = response.SetReadDeadline(deadline)
+	_ = response.SetWriteDeadline(deadline.Add(mediaUploadResponseGrace))
+	media, err := parseMediaMultipartRequest(r, config.LocalStorage, defaultMediaMultipartLimits, "media", requirePrivate)
 	if err != nil {
 		switch {
+		case errors.Is(err, errMediaAccessScope):
+			respond(w, 400, 40001, "媒体访问范围无效", nil)
 		case errors.Is(err, errMediaNoFile):
 			respond(w, 400, 40001, "上传文件为空", nil)
 		case errors.Is(err, errMediaMultipart):
@@ -53,6 +67,10 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 			log.Print("media upload temporary cleanup unavailable")
 		}
 	}()
+	if len(media.AltText) > 500 || len(media.Description) > 1000 {
+		respond(w, 400, 40001, "媒体替代文本或描述过长", nil)
+		return
+	}
 	file, err := media.OpenSelected()
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
@@ -104,8 +122,15 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 		respond(w, 400, 40001, "仅支持图片、视频、音频、文档、文本或压缩包文件", nil)
 		return
 	}
-	if config.LocalStorage.Unsupported {
-		respond(w, 501, 50101, "媒体存储暂不可用", nil)
+	private := media.AccessScope != ""
+	if private {
+		checker, ok := repository.(privateMediaUploadSchemaChecker)
+		if config.LocalStorage.Unsupported || !ok || checker.CheckPrivateMediaUploadSchema(r.Context()) != nil {
+			respondPrivateMediaError(w, http.StatusServiceUnavailable)
+			return
+		}
+	} else if config.LocalStorage.Unsupported {
+		respond(w, http.StatusServiceUnavailable, 50301, "媒体存储暂不可用", nil)
 		return
 	}
 	key, err := newMediaObjectKey(user, selected.MediaType, selected.Extension, config.clock())
@@ -113,31 +138,36 @@ func uploadMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
-	publicURL, err := normalizeAvatarURL(config.Storage, "/storage/"+key)
+	var publicURL string
+	if private {
+		key = "private/" + media.AccessScope + "/" + strings.TrimPrefix(key, "posts/")
+	} else {
+		publicURL, err = normalizeAvatarURL(config.Storage, "/storage/"+key)
+		if err != nil {
+			respond(w, 500, 50001, "服务器内部错误", nil)
+			return
+		}
+	}
+	cleanup, release, err := publishRouteMedia(r.Context(), media, config.LocalStorage, key, selected.MIMEType)
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
-	var identity *mediaObjectIdentity
-	if err = saveMediaObjectWithIdentity(r.Context(), media, config.LocalStorage, key, &identity); err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return
-	}
-	defer func() {
-		if identity != nil && identity.file.Close() != nil {
-			log.Print("media upload object handle close unavailable")
-		}
-	}()
-	input := mediaUploadInput{UserID: user, Size: media.Selected.Size, Key: key, PublicURL: publicURL, FileName: name, MediaType: selected.MediaType, MIMEType: selected.MIMEType, AltText: media.AltText, Description: media.Description, Width: width, Height: height, Duration: duration}
+	defer release()
+	input := mediaUploadInput{UserID: user, Size: media.Selected.Size, Key: key, PublicURL: publicURL, AccessScope: media.AccessScope, FileName: name, MediaType: selected.MediaType, MIMEType: selected.MIMEType, AltText: media.AltText, Description: media.Description, Width: width, Height: height, Duration: duration}
 	result, err := store.CreateMediaAtomic(r.Context(), input, config.Storage)
 	if err != nil {
 		if result.CleanupSafe {
-			if cleanupPublishedMedia(media, key, identity) != nil {
+			if cleanup() != nil {
 				log.Print("media upload object cleanup unavailable")
 			}
 		}
 		if errors.Is(err, errMediaSchema) {
-			respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
+			if private {
+				respondPrivateMediaError(w, http.StatusServiceUnavailable)
+			} else {
+				respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
+			}
 		} else {
 			respond(w, 500, 50001, "服务器内部错误", nil)
 		}

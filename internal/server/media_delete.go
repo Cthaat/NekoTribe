@@ -3,13 +3,16 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	"github.com/Cthaat/NekoTribe/backend-go/contracts"
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
 )
 
@@ -17,6 +20,47 @@ type mediaDeleteRecord struct {
 	Deleted                      bool
 	Key, PublicURL, ThumbnailURL string
 }
+
+var errMediaInUse = errors.New("media in use")
+
+type mediaReferenceContract struct {
+	CheckReferences   string `json:"checkReferences"`
+	KeyPattern        string `json:"keyPattern"`
+	AliasPattern      string `json:"aliasPattern"`
+	LookupGroupImages string `json:"lookupGroupImages"`
+	LockGroupImage    string `json:"lockGroupImage"`
+}
+
+var mediaReferences = func() mediaReferenceContract {
+	var spec mediaReferenceContract
+	if err := json.Unmarshal(contracts.MediaDeleteReferences, &spec); err != nil ||
+		spec.CheckReferences == "" || spec.KeyPattern == "" || spec.AliasPattern == "" ||
+		spec.LookupGroupImages == "" || spec.LockGroupImage == "" {
+		panic("invalid media delete reference contract")
+	}
+	return spec
+}()
+
+var groupImageAlias = regexp.MustCompile(mediaReferences.AliasPattern)
+var groupImageKey = regexp.MustCompile(mediaReferences.KeyPattern)
+
+func managedGroupImageKey(policy StorageURLPolicy, reference string) string {
+	url := strings.TrimFunc(reference, jsTrimSpace)
+	var key string
+	if alias := groupImageAlias.FindStringSubmatch(url); alias != nil {
+		key = alias[3]
+	} else {
+		if end := strings.IndexAny(url, "?#"); end >= 0 {
+			url = url[:end]
+		}
+		key, _ = mediaManagedKey(policy, url)
+	}
+	if groupImageKey.MatchString(key) {
+		return key
+	}
+	return ""
+}
+
 type mediaDeleteStore interface {
 	DeleteMedia(context.Context, int64, float64) (mediaDeleteRecord, error)
 }
@@ -47,6 +91,10 @@ func deleteMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 		return
 	}
 	record, err := store.DeleteMedia(r.Context(), user, id)
+	if errors.Is(err, errMediaInUse) {
+		respond(w, 409, 40901, "媒体正在使用", nil)
+		return
+	}
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
@@ -66,24 +114,39 @@ func deleteMedia(w http.ResponseWriter, r *http.Request, codec *auth.TokenManage
 }
 
 func (s OracleSessions) DeleteMedia(ctx context.Context, user int64, id float64) (mediaDeleteRecord, error) {
-	const read = `SELECT storage_key, public_url, thumbnail_url FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id`
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return mediaDeleteRecord{}, errSessionStore
+	}
+	defer tx.Rollback()
+	const read = `SELECT storage_key, public_url, thumbnail_url FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id FOR UPDATE`
 	var key, public, thumbnail sql.NullString
-	err := s.DB.QueryRowContext(ctx, read, sql.Named("media_id", id), sql.Named("user_id", user)).Scan(&key, &public, &thumbnail)
+	mediaID := sql.Named("media_id", id)
+	owner := sql.Named("user_id", user)
+	err = tx.QueryRowContext(ctx, read, mediaID, owner).Scan(&key, &public, &thumbnail)
 	if errors.Is(err, sql.ErrNoRows) {
 		return mediaDeleteRecord{}, nil
 	}
 	if err != nil {
 		return mediaDeleteRecord{}, errSessionStore
 	}
+	var inUse int
+	err = tx.QueryRowContext(ctx, mediaReferences.CheckReferences, mediaID).Scan(&inUse)
+	if err == nil {
+		return mediaDeleteRecord{}, errMediaInUse
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return mediaDeleteRecord{}, errSessionStore
+	}
 	const remove = `DELETE FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id`
-	count, err := s.execute(ctx, remove, sql.Named("media_id", id), sql.Named("user_id", user))
+	count, err := postTxExecute(ctx, tx, remove, mediaID, owner)
 	if err != nil {
 		return mediaDeleteRecord{}, errSessionStore
 	}
 	if count == 0 {
 		return mediaDeleteRecord{}, nil
 	}
-	if count != 1 {
+	if count != 1 || tx.Commit() != nil {
 		return mediaDeleteRecord{}, errSessionStore
 	}
 	return mediaDeleteRecord{Deleted: true, Key: key.String, PublicURL: public.String, ThumbnailURL: thumbnail.String}, nil
@@ -143,11 +206,18 @@ func deleteMediaReference(config LocalStorageConfig, policy StorageURLPolicy, st
 	if err != nil {
 		return err
 	}
-	if strings.EqualFold(strings.SplitN(key, "/", 2)[0], "temp") {
+	prefix, _, _ := strings.Cut(key, "/")
+	if strings.EqualFold(prefix, "private") && storageKey == "" {
+		return nil
+	}
+	if strings.EqualFold(prefix, "temp") || (strings.EqualFold(prefix, "private") && !isPrivateStorageKey(key)) {
 		return errLocalFileKey
 	}
 	if config.Unsupported {
 		return errors.New("storage unavailable")
+	}
+	if config.s3 != nil {
+		return config.s3.delete(context.Background(), key)
 	}
 	rootPath := config.Root
 	if rootPath == "" {

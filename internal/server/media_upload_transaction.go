@@ -14,6 +14,7 @@ var errMediaSchema = errors.New("media schema unavailable")
 type mediaUploadInput struct {
 	UserID, Size                                                        int64
 	Key, PublicURL, FileName, MediaType, MIMEType, AltText, Description string
+	AccessScope                                                         string
 	Width, Height, Duration                                             *float64
 	ThumbnailURL                                                        *string
 }
@@ -40,10 +41,29 @@ func (s OracleSessions) CreateMediaAtomic(ctx context.Context, input mediaUpload
 	return s.createMediaAtomic(ctx, input, policy, verifyMediaUploadSchema)
 }
 
+func (s OracleSessions) CheckPrivateMediaUploadSchema(ctx context.Context) error {
+	rows, err := s.DB.QueryContext(ctx, "SELECT access_scope FROM n_media_assets WHERE 1=0")
+	if err != nil {
+		return errMediaSchema
+	}
+	defer rows.Close()
+	if rows.Next() || rows.Err() != nil {
+		return errMediaSchema
+	}
+	return nil
+}
+
 func (s OracleSessions) createMediaAtomic(ctx context.Context, input mediaUploadInput, policy StorageURLPolicy, verify func(context.Context, *sql.Conn) error) (result mediaUploadResult, err error) {
 	result.CleanupSafe = true
-	if input.UserID <= 0 || input.Size <= 0 || input.Key == "" || input.PublicURL == "" {
+	private := input.AccessScope != ""
+	if input.UserID <= 0 || input.Size <= 0 || input.Key == "" || (!private && input.PublicURL == "") {
 		return result, errSessionStore
+	}
+	if private {
+		key, err := normalizePrivateMediaStorageKey(input.Key, input.AccessScope)
+		if err != nil || key != input.Key {
+			return result, errSessionStore
+		}
 	}
 	conn, e := s.DB.Conn(ctx)
 	if e != nil {
@@ -58,6 +78,13 @@ func (s OracleSessions) createMediaAtomic(ctx context.Context, input mediaUpload
 	var id int64
 	if conn.QueryRowContext(ctx, `SELECT seq_media_id.NEXTVAL FROM dual`).Scan(&id) != nil || id <= 0 {
 		return result, errSessionStore
+	}
+	if private {
+		if id > 9007199254740991 {
+			return result, errSessionStore
+		}
+		input.PublicURL = privateMediaContentPath(id)
+		input.ThumbnailURL = nil
 	}
 	if verify(ctx, conn) != nil {
 		return result, errMediaSchema
@@ -79,9 +106,19 @@ func (s OracleSessions) createMediaAtomic(ctx context.Context, input mediaUpload
 			}
 		}
 	}()
-	const insert = `INSERT INTO n_media_assets (media_id,owner_user_id,media_type,file_name,storage_key,public_url,file_size,mime_type,width,height,duration,thumbnail_url,alt_text,description,status) VALUES (:media_id,:owner_user_id,:media_type,:file_name,:storage_key,:public_url,:file_size,:mime_type,:width,:height,:duration,:thumbnail_url,:alt_text,:description,'ready')`
-	inserted, e := tx.ExecContext(ctx, insert, sql.Named("media_id", id), sql.Named("owner_user_id", input.UserID), sql.Named("media_type", input.MediaType), sql.Named("file_name", input.FileName), sql.Named("storage_key", input.Key), sql.Named("public_url", input.PublicURL), sql.Named("file_size", input.Size), sql.Named("mime_type", input.MIMEType), sql.Named("width", input.Width), sql.Named("height", input.Height), sql.Named("duration", input.Duration), sql.Named("thumbnail_url", input.ThumbnailURL), sql.Named("alt_text", nullablePostString(input.AltText)), sql.Named("description", nullablePostString(input.Description)))
+	const columns = `media_id,owner_user_id,media_type,file_name,storage_key,public_url,file_size,mime_type,width,height,duration,thumbnail_url,alt_text,description,status`
+	const values = `:media_id,:owner_user_id,:media_type,:file_name,:storage_key,:public_url,:file_size,:mime_type,:width,:height,:duration,:thumbnail_url,:alt_text,:description,'ready'`
+	insert := `INSERT INTO n_media_assets (` + columns + `) VALUES (` + values + `)`
+	binds := []any{sql.Named("media_id", id), sql.Named("owner_user_id", input.UserID), sql.Named("media_type", input.MediaType), sql.Named("file_name", input.FileName), sql.Named("storage_key", input.Key), sql.Named("public_url", input.PublicURL), sql.Named("file_size", input.Size), sql.Named("mime_type", input.MIMEType), sql.Named("width", input.Width), sql.Named("height", input.Height), sql.Named("duration", input.Duration), sql.Named("thumbnail_url", input.ThumbnailURL), sql.Named("alt_text", nullablePostString(input.AltText)), sql.Named("description", nullablePostString(input.Description))}
+	if private {
+		insert = `INSERT INTO n_media_assets (` + columns + `,access_scope) VALUES (` + values + `,:access_scope)`
+		binds = append(binds, sql.Named("access_scope", input.AccessScope))
+	}
+	inserted, e := tx.ExecContext(ctx, insert, binds...)
 	if e != nil {
+		if private && privateMediaSchemaMissing(e) {
+			return result, errMediaSchema
+		}
 		return result, errSessionStore
 	}
 	count, e := inserted.RowsAffected()
@@ -107,16 +144,23 @@ func (s OracleSessions) createMediaAtomic(ctx context.Context, input mediaUpload
 	media.AltText = nullableString(alt)
 	media.Description = nullableString(description)
 	media.Status = status.String
-	media.PublicURL, e = normalizeAvatarURL(policy, public.String)
-	if e != nil {
-		return result, errSessionStore
-	}
-	if thumb.Valid && thumb.String != "" {
-		value, e := normalizeAvatarURL(policy, thumb.String)
+	if private {
+		if media.MediaID != id || public.String != input.PublicURL || thumb.Valid {
+			return result, errSessionStore
+		}
+		media.PublicURL = input.PublicURL
+	} else {
+		media.PublicURL, e = normalizeAvatarURL(policy, public.String)
 		if e != nil {
 			return result, errSessionStore
 		}
-		media.ThumbnailURL = &value
+		if thumb.Valid && thumb.String != "" {
+			value, e := normalizeAvatarURL(policy, thumb.String)
+			if e != nil {
+				return result, errSessionStore
+			}
+			media.ThumbnailURL = &value
+		}
 	}
 	if date := profileDate(created); date != nil {
 		media.CreatedAt = *date

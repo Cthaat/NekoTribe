@@ -13,6 +13,7 @@ import (
 
 var errMediaMultipart = errors.New("invalid media upload")
 var errMediaNoFile = errors.New("media upload missing file")
+var errMediaAccessScope = errors.New("invalid media access scope")
 
 type mediaMultipartLimits struct {
 	fileBytes, totalBytes, fieldBytes int64
@@ -28,6 +29,7 @@ type mediaTempFile struct {
 type mediaMultipart struct {
 	Selected             mediaTempFile
 	AltText, Description string
+	AccessScope          string
 	root, temp, request  *os.Root
 	directory            string
 	files                []string
@@ -77,6 +79,14 @@ func (m *mediaMultipart) OpenSelected() (*os.File, error) {
 }
 
 func parseMediaMultipart(r *http.Request, config LocalStorageConfig, limits mediaMultipartLimits) (_ *mediaMultipart, err error) {
+	return parseMediaMultipartWithAlias(r, config, limits, "media")
+}
+
+func parseMediaMultipartWithAlias(r *http.Request, config LocalStorageConfig, limits mediaMultipartLimits, alias string) (*mediaMultipart, error) {
+	return parseMediaMultipartRequest(r, config, limits, alias, false)
+}
+
+func parseMediaMultipartRequest(r *http.Request, config LocalStorageConfig, limits mediaMultipartLimits, alias string, requirePrivate bool) (_ *mediaMultipart, err error) {
 	contentType, params, e := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if e != nil || !strings.EqualFold(contentType, "multipart/form-data") || params["boundary"] == "" {
 		return nil, errMediaMultipart
@@ -169,6 +179,9 @@ func parseMediaMultipart(r *http.Request, config LocalStorageConfig, limits medi
 				if field == "description" {
 					m.Description = string(value)
 				}
+				if field == "access_scope" && alias == "media" {
+					m.AccessScope = string(value)
+				}
 			}
 			continue
 		}
@@ -191,7 +204,8 @@ func parseMediaMultipart(r *http.Request, config LocalStorageConfig, limits medi
 		if closeErr != nil {
 			return nil, errors.New("temporary media write failed")
 		}
-		if errors.Is(e, io.ErrUnexpectedEOF) {
+		var bodyLimit *http.MaxBytesError
+		if errors.Is(e, io.ErrUnexpectedEOF) || errors.As(e, &bodyLimit) {
 			return nil, errMediaMultipart
 		}
 		if e != nil || closeErr != nil {
@@ -206,8 +220,20 @@ func parseMediaMultipart(r *http.Request, config LocalStorageConfig, limits medi
 		if field == "file" && primary == nil {
 			primary = item
 		}
-		if field == "media" && alternate == nil {
+		if field == alias && alternate == nil {
 			alternate = item
+		}
+	}
+	if alias == "media" && (requirePrivate || seen["access_scope"]) {
+		switch m.AccessScope {
+		case "public":
+			if requirePrivate {
+				return nil, errMediaAccessScope
+			}
+			m.AccessScope = ""
+		case "chat", "post":
+		default:
+			return nil, errMediaAccessScope
 		}
 	}
 	if primary != nil {

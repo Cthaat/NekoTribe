@@ -21,9 +21,18 @@ func (c Config) GoString() string { return c.String() }
 
 var errConfig = errors.New("invalid server configuration")
 
+func sharedNativeEnv(lookup func(string) (string, bool), key string) string {
+	if value, exists := lookup("NUXT_" + key); exists {
+		return value
+	}
+	value, _ := lookup(key)
+	return value
+}
+
 func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	get := func(key string) string { value, _ := lookup(key); return value }
-	c := Config{Host: get("HOST"), AccessKey: get("ACCESS_SECRET"), RefreshKey: get("REFRESH_SECRET"), OracleHost: get("ORACLE_HOST"), OracleService: get("ORACLE_SERVICE_NAME"), OracleUser: get("ORACLE_USER"), OraclePassword: get("ORACLE_PASSWORD")}
+	shared := func(key string) string { return sharedNativeEnv(lookup, key) }
+	c := Config{Host: get("HOST"), AccessKey: shared("ACCESS_SECRET"), RefreshKey: shared("REFRESH_SECRET"), OracleHost: shared("ORACLE_HOST"), OracleService: shared("ORACLE_SERVICE_NAME"), OracleUser: shared("ORACLE_USER"), OraclePassword: shared("ORACLE_PASSWORD")}
 	if c.Host == "" {
 		c.Host = "127.0.0.1"
 	}
@@ -35,27 +44,33 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	if c.Port, err = configInt(port, 30006, 1, 65535); err != nil {
 		return Config{}, err
 	}
-	if c.OraclePort, err = configInt(get("ORACLE_PORT"), 1521, 1, 65535); err != nil {
+	if c.OraclePort, err = configInt(shared("ORACLE_PORT"), 1521, 1, 65535); err != nil {
 		return Config{}, err
 	}
-	if c.PoolMin, err = configInt(get("ORACLE_POOL_MIN"), 2, 0, 10000); err != nil {
+	if c.PoolMin, err = configInt(shared("ORACLE_POOL_MIN"), 2, 0, 10000); err != nil {
 		return Config{}, err
 	}
-	if c.PoolMax, err = configInt(get("ORACLE_POOL_MAX"), 10, 1, 10000); err != nil || c.PoolMin > c.PoolMax {
+	if c.PoolMax, err = configInt(shared("ORACLE_POOL_MAX"), 10, 1, 10000); err != nil || c.PoolMin > c.PoolMax {
 		return Config{}, errConfig
 	}
-	accessTTL := get("NUXT_ACCESS_EXPIRES_IN")
-	if accessTTL == "" {
-		accessTTL = get("ACCESS_EXPIRES_IN")
+	sessionTTL := func(key string, fallback int) (int, error) {
+		value, exists := lookup("NUXT_" + key)
+		if !exists {
+			value, exists = lookup(key)
+		}
+		if !exists {
+			return fallback, nil
+		}
+		value = strings.Trim(value, " \t\r\n\f\v")
+		if value == "" {
+			return 0, errConfig
+		}
+		return configInt(value, fallback, 1, 2147483647)
 	}
-	refreshTTL := get("NUXT_REFRESH_EXPIRES_IN")
-	if refreshTTL == "" {
-		refreshTTL = get("REFRESH_EXPIRES_IN")
-	}
-	if c.Refresh.AccessSeconds, err = configInt(accessTTL, 900, 1, 2147483647); err != nil {
+	if c.Refresh.AccessSeconds, err = sessionTTL("ACCESS_EXPIRES_IN", 900); err != nil {
 		return Config{}, errConfig
 	}
-	if c.Refresh.RefreshSeconds, err = configInt(refreshTTL, 2592000, 1, 2147483647); err != nil {
+	if c.Refresh.RefreshSeconds, err = sessionTTL("REFRESH_EXPIRES_IN", 2592000); err != nil {
 		return Config{}, errConfig
 	}
 	// The Oracle session constraint requires refresh expiry after access expiry.
@@ -63,12 +78,15 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	if c.Refresh.RefreshSeconds <= c.Refresh.AccessSeconds {
 		return Config{}, errConfig
 	}
-	c.Refresh.CookieSecure = get("COOKIE_SECURE") == "true"
+	c.Refresh.CookieSecure = shared("COOKIE_SECURE") == "true"
 	c.Refresh.Storage = storageURLConfig(lookup)
 	c.Refresh.LocalStorage = localStorageConfig(lookup)
 	c.Refresh.ModerationAllowAll = get("MODERATION_ALLOW_ALL")
 	c.Refresh.ModerationAdminAccounts = get("MODERATION_ADMIN_ACCOUNTS")
 	c.Refresh.AIModelConfig = get("AI_MODEL_CONFIG_JSON")
+	if path := get("AI_MODEL_CONFIG_FILE"); path != "" {
+		c.Refresh.aiModelFile = &aiModelFile{path: path}
+	}
 	c.Refresh.aiCredential = func(name string) (string, error) {
 		value, ok := lookup(name)
 		if !ok {

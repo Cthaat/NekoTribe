@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"time"
@@ -20,6 +21,13 @@ type probeOptions struct {
 }
 
 var mediaProbeSlots = make(chan struct{}, 4)
+
+func probeDimension(value *float64) *float64 {
+	if value == nil || *value <= 0 || *value > 9007199254740991 || math.Trunc(*value) != *value {
+		return nil
+	}
+	return value
+}
 
 func parseMediaProbe(data []byte) (richMediaMetadata, bool) {
 	var payload struct {
@@ -41,7 +49,7 @@ func parseMediaProbe(data []byte) (richMediaMetadata, bool) {
 	for _, stream := range payload.Streams {
 		if stream.CodecType == "video" && !videoSeen {
 			videoSeen = true
-			result.Width, result.Height, videoDuration = stream.Width, stream.Height, stream.Duration
+			result.Width, result.Height, videoDuration = probeDimension(stream.Width), probeDimension(stream.Height), stream.Duration
 		}
 		if stream.CodecType == "audio" && !audioSeen {
 			audioSeen = true
@@ -55,8 +63,8 @@ func parseMediaProbe(data []byte) (richMediaMetadata, bool) {
 	if duration == "" {
 		duration = audioDuration
 	}
-	if value, err := strconv.ParseFloat(duration, 64); err == nil && !math.IsNaN(value) && !math.IsInf(value, 0) {
-		rounded := math.Floor(value + 0.5)
+	if value, err := strconv.ParseFloat(duration, 64); err == nil && value >= 0 && math.Round(value) <= 9007199254740991 {
+		rounded := math.Round(value)
 		result.Duration = &rounded
 	}
 	return result, true
@@ -112,8 +120,17 @@ func probeMedia(parent context.Context, file *os.File, mimeType string, options 
 		binary = "ffprobe"
 	}
 	input, protocols := "pipe:0", "pipe"
-	if runtime.GOOS == "linux" {
+	switch runtime.GOOS {
+	case "linux":
 		input, protocols = "/proc/self/fd/0", "file,pipe"
+	case "windows":
+		// file is opened from the server's multipart staging directory.
+		// A local path lets ffprobe seek back to samples after reading a tail index.
+		path, err := filepath.Abs(file.Name())
+		if err != nil {
+			return richMediaMetadata{}
+		}
+		input, protocols = path, "file"
 	}
 	args := append([]string(nil), options.PrefixArgs...)
 	if format == "mov" {
@@ -121,7 +138,9 @@ func probeMedia(parent context.Context, file *os.File, mimeType string, options 
 	}
 	args = append(args, "-v", "quiet", "-protocol_whitelist", protocols, "-f", format, "-print_format", "json", "-show_format", "-show_streams", "-i", input)
 	command := exec.CommandContext(ctx, binary, args...)
-	command.Stdin = file
+	if runtime.GOOS != "windows" {
+		command.Stdin = file
+	}
 	var output probeOutput
 	command.Stdout = &output
 	command.WaitDelay = time.Second

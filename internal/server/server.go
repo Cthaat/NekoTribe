@@ -29,11 +29,38 @@ func NewHandler(codec *auth.TokenManager, repository SessionRepository, cors Cor
 func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository, cors CorsPolicy, refresh RefreshConfig) http.Handler {
 	refresh = refresh.defaults()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		privateMediaID, privateMedia := privateMediaContentSegment(r.URL.EscapedPath())
+		if privateMedia {
+			w.Header().Set("Cache-Control", "private, no-store")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			if r.Method == http.MethodOptions {
+				w.Header().Set("Allow", "GET, HEAD, OPTIONS")
+			}
+		}
 		if preflight(w, r, cors) {
 			return
 		}
-		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/storage/") {
+		if privateMedia {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead:
+				readPrivateMediaContent(w, r, codec, repository, refresh.LocalStorage, privateMediaID)
+			default:
+				w.Header().Set("Allow", "GET, HEAD, OPTIONS")
+				respond(w, 405, 40501, "Method not allowed", nil)
+			}
+			return
+		}
+		if path := r.URL.EscapedPath(); path == "/api/v2" || strings.HasPrefix(path, "/api/v2/") {
+			w.Header().Set("Cache-Control", "private, no-store")
+		}
+		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/storage/") {
 			serveLocalStorage(w, r, refresh.LocalStorage)
+			return
+		}
+		if retiredStorageRoute(w, r) {
+			return
+		}
+		if handleRetiredSentiment(w, r) {
 			return
 		}
 		if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/health" {
@@ -43,8 +70,36 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 		if aiConversationRoute(w, r, codec, repository, refresh) {
 			return
 		}
+		if directConversationsRoute(w, r, codec, repository, refresh) ||
+			groupDetailRoute(w, r, codec, repository, refresh.Storage) ||
+			groupListRoute(w, r, codec, repository, refresh.Storage) ||
+			groupContentRoute(w, r, codec, repository, refresh.Storage) ||
+			groupPostWriteRoute(w, r, codec, repository, refresh) ||
+			groupCommentWriteRoute(w, r, codec, repository, refresh) ||
+			groupAdminRoute(w, r, codec, repository, refresh.Storage) ||
+			groupCreateRoute(w, r, codec, repository, refresh.Storage) ||
+			groupMembershipRoute(w, r, codec, repository) ||
+			groupAdmissionRoute(w, r, codec, repository) ||
+			groupOwnershipRoute(w, r, codec, repository) ||
+			groupDissolutionRoute(w, r, codec, repository) ||
+			groupSettingsRoute(w, r, codec, repository, refresh.Storage) ||
+			groupInviteReadsRoute(w, r, codec, repository, refresh.Storage) ||
+			groupInviteCreateRoute(w, r, codec, repository, refresh) ||
+			directedInviteRoute(w, r, codec, repository, refresh.Storage) ||
+			groupMemberListRoute(w, r, codec, repository, refresh.Storage) ||
+			directMessagesRoute(w, r, codec, repository, refresh) ||
+			directMessageDeleteRoute(w, r, codec, repository, refresh.DirectEvents) ||
+			chatGroupsRoute(w, r, codec, repository) ||
+			chatMembersRoute(w, r, codec, repository, refresh.Storage) ||
+			chatChannelsRoute(w, r, codec, repository) ||
+			chatChannelStatusRoute(w, r, codec, repository) ||
+			chatMessageRoute(w, r, codec, repository, refresh) ||
+			chatMutationRoute(w, r, codec, repository, refresh) ||
+			chatChannelWriteRoute(w, r, codec, repository) {
+			return
+		}
 		if r.Method == http.MethodGet && r.URL.EscapedPath() == "/_ws" {
-			notificationWebSocket(w, r, codec, repository, cors, refresh.NotificationEvents)
+			notificationWebSocket(w, r, codec, repository, cors, refresh.Storage.BaseURL, refresh.NotificationEvents, refresh.ChatChannelEvents)
 			return
 		}
 		if r.URL.EscapedPath() == "/api/v2/auth/tokens" && r.Method == http.MethodPost {
@@ -63,12 +118,46 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			register(w, r, repository, refresh)
 			return
 		}
-		if r.URL.EscapedPath() == "/api/v2/media" && r.Method == http.MethodPost {
-			uploadMedia(w, r, codec, repository, refresh)
+		if privateUpload := r.URL.EscapedPath() == "/api/v2/media/private"; privateUpload ||
+			(r.URL.EscapedPath() == "/api/v2/media" && r.Method == http.MethodPost) {
+			if r.Method != http.MethodPost {
+				w.Header().Set("Allow", "POST, OPTIONS")
+				respond(w, 405, 40501, "Method not allowed", nil)
+				return
+			}
+			uploadMedia(w, r, codec, repository, refresh, privateUpload)
+			return
+		}
+		if r.URL.EscapedPath() == "/api/v2/users/me/avatar" && r.Method == http.MethodPut {
+			uploadUserAvatar(w, r, codec, repository, refresh)
+			return
+		}
+		if handleAccountStatements(w, r, codec, repository) {
+			return
+		}
+		if handleModerationAppeals(w, r, codec, repository, refresh) {
+			return
+		}
+		if handleModerationReports(w, r, codec, repository, refresh) {
+			return
+		}
+		if handleModerationDashboard(w, r, codec, repository, refresh) {
+			return
+		}
+		if handleModerationUserQueue(w, r, codec, repository, refresh) {
+			return
+		}
+		if handleModerationContentQueue(w, r, codec, repository, refresh) {
+			return
+		}
+		if handleModerationPostActions(w, r, codec, repository, refresh) {
+			return
+		}
+		if handleModerationUserActions(w, r, codec, repository, refresh) {
 			return
 		}
 		if r.URL.EscapedPath() == "/api/v2/auth/password-reset" && r.Method == http.MethodPost {
-			passwordReset(w, r, repository)
+			passwordReset(w, r, repository, refresh.OTPAttemptLimiter)
 			return
 		}
 		if r.URL.EscapedPath() == "/api/v2/auth/two-factor/challenges" && r.Method == http.MethodPost {
@@ -105,6 +194,26 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			updateSelfProfile(w, r, codec, repository, refresh)
 			return
 		}
+		if r.URL.EscapedPath() == "/api/v2/users/me/two-factor/setup" && r.Method == http.MethodPost {
+			manageFactor(w, r, codec, repository, refresh, "setup")
+			return
+		}
+		if r.URL.EscapedPath() == "/api/v2/users/me/two-factor/confirm" && r.Method == http.MethodPost {
+			manageFactor(w, r, codec, repository, refresh, "confirm")
+			return
+		}
+		if r.URL.EscapedPath() == "/api/v2/users/me/two-factor" && r.Method == http.MethodDelete {
+			manageFactor(w, r, codec, repository, refresh, "disable")
+			return
+		}
+		if r.URL.EscapedPath() == "/api/v2/users/me" && r.Method == http.MethodDelete {
+			deleteAccount(w, r, codec, repository, refresh)
+			return
+		}
+		if r.URL.EscapedPath() == "/api/v2/users/me/email" && r.Method == http.MethodPatch {
+			changeEmail(w, r, codec, repository, refresh.OTPAttemptLimiter)
+			return
+		}
 		if r.URL.EscapedPath() == "/api/v2/users/me" && r.Method == http.MethodGet {
 			getSelfProfile(w, r, codec, repository, refresh)
 			return
@@ -115,6 +224,12 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 		}
 		if r.URL.EscapedPath() == "/api/v2/users/me/settings" && r.Method == http.MethodPatch {
 			patchUserSettings(w, r, codec, repository, refresh)
+			return
+		}
+		if handleUserVisibility(w, r, codec, repository, refresh) {
+			return
+		}
+		if handleUserFollow(w, r, codec, repository, refresh) {
 			return
 		}
 		if r.URL.EscapedPath() == "/api/v2/notifications" && r.Method == http.MethodGet {
@@ -136,6 +251,10 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 				return
 			}
 		}
+		if r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v2/recommendations/feedback" {
+			writeRecommendationFeedback(w, r, codec, repository)
+			return
+		}
 		if r.Method == http.MethodGet && (r.URL.EscapedPath() == "/api/v2/tags" || r.URL.EscapedPath() == "/api/v2/tags/trending") {
 			listTags(w, r, codec, repository, r.URL.EscapedPath() == "/api/v2/tags/trending")
 			return
@@ -146,6 +265,27 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 				listPostComments(w, r, codec, repository, refresh, parts[3])
 				return
 			}
+			if len(parts) == 5 && parts[0] == "api" && parts[1] == "v2" && parts[2] == "posts" && parts[3] != "" && parts[4] == "likes" {
+				getPostLikers(w, r, codec, repository, refresh, parts[3])
+				return
+			}
+			if len(parts) >= 5 && parts[0] == "api" && parts[1] == "v2" && parts[3] != "" && parts[4] == "analytics" {
+				switch {
+				case len(parts) == 5 && parts[2] == "posts":
+					getContentAnalytics(w, r, codec, repository, parts[3], postAnalyticsKind)
+					return
+				case len(parts) == 5 && parts[2] == "users":
+					getContentAnalytics(w, r, codec, repository, parts[3], userAnalyticsKind)
+					return
+				case len(parts) == 6 && parts[2] == "users" && parts[5] == "daily":
+					getContentAnalytics(w, r, codec, repository, parts[3], dailyAnalyticsKind)
+					return
+				}
+			}
+		}
+		if r.Method == http.MethodGet && (r.URL.EscapedPath() == "/api/v2/users" || r.URL.EscapedPath() == "/api/v2/users/recommendations") {
+			listUserDiscovery(w, r, codec, repository, refresh, r.URL.EscapedPath() == "/api/v2/users/recommendations")
+			return
 		}
 		if id, ok := publicProfileSegment(r.URL.EscapedPath()); ok && id != "me" && r.Method == http.MethodGet {
 			getPublicProfile(w, r, codec, repository, refresh, id)
@@ -349,10 +489,23 @@ func (p CorsPolicy) allows(origin string) bool {
 }
 func preflight(w http.ResponseWriter, r *http.Request, p CorsPolicy) bool {
 	w.Header().Add("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
+	methods, headersAllowed := allowedMethods, allowedHeaders
+	exposedHeaders := "content-length,content-type,Retry-After"
+	path := r.URL.EscapedPath()
+	_, privateMedia := privateMediaContentSegment(path)
+	publicStorage := strings.HasPrefix(path, "/storage/") && len(path) > len("/storage/")
+	if privateMedia || publicStorage {
+		methods = "GET,HEAD,OPTIONS"
+		headersAllowed += ",range"
+		exposedHeaders += ",Content-Range,Accept-Ranges"
+	}
+	if privateMedia {
+		exposedHeaders += ",Content-Disposition"
+	}
 	origin := r.Header.Get("Origin")
 	valid := p.allows(origin)
 	method, hasMethod := r.Header["Access-Control-Request-Method"]
-	if r.Method == http.MethodOptions && hasMethod && (len(method) == 0 || !contains(strings.Split(allowedMethods, ","), method[0])) {
+	if r.Method == http.MethodOptions && hasMethod && (len(method) == 0 || !contains(strings.Split(methods, ","), method[0])) {
 		valid = false
 	}
 	requested, hasHeaders := r.Header["Access-Control-Request-Headers"]
@@ -364,7 +517,7 @@ func preflight(w http.ResponseWriter, r *http.Request, p CorsPolicy) bool {
 		}
 		for _, h := range strings.Split(raw, ",") {
 			h = strings.ToLower(strings.TrimSpace(h))
-			if !contains(strings.Split(allowedHeaders, ","), h) {
+			if !contains(strings.Split(headersAllowed, ","), h) {
 				valid = false
 			}
 			if !contains(headers, h) {
@@ -375,13 +528,13 @@ func preflight(w http.ResponseWriter, r *http.Request, p CorsPolicy) bool {
 	if valid {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Methods", allowedMethods)
-		h := allowedHeaders
+		w.Header().Set("Access-Control-Allow-Methods", methods)
+		h := headersAllowed
 		if len(headers) > 0 {
 			h = strings.Join(headers, ",")
 		}
 		w.Header().Set("Access-Control-Allow-Headers", h)
-		w.Header().Set("Access-Control-Expose-Headers", "content-length,content-type")
+		w.Header().Set("Access-Control-Expose-Headers", exposedHeaders)
 		w.Header().Set("Access-Control-Max-Age", "86400")
 	}
 	if r.Method == http.MethodOptions {
