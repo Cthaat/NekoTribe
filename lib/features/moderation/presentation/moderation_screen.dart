@@ -1,13 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/network/api_exception.dart';
+import '../../../core/network/api_response.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../ai/presentation/moderation_advice_dialog.dart';
+import '../../auth/data/auth_repository.dart';
+import '../data/moderation_api.dart';
 import '../domain/moderation_models.dart';
 
 String _moderationReasonLabel(AppLocalizations l10n, String reason) {
@@ -281,13 +288,30 @@ class _ContentTab extends ConsumerStatefulWidget {
 
 class _ContentTabState extends ConsumerState<_ContentTab>
     with AutomaticKeepAliveClientMixin {
+  late final AuthRepository _auth;
+  late final ModerationApi _api;
+  late final int _owner;
+  late final void Function() _unsubscribe;
+  final _searchController = TextEditingController();
+  bool _expired = false;
+  int _request = 0;
+  String? _keyword;
   String _status = 'pending';
+  String _priority = 'all';
+  String _reason = 'all';
+  String _dateRange = 'all';
+  String _sort = 'newest';
   List<V2ModerationContentItem> _items = [];
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasNext = false;
   int _page = 1;
   Object? _error;
+  final _selectedPosts = <int>{};
+  bool _applying = false;
+  int? _reviewerId;
+  bool _readingReviewer = false;
+  ({String action, String note}) _bulkDraft = (action: 'flag', note: '');
 
   @override
   bool get wantKeepAlive => true;
@@ -295,21 +319,94 @@ class _ContentTabState extends ConsumerState<_ContentTab>
   @override
   void initState() {
     super.initState();
+    _auth = ref.read(authRepositoryProvider);
+    _api = ref.read(moderationApiProvider);
+    _owner = _auth.sessionRevision;
+    _expired = _auth.isSessionChanging;
+    _unsubscribe = _auth.listenSessionChanges(() {
+      if (mounted &&
+          (_auth.sessionRevision != _owner || _auth.isSessionChanging)) {
+        _expire();
+      }
+    });
     _load();
   }
 
+  @override
+  void dispose() {
+    _unsubscribe();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool get _current =>
+      mounted &&
+      !_expired &&
+      identical(ref.read(authRepositoryProvider), _auth) &&
+      identical(ref.read(moderationApiProvider), _api) &&
+      !_auth.isSessionChanging &&
+      _auth.sessionRevision == _owner;
+
+  void _expire() {
+    if (_expired) return;
+    setState(() {
+      _expired = true;
+      _items = [];
+      _selectedPosts.clear();
+      _reviewerId = null;
+      _bulkDraft = (action: 'flag', note: '');
+      _searchController.clear();
+    });
+  }
+
+  Future<PagedResult<V2ModerationContentItem>> _readPage(int page) {
+    return _api.content(
+      status: _status,
+      priority: _priority == 'all' ? null : _priority,
+      reason: _reason == 'all' ? null : _reason,
+      keyword: _keyword,
+      dateRange: _dateRange,
+      sort: _sort,
+      page: page,
+    );
+  }
+
+  Future<void> _readReviewerIfAssigned() async {
+    if (!_current ||
+        _reviewerId != null ||
+        _readingReviewer ||
+        !_items.any((item) => item.assignedTo != null)) {
+      return;
+    }
+    _readingReviewer = true;
+    try {
+      final reviewer = await ref.read(usersRepositoryProvider).getCurrentUser();
+      if (_current && reviewer.userId > 0) {
+        setState(() => _reviewerId = reviewer.userId);
+      }
+    } catch (_) {
+      // The queue can still be reviewed. A later refresh can retry the profile.
+    } finally {
+      _readingReviewer = false;
+    }
+  }
+
   Future<void> _load() async {
+    if (!_current) return;
+    final request = ++_request;
+    final keyword = _searchController.text.trim();
+    _keyword = keyword.isEmpty ? null : keyword;
     setState(() {
       _loading = true;
       _error = null;
+      _selectedPosts.clear();
+      _bulkDraft = (action: 'flag', note: '');
       _page = 1;
       _hasNext = false;
     });
     try {
-      final page = await ref
-          .read(moderationApiProvider)
-          .content(status: _status, page: 1);
-      if (!mounted) return;
+      final page = await _readPage(1);
+      if (!_current || request != _request) return;
       setState(() {
         _items = page.items;
         _page = 1;
@@ -317,8 +414,9 @@ class _ContentTabState extends ConsumerState<_ContentTab>
         _loading = false;
         _loadingMore = false;
       });
+      await _readReviewerIfAssigned();
     } catch (e) {
-      if (!mounted) return;
+      if (!_current || request != _request) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -328,22 +426,22 @@ class _ContentTabState extends ConsumerState<_ContentTab>
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasNext || _loading) return;
+    if (!_current || _loadingMore || !_hasNext || _loading) return;
+    final request = _request;
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
-      final page = await ref
-          .read(moderationApiProvider)
-          .content(status: _status, page: next);
-      if (!mounted) return;
+      final page = await _readPage(next);
+      if (!_current || request != _request) return;
       setState(() {
         _items = [..._items, ...page.items];
         _page = next;
         _hasNext = page.hasNext;
         _loadingMore = false;
       });
+      await _readReviewerIfAssigned();
     } catch (e) {
-      if (!mounted) return;
+      if (!_current || request != _request) return;
       setState(() => _loadingMore = false);
       ScaffoldMessenger.of(
         context,
@@ -351,53 +449,308 @@ class _ContentTabState extends ConsumerState<_ContentTab>
     }
   }
 
-  Future<void> _resolve(V2ModerationContentItem item, String action) async {
+  Future<void> _resolveBulk() async {
+    if (!_current || _loading || _applying || _selectedPosts.isEmpty) return;
+    final request = _request;
+    final ids = _selectedPosts.toList();
+    final l10n = AppLocalizations.of(context);
+    var (action: action, note: note) = _bulkDraft;
+    final decision = await showDialog<({String action, String note})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) {
+          final noteTooLong = utf8.encode(note.trim()).length > 1000;
+          return AlertDialog(
+            title: Text(l10n.t('moderation.bulk.title')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('${l10n.t('moderation.bulk.selected')} ${ids.length}'),
+                  DropdownButtonFormField<String>(
+                    initialValue: action,
+                    decoration: InputDecoration(
+                      labelText: l10n.t('moderation.bulk.action'),
+                    ),
+                    items: [
+                      for (final item in [
+                        'approve',
+                        'reject',
+                        'flag',
+                        'remove',
+                        'restore',
+                      ])
+                        DropdownMenuItem(
+                          value: item,
+                          child: Text(l10n.t('moderation.bulk.$item')),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) update(() => action = value);
+                    },
+                  ),
+                  TextFormField(
+                    initialValue: note,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: l10n.t('moderation.bulk.note'),
+                      errorText: noteTooLong
+                          ? l10n.t('moderation.bulk.note_too_long')
+                          : null,
+                    ),
+                    onChanged: (value) => update(() => note = value),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(l10n.t('common.cancel')),
+              ),
+              FilledButton(
+                onPressed: noteTooLong
+                    ? null
+                    : () => Navigator.of(
+                        dialogContext,
+                      ).pop((action: action, note: note.trim())),
+                child: Text(l10n.t('common.confirm')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (decision == null || !_current || request != _request || _applying) {
+      return;
+    }
+    setState(() {
+      _applying = true;
+      _bulkDraft = decision;
+    });
     try {
-      await ref
-          .read(moderationApiProvider)
-          .resolveContent(postId: item.postId, action: action);
-      if (!mounted) return;
-      setState(() => _items.removeWhere((x) => x.caseId == item.caseId));
+      final count = await _api.bulkAction(
+        postIds: ids,
+        action: decision.action,
+        note: decision.note.isEmpty ? null : decision.note,
+      );
+      if (!_current) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${l10n.t('moderation.bulk.processed')} $count'),
+        ),
+      );
+      await _load();
     } catch (e) {
-      if (!mounted) return;
+      if (!_current) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+    } finally {
+      if (_current) setState(() => _applying = false);
+    }
+  }
+
+  Future<void> _resolve(V2ModerationContentItem item, String action) async {
+    if (!_current || _applying || !_items.contains(item)) return;
+    final assignment = action == 'claim' || action == 'release';
+    if (assignment) {
+      if (item.status != 'pending' && item.status != 'flagged') return;
+      if (action == 'claim' && item.assignedTo != null) return;
+      if (action == 'release' &&
+          (_reviewerId == null || item.assignedTo?.userId != _reviewerId)) {
+        return;
+      }
+    }
+    String? note;
+    if (action == 'reject') {
+      final l10n = AppLocalizations.of(context);
+      var draft = '';
+      note = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.t('moderation.users.reason_note')),
+          content: TextField(
+            key: const Key('moderation-rejection-note'),
+            maxLines: 3,
+            onChanged: (value) => draft = value,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.t('common.cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(draft.trim()),
+              child: Text(l10n.t('common.confirm')),
+            ),
+          ],
+        ),
+      );
+      if (note == null || !_current || _applying || !_items.contains(item)) {
+        return;
+      }
+    }
+    setState(() => _applying = true);
+    try {
+      await _api.resolveContent(
+        postId: item.postId,
+        action: action,
+        note: note,
+      );
+      if (!_current) return;
+      if (assignment) {
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.t('moderation.assignment.${action}_done')),
+          ),
+        );
+        await _load();
+        return;
+      }
+      setState(() {
+        _items.removeWhere((x) => x.caseId == item.caseId);
+        _selectedPosts.remove(item.postId);
+      });
+    } catch (e) {
+      if (!_current) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      if (assignment && e is ApiException && e.statusCode == 409) await _load();
+    } finally {
+      if (_current) setState(() => _applying = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(authRepositoryProvider, (_, auth) {
+      if (!identical(_auth, auth)) _expire();
+    });
+    ref.listen(moderationApiProvider, (_, api) {
+      if (!identical(_api, api)) _expire();
+    });
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    if (_expired) {
+      return EmptyView(message: l10n.t('visibility.sessionChanged'));
+    }
+    Widget select(
+      String category,
+      String value,
+      List<String> options,
+      ValueChanged<String> update,
+    ) {
+      return DropdownButtonFormField<String>(
+        key: Key('moderation-content-$category'),
+        initialValue: value,
+        decoration: InputDecoration(
+          labelText: l10n.t('moderation.content.filter.$category'),
+        ),
+        items: [
+          for (final option in options)
+            DropdownMenuItem(
+              value: option,
+              child: Text(
+                option == 'all'
+                    ? l10n.t('common.all')
+                    : category == 'reason'
+                    ? _moderationReasonLabel(l10n, option)
+                    : l10n.t('moderation.content.option.$option'),
+              ),
+            ),
+        ],
+        onChanged: (next) {
+          if (!_current || next == null || next == value) return;
+          setState(() => update(next));
+          _load();
+        },
+      );
+    }
+
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(12),
-          child: SegmentedButton<String>(
-            selected: {_status},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) {
-              setState(() => _status = s.first);
-              _load();
-            },
-            segments: [
-              ButtonSegment(
-                value: 'pending',
-                label: Text(l10n.t('moderation.pending')),
-              ),
-              ButtonSegment(
-                value: 'approved',
-                label: Text(l10n.t('moderation.approved')),
-              ),
-              ButtonSegment(
-                value: 'rejected',
-                label: Text(l10n.t('moderation.rejected')),
-              ),
-            ],
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: select('status', _status, [
+            'all',
+            'pending',
+            'approved',
+            'rejected',
+            'flagged',
+            'removed',
+            'restored',
+          ], (value) => _status = value),
         ),
+        ExpansionTile(
+          title: Text(l10n.t('moderation.content.filters')),
+          childrenPadding: const EdgeInsets.symmetric(horizontal: 12),
+          children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.30,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('moderation.content.search'),
+                      ),
+                      onSubmitted: (_) => _load(),
+                    ),
+                    select('priority', _priority, [
+                      'all',
+                      'low',
+                      'normal',
+                      'high',
+                      'urgent',
+                    ], (value) => _priority = value),
+                    select('reason', _reason, [
+                      'all',
+                      'spam',
+                      'harassment',
+                      'hate',
+                      'violence',
+                      'adult',
+                      'misinformation',
+                      'copyright',
+                      'other',
+                    ], (value) => _reason = value),
+                    select('date', _dateRange, [
+                      'all',
+                      'today',
+                      'yesterday',
+                      'week',
+                      'month',
+                    ], (value) => _dateRange = value),
+                    select('sort', _sort, [
+                      'newest',
+                      'oldest',
+                      'most_reports',
+                      'most_engagement',
+                    ], (value) => _sort = value),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_selectedPosts.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: FilledButton(
+              onPressed: _applying || _loading ? null : _resolveBulk,
+              child: Text(
+                '${l10n.t('moderation.bulk.selected')} ${_selectedPosts.length}',
+              ),
+            ),
+          ),
         Expanded(
           child: _loading
               ? const LoadingView()
@@ -428,6 +781,9 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                         );
                       }
                       final item = _items[i];
+                      final assignee = item.assignedTo;
+                      final assignable =
+                          item.status == 'pending' || item.status == 'flagged';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Container(
@@ -460,9 +816,72 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  Checkbox(
+                                    key: Key(
+                                      'moderation-select-${item.postId}',
+                                    ),
+                                    semanticLabel:
+                                        '${l10n.t('moderation.bulk.select_post')} ${item.postId}',
+                                    value: _selectedPosts.contains(item.postId),
+                                    onChanged:
+                                        _applying ||
+                                            (_selectedPosts.length >= 100 &&
+                                                !_selectedPosts.contains(
+                                                  item.postId,
+                                                ))
+                                        ? null
+                                        : (selected) {
+                                            if (!_current) return;
+                                            setState(() {
+                                              if (selected == true) {
+                                                _selectedPosts.add(item.postId);
+                                              } else {
+                                                _selectedPosts.remove(
+                                                  item.postId,
+                                                );
+                                              }
+                                            });
+                                          },
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 8),
+                              Wrap(
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                children: [
+                                  Text(
+                                    assignee == null
+                                        ? l10n.t(
+                                            'moderation.assignment.unassigned',
+                                          )
+                                        : '${l10n.t('moderation.assignment.owner')} ${assignee.displayName.isEmpty ? assignee.username : assignee.displayName}',
+                                  ),
+                                  if (assignable &&
+                                      (assignee == null ||
+                                          assignee.userId == _reviewerId))
+                                    OutlinedButton(
+                                      key: Key(
+                                        'moderation-assignment-${item.postId}',
+                                      ),
+                                      onPressed: _applying
+                                          ? null
+                                          : () => _resolve(
+                                              item,
+                                              assignee == null
+                                                  ? 'claim'
+                                                  : 'release',
+                                            ),
+                                      child: Text(
+                                        l10n.t(
+                                          assignee == null
+                                              ? 'moderation.assignment.claim'
+                                              : 'moderation.assignment.release',
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                               Text(
                                 item.content,
                                 style: theme.textTheme.bodyMedium,
@@ -516,6 +935,13 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                                     ),
                                   ),
                                 ],
+                              ),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: ModerationAdviceButton(
+                                  kind: 'post',
+                                  targetId: item.postId,
+                                ),
                               ),
                               if (_status == 'pending') ...[
                                 const SizedBox(height: 12),
@@ -750,8 +1176,9 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                                   Container(
                                     padding: const EdgeInsets.all(6),
                                     decoration: BoxDecoration(
-                                      color: theme.colorScheme.error
-                                          .withValues(alpha: 0.1),
+                                      color: theme.colorScheme.error.withValues(
+                                        alpha: 0.1,
+                                      ),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Icon(
@@ -778,8 +1205,9 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: theme.colorScheme.error
-                                          .withValues(alpha: 0.1),
+                                      color: theme.colorScheme.error.withValues(
+                                        alpha: 0.1,
+                                      ),
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
@@ -812,8 +1240,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                                   Text(
                                     _formatDate(r.createdAt),
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color:
-                                          theme.colorScheme.onSurfaceVariant,
+                                      color: theme.colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                 ],
@@ -824,33 +1251,31 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                                 runSpacing: 8,
                                 alignment: WrapAlignment.end,
                                 children: [
+                                  ModerationAdviceButton(
+                                    kind: r.targetType,
+                                    targetId: r.targetId,
+                                  ),
                                   if (isResolved)
                                     OutlinedButton.icon(
                                       key: Key(
                                         'moderation-report-reopen-${r.reportId}',
                                       ),
-                                      onPressed: () =>
-                                          _resolve(r, 'pending'),
-                                      icon: const Icon(
-                                        Icons.replay,
-                                        size: 16,
-                                      ),
+                                      onPressed: () => _resolve(r, 'pending'),
+                                      icon: const Icon(Icons.replay, size: 16),
                                       label: Text(
                                         l10n.t('moderation.reports.reopen'),
                                       ),
                                     )
                                   else ...[
                                     TextButton.icon(
-                                      onPressed: () =>
-                                          _resolve(r, 'dismissed'),
+                                      onPressed: () => _resolve(r, 'dismissed'),
                                       icon: const Icon(Icons.close, size: 16),
                                       label: Text(
                                         l10n.t('moderation.reports.dismiss'),
                                       ),
                                     ),
                                     FilledButton.icon(
-                                      onPressed: () =>
-                                          _resolve(r, 'resolved'),
+                                      onPressed: () => _resolve(r, 'resolved'),
                                       icon: const Icon(Icons.check, size: 16),
                                       label: Text(
                                         l10n.t('moderation.reports.resolve'),
@@ -881,7 +1306,15 @@ class _UsersTab extends ConsumerStatefulWidget {
 
 class _UsersTabState extends ConsumerState<_UsersTab>
     with AutomaticKeepAliveClientMixin {
+  late final AuthRepository _auth;
+  late final ModerationApi _api;
+  late final int _revision;
+  late final void Function() _unsubscribe;
+  bool _expired = false;
+  int _request = 0;
+  String? _search;
   String _status = 'all';
+  String _sort = 'newest';
   final _keywordController = TextEditingController();
   List<V2ModerationUserItem> _items = [];
   bool _loading = true;
@@ -896,16 +1329,48 @@ class _UsersTabState extends ConsumerState<_UsersTab>
   @override
   void initState() {
     super.initState();
+    _auth = ref.read(authRepositoryProvider);
+    _api = ref.read(moderationApiProvider);
+    _revision = _auth.sessionRevision;
+    _expired = _auth.isSessionChanging;
+    _unsubscribe = _auth.listenSessionChanges(() {
+      if (mounted &&
+          (_auth.sessionRevision != _revision || _auth.isSessionChanging)) {
+        _expire();
+      }
+    });
     _load();
   }
 
   @override
   void dispose() {
+    _unsubscribe();
     _keywordController.dispose();
     super.dispose();
   }
 
+  bool get _current =>
+      mounted &&
+      !_expired &&
+      identical(ref.read(authRepositoryProvider), _auth) &&
+      identical(ref.read(moderationApiProvider), _api) &&
+      !_auth.isSessionChanging &&
+      _auth.sessionRevision == _revision;
+
+  void _expire() {
+    if (_expired) return;
+    setState(() {
+      _expired = true;
+      _items = [];
+      _keywordController.clear();
+    });
+  }
+
   Future<void> _load() async {
+    if (!_current) return;
+    final request = ++_request;
+    final search = _keywordController.text.trim();
+    _search = search.isEmpty ? null : search;
     setState(() {
       _loading = true;
       _error = null;
@@ -913,16 +1378,12 @@ class _UsersTabState extends ConsumerState<_UsersTab>
       _hasNext = false;
     });
     try {
-      final page = await ref
-          .read(moderationApiProvider)
-          .users(
-            status: _status == 'all' ? null : _status,
-            keyword: _keywordController.text.trim().isEmpty
-                ? null
-                : _keywordController.text.trim(),
-            page: 1,
-          );
-      if (!mounted) return;
+      final page = await _api.users(
+        status: _status == 'all' ? null : _status,
+        sort: _sort,
+        keyword: _search,
+      );
+      if (!_current || request != _request) return;
       setState(() {
         _items = page.items;
         _page = 1;
@@ -931,7 +1392,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_current || request != _request) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -941,20 +1402,18 @@ class _UsersTabState extends ConsumerState<_UsersTab>
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasNext || _loading) return;
+    if (!_current || _loadingMore || !_hasNext || _loading) return;
+    final request = _request;
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
-      final page = await ref
-          .read(moderationApiProvider)
-          .users(
-            status: _status == 'all' ? null : _status,
-            keyword: _keywordController.text.trim().isEmpty
-                ? null
-                : _keywordController.text.trim(),
-            page: next,
-          );
-      if (!mounted) return;
+      final page = await _api.users(
+        status: _status == 'all' ? null : _status,
+        sort: _sort,
+        keyword: _search,
+        page: next,
+      );
+      if (!_current || request != _request) return;
       setState(() {
         _items = [..._items, ...page.items];
         _page = next;
@@ -962,7 +1421,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
         _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_current || request != _request) return;
       setState(() => _loadingMore = false);
       ScaffoldMessenger.of(
         context,
@@ -971,8 +1430,9 @@ class _UsersTabState extends ConsumerState<_UsersTab>
   }
 
   Future<void> _moderateUser(V2ModerationUserItem user, String action) async {
+    if (!_current) return;
     final reason = TextEditingController();
-    final duration = TextEditingController(text: '24');
+    final duration = TextEditingController();
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -997,6 +1457,7 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: l10n.t('moderation.users.duration_hours'),
+                    hintText: l10n.t('moderation.users.duration_default'),
                   ),
                 ),
               ],
@@ -1016,26 +1477,35 @@ class _UsersTabState extends ConsumerState<_UsersTab>
       ),
     );
     final reasonText = reason.text.trim();
-    final durationHours = int.tryParse(duration.text.trim());
+    final rawDuration = duration.text.trim();
+    final durationHours = RegExp(r'^[0-9]+$').hasMatch(rawDuration)
+        ? int.tryParse(rawDuration)
+        : null;
     reason.dispose();
     duration.dispose();
-    if (confirmed != true) return;
+    if (confirmed != true || !_current) return;
+    if ((action == 'ban' || action == 'mute') &&
+        rawDuration.isNotEmpty &&
+        (durationHours == null || durationHours < (action == 'mute' ? 1 : 0))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.t('moderation.users.duration_invalid'))),
+      );
+      return;
+    }
 
     try {
-      await ref
-          .read(moderationApiProvider)
-          .restrictUser(
-            userId: user.userId,
-            action: action,
-            reason: action == 'note' || reasonText.isEmpty ? null : reasonText,
-            note: reasonText.isEmpty ? null : reasonText,
-            durationHours: action == 'ban' || action == 'mute'
-                ? durationHours
-                : null,
-          );
+      await _api.restrictUser(
+        userId: user.userId,
+        action: action,
+        reason: action == 'note' || reasonText.isEmpty ? null : reasonText,
+        note: reasonText.isEmpty ? null : reasonText,
+        durationHours: action == 'ban' || action == 'mute'
+            ? durationHours
+            : null,
+      );
       await _load();
     } catch (e) {
-      if (!mounted) return;
+      if (!_current) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -1045,8 +1515,17 @@ class _UsersTabState extends ConsumerState<_UsersTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(authRepositoryProvider, (_, auth) {
+      if (!identical(_auth, auth)) _expire();
+    });
+    ref.listen(moderationApiProvider, (_, api) {
+      if (!identical(_api, api)) _expire();
+    });
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    if (_expired) {
+      return EmptyView(message: l10n.t('visibility.sessionChanged'));
+    }
     return Column(
       children: [
         Padding(
@@ -1063,26 +1542,51 @@ class _UsersTabState extends ConsumerState<_UsersTab>
                 onSubmitted: (_) => _load(),
               ),
               const SizedBox(height: 8),
-              SegmentedButton<String>(
-                segments: [
-                  ButtonSegment(
-                    value: 'all',
-                    label: Text(l10n.t('common.all')),
+              Wrap(
+                spacing: 12,
+                children: [
+                  DropdownButton<String>(
+                    key: const Key('moderation-users-status'),
+                    value: _status,
+                    items: [
+                      DropdownMenuItem(
+                        value: 'all',
+                        child: Text(l10n.t('common.all')),
+                      ),
+                      for (final status in [
+                        'active',
+                        'suspended',
+                        'disabled',
+                        'pending',
+                      ])
+                        DropdownMenuItem(
+                          value: status,
+                          child: Text(l10n.t('moderation.users.$status')),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null || value == _status) return;
+                      setState(() => _status = value);
+                      _load();
+                    },
                   ),
-                  ButtonSegment(
-                    value: 'active',
-                    label: Text(l10n.t('moderation.users.active')),
-                  ),
-                  ButtonSegment(
-                    value: 'suspended',
-                    label: Text(l10n.t('moderation.users.suspended')),
+                  DropdownButton<String>(
+                    key: const Key('moderation-users-sort'),
+                    value: _sort,
+                    items: [
+                      for (final sort in ['newest', 'oldest', 'reports'])
+                        DropdownMenuItem(
+                          value: sort,
+                          child: Text(l10n.t('moderation.users.sort.$sort')),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null || value == _sort) return;
+                      setState(() => _sort = value);
+                      _load();
+                    },
                   ),
                 ],
-                selected: {_status},
-                onSelectionChanged: (value) {
-                  setState(() => _status = value.first);
-                  _load();
-                },
               ),
             ],
           ),
@@ -1303,10 +1807,17 @@ class _AppealsTab extends ConsumerStatefulWidget {
 
 class _AppealsTabState extends ConsumerState<_AppealsTab>
     with AutomaticKeepAliveClientMixin {
+  static const _statuses = ['all', 'pending', 'approved', 'rejected'];
+  late final AuthRepository _auth;
+  late final ModerationApi _api;
+  late final int _revision;
+  late final VoidCallback _unsubscribe;
   List<V2ModerationAppeal> _items = [];
-  bool _loading = true;
-  bool _loadingMore = false;
+  String _status = 'pending';
+  bool _loading = false;
   bool _hasNext = false;
+  bool _expired = false;
+  bool _deciding = false;
   int _page = 1;
   Object? _error;
 
@@ -1316,224 +1827,284 @@ class _AppealsTabState extends ConsumerState<_AppealsTab>
   @override
   void initState() {
     super.initState();
+    _auth = ref.read(authRepositoryProvider);
+    _api = ref.read(moderationApiProvider);
+    _revision = _auth.sessionRevision;
+    _expired = _auth.isSessionChanging;
+    _unsubscribe = _auth.listenSessionChanges(() {
+      if (mounted &&
+          (_auth.sessionRevision != _revision || _auth.isSessionChanging)) {
+        _expire();
+      }
+    });
     _load();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
+
+  void _expire() {
+    if (_expired) return;
+    setState(() {
+      _expired = true;
+      _items = [];
+      _error = null;
+    });
+  }
+
+  bool get _current =>
+      mounted &&
+      !_expired &&
+      identical(ref.read(authRepositoryProvider), _auth) &&
+      identical(ref.read(moderationApiProvider), _api) &&
+      !_auth.isSessionChanging &&
+      _auth.sessionRevision == _revision;
+
+  Future<void> _load({bool more = false}) async {
+    if (!_current || _loading || (more && !_hasNext)) return;
     setState(() {
       _loading = true;
       _error = null;
-      _page = 1;
-      _hasNext = false;
+      if (!more) _items = [];
     });
+    final next = more ? _page + 1 : 1;
     try {
-      final page = await ref
-          .read(moderationApiProvider)
-          .appeals(status: 'pending', page: 1);
-      if (!mounted) return;
+      final page = await _api.appeals(status: _status, page: next);
+      if (!_current) return;
       setState(() {
-        _items = page.items;
-        _page = 1;
-        _hasNext = page.hasNext;
-        _loading = false;
-        _loadingMore = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e;
-        _loading = false;
-        _loadingMore = false;
-      });
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_loadingMore || !_hasNext || _loading) return;
-    setState(() => _loadingMore = true);
-    try {
-      final next = _page + 1;
-      final page = await ref
-          .read(moderationApiProvider)
-          .appeals(status: 'pending', page: next);
-      if (!mounted) return;
-      setState(() {
-        _items = [..._items, ...page.items];
+        _items = more ? [..._items, ...page.items] : page.items;
         _page = next;
         _hasNext = page.hasNext;
-        _loadingMore = false;
       });
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _loadingMore = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      if (!_current) return;
+      if (more) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      } else {
+        setState(() => _error = e);
+      }
+    } finally {
+      if (_current) setState(() => _loading = false);
     }
   }
 
-  Future<void> _decide(V2ModerationAppeal a, String status) async {
-    final controller = TextEditingController();
+  Future<void> _decide(V2ModerationAppeal appeal, String status) async {
+    if (!_current ||
+        _deciding ||
+        _loading ||
+        appeal.appealStatus != 'pending' ||
+        !_items.contains(appeal)) {
+      return;
+    }
     final l10n = AppLocalizations.of(context);
-    final response = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          status == 'approved'
-              ? l10n.t('moderation.appeals.approve')
-              : l10n.t('moderation.appeals.reject'),
-        ),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          decoration: InputDecoration(
-            hintText: l10n.t('moderation.appeals.response_hint'),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(l10n.t('common.cancel')),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: Text(l10n.t('common.confirm')),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (response == null) return;
+    setState(() => _deciding = true);
+    var reply = '';
     try {
-      await ref
-          .read(moderationApiProvider)
-          .updateAppeal(
-            appealId: a.appealId,
-            status: status,
-            response: response,
-          );
-      if (!mounted) return;
-      setState(() => _items.removeWhere((x) => x.appealId == a.appealId));
+      final result = await showDialog<String>(
+        context: context,
+        builder: (dialog) => StatefulBuilder(
+          builder: (_, updateDialog) {
+            final tooLong = utf8.encode(reply).length > 2000;
+            return AlertDialog(
+              title: Text(
+                l10n.t(
+                  status == 'approved'
+                      ? 'moderation.appeals.approve'
+                      : 'moderation.appeals.reject',
+                ),
+              ),
+              content: TextField(
+                onChanged: (value) => updateDialog(() => reply = value.trim()),
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: l10n.t('moderation.appeals.response_hint'),
+                  errorText: tooLong
+                      ? l10n.t('moderation.appeals.reply_too_long')
+                      : null,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialog),
+                  child: Text(l10n.t('common.cancel')),
+                ),
+                FilledButton(
+                  onPressed: tooLong
+                      ? null
+                      : () => Navigator.pop(dialog, reply),
+                  child: Text(l10n.t('common.confirm')),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      if (!_current || result == null) return;
+      await _api.updateAppeal(
+        appealId: appeal.appealId,
+        status: status,
+        response: result,
+      );
+      if (_current) await _load();
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
+      if (!_current) return;
+      final handled =
+          e is ApiException && (e.statusCode == 409 || e.code == 40901);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            handled
+                ? l10n.t('moderation.appeals.handled')
+                : ErrorView.describe(context, e),
+          ),
+        ),
+      );
+      if (handled) await _load();
+    } finally {
+      if (_current) setState(() => _deciding = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(authRepositoryProvider, (_, auth) {
+      if (!identical(_auth, auth)) _expire();
+    });
+    ref.listen(moderationApiProvider, (_, api) {
+      if (!identical(_api, api)) _expire();
+    });
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    if (_loading) return const LoadingView();
+    if (_expired) {
+      return EmptyView(message: l10n.t('visibility.sessionChanged'));
+    }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DropdownButton<String>(
+              value: _status,
+              items: [
+                for (final status in _statuses)
+                  DropdownMenuItem(
+                    value: status,
+                    child: Text(l10n.t('moderation.appeals.status.$status')),
+                  ),
+              ],
+              onChanged: _loading || _deciding
+                  ? null
+                  : (status) {
+                      if (!_current || status == null || status == _status) {
+                        return;
+                      }
+                      setState(() => _status = status);
+                      _load();
+                    },
+            ),
+          ),
+        ),
+        Expanded(child: _results(l10n)),
+      ],
+    );
+  }
+
+  Widget _results(AppLocalizations l10n) {
+    if (_loading && _items.isEmpty) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
       return EmptyView(message: l10n.t('moderation.appeals.empty'));
     }
+    final theme = Theme.of(context);
     return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
+      onRefresh: _deciding ? () async {} : _load,
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: _items.length + (_hasNext ? 1 : 0),
-        itemBuilder: (_, i) {
-          if (i >= _items.length) {
-            if (!_loadingMore) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _loadMore();
-              });
-            }
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: SizedBox.square(
-                  dimension: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+        children: [
+          for (final appeal in _items)
+            Card(
+              key: ValueKey(appeal.appealId),
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        AppAvatar(url: appeal.user.avatarUrl, size: 32),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '@${appeal.user.username} · #${appeal.statementId}',
+                            style: theme.textTheme.titleSmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.t(
+                        'moderation.appeals.status.${appeal.appealStatus}',
+                      ),
+                      style: theme.textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(appeal.appealMessage),
+                    if (appeal.adminResponse.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          appeal.adminResponse,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    if (appeal.appealStatus == 'pending')
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed: _deciding || _loading
+                                ? null
+                                : () => _decide(appeal, 'rejected'),
+                            child: Text(l10n.t('moderation.appeals.reject')),
+                          ),
+                          FilledButton(
+                            onPressed: _deciding || _loading
+                                ? null
+                                : () => _decide(appeal, 'approved'),
+                            child: Text(l10n.t('moderation.appeals.approve')),
+                          ),
+                        ],
+                      ),
+                  ],
                 ),
               ),
-            );
-          }
-          final a = _items[i];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.cardTheme.color,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: theme.dividerColor),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      AppAvatar(url: a.user.avatarUrl, size: 32),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '@${a.user.username}',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '#${a.statementId}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+            ),
+          if (_hasNext)
+            Center(
+              child: OutlinedButton(
+                onPressed: _loading || _deciding
+                    ? null
+                    : () => _load(more: true),
+                child: Text(
+                  l10n.t(
+                    _loading
+                        ? 'common.loading'
+                        : 'moderation.appeals.load_more',
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    a.appealMessage,
-                    style: theme.textTheme.bodyMedium,
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _decide(a, 'rejected'),
-                          icon: Icon(
-                            Icons.close,
-                            color: theme.colorScheme.error,
-                            size: 16,
-                          ),
-                          label: Text(
-                            l10n.t('moderation.appeals.reject'),
-                            style: TextStyle(color: theme.colorScheme.error),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () => _decide(a, 'approved'),
-                          icon: const Icon(Icons.check, size: 16),
-                          label: Text(l10n.t('moderation.appeals.approve')),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
-          );
-        },
+        ],
       ),
     );
   }
@@ -1548,9 +2119,16 @@ class _SettingsTab extends ConsumerStatefulWidget {
 
 class _SettingsTabState extends ConsumerState<_SettingsTab>
     with AutomaticKeepAliveClientMixin {
+  late final AuthRepository _auth;
+  late final ModerationApi _api;
+  late final int _revision;
+  late final void Function() _unsubscribe;
   List<V2ModerationSetting> _items = [];
+  Map<String, String> _previous = {};
+  int _fieldVersion = 0;
   bool _loading = true;
   bool _saving = false;
+  bool _expired = false;
   Object? _error;
 
   @override
@@ -1559,23 +2137,63 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
   @override
   void initState() {
     super.initState();
+    _auth = ref.read(authRepositoryProvider);
+    _api = ref.read(moderationApiProvider);
+    _revision = _auth.sessionRevision;
+    _expired = _auth.isSessionChanging;
+    _unsubscribe = _auth.listenSessionChanges(() {
+      if (mounted &&
+          (_auth.sessionRevision != _revision || _auth.isSessionChanging)) {
+        _expire();
+      }
+    });
     _load();
   }
 
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
+
+  bool get _current =>
+      mounted &&
+      !_expired &&
+      identical(ref.read(authRepositoryProvider), _auth) &&
+      identical(ref.read(moderationApiProvider), _api) &&
+      !_auth.isSessionChanging &&
+      _auth.sessionRevision == _revision;
+
+  void _expire() {
+    if (_expired) return;
+    setState(() {
+      _expired = true;
+      _items = [];
+      _previous = {};
+    });
+  }
+
+  void _replace(List<V2ModerationSetting> settings) {
+    _items = settings;
+    _previous = {for (final item in settings) item.key: item.value};
+    _fieldVersion++;
+  }
+
   Future<void> _load() async {
+    if (!_current || _saving) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final settings = await ref.read(moderationApiProvider).settings();
-      if (!mounted) return;
+      final settings = await _api.settings();
+      if (!_current) return;
       setState(() {
-        _items = settings;
+        _replace(settings);
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_current) return;
       setState(() {
         _error = e;
         _loading = false;
@@ -1613,34 +2231,45 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
   }
 
   Future<void> _save() async {
+    if (!_current || _loading || _saving) return;
+    final changes = _items
+        .where((item) => _previous[item.key] != item.value)
+        .map((item) => {'key': item.key, 'value': item.value})
+        .toList(growable: false);
+    if (changes.isEmpty) return;
     final l10n = AppLocalizations.of(context);
     setState(() => _saving = true);
     try {
-      final updated = await ref.read(moderationApiProvider).updateSettings({
-        'settings': _items
-            .map((item) => {'key': item.key, 'value': item.value})
-            .toList(growable: false),
-      });
-      if (!mounted) return;
-      setState(() => _items = updated);
+      final updated = await _api.updateSettings({'settings': changes});
+      if (!_current) return;
+      setState(() => _replace(updated));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.t('moderation.settings.saved'))),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!_current) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (_current) setState(() => _saving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(authRepositoryProvider, (_, auth) {
+      if (!identical(_auth, auth)) _expire();
+    });
+    ref.listen(moderationApiProvider, (_, api) {
+      if (!identical(_api, api)) _expire();
+    });
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    if (_expired) {
+      return EmptyView(message: l10n.t('visibility.sessionChanged'));
+    }
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
@@ -1688,6 +2317,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
           const SizedBox(height: 16),
           ..._items.map(
             (item) => Padding(
+              key: ValueKey((item.key, _fieldVersion)),
               padding: const EdgeInsets.only(bottom: 12),
               child: Container(
                 padding: const EdgeInsets.all(14),

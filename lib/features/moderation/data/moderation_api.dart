@@ -19,6 +19,10 @@ class ModerationApi {
   Future<PagedResult<V2ModerationContentItem>> content({
     String status = 'pending',
     String? priority,
+    String? reason,
+    String? keyword,
+    String? dateRange,
+    String? sort,
     int page = 1,
     int size = 20,
   }) {
@@ -28,6 +32,10 @@ class ModerationApi {
       'page_size': size,
     };
     if (priority != null) query['priority'] = priority;
+    if (reason != null) query['reason'] = reason;
+    if (keyword != null) query['q'] = keyword;
+    if (dateRange != null) query['date_range'] = dateRange;
+    if (sort != null) query['sort'] = sort;
     return _client.requestPaged<V2ModerationContentItem>(
       ApiPaths.moderationContent,
       query: query,
@@ -48,20 +56,26 @@ class ModerationApi {
     );
   }
 
-  Future<void> bulkAction({
-    required List<int> caseIds,
+  Future<int> bulkAction({
+    required List<int> postIds,
     required String action,
     String? note,
   }) async {
-    await _client.request<void>(
+    return _client.requestData<int>(
       ApiPaths.moderationContentBulkActions,
       method: 'POST',
       data: {
-        'post_ids': caseIds,
+        'post_ids': postIds,
         'action': action,
         if (note != null) 'note': note,
       },
-      decode: (_) {},
+      decode: (value) {
+        final count = toMap(value)['processed_count'];
+        if (count is! int || count < 1 || count > postIds.length) {
+          throw const FormatException('Invalid moderation result');
+        }
+        return count;
+      },
     );
   }
 
@@ -99,13 +113,15 @@ class ModerationApi {
 
   Future<PagedResult<V2ModerationUserItem>> users({
     String? status,
+    String? sort,
     int page = 1,
     int size = 20,
     String? keyword,
   }) {
     final query = <String, dynamic>{'page': page, 'page_size': size};
     if (status != null) query['status'] = status;
-    if (keyword != null) query['keyword'] = keyword;
+    if (keyword != null) query['q'] = keyword;
+    if (sort != null) query['sort'] = sort;
     return _client.requestPaged<V2ModerationUserItem>(
       ApiPaths.moderationUsers,
       query: query,
@@ -155,20 +171,11 @@ class ModerationApi {
     await _client.request<void>(
       '${ApiPaths.moderationAppeals}/$appealId',
       method: 'PATCH',
-      data: {'status': status, if (response != null) 'response': response},
+      data: {
+        'appeal_status': status,
+        if (response != null) 'admin_response': response,
+      },
       decode: (_) {},
-    );
-  }
-
-  Future<V2ModerationAppeal> submitAppeal({
-    required int statementId,
-    required String message,
-  }) {
-    return _client.requestData<V2ModerationAppeal>(
-      '${ApiPaths.usersMeStatements}/$statementId/appeals',
-      method: 'POST',
-      data: {'message': message},
-      decode: (data) => V2ModerationAppeal.fromJson(toMap(data)),
     );
   }
 
