@@ -52,12 +52,13 @@ type notificationListStore interface {
 
 type notificationScanner interface{ Scan(...any) error }
 
-func scanNotification(row notificationScanner) (NotificationItem, error) {
+func scanNotification(row notificationScanner, extra ...any) (NotificationItem, error) {
 	var item NotificationItem
 	var actor, resourceID, isRead sql.NullInt64
 	var kind, title, message, resourceType, priority, metadata sql.NullString
 	var readAt, deletedAt, createdAt sql.NullTime
-	if err := row.Scan(&item.ID, &actor, &kind, &title, &message, &resourceType, &resourceID, &priority, &isRead, &readAt, &deletedAt, &metadata, &createdAt); err != nil {
+	destinations := []any{&item.ID, &actor, &kind, &title, &message, &resourceType, &resourceID, &priority, &isRead, &readAt, &deletedAt, &metadata, &createdAt}
+	if err := row.Scan(append(destinations, extra...)...); err != nil {
 		return NotificationItem{}, err
 	}
 	item.ActorID = nullableInt(actor)
@@ -120,7 +121,7 @@ func parseNotificationQuery(raw string) NotificationQuery {
 	return NotificationQuery{Page: sessionPagination(values), Type: listQueryString(values, "type", "all"), UnreadOnly: listQueryString(values, "unread_only", "false") == "true", ShowDeleted: listQueryString(values, "show_deleted", "false") == "true"}
 }
 
-func notificationListSQL(user int64, q NotificationQuery) (string, string, []any) {
+func notificationListSQL(user int64, q NotificationQuery) (string, []any) {
 	where := "user_id=:user_id AND deleted_at IS NULL"
 	if q.ShowDeleted {
 		where = "user_id=:user_id AND deleted_at IS NOT NULL"
@@ -133,30 +134,40 @@ func notificationListSQL(user int64, q NotificationQuery) (string, string, []any
 	if q.UnreadOnly {
 		where += " AND is_read=0"
 	}
-	count := "SELECT COUNT(*) FROM n_notifications WHERE " + where
-	page := "SELECT notification_id,actor_id,type,title,message,resource_type,resource_id,priority,is_read,read_at,deleted_at,metadata_json,created_at FROM (SELECT notification_id,actor_id,type,title,message,resource_type,resource_id,priority,is_read,read_at,deleted_at,DBMS_LOB.SUBSTR(metadata_json,4000,1) AS metadata_json,created_at,ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn FROM n_notifications WHERE " + where + ") WHERE rn BETWEEN :start_row AND :end_row"
-	return count, page, args
+	page := `SELECT notification_id,actor_id,type,title,message,resource_type,resource_id,priority,
+	  is_read,read_at,deleted_at,metadata_json,created_at,total
+	FROM (
+	WITH ranked AS (
+	  SELECT notification_id, ROW_NUMBER() OVER (ORDER BY created_at DESC, notification_id DESC) AS rn
+	  FROM n_notifications WHERE ` + where + `
+	)
+	SELECT NVL(n.notification_id,0) AS notification_id,n.actor_id,n.type,n.title,n.message,
+	  n.resource_type,n.resource_id,n.priority,n.is_read,n.read_at,n.deleted_at,
+	  DBMS_LOB.SUBSTR(n.metadata_json,4000,1) AS metadata_json,n.created_at,totals.total,page_rows.rn
+	FROM (SELECT COUNT(*) AS total FROM ranked) totals
+	LEFT JOIN ranked page_rows ON page_rows.rn BETWEEN :start_row AND :end_row
+	LEFT JOIN n_notifications n ON n.notification_id = page_rows.notification_id
+	) ORDER BY rn`
+	return page, append(args, sql.Named("start_row", q.Page.Start), sql.Named("end_row", q.Page.End))
 }
 
 func (s OracleSessions) ListNotifications(ctx context.Context, user int64, q NotificationQuery) ([]NotificationItem, int64, error) {
-	countSQL, pageSQL, args := notificationListSQL(user, q)
+	pageSQL, args := notificationListSQL(user, q)
 	var total int64
-	if err := s.DB.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
-		return nil, 0, errSessionStore
-	}
-	pageArgs := append(append([]any{}, args...), sql.Named("start_row", q.Page.Start), sql.Named("end_row", q.Page.End))
-	rows, err := s.DB.QueryContext(ctx, pageSQL, pageArgs...)
+	rows, err := s.DB.QueryContext(ctx, pageSQL, args...)
 	if err != nil {
 		return nil, 0, errSessionStore
 	}
 	items := make([]NotificationItem, 0)
 	for rows.Next() {
-		item, err := scanNotification(rows)
+		item, err := scanNotification(rows, &total)
 		if err != nil {
 			rows.Close()
 			return nil, 0, errSessionStore
 		}
-		items = append(items, item)
+		if item.ID != 0 {
+			items = append(items, item)
+		}
 	}
 	if rows.Err() != nil {
 		rows.Close()

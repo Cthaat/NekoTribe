@@ -69,25 +69,28 @@ func listTags(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, 
 		Meta    any       `json:"meta"`
 	}{200, "success", items, map[string]any{"page": query.Page.Page, "page_size": query.Page.PageSize, "total": total, "has_next": query.Page.End < float64(total)}})
 }
-func tagSQL(query TagListQuery) (string, string, []any, []any) {
+func tagSQL(query TagListQuery) (string, []any) {
 	where := "WHERE (:q IS NULL OR name_lower LIKE :q)"
 	args := []any{sql.Named("q", query.Q)}
 	if query.Trending {
 		where = "WHERE is_trending = 1"
 		args = []any{}
 	}
-	count := "SELECT COUNT(*) FROM n_tags " + where
-	rows := "SELECT * FROM (SELECT tag_id,name,usage_count,trending_score,is_trending,updated_at,ROW_NUMBER() OVER (ORDER BY trending_score DESC,usage_count DESC,updated_at DESC) AS rn FROM n_tags " + where + ") WHERE rn BETWEEN :start_row AND :end_row"
-	pageArgs := append(append([]any{}, args...), sql.Named("start_row", query.Page.Start), sql.Named("end_row", query.Page.End))
-	return count, rows, args, pageArgs
+	rows := `WITH ranked_tags AS (
+	  SELECT tag_id, name, usage_count, trending_score, is_trending, updated_at,
+	    ROW_NUMBER() OVER (ORDER BY trending_score DESC, usage_count DESC, updated_at DESC, tag_id DESC) AS rn
+	  FROM n_tags ` + where + `
+	)
+	SELECT p.tag_id, p.name, p.usage_count, p.trending_score, p.is_trending, p.updated_at, totals.total
+	FROM (SELECT COUNT(*) AS total FROM ranked_tags) totals
+	LEFT JOIN ranked_tags p ON p.rn BETWEEN :start_row AND :end_row
+	ORDER BY p.rn`
+	return rows, append(args, sql.Named("start_row", query.Page.Start), sql.Named("end_row", query.Page.End))
 }
 func (s OracleSessions) ListTags(ctx context.Context, query TagListQuery) ([]TagItem, int64, error) {
-	countSQL, rowsSQL, countArgs, rowArgs := tagSQL(query)
+	rowsSQL, args := tagSQL(query)
 	var total int64
-	if err := s.DB.QueryRowContext(ctx, countSQL, countArgs...).Scan(&total); err != nil {
-		return nil, 0, errSessionStore
-	}
-	rows, err := s.DB.QueryContext(ctx, rowsSQL, rowArgs...)
+	rows, err := s.DB.QueryContext(ctx, rowsSQL, args...)
 	if err != nil {
 		return nil, 0, errSessionStore
 	}
@@ -96,13 +99,16 @@ func (s OracleSessions) ListTags(ctx context.Context, query TagListQuery) ([]Tag
 		var item TagItem
 		var name sql.NullString
 		var usage, score sql.NullFloat64
-		var trending sql.NullInt64
+		var id, trending sql.NullInt64
 		var updated sql.NullTime
-		var rank any
-		if err = rows.Scan(&item.TagID, &name, &usage, &score, &trending, &updated, &rank); err != nil {
+		if err = rows.Scan(&id, &name, &usage, &score, &trending, &updated, &total); err != nil {
 			_ = rows.Close()
 			return nil, 0, errSessionStore
 		}
+		if !id.Valid {
+			continue
+		}
+		item.TagID = id.Int64
 		item.Name = name.String
 		item.UsageCount = usage.Float64
 		item.TrendingScore = score.Float64

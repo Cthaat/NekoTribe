@@ -89,6 +89,8 @@ func createPostComment(w http.ResponseWriter, r *http.Request, codec *auth.Token
 	comment, err := store.CreatePostComment(r.Context(), user, post, content, parent)
 	if err != nil {
 		switch {
+		case errors.Is(err, errPublishForbidden):
+			respond(w, 403, 40301, publishPolicy.Message, nil)
 		case errors.Is(err, errCommentPostUnavailable):
 			respond(w, 404, 40401, "帖子不存在", nil)
 		case errors.Is(err, errCommentParentUnavailable):

@@ -7,6 +7,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"html"
+	"mime"
 	"mime/multipart"
 	"net"
 	"net/mail"
@@ -66,6 +68,19 @@ func smtpFromLookup(lookup func(string) (string, bool)) smtpConfig {
 	return smtpConfig{host: get("SMTP_HOST"), port: get("SMTP_PORT"), user: get("SMTP_USER"), password: get("SMTP_PASS")}
 }
 func (s smtpConfig) SendOTP(ctx context.Context, to, code string) error {
+	return s.sendMail(ctx, to, "Your verification code", "Your verification code is "+code,
+		"<p>Your verification code is <strong>"+code+"</strong></p>")
+}
+
+func (s smtpConfig) SendLoginAlert(ctx context.Context, to, message, ip, agent string) error {
+	const advice = "如果这不是你本人操作，请尽快修改密码并注销其他设备。"
+	text := message + "\r\nIP: " + ip + "\r\nUser-Agent: " + agent + "\r\n" + advice
+	body := "<p>" + html.EscapeString(message) + "</p><p><strong>IP:</strong> " +
+		html.EscapeString(ip) + "</p><p><strong>User-Agent:</strong> " + html.EscapeString(agent) + "</p><p>" + advice + "</p>"
+	return s.sendMail(ctx, to, loginAlertTitle, text, body)
+}
+
+func (s smtpConfig) sendMail(ctx context.Context, to, subject, text, htmlBody string) error {
 	port, err := strconv.Atoi(s.port)
 	if err != nil || port < 1 || port > 65535 || s.host == "" || strings.ContainsAny(s.host, "/\r\n") || s.user == "" || s.password == "" || strings.ContainsAny(s.user+to, "\r\n") {
 		return errMailDelivery
@@ -80,7 +95,7 @@ func (s smtpConfig) SendOTP(ctx context.Context, to, code string) error {
 	}
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	for _, part := range []struct{ contentType, text string }{{"text/plain; charset=UTF-8", "Your verification code is " + code}, {"text/html; charset=UTF-8", "<p>Your verification code is <strong>" + code + "</strong></p>"}} {
+	for _, part := range []struct{ contentType, text string }{{"text/plain; charset=UTF-8", text}, {"text/html; charset=UTF-8", htmlBody}} {
 		h := textproto.MIMEHeader{}
 		h.Set("Content-Type", part.contentType)
 		h.Set("Content-Transfer-Encoding", "8bit")
@@ -95,7 +110,7 @@ func (s smtpConfig) SendOTP(ctx context.Context, to, code string) error {
 	if writer.Close() != nil {
 		return errMailDelivery
 	}
-	message := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: Your verification code\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=%q\r\n\r\n", from.String(), recipient.String(), writer.Boundary()) + body.String()
+	message := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=%q\r\n\r\n", from.String(), recipient.String(), mime.QEncoding.Encode("UTF-8", subject), writer.Boundary()) + body.String()
 	dialer := net.Dialer{Timeout: 15 * time.Second}
 	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(s.host, strconv.Itoa(port)))
 	if err != nil {

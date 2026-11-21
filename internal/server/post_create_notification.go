@@ -9,10 +9,14 @@ import (
 )
 
 type postCreateNoticeStore interface {
+	postNotificationDeliveryStore
 	PostCreateActorName(context.Context, int64) (string, error)
 	PostCreateSourceAuthor(context.Context, int64) (int64, error)
 	PostCreateExcerpt(context.Context, int64) (json.RawMessage, error)
 	ResolvePostMentionRecipient(context.Context, float64) (int64, error)
+}
+
+type postNotificationDeliveryStore interface {
 	StorePostCreateNotification(context.Context, notificationInput) (*notificationStored, error)
 	NotificationByID(context.Context, int64, int64) (NotificationItem, bool, error)
 }
@@ -111,7 +115,7 @@ func notifyPostCreated(ctx context.Context, repository SessionRepository, store 
 	return nil
 }
 
-func deliverPostCreateNotification(ctx context.Context, repository SessionRepository, store postCreateNoticeStore, config RefreshConfig, input notificationInput) error {
+func deliverPostCreateNotification(ctx context.Context, repository SessionRepository, store postNotificationDeliveryStore, config RefreshConfig, input notificationInput) error {
 	stored, err := store.StorePostCreateNotification(ctx, input)
 	if err != nil || stored == nil {
 		return err

@@ -35,10 +35,13 @@ func (s OracleSessions) UpdatePostAtomic(ctx context.Context, user, id int64, in
 			}
 		}
 	}()
+	if err := checkPublishAccess(ctx, tx, user); err != nil {
+		return err
+	}
 	var owner, deleted int64
 	var kind string
-	var content sql.NullString
-	e = tx.QueryRowContext(ctx, `SELECT author_id,is_deleted,post_type,DBMS_LOB.SUBSTR(content,4000,1) AS content FROM n_posts WHERE post_id=:post_id FOR UPDATE`, sql.Named("post_id", id)).Scan(&owner, &deleted, &kind, &content)
+	var content, visibility sql.NullString
+	e = tx.QueryRowContext(ctx, `SELECT author_id,is_deleted,post_type,DBMS_LOB.SUBSTR(content,4000,1) AS content,visibility FROM n_posts WHERE post_id=:post_id FOR UPDATE`, sql.Named("post_id", id)).Scan(&owner, &deleted, &kind, &content, &visibility)
 	if errors.Is(e, sql.ErrNoRows) {
 		return errPostReferenceUnavailable
 	}
@@ -55,9 +58,20 @@ func (s OracleSessions) UpdatePostAtomic(ctx context.Context, user, id int64, in
 	if input.Content != nil {
 		nextContent = *input.Content
 	}
+	nextVisibility := visibility.String
+	if input.Visibility != nil {
+		nextVisibility = *input.Visibility
+	}
+	if input.MediaIDs == nil && input.Visibility != nil && nextVisibility == "public" {
+		if err := rejectRetainedPrivatePostMedia(ctx, tx, id); err != nil {
+			return err
+		}
+	}
 	var mediaCount int
+	var mediaIDs []float64
 	if input.MediaIDs != nil {
-		mediaCount = len(uniquePostIDs(*input.MediaIDs, 4))
+		mediaIDs = uniquePostIDs(*input.MediaIDs, 4)
+		mediaCount = len(mediaIDs)
 	} else if tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM n_post_media WHERE post_id=:post_id`, sql.Named("post_id", id)).Scan(&mediaCount) != nil {
 		return errSessionStore
 	}
@@ -89,10 +103,13 @@ func (s OracleSessions) UpdatePostAtomic(ctx context.Context, user, id int64, in
 		}
 	}
 	if input.MediaIDs != nil {
+		if err := lockPostMedia(ctx, tx, user, id, nextVisibility, mediaIDs, errPostUpdateMedia); err != nil {
+			return err
+		}
 		if _, e := postTxExecute(ctx, tx, `DELETE FROM n_post_media WHERE post_id=:post_id`, sql.Named("post_id", id)); e != nil {
 			return e
 		}
-		for index, media := range uniquePostIDs(*input.MediaIDs, 4) {
+		for index, media := range mediaIDs {
 			n, e := postTxExecute(ctx, tx, insertPostMediaAtomicSQL, sql.Named("post_id", id), sql.Named("user_id", user), sql.Named("media_id", media), sql.Named("sort_order", index+1))
 			if e != nil {
 				return e

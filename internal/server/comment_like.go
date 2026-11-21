@@ -66,9 +66,21 @@ func setCommentLike(w http.ResponseWriter, r *http.Request, codec *auth.TokenMan
 	}{id, liked, count})
 }
 
-const commentLikeVisibleSQL = `SELECT c.comment_id FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.comment_id=:comment_id AND c.is_deleted=0 AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,c.post_id)=1`
-const commentLikeCountSQL = `SELECT NVL(s.likes_count,0) FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id LEFT JOIN n_comment_stats s ON s.comment_id=c.comment_id WHERE c.comment_id=:comment_id AND c.is_deleted=0 AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,c.post_id)=1`
-const commentLikeExistsSQL = `EXISTS (SELECT 1 FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.comment_id=:comment_id AND c.is_deleted=0 AND p.is_deleted=0 AND fn_can_view_post(:user_id,c.post_id)=1)`
+const visibleCommentScopeSQL = ` FROM n_comments c
+JOIN n_posts p ON p.post_id=c.post_id
+JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1
+JOIN n_users comment_author ON comment_author.user_id=c.user_id AND comment_author.is_active=1
+WHERE c.is_deleted=0 AND p.is_deleted=0
+  AND fn_can_view_post(:viewer_id,c.post_id)=1
+  AND NOT EXISTS (
+    SELECT 1 FROM n_user_blocks b
+    WHERE (b.user_id=:viewer_id AND b.target_user_id=c.user_id)
+       OR (b.target_user_id=:viewer_id AND b.user_id=c.user_id)
+  )`
+const commentLikeScopeSQL = visibleCommentScopeSQL + ` AND c.comment_id=:comment_id`
+const commentLikeVisibleSQL = `SELECT c.comment_id` + commentLikeScopeSQL
+const commentLikeCountSQL = `SELECT NVL((SELECT s.likes_count FROM n_comment_stats s WHERE s.comment_id=c.comment_id),0)` + commentLikeScopeSQL
+const commentLikeExistsSQL = `EXISTS (SELECT 1` + commentLikeScopeSQL + `)`
 
 func (s OracleSessions) commentLikeVisible(ctx context.Context, user, id int64) (bool, error) {
 	var found int64
@@ -86,11 +98,11 @@ func (s OracleSessions) SetCommentLike(ctx context.Context, user, id int64, like
 	if err != nil || !visible {
 		return 0, false, visible, err
 	}
-	query := `DELETE FROM n_comment_likes WHERE comment_id=:comment_id AND user_id=:user_id AND ` + commentLikeExistsSQL
+	query := `DELETE FROM n_comment_likes WHERE comment_id=:comment_id AND user_id=:viewer_id AND ` + commentLikeExistsSQL
 	if liked {
-		query = `INSERT INTO n_comment_likes (comment_id,user_id) SELECT :comment_id,:user_id FROM dual WHERE ` + commentLikeExistsSQL + ` AND NOT EXISTS (SELECT 1 FROM n_comment_likes WHERE comment_id=:comment_id AND user_id=:user_id)`
+		query = `INSERT INTO n_comment_likes (comment_id,user_id) SELECT :comment_id,:viewer_id FROM dual WHERE ` + commentLikeExistsSQL + ` AND NOT EXISTS (SELECT 1 FROM n_comment_likes WHERE comment_id=:comment_id AND user_id=:viewer_id)`
 	}
-	changed, err := s.execute(ctx, query, sql.Named("comment_id", id), sql.Named("user_id", user))
+	changed, err := s.execute(ctx, query, sql.Named("comment_id", id), sql.Named("viewer_id", user))
 	if err != nil {
 		return 0, false, false, err
 	}
@@ -113,7 +125,8 @@ func (s OracleSessions) SetCommentLike(ctx context.Context, user, id int64, like
 func (s OracleSessions) PrepareCommentLikeNotification(ctx context.Context, actor, id int64) (int64, *notificationStored, error) {
 	var author, post sql.NullInt64
 	var comment sql.NullString
-	err := s.DB.QueryRowContext(ctx, `SELECT user_id,post_id,DBMS_LOB.SUBSTR(content,4000,1) FROM n_comments WHERE comment_id=:comment_id AND is_deleted=0`, sql.Named("comment_id", id)).Scan(&author, &post, &comment)
+	const source = `SELECT c.user_id,c.post_id,DBMS_LOB.SUBSTR(c.content,4000,1)` + commentLikeScopeSQL
+	err := s.DB.QueryRowContext(ctx, source, sql.Named("comment_id", id), sql.Named("viewer_id", actor)).Scan(&author, &post, &comment)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && (!author.Valid || author.Int64 <= 0 || author.Int64 == actor || !post.Valid) {
 		return 0, nil, nil
 	}

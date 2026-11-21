@@ -160,18 +160,8 @@ func hydratePost(ctx context.Context, store postDetailStore, viewer *int64, post
 		return post, &postFailure{500, "服务器内部错误"}
 	}
 	for i := range post.Media {
-		post.Media[i].PublicURL, err = normalizeAvatarURL(storage, post.Media[i].PublicURL)
-		if err != nil {
+		if err := normalizePostMedia(storage, &post.Media[i]); err != nil {
 			return post, &postFailure{500, "服务器内部错误"}
-		}
-		if post.Media[i].ThumbnailURL != nil && *post.Media[i].ThumbnailURL != "" {
-			v, e := normalizeAvatarURL(storage, *post.Media[i].ThumbnailURL)
-			if e != nil {
-				return post, &postFailure{500, "服务器内部错误"}
-			}
-			post.Media[i].ThumbnailURL = &v
-		} else {
-			post.Media[i].ThumbnailURL = nil
 		}
 	}
 	post.Tags, err = store.ReadPostTags(ctx, post.PostID)
@@ -189,4 +179,26 @@ func hydratePost(ctx context.Context, store postDetailStore, viewer *int64, post
 		}
 	}
 	return post, nil
+}
+
+func normalizePostMedia(storage StorageURLPolicy, media *PostMedia) error {
+	if media.MediaID > 0 && media.PublicURL == privateMediaContentPath(media.MediaID) {
+		media.ThumbnailURL = nil
+		return nil
+	}
+	public, err := normalizeAvatarURL(storage, media.PublicURL)
+	if err != nil {
+		return err
+	}
+	media.PublicURL = public
+	if media.ThumbnailURL == nil || *media.ThumbnailURL == "" {
+		media.ThumbnailURL = nil
+		return nil
+	}
+	thumbnail, err := normalizeAvatarURL(storage, *media.ThumbnailURL)
+	if err != nil {
+		return err
+	}
+	media.ThumbnailURL = &thumbnail
+	return nil
 }

@@ -19,8 +19,8 @@ type presencePublisher interface {
 
 func (s OracleSessions) UserPresence(ctx context.Context, user int64) (userPresence, error) {
 	result := userPresence{UserID: user, OnlineStatus: "offline"}
-	const query = `SELECT NVL(us.show_online_status,1), (SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL), CASE WHEN NVL(us.show_online_status,1)=0 THEN 'hidden' WHEN EXISTS (SELECT 1 FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90,'SECOND')) THEN 'online' ELSE 'offline' END FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id`
-	var visible sql.NullInt64
+	const query = `SELECT NVL(us.show_online_status,1), (SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL), CASE WHEN NVL(us.show_online_status,1)<>1 THEN 'hidden' WHEN EXISTS (SELECT 1 FROM n_auth_sessions s WHERE s.user_id=u.user_id AND s.revoked_at IS NULL AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90,'SECOND')) THEN 'online' ELSE 'offline' END FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id`
+	var visible sql.NullFloat64
 	var lastSeen sql.NullTime
 	var status sql.NullString
 	err := s.DB.QueryRowContext(ctx, query, sql.Named("user_id", user)).Scan(&visible, &lastSeen, &status)
@@ -34,21 +34,27 @@ func (s OracleSessions) UserPresence(ctx context.Context, user int64) (userPrese
 		return userPresence{}, errSessionStore
 	}
 	result.OnlineStatus = status.String
-	if visible.Valid && visible.Int64 == 1 && status.String != "hidden" {
+	if !visible.Valid || visible.Float64 != 1 {
+		result.OnlineStatus = "hidden"
+	}
+	if visible.Valid && visible.Float64 == 1 && status.String != "hidden" {
 		result.LastSeenAt = profileDate(lastSeen)
 	}
 	return result, nil
 }
 
-func (p *UserEventPublisher) PublishPresence(ctx context.Context, presence userPresence) error {
-	if p == nil || p.client == nil || p.clock == nil || ctx.Err() != nil || p.serverID == "" || presence.UserID <= 0 || presence.UserID > 9007199254740991 {
-		return errNotificationEvent
+func buildPresenceEvent(presence userPresence, serverID string, timestamp int64) ([]byte, error) {
+	if serverID == "" || presence.UserID <= 0 || presence.UserID > 9007199254740991 {
+		return nil, errNotificationEvent
 	}
 	if presence.OnlineStatus != "online" && presence.OnlineStatus != "offline" && presence.OnlineStatus != "hidden" {
-		return errNotificationEvent
+		return nil, errNotificationEvent
 	}
 	if presence.OnlineStatus == "hidden" {
 		presence.LastSeenAt = nil
+	}
+	if timestamp < 0 || timestamp > 9007199254740991 {
+		return nil, errNotificationEvent
 	}
 	payload, err := json.Marshal(struct {
 		Type string `json:"type"`
@@ -60,9 +66,20 @@ func (p *UserEventPublisher) PublishPresence(ctx context.Context, presence userP
 	}{Type: "presence_update", Data: struct {
 		userPresence
 		ServerID string `json:"server_id"`
-	}{presence, p.serverID}, Timestamp: p.clock().UnixMilli()})
+	}{presence, serverID}, Timestamp: timestamp})
 	if err != nil {
+		return nil, errNotificationEvent
+	}
+	return payload, nil
+}
+
+func (p *UserEventPublisher) PublishPresence(ctx context.Context, presence userPresence) error {
+	if p == nil || p.client == nil || p.clock == nil || ctx.Err() != nil {
 		return errNotificationEvent
+	}
+	payload, err := buildPresenceEvent(presence, p.serverID, p.clock().UnixMilli())
+	if err != nil {
+		return err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 	defer cancel()

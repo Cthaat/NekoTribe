@@ -90,35 +90,22 @@ func (s OracleSessions) ReadPostAuthor(ctx context.Context, viewer *int64, id in
 	return s.publicProfile(ctx, nullableViewer(viewer), id)
 }
 func (s OracleSessions) ReadPostMedia(ctx context.Context, id int64) ([]PostMedia, error) {
-	rows, err := s.DB.QueryContext(ctx, postMediaSQL, sql.Named("post_id", id))
+	return readPostMedia(ctx, s.DB, id)
+}
+
+func readPostMedia(ctx context.Context, db interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, id int64) ([]PostMedia, error) {
+	rows, err := db.QueryContext(ctx, postMediaSQL, sql.Named("post_id", id))
 	if err != nil {
 		return nil, errSessionStore
 	}
 	items := []PostMedia{}
 	for rows.Next() {
-		var p PostMedia
-		var kind, name, public, mime, thumb, alt, desc, status sql.NullString
-		var size sql.NullInt64
-		var width, height, duration sql.NullFloat64
-		var created sql.NullTime
-		if rows.Scan(&p.MediaID, &kind, &name, &public, &size, &mime, &width, &height, &duration, &thumb, &alt, &desc, &status, &created) != nil {
+		p, err := scanPostMedia(rows)
+		if err != nil {
 			_ = rows.Close()
 			return nil, errSessionStore
-		}
-		p.MediaType = kind.String
-		p.FileName = name.String
-		p.PublicURL = public.String
-		p.FileSize = size.Int64
-		p.MIMEType = mime.String
-		p.Width = nullableFloat(width)
-		p.Height = nullableFloat(height)
-		p.Duration = nullableFloat(duration)
-		p.ThumbnailURL = nullableString(thumb)
-		p.AltText = nullableString(alt)
-		p.Description = nullableString(desc)
-		p.Status = status.String
-		if d := profileDate(created); d != nil {
-			p.CreatedAt = *d
 		}
 		items = append(items, p)
 	}
@@ -128,6 +115,32 @@ func (s OracleSessions) ReadPostMedia(ctx context.Context, id int64) ([]PostMedi
 		return nil, errSessionStore
 	}
 	return items, nil
+}
+func scanPostMedia(row notificationScanner, prefix ...any) (PostMedia, error) {
+	var p PostMedia
+	var kind, name, public, mime, thumb, alt, desc, status sql.NullString
+	var size sql.NullInt64
+	var width, height, duration sql.NullFloat64
+	var created sql.NullTime
+	if err := row.Scan(append(prefix, &p.MediaID, &kind, &name, &public, &size, &mime, &width, &height, &duration, &thumb, &alt, &desc, &status, &created)...); err != nil {
+		return PostMedia{}, err
+	}
+	p.MediaType = kind.String
+	p.FileName = name.String
+	p.PublicURL = public.String
+	p.FileSize = size.Int64
+	p.MIMEType = mime.String
+	p.Width = nullableFloat(width)
+	p.Height = nullableFloat(height)
+	p.Duration = nullableFloat(duration)
+	p.ThumbnailURL = nullableString(thumb)
+	p.AltText = nullableString(alt)
+	p.Description = nullableString(desc)
+	p.Status = status.String
+	if d := profileDate(created); d != nil {
+		p.CreatedAt = *d
+	}
+	return p, nil
 }
 func (s OracleSessions) ReadPostTags(ctx context.Context, id int64) ([]string, error) {
 	rows, err := s.DB.QueryContext(ctx, postTagsSQL, sql.Named("post_id", id))

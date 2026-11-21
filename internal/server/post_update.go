@@ -99,6 +99,8 @@ func updatePost(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 	}
 	if err := store.UpdatePostAtomic(r.Context(), actor, id, input); err != nil {
 		switch {
+		case errors.Is(err, errPublishForbidden):
+			respond(w, 403, 40301, publishPolicy.Message, nil)
 		case errors.Is(err, errPostReferenceUnavailable):
 			respond(w, 404, 40401, "帖子不存在", nil)
 		case errors.Is(err, errPostUpdateNotOwner):

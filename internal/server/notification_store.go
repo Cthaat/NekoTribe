@@ -26,11 +26,22 @@ type notificationStored struct {
 // Store after checking the recipient's type preference; global push preference
 // controls delivery, not storage. A nil result means no notification is due.
 func (s OracleSessions) storeNotification(ctx context.Context, v notificationInput) (*notificationStored, error) {
+	return storeNotificationWith(ctx, s.DB, func(ctx context.Context, query string, args ...any) error {
+		_, err := s.execute(ctx, query, args...)
+		return err
+	}, v)
+}
+
+type notificationQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func storeNotificationWith(ctx context.Context, query notificationQueryer, insert func(context.Context, string, ...any) error, v notificationInput) (*notificationStored, error) {
 	if v.UserID <= 0 || v.ActorID != nil && *v.ActorID == v.UserID {
 		return nil, nil
 	}
 	var pushEnabled, typeEnabled int64
-	err := s.DB.QueryRowContext(ctx, notificationDeliverySQL, sql.Named("notification_type", v.Type), sql.Named("user_id", v.UserID)).Scan(&pushEnabled, &typeEnabled)
+	err := query.QueryRowContext(ctx, notificationDeliverySQL, sql.Named("notification_type", v.Type), sql.Named("user_id", v.UserID)).Scan(&pushEnabled, &typeEnabled)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -41,10 +52,10 @@ func (s OracleSessions) storeNotification(ctx context.Context, v notificationInp
 		return nil, nil
 	}
 	var id int64
-	if err = s.DB.QueryRowContext(ctx, `SELECT seq_notification_id.NEXTVAL FROM dual`).Scan(&id); err != nil {
+	if err = query.QueryRowContext(ctx, `SELECT seq_notification_id.NEXTVAL FROM dual`).Scan(&id); err != nil {
 		return nil, errSessionStore
 	}
-	_, err = s.execute(ctx, insertNotificationSQL,
+	err = insert(ctx, insertNotificationSQL,
 		sql.Named("notification_id", id), sql.Named("user_id", v.UserID), sql.Named("actor_id", v.ActorID),
 		sql.Named("type", v.Type), sql.Named("title", v.Title), sql.Named("message", v.Message),
 		sql.Named("resource_type", v.ResourceType), sql.Named("resource_id", v.ResourceID),

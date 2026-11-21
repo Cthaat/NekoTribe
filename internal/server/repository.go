@@ -4,13 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
+
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
 )
+
+const activeSessionAccountSQL = `EXISTS (
+SELECT 1 FROM n_users u WHERE u.user_id = n_auth_sessions.user_id
+AND u.is_active = 1 AND u.status = 'active')`
 
 const TouchSQL = `UPDATE n_auth_sessions
 SET last_accessed_at = CURRENT_TIMESTAMP
 WHERE user_id = :user_id AND session_id = :session_id AND access_jti = :access_jti
-AND revoked_at IS NULL AND access_token_expires_at > CURRENT_TIMESTAMP`
+AND revoked_at IS NULL AND access_token_expires_at > CURRENT_TIMESTAMP
+AND ` + activeSessionAccountSQL
 const RevokeSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
 WHERE user_id = :user_id AND session_id = :session_id AND revoked_at IS NULL`
 const RevokeOthersSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
@@ -23,15 +30,23 @@ WHERE session_id = :session_id AND user_id = :user_id AND revoked_at IS NULL
 AND access_jti = :access_jti`
 const RotateSQL = `UPDATE n_auth_sessions
 SET access_jti = :access_jti, refresh_token_hash = :refresh_token_hash,
-access_token_expires_at = :access_token_expires_at, refresh_token_expires_at = :refresh_token_expires_at,
+access_token_expires_at = CAST(TO_TIMESTAMP_TZ(:access_token_expires_at, 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP),
+refresh_token_expires_at = CAST(TO_TIMESTAMP_TZ(:refresh_token_expires_at, 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP),
 last_refresh_at = CURRENT_TIMESTAMP, last_accessed_at = CURRENT_TIMESTAMP
 WHERE session_id = :session_id AND user_id = :user_id AND refresh_token_hash = :old_refresh_token_hash
-AND revoked_at IS NULL AND refresh_token_expires_at > CURRENT_TIMESTAMP`
+AND revoked_at IS NULL AND refresh_token_expires_at > CURRENT_TIMESTAMP
+AND ` + activeSessionAccountSQL
 const PreflightSQL = `SELECT user_id, session_id, access_jti, access_token_expires_at, revoked_at, last_accessed_at,
 refresh_token_hash, refresh_token_expires_at, last_refresh_at
 FROM n_auth_sessions WHERE 1 = 0`
 
 var errSessionStore = errors.New("session store unavailable")
+
+// The session table uses TIMESTAMP without a zone. Convert the instant to the
+// database session timezone before comparing it to CURRENT_TIMESTAMP.
+func oracleTimestampValue(value time.Time) string {
+	return value.UTC().Format("2006-01-02T15:04:05.000-07:00")
+}
 
 type OracleSessions struct{ DB *sql.DB }
 
@@ -52,8 +67,8 @@ func (s OracleSessions) RevokeAccess(ctx context.Context, c auth.Claims) (int64,
 }
 func (s OracleSessions) Rotate(ctx context.Context, rotation Rotation) (int64, error) {
 	return s.execute(ctx, RotateSQL, sql.Named("access_jti", rotation.AccessJTI),
-		sql.Named("refresh_token_hash", rotation.NewHash), sql.Named("access_token_expires_at", rotation.AccessExpiresAt),
-		sql.Named("refresh_token_expires_at", rotation.RefreshExpiresAt), sql.Named("session_id", rotation.SessionID),
+		sql.Named("refresh_token_hash", rotation.NewHash), sql.Named("access_token_expires_at", oracleTimestampValue(rotation.AccessExpiresAt)),
+		sql.Named("refresh_token_expires_at", oracleTimestampValue(rotation.RefreshExpiresAt)), sql.Named("session_id", rotation.SessionID),
 		sql.Named("user_id", rotation.UserID), sql.Named("old_refresh_token_hash", rotation.OldHash))
 }
 

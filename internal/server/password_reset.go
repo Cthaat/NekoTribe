@@ -22,6 +22,8 @@ const (
 const claimResetOTPSQL = `UPDATE n_auth_otp_events SET verified_at = CURRENT_TIMESTAMP, expires_at = CURRENT_TIMESTAMP, verification_code_hash = '!consumed!' WHERE account = :account AND otp_type = 'password_reset' AND verification_id = :verification_id AND verification_code_hash = :code_hash AND expires_at > CURRENT_TIMESTAMP`
 const resetPasswordSQL = `UPDATE n_users SET password_hash = :password_hash WHERE email = :email`
 const revokeResetSessionsSQL = `UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND revoked_at IS NULL`
+const invalidateResetChallengesSQL = `UPDATE n_auth_two_factor_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND consumed_at IS NULL`
+const revokeResetDevicesSQL = `UPDATE n_user_two_factor_trusted_devices SET revoked_at = CURRENT_TIMESTAMP WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND revoked_at IS NULL`
 
 func (s OracleSessions) ResetPasswordAtomic(ctx context.Context, email, id, codeHash, newHash string) (outcome int, err error) {
 	conn, e := s.DB.Conn(ctx)
@@ -60,8 +62,10 @@ func (s OracleSessions) ResetPasswordAtomic(ctx context.Context, email, id, code
 	if count == 0 {
 		return resetUserMissing, nil
 	}
-	if _, e = tx.ExecContext(ctx, revokeResetSessionsSQL, sql.Named("email", email)); e != nil {
-		return 0, errSessionStore
+	for _, statement := range []string{revokeResetSessionsSQL, invalidateResetChallengesSQL, revokeResetDevicesSQL} {
+		if _, e = tx.ExecContext(ctx, statement, sql.Named("email", email)); e != nil {
+			return 0, errSessionStore
+		}
 	}
 	if e = tx.Commit(); e != nil {
 		return 0, errSessionStore
@@ -69,7 +73,7 @@ func (s OracleSessions) ResetPasswordAtomic(ctx context.Context, email, id, code
 	return resetCommitted, nil
 }
 
-func passwordReset(w http.ResponseWriter, r *http.Request, repository SessionRepository) {
+func passwordReset(w http.ResponseWriter, r *http.Request, repository SessionRepository, limiter OTPAttemptLimiter) {
 	body, ok := readLoginBody(r)
 	if !ok {
 		respond(w, 400, 40001, "请求体必须是 JSON 对象", nil)
@@ -83,6 +87,10 @@ func passwordReset(w http.ResponseWriter, r *http.Request, repository SessionRep
 			return
 		}
 	}
+	if !validNewPassword(values["new_password"]) {
+		respond(w, 400, 40001, "密码至少需要6个字符", nil)
+		return
+	}
 	store, ok := repository.(passwordResetStore)
 	if !ok {
 		respond(w, 500, 50001, "服务器内部错误", nil)
@@ -95,6 +103,9 @@ func passwordReset(w http.ResponseWriter, r *http.Request, repository SessionRep
 	}
 	if !found {
 		respond(w, 400, 40001, "验证码不存在或已过期", nil)
+		return
+	}
+	if !requireOTPAttempt(w, r, limiter, values["verification_id"]) {
 		return
 	}
 	if !matchesLoginPassword(hash, values["code"]) {

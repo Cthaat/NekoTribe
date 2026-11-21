@@ -121,7 +121,7 @@ func listPosts(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager,
 	}{200, "success", items, map[string]any{"page": query.Page.Page, "page_size": query.Page.PageSize, "total": total, "has_next": query.Page.End < float64(total)}})
 }
 
-func postListSQL(viewer *int64, query PostListQuery) (string, string, []any, []any) {
+func postListSQL(viewer *int64, query PostListQuery, personalize bool) (string, string, []any, []any) {
 	where := " WHERE fn_can_view_post(:viewer_id,v.post_id)=1"
 	args := []any{sql.Named("viewer_id", nullableViewer(viewer))}
 	switch query.Mode {
@@ -167,6 +167,10 @@ func postListSQL(viewer *int64, query PostListQuery) (string, string, []any, []a
 		}
 		order = "(SELECT MAX(l.created_at) FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id) " + direction
 	}
+	if personalize {
+		where += " " + recommendationFeedbackSQL.FeedFilter
+		order = recommendationFeedbackSQL.FeedOrder + ", " + order
+	}
 	const separator = " FROM v_post_feed_item v WHERE "
 	columns, _, found := strings.Cut(postDetailSQL, separator)
 	if !found {
@@ -179,7 +183,16 @@ func postListSQL(viewer *int64, query PostListQuery) (string, string, []any, []a
 }
 
 func (s OracleSessions) ListVisiblePosts(ctx context.Context, viewer *int64, query PostListQuery) ([]PostDetail, int64, error) {
-	countSQL, listSQL, countArgs, listArgs := postListSQL(viewer, query)
+	var personalize bool
+	if viewer != nil && (query.Mode == "all" || query.Mode == "trending") &&
+		query.Search == "" && query.Timeline != "mentions" && query.Timeline != "following" {
+		var err error
+		personalize, err = feedbackSchemaReady(ctx, s.DB)
+		if err != nil {
+			return nil, 0, errSessionStore
+		}
+	}
+	countSQL, listSQL, countArgs, listArgs := postListSQL(viewer, query, personalize)
 	var total int64
 	if err := s.DB.QueryRowContext(ctx, countSQL, countArgs...).Scan(&total); err != nil {
 		return nil, 0, errSessionStore

@@ -7,11 +7,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
-	"mime"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
 )
@@ -34,13 +34,19 @@ type RefreshConfig struct {
 	Storage                       StorageURLPolicy
 	LocalStorage                  LocalStorageConfig
 	NotificationEvents            NotificationEventSource
+	ChatChannelEvents             chatChannelSource
+	DirectEvents                  directEventPublisher
 	NotificationPublisher         NotificationEventPublisher
 	PresencePublisher             presencePublisher
 	ModerationAllowAll            string
 	ModerationAdminAccounts       string
 	AIModelConfig                 string
+	aiModelFile                   *aiModelFile
+	AIModelQuotaLimiter           AIModelQuotaLimiter
 	aiCredential                  func(string) (string, error)
 	otpMailer                     otpMailSender
+	OTPSendLimiter                OTPSendLimiter
+	OTPAttemptLimiter             OTPAttemptLimiter
 	clock                         func() time.Time
 }
 
@@ -82,32 +88,45 @@ func refreshToken(r *http.Request) string {
 		if err != nil {
 			value = cookie.Value
 		}
-		return strings.TrimSpace(value)
+		return strings.TrimFunc(value, jsTrimSpace)
 	}
 	// H3 readBody returns text/* as a string; v2Body requires an object.
-	if strings.HasPrefix(r.Header.Get("Content-Type"), "text/") {
+	mediaType, _, _ := strings.Cut(r.Header.Get("Content-Type"), ";")
+	mediaType = strings.ToLower(strings.TrimSpace(mediaType))
+	if strings.HasPrefix(mediaType, "text/") {
 		return ""
 	}
-	mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	const maxBodyBytes = 1 << 20
+	b, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes+1))
+	if err != nil || len(b) > maxBodyBytes || !utf8.Valid(b) {
+		return ""
+	}
 	if mediaType == "application/x-www-form-urlencoded" {
-		b, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
-		if err != nil || len(b) > 1<<20 {
-			return ""
-		}
 		values, err := url.ParseQuery(string(b))
 		if err != nil || len(values["refresh_token"]) != 1 {
 			return ""
 		}
-		return strings.TrimSpace(values.Get("refresh_token"))
+		for name, fields := range values {
+			if !utf8.ValidString(name) {
+				return ""
+			}
+			for _, field := range fields {
+				if !utf8.ValidString(field) {
+					return ""
+				}
+			}
+		}
+		return strings.TrimFunc(values.Get("refresh_token"), jsTrimSpace)
 	}
-	var body struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-	b, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
-	if err != nil || len(b) > 1<<20 || json.Unmarshal(b, &body) != nil {
+	var body map[string]json.RawMessage
+	if json.Unmarshal(b, &body) != nil {
 		return ""
 	}
-	return strings.TrimSpace(body.RefreshToken)
+	var token string
+	if json.Unmarshal(body["refresh_token"], &token) != nil {
+		return ""
+	}
+	return strings.TrimFunc(token, jsTrimSpace)
 }
 
 func refreshCurrent(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig) {

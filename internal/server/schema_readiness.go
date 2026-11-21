@@ -19,6 +19,7 @@ type schemaColumn struct {
 	Type     string  `json:"type"`
 	Nullable bool    `json:"nullable"`
 	Default  *string `json:"default"`
+	CharUsed string  `json:"charUsed"`
 }
 type schemaConstraint struct {
 	Type              string   `json:"type"`
@@ -209,7 +210,8 @@ func schemaColumnMatches(expected schemaColumn, actual schemaRow) bool {
 	if v != nil {
 		length, ok := schemaInt(actual["CHAR_LENGTH"])
 		want, _ := strconv.ParseInt(v[1], 10, 64)
-		return ok && schemaText(actual["DATA_TYPE"]) == "VARCHAR2" && length == want
+		return ok && schemaText(actual["DATA_TYPE"]) == "VARCHAR2" && length == want &&
+			(expected.CharUsed == "" || schemaText(actual["CHAR_USED"]) == expected.CharUsed)
 	}
 	if expected.Type == "TIMESTAMP" {
 		return schemaText(actual["DATA_TYPE"]) == "TIMESTAMP(6)"
@@ -277,7 +279,14 @@ func checkSchemaTable(ctx context.Context, q schemaQueryer, step schemaStep) err
 	if err != nil || len(table) == 0 {
 		return errSessionStore
 	}
-	rows, err := schemaRows(ctx, q, `SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default FROM user_tab_columns WHERE table_name = :table_name`, sql.Named("table_name", step.Table))
+	// Convert the dictionary's LONG default on the server. Reading it through
+	// go-oracledb fails with ORA-17401, and DATA_DEFAULT_VC is absent in Oracle 19c.
+	rows, err := schemaRows(ctx, q, `SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default, char_used
+FROM XMLTABLE('/ROWSET/ROW' PASSING DBMS_XMLGEN.GETXMLTYPE(
+  'SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default, char_used FROM user_tab_columns WHERE table_name = ' || DBMS_ASSERT.ENQUOTE_LITERAL(:table_name))
+  COLUMNS column_name VARCHAR2(128) PATH 'COLUMN_NAME', data_type VARCHAR2(128) PATH 'DATA_TYPE',
+    data_precision NUMBER PATH 'DATA_PRECISION', data_scale NUMBER PATH 'DATA_SCALE', char_length NUMBER PATH 'CHAR_LENGTH',
+    nullable VARCHAR2(1) PATH 'NULLABLE', data_default VARCHAR2(4000) PATH 'DATA_DEFAULT', char_used VARCHAR2(1) PATH 'CHAR_USED')`, sql.Named("table_name", step.Table))
 	if err != nil {
 		return errSessionStore
 	}
@@ -338,8 +347,12 @@ func checkSchemaTable(ctx context.Context, q schemaQueryer, step schemaStep) err
 }
 
 func validateFeatureSchema(ctx context.Context, q schemaQueryer, catalog schemaCatalog, feature string) error {
-	valid := feature == "two-factor" && catalog.ID == "AUTH-2FA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 9 || feature == "media" && catalog.ID == "MEDIA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1 || feature == "user-settings" && catalog.ID == "USER-SETTINGS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5 || feature == "ai-conversations" && catalog.ID == "AI-CONVERSATION-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 3
-	if !valid || catalog.Revision != 1 || catalog.Feature.ID != feature || len(catalog.MigrationChecksums) == 0 {
+	valid := feature == "two-factor" && catalog.ID == "AUTH-2FA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 9 || feature == "media" && catalog.ID == "MEDIA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1 || feature == "user-settings" && catalog.ID == "USER-SETTINGS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5 || feature == "ai-conversations" && catalog.ID == "AI-CONVERSATION-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5 || feature == "ai-skills" && catalog.ID == "AI-SKILL-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1
+	revision := 1
+	if feature == "ai-conversations" {
+		revision = 3
+	}
+	if !valid || catalog.Revision != revision || catalog.Feature.ID != feature || len(catalog.MigrationChecksums) == 0 {
 		return errSessionStore
 	}
 	owner, err := schemaRows(ctx, q, `SELECT USER AS USER_NAME, SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS SCHEMA_NAME FROM dual`)
@@ -418,6 +431,9 @@ func (s OracleSessions) CheckUserSettingsSchema(ctx context.Context) error {
 }
 func (s OracleSessions) CheckAIConversationSchema(ctx context.Context) error {
 	return s.checkFeatureSchema(ctx, "ai-conversations", contracts.AIConversationSchemaCatalog)
+}
+func (s OracleSessions) CheckAISkillSchema(ctx context.Context) error {
+	return s.checkFeatureSchema(ctx, "ai-skills", contracts.AISkillSchemaCatalog)
 }
 func (s OracleSessions) checkFeatureSchema(ctx context.Context, feature string, data []byte) error {
 	var catalog schemaCatalog

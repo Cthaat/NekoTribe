@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 )
 
@@ -25,6 +26,7 @@ type PostCreateInput struct {
 
 const insertPostAtomicSQL = `INSERT INTO n_posts (post_id,author_id,content,post_type,reply_to_post_id,repost_of_post_id,quoted_post_id,visibility,language,location) SELECT :post_id,:author_id,:content,:post_type,:reply_to_post_id,:repost_of_post_id,:quoted_post_id,:visibility,'zh',:location FROM dual`
 const insertPostMediaAtomicSQL = `INSERT INTO n_post_media (post_id,media_id,sort_order) SELECT :post_id,media_id,:sort_order FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id AND status IN ('uploaded','processing','ready')`
+const lockPostMediaSQL = `SELECT media_id,storage_key FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id AND status IN ('uploaded','processing','ready') FOR UPDATE`
 const mergePostTagAtomicSQL = `MERGE INTO n_tags t USING (SELECT :name AS name, LOWER(:name) AS name_lower FROM dual) src ON (t.name_lower=src.name_lower) WHEN NOT MATCHED THEN INSERT (tag_id,name,name_lower) VALUES (seq_tag_id.NEXTVAL,src.name,src.name_lower)`
 const attachPostTagAtomicSQL = `INSERT INTO n_post_tags (post_id,tag_id) SELECT :post_id,tag_id FROM n_tags WHERE name_lower=LOWER(:name) AND NOT EXISTS (SELECT 1 FROM n_post_tags WHERE post_id=:post_id AND tag_id=n_tags.tag_id)`
 const attachPostMentionAtomicSQL = `INSERT INTO n_post_mentions (post_id,mentioned_user_id) SELECT :post_id,user_id FROM n_users WHERE user_id=:user_id AND NOT EXISTS (SELECT 1 FROM n_post_mentions WHERE post_id=:post_id AND mentioned_user_id=:user_id)`
@@ -96,6 +98,9 @@ func (s OracleSessions) CreatePostAtomic(ctx context.Context, user int64, input 
 			}
 		}
 	}()
+	if err := checkPublishAccess(ctx, tx, user); err != nil {
+		return 0, err
+	}
 	query := insertPostAtomicSQL
 	binds := []any{sql.Named("post_id", id), sql.Named("author_id", user), sql.Named("content", nullablePostString(input.Content)), sql.Named("post_type", kind), sql.Named("reply_to_post_id", input.ReplyToPostID), sql.Named("repost_of_post_id", input.RepostOfPostID), sql.Named("quoted_post_id", input.QuotedPostID), sql.Named("visibility", input.Visibility), sql.Named("location", nullablePostString(input.Location))}
 	if source != nil {
@@ -111,6 +116,9 @@ func (s OracleSessions) CreatePostAtomic(ctx context.Context, user int64, input 
 	}
 	if n != 1 {
 		return 0, errSessionStore
+	}
+	if err := lockPostMedia(ctx, tx, user, id, input.Visibility, media, errPostMediaUnavailable); err != nil {
+		return 0, err
 	}
 	for i, mediaID := range media {
 		n, e = postTxExecute(ctx, tx, insertPostMediaAtomicSQL, sql.Named("post_id", id), sql.Named("media_id", mediaID), sql.Named("sort_order", i+1), sql.Named("user_id", user))
@@ -139,6 +147,28 @@ func (s OracleSessions) CreatePostAtomic(ctx context.Context, user int64, input 
 	}
 	committed = true
 	return id, nil
+}
+
+func lockPostMedia(ctx context.Context, tx *sql.Tx, user, postID int64, visibility string, mediaIDs []float64, unavailable error) error {
+	ordered := slices.Clone(mediaIDs)
+	slices.Sort(ordered)
+	scope := postMediaBindingScope(visibility)
+	for _, id := range ordered {
+		var found int64
+		var key sql.NullString
+		media := sql.Named("media_id", id)
+		err := tx.QueryRowContext(ctx, lockPostMediaSQL, media, sql.Named("user_id", user)).Scan(&found, &key)
+		if errors.Is(err, sql.ErrNoRows) {
+			return unavailable
+		}
+		if err != nil {
+			return errSessionStore
+		}
+		if err := checkPrivateMediaBinding(ctx, tx, key.String, scope, media, postID, unavailable); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func postTxExecute(ctx context.Context, tx *sql.Tx, query string, args ...any) (int64, error) {
 	result, err := tx.ExecContext(ctx, query, args...)

@@ -58,6 +58,8 @@ func createPost(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 	id, err := store.CreatePostAtomic(r.Context(), user, input)
 	if err != nil {
 		switch {
+		case errors.Is(err, errPublishForbidden):
+			respond(w, 403, 40301, publishPolicy.Message, nil)
 		case errors.Is(err, errPostReferenceUnavailable):
 			respond(w, 404, 40401, "帖子不存在", nil)
 		case errors.Is(err, errPostMediaUnavailable):
