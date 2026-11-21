@@ -85,7 +85,7 @@ curl --fail http://127.0.0.1:30001/api/ready
 
 ### B. 运行 Release 预编译包
 
-[最新正式版](https://github.com/Cthaat/NekoTribe/releases/latest) 和 [滚动预发布](https://github.com/Cthaat/NekoTribe/releases/tag/rolling-latest) 各提供四个主包。`<version>` 为版本号（如 `v2.0.0`），滚动版使用 `latest`。可用同页的 `SHA256SUMS.txt` 核对下载文件。
+[最新正式版](https://github.com/Cthaat/NekoTribe/releases/latest) 和 [滚动预发布](https://github.com/Cthaat/NekoTribe/releases/tag/rolling-latest) 各提供四个主包。Flutter 用户也可以直接下载 `NekoTribe-<version>-android.apk` 或 `NekoTribe-<version>-windows-x64-setup.exe`。`<version>` 为版本号（如 `v2.0.0`），滚动版使用 `latest`。可用同页的 `SHA256SUMS.txt` 核对下载文件。
 
 1. 下载 `NekoTribe-<version>-nuxt.zip`，解压后进入对应的 `windows-x64/` 或 `linux-x64/`。运行需要 x64 Node.js 22（至少 22.12.0）。
 2. 把 `.env.example` 复制为 `.env`，填写宿主机可达的 Oracle、Redis 和签名配置。首次部署或升级先执行 `node scripts/package-nuxt.mjs --prepare .` 并按下文完成数据库初始化或迁移。

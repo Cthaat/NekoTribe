@@ -137,8 +137,9 @@ jobs:
           if ! jq -e --arg sha "$NUXT_SHA" --arg tag "$TAG" '
             length <= 1 and all(.[]; .draft and .target_commitish == $sha and
               all(.assets[]; .name == "SHA256SUMS.txt" or
-                (.name as $asset | ["nuxt", "go", "rust", "flutter"] |
-                  any(.[]; $asset == ("NekoTribe-" + $tag + "-" + . + ".zip")))))
+                (.name as $asset |
+                  ["nuxt.zip", "go.zip", "rust.zip", "flutter.zip", "android.apk", "windows-x64-setup.exe"] |
+                  any(.[]; $asset == ("NekoTribe-" + $tag + "-" + .)))))
           ' matching-releases.json >/dev/null; then
             echo "::error::A published release or unrelated draft already exists for $TAG."
             exit 1
@@ -469,6 +470,11 @@ jobs:
           FLUTTER_SHA: ${{ needs.contracts.outputs.flutter }}
         run: |
           cat > release-notes.md <<EOF
+          ## Flutter 直接下载安装
+
+          - Android APK：[下载]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION/NekoTribe-$VERSION-android.apk)
+          - Windows x64 安装器：[下载]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$VERSION/NekoTribe-$VERSION-windows-x64-setup.exe)
+
           ## 下载
 
           - **Nuxt** — \`NekoTribe-$VERSION-nuxt.zip\`，包含 Windows 和 Linux x64 全栈运行包、启动器和数据库迁移脚本。
@@ -476,7 +482,7 @@ jobs:
           - **Rust** — \`NekoTribe-$VERSION-rust.zip\`，包含 Windows 和 Linux x64 原生后端。本机连接 Oracle 需要 Instant Client。
           - **Flutter** — \`NekoTribe-$VERSION-flutter.zip\`，包含 Windows x64 安装器和绿色版、已签名 Android APK、Web 静态站点和 Nginx 配置示例。
 
-          解压后按各包的 \`README.txt\` 操作。校验值见 \`SHA256SUMS.txt\`。在 Linux 可执行 \`sha256sum -c SHA256SUMS.txt\`，Windows 可用 \`Get-FileHash -Algorithm SHA256\`。
+          ZIP 解压后按各包的 \`README.txt\` 操作。 \`SHA256SUMS.txt\` 提供四个 ZIP 和两个独立安装文件的校验值。下载全部文件后，可在 Linux 执行 \`sha256sum -c SHA256SUMS.txt\`。Windows 可用 \`Get-FileHash -Algorithm SHA256\`。
 
           ## 源码提交
 
@@ -507,6 +513,8 @@ jobs:
             release-output/NekoTribe-${{ needs.version.outputs.value }}-go.zip
             release-output/NekoTribe-${{ needs.version.outputs.value }}-rust.zip
             release-output/NekoTribe-${{ needs.version.outputs.value }}-flutter.zip
+            release-output/NekoTribe-${{ needs.version.outputs.value }}-android.apk
+            release-output/NekoTribe-${{ needs.version.outputs.value }}-windows-x64-setup.exe
             release-output/SHA256SUMS.txt
       - name: Verify uploaded files and publish the release
         working-directory: release-output

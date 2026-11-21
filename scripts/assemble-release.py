@@ -41,6 +41,10 @@ INSTRUCTIONS = {
 }
 
 BRANCHES = {"nuxt": "master", "go": "codex/go", "rust": "Rust", "flutter": "Flutter"}
+FLUTTER_INSTALLERS = {
+    "windows": "NekoTribe-{version}-windows-x64-setup.exe",
+    "android": "NekoTribe-{version}-android.apk",
+}
 
 
 def sha256(path):
@@ -91,10 +95,10 @@ def required_files(stack, platform, version):
         executable = f"nekotribe-{stack}" + (".exe" if platform == "windows-x64" else "")
         return {"start.cmd", "start.sh", "env.example", "native-package.json", executable}
     if platform == "windows":
-        return {f"NekoTribe-{version}-windows-x64-setup.exe", "portable/nekotribe.exe",
+        return {FLUTTER_INSTALLERS[platform].format(version=version), "portable/nekotribe.exe",
                 "portable/flutter_windows.dll", "portable/data/flutter_assets/AssetManifest.bin"}
     if platform == "android":
-        return {f"NekoTribe-{version}-android.apk"}
+        return {FLUTTER_INSTALLERS[platform].format(version=version)}
     return {"site/index.html", "site/assets/assets/config/app_config.json", "site/main.dart.js",
             "site/canvaskit/canvaskit.wasm", "configure-web.mjs", "nginx.conf.example"}
 
@@ -121,6 +125,23 @@ def assemble(stack, version, source, output):
     return path
 
 
+def extract_installers(archive, version, output):
+    paths = []
+    with ZipFile(archive) as bundle:
+        for platform, pattern in FLUTTER_INSTALLERS.items():
+            name = pattern.format(version=version)
+            path = output / name
+            temporary = path.with_suffix(path.suffix + ".tmp")
+            try:
+                with bundle.open(f"{platform}/{name}") as reader, temporary.open("xb") as writer:
+                    copyfileobj(reader, writer)
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+            paths.append(path)
+    return paths
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("version")
@@ -133,9 +154,13 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
 
     stacks = [args.stack] if args.stack else sorted(LAYOUT)
+    bundles = {stack: assemble(stack, args.version, args.source, args.output) for stack in stacks}
+    paths = list(bundles.values())
+    if "flutter" in bundles:
+        paths.extend(extract_installers(bundles["flutter"], args.version, args.output))
+
     lines = []
-    for stack in stacks:
-        path = assemble(stack, args.version, args.source, args.output)
+    for path in paths:
         digest = sha256(path)
         lines.append(f"{digest}  {path.name}\n")
         print(f"| {path.name} | {path.stat().st_size} | `{digest}` |")

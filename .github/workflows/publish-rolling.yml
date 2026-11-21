@@ -64,19 +64,29 @@ jobs:
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target master \
               --title 'NekoTribe rolling-latest' --prerelease --latest=false \
-              --notes '四个分支各发布一个平台合集 ZIP。下载 SHA256SUMS.txt 校验文件。'
+              --notes '四个分支各发布一个平台合集 ZIP。Flutter 的 APK 和 Windows 安装器可直接下载，SHA256SUMS.txt 提供文件校验。'
           fi
-          archive="NekoTribe-latest-$STACK.zip"
-          digest=$(sha256sum "release-output/$archive" | cut -d' ' -f1)
-          gh release upload "$tag" "release-output/$archive" --clobber --repo "$GITHUB_REPOSITORY"
+          uploads=("release-output/NekoTribe-latest-$STACK.zip")
+          if [[ "$STACK" == flutter ]]; then
+            uploads+=("release-output/NekoTribe-latest-android.apk"
+                      "release-output/NekoTribe-latest-windows-x64-setup.exe")
+          fi
+          gh release upload "$tag" "${uploads[@]}" --clobber --repo "$GITHUB_REPOSITORY"
           release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq .id)
           gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" |
             jq -esr '
-              add | map(select(.name | test("^NekoTribe-latest-(nuxt|go|rust|flutter)\\.zip$"))) |
+              add | map(select(.name as $name |
+                ["NekoTribe-latest-nuxt.zip", "NekoTribe-latest-go.zip",
+                 "NekoTribe-latest-rust.zip", "NekoTribe-latest-flutter.zip",
+                 "NekoTribe-latest-android.apk", "NekoTribe-latest-windows-x64-setup.exe"] |
+                index($name) != null)) |
               sort_by(.name)[] |
               if .state == "uploaded" and (.digest // "" | test("^sha256:[a-f0-9]{64}$"))
               then . else error("Invalid GitHub release asset: " + .name) end |
               "\(.digest | ltrimstr("sha256:"))  \(.name)"
             ' > release-output/SHA256SUMS.txt
-          grep -Fx "$digest  $archive" release-output/SHA256SUMS.txt
+          for asset in "${uploads[@]}"; do
+            digest=$(sha256sum "$asset" | cut -d' ' -f1)
+            grep -Fx "$digest  ${asset##*/}" release-output/SHA256SUMS.txt
+          done
           gh release upload "$tag" release-output/SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
