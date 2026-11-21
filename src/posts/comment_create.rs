@@ -14,6 +14,7 @@ use serde_json::{json, Map};
 
 #[derive(Debug, PartialEq)]
 pub enum CommentCreation {
+    PublishForbidden,
     Created(Value),
     PostUnavailable,
     ParentUnavailable,
@@ -111,6 +112,7 @@ async fn create_inner(
         .map_err(|_| ApiError::server_error("服务器内部错误"))?
     {
         CommentCreation::Created(value) => value,
+        CommentCreation::PublishForbidden => return Err(ApiError::forbidden(crate::moderation::publish_policy::message())),
         CommentCreation::PostUnavailable => return Err(ApiError::not_found("帖子不存在")),
         CommentCreation::ParentUnavailable => return Err(ApiError::not_found("父评论不存在")),
         CommentCreation::CommentUnavailable => return Err(ApiError::not_found("评论不存在")),

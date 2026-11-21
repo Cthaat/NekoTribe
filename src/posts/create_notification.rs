@@ -16,7 +16,7 @@ use std::collections::HashSet;
 pub struct PostNoticeInput {
     pub recipient: u64,
     pub actor: u64,
-    pub post_id: u64,
+    pub resource_id: u64,
     pub kind: &'static str,
     pub title: String,
     pub message: String,
@@ -102,8 +102,11 @@ pub(crate) async fn store<E: SessionExecutor>(
             kind: input.kind,
             title: &input.title,
             message: &input.message,
-            resource_type: Some("post"),
-            resource_id: Some(input.post_id),
+            resource_type: Some(match input.kind {
+                "group_post" | "group_comment" => input.kind,
+                _ => "post",
+            }),
+            resource_id: Some(input.resource_id),
             priority: "normal",
             metadata_json: Some(&input.metadata_json),
         })
@@ -175,7 +178,7 @@ pub(crate) async fn notify_created(
                 &PostNoticeInput {
                     recipient,
                     actor,
-                    post_id: post,
+                    resource_id: post,
                     kind,
                     title: format!("{actor_name} {title}"),
                     message: message.into(),
@@ -216,7 +219,7 @@ pub(crate) async fn notify_created(
             &PostNoticeInput {
                 recipient,
                 actor,
-                post_id: post,
+                resource_id: post,
                 kind: "mention",
                 title: format!("{actor_name} 提及了你"),
                 message: "你在一条推文中被提及。".into(),
@@ -232,7 +235,7 @@ fn store_error(_: SessionStoreError) -> ApiError {
     ApiError::server_error("服务器内部错误")
 }
 
-async fn deliver(state: &NativeState, input: &PostNoticeInput) -> Result<(), ApiError> {
+pub(crate) async fn deliver(state: &NativeState, input: &PostNoticeInput) -> Result<(), ApiError> {
     let Some(stored) = state
         .repository
         .store_post_create_notification(input)
@@ -491,7 +494,7 @@ mod tests {
             assert_eq!(notices.len(), 1);
             let notice = &notices[0];
             assert_eq!(
-                (notice.recipient, notice.actor, notice.post_id, notice.kind),
+                (notice.recipient, notice.actor, notice.resource_id, notice.kind),
                 (7, 42, 100, kind)
             );
             assert_eq!((&*notice.title, &*notice.message), (title, message));

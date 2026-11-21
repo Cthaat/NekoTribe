@@ -71,6 +71,7 @@ async fn create_inner(
         PostCreation::MediaUnavailable => return Err(ApiError::bad_request("媒体不存在或不可用")),
         PostCreation::ContentEmpty => return Err(ApiError::bad_request("content 不能为空")),
         PostCreation::Invalid => return Err(ApiError::server_error("服务器内部错误")),
+        PostCreation::PublishForbidden => return Err(ApiError::forbidden(crate::moderation::publish_policy::message())),
     };
     notify_created(state, actor, post_id, &input).await?;
     let post = state

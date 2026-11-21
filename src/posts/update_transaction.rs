@@ -2,11 +2,13 @@ use crate::{
     auth::login::js_trim,
     db::{
         oracle::{BindMap, DbError},
+        tx::OracleTx,
         value::DbValue,
     },
+    media::private_bind::{self, Target},
     posts::{
         create_transaction::{
-            nullable_string, oracle_transaction, unique_ids, unique_tags, PostCreateTransaction,
+            lock_post_media, nullable_string, unique_ids, unique_tags, PostCreateTransaction,
             ATTACH_MENTION_SQL, ATTACH_TAG_SQL, INSERT_MEDIA_SQL, MERGE_TAG_SQL,
         },
         update_request::PostUpdateInput,
@@ -20,6 +22,7 @@ pub enum PostUpdate {
     MediaUnavailable,
     ContentEmpty,
     Invalid,
+    PublishForbidden,
 }
 pub fn run<T: PostCreateTransaction>(
     tx: &T,
@@ -54,8 +57,11 @@ fn write<T: PostCreateTransaction>(
     id: u64,
     input: &PostUpdateInput,
 ) -> Result<PostUpdate, DbError> {
+    if !crate::moderation::publish_policy::allowed(actor as i64,|sql,binds|tx.query(sql,binds))? {
+        return Ok(PostUpdate::PublishForbidden);
+    }
     let post_bind = BindMap::from([("post_id".into(), DbValue::I64(id as i64))]);
-    let rows=tx.query("SELECT author_id,is_deleted,post_type,DBMS_LOB.SUBSTR(content,4000,1) AS content FROM n_posts WHERE post_id=:post_id FOR UPDATE",post_bind.clone())?;
+    let rows=tx.query("SELECT author_id,is_deleted,post_type,visibility,DBMS_LOB.SUBSTR(content,4000,1) AS content FROM n_posts WHERE post_id=:post_id FOR UPDATE",post_bind.clone())?;
     let Some(row) = rows.first() else {
         return Ok(PostUpdate::Missing);
     };
@@ -69,6 +75,12 @@ fn write<T: PostCreateTransaction>(
     };
     if number("AUTHOR_ID")? != actor as i64 {
         return Ok(PostUpdate::NotOwner);
+    }
+    if input.visibility.as_deref() == Some("public")
+        && input.media_ids.is_none()
+        && private_bind::retains_private(tx, id as i64)?
+    {
+        return Ok(PostUpdate::MediaUnavailable);
     }
     let kind = row
         .get("POST_TYPE")
@@ -125,11 +137,18 @@ fn write<T: PostCreateTransaction>(
         }
     }
     if let Some(media) = &input.media_ids {
+        let media = unique_ids(media, 4);
+        let visibility = input.visibility.as_deref().unwrap_or_else(|| {
+            row.get("VISIBILITY").and_then(DbValue::as_str).unwrap_or_default()
+        });
+        if !lock_post_media(tx, actor, &media, Target::post(id as i64, visibility))? {
+            return Ok(PostUpdate::MediaUnavailable);
+        }
         tx.execute(
             "DELETE FROM n_post_media WHERE post_id=:post_id",
             post_bind.clone(),
         )?;
-        for (index, media) in unique_ids(media, 4).into_iter().enumerate() {
+        for (index, media) in media.into_iter().enumerate() {
             let n = tx.execute(
                 INSERT_MEDIA_SQL,
                 BindMap::from([
@@ -186,5 +205,5 @@ pub fn execute(
     id: u64,
     input: &PostUpdateInput,
 ) -> Result<PostUpdate, DbError> {
-    run(&oracle_transaction(connection), actor, id, input)
+    run(&OracleTx::new(connection), actor, id, input)
 }

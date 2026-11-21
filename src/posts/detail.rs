@@ -4,6 +4,7 @@ use crate::{
         TokenKind,
     },
     httpx::{errors::ApiError, response::V2Response},
+    media::normalize_attachment_urls,
 };
 use axum::{
     extract::{OriginalUri, Path, State},
@@ -15,6 +16,7 @@ use serde_json::Value;
 fn failure() -> ApiError {
     ApiError::server_error("服务器内部错误")
 }
+
 fn normalize_user(state: &NativeState, user: &mut Value) -> Result<(), ApiError> {
     let avatar = user
         .get("avatar_url")
@@ -118,26 +120,7 @@ pub(crate) async fn hydrate_post(
         .await
         .map_err(|_| failure())?;
     for item in &mut media {
-        let public = item
-            .get("public_url")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let public = state
-            .storage_urls
-            .normalize_avatar(public)
-            .map_err(|_| failure())?;
-        let thumbnail = match item.get("thumbnail_url").and_then(Value::as_str) {
-            Some(v) if !v.is_empty() => Value::String(
-                state
-                    .storage_urls
-                    .normalize_avatar(v)
-                    .map_err(|_| failure())?,
-            ),
-            _ => Value::Null,
-        };
-        let obj = item.as_object_mut().ok_or_else(failure)?;
-        obj.insert("public_url".into(), public.into());
-        obj.insert("thumbnail_url".into(), thumbnail);
+        normalize_attachment_urls(&state.storage_urls, item).map_err(|_| failure())?;
     }
     let tags = state
         .repository

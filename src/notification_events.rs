@@ -39,6 +39,52 @@ pub(crate) fn notification_json_raw(
 
 pub type PublishFuture<'a> = Pin<Box<dyn Future<Output = Result<(), EventError>> + Send + 'a>>;
 pub trait NotificationPublisher: Send + Sync {
+    fn publish_chat_message<'a>(&'a self, channel: u64, message: &'a Value) -> PublishFuture<'a> {
+        self.publish_chat_room_event(
+            channel,
+            "chat_message",
+            message["message_id"].as_u64().unwrap_or(0),
+            message,
+        )
+    }
+    fn publish_chat_room_event<'a>(
+        &'a self,
+        _channel: u64,
+        _kind: &'a str,
+        _id: u64,
+        _message: &'a Value,
+    ) -> PublishFuture<'a> {
+        Box::pin(async { Err(EventError) })
+    }
+    fn publish_direct<'a>(
+        &'a self,
+        sender: u64,
+        recipient: u64,
+        message: &'a Value,
+    ) -> PublishFuture<'a> {
+        self.publish_direct_event(sender, recipient, "direct_message", serde_json::json!({
+            "conversation_id":message["conversation_id"], "direct_message":message
+        }))
+    }
+    fn publish_direct_deleted(&self, sender: u64, recipient: u64, conversation: u64, message: u64) -> PublishFuture<'_> {
+        self.publish_direct_event(sender, recipient, "direct_message_deleted", serde_json::json!({
+            "conversation_id":conversation, "message_id":message
+        }))
+    }
+    fn publish_direct_event(&self, _sender: u64, _recipient: u64, _kind: &'static str, _data: Value) -> PublishFuture<'_> {
+        Box::pin(async { Err(EventError) })
+    }
+    fn publish_direct_wire<'a>(
+        &'a self,
+        _sender: u64,
+        _recipient: u64,
+        _payload: &'a [u8],
+    ) -> PublishFuture<'a> {
+        Box::pin(async { Err(EventError) })
+    }
+    fn presence_server_id(&self) -> Option<&str> {
+        None
+    }
     fn publish_presence<'a>(&'a self, _data: &'a Map<String, Value>) -> PublishFuture<'a> {
         Box::pin(async { Err(EventError) })
     }
@@ -64,6 +110,98 @@ impl RedisNotificationPublisher {
     }
 }
 impl NotificationPublisher for RedisNotificationPublisher {
+    fn publish_chat_room_event<'a>(
+        &'a self,
+        channel: u64,
+        kind: &'a str,
+        id: u64,
+        message: &'a Value,
+    ) -> PublishFuture<'a> {
+        Box::pin(async move {
+            let max = crate::notification_websocket::MAX_SOCKET_ID;
+            if !(1..=max).contains(&channel) || !(1..=max).contains(&id) {
+                return Err(EventError);
+            }
+            let mut data = serde_json::json!({"channel_id":channel,"server_id":self.server_id});
+            match kind {
+                "chat_message_deleted" if message.is_null() => data["message_id"] = id.into(),
+                "chat_message" | "chat_message_updated" | "chat_reaction_updated"
+                    if message["channel_id"].as_u64() == Some(channel) =>
+                {
+                    let mut message = message.clone();
+                    message["can_delete"] = false.into();
+                    message["can_pin"] = false.into();
+                    message["author"]["relationship"] = serde_json::json!({
+                        "relation":"none","is_self":false,"is_following":false,"is_blocked":false,"is_blocking":false
+                    });
+                    if let Some(reactions) = message["reactions"].as_array_mut() {
+                        for reaction in reactions {
+                            reaction["reacted_by_me"] = false.into();
+                        }
+                    }
+                    data["message"] = message;
+                    data["viewer_neutral"] = true.into();
+                }
+                _ => return Err(EventError),
+            }
+            let payload = serde_json::to_vec(&serde_json::json!({
+                "type":kind,"room":format!("chat:channel:{channel}"),
+                "timestamp":chrono::Utc::now().timestamp_millis(),"data":data
+            }))
+            .map_err(|_| EventError)?;
+            if payload.len() > 262144 {
+                return Err(EventError);
+            }
+            tokio::time::timeout(Duration::from_millis(1500), async {
+                let mut conn = self
+                    .client
+                    .get_multiplexed_async_connection()
+                    .await
+                    .map_err(|_| EventError)?;
+                redis::cmd("PUBLISH")
+                    .arg(format!("ws:chat:channel:{channel}"))
+                    .arg(payload)
+                    .query_async::<usize>(&mut conn)
+                    .await
+                    .map_err(|_| EventError)?;
+                Ok(())
+            })
+            .await
+            .map_err(|_| EventError)?
+        })
+    }
+    fn publish_direct_wire<'a>(
+        &'a self,
+        sender: u64,
+        recipient: u64,
+        payload: &'a [u8],
+    ) -> PublishFuture<'a> {
+        Box::pin(async move {
+            let publish = |user| async move {
+                let mut conn = self
+                    .client
+                    .get_multiplexed_async_connection()
+                    .await
+                    .map_err(|_| EventError)?;
+                redis::cmd("PUBLISH")
+                    .arg(format!("ws:user:{user}"))
+                    .arg(payload)
+                    .query_async::<usize>(&mut conn)
+                    .await
+                    .map_err(|_| EventError)?;
+                Ok(())
+            };
+            tokio::time::timeout(Duration::from_millis(1500), async {
+                let (first, second) = tokio::join!(publish(sender), publish(recipient));
+                first.and(second)
+            })
+            .await
+            .map_err(|_| EventError)?
+        })
+    }
+    fn presence_server_id(&self) -> Option<&str> {
+        Some(&self.server_id)
+    }
     fn publish_presence<'a>(&'a self, data: &'a Map<String, Value>) -> PublishFuture<'a> {
         Box::pin(async move {
             let payload = encode_presence_event(
@@ -128,7 +266,6 @@ pub fn encode_presence_event(
     server_id: &str,
     timestamp: i64,
 ) -> Result<String, EventError> {
-    let mut data = data.clone();
     let user = data
         .get("user_id")
         .and_then(Value::as_u64)
@@ -138,21 +275,29 @@ pub fn encode_presence_event(
         .get("online_status")
         .and_then(Value::as_str)
         .ok_or(EventError)?;
-    if server_id.is_empty() || !matches!(status, "online" | "offline" | "hidden") {
-        return Err(EventError);
-    }
-    if status == "hidden" {
-        data.insert("last_seen_at".into(), Value::Null);
-    } else if !data
-        .get("last_seen_at")
-        .is_some_and(|v| v.is_null() || v.is_string())
+    if server_id.is_empty()
+        || !(0..=9_007_199_254_740_991).contains(&timestamp)
+        || !matches!(status, "online" | "offline" | "hidden")
     {
         return Err(EventError);
     }
-    data.insert("user_id".into(), user.into());
-    data.insert("server_id".into(), server_id.into());
-    serde_json::to_string(&json!({"type":"presence_update", "data":data, "timestamp":timestamp}))
-        .map_err(|_| EventError)
+    if status != "hidden"
+        && !data
+            .get("last_seen_at")
+            .is_some_and(|v| v.is_null() || v.is_string())
+    {
+        return Err(EventError);
+    }
+    serde_json::to_string(&json!({
+        "type": "presence_update",
+        "data": {
+            "user_id": user,
+            "online_status": status,
+            "last_seen_at": if status == "hidden" { Value::Null } else { data["last_seen_at"].clone() },
+            "server_id": server_id,
+        },
+        "timestamp": timestamp,
+    })).map_err(|_| EventError)
 }
 
 pub fn encode_notification_event(

@@ -17,6 +17,7 @@ use serde_json::{json, Value};
 pub struct CommentListQuery {
     pub page: SessionPage,
     pub sort: String,
+    pub comment_id: Option<u64>,
 }
 
 pub(crate) async fn list_comments(
@@ -48,13 +49,27 @@ async fn list_comments_inner(
         .filter(|(key, _)| key == "sort")
         .map(|(_, value)| value.into_owned())
         .collect();
+    let mut comment_ids = url.query_pairs().filter(|(key, _)| key == "comment_id");
+    let comment_id = if let Some((_, value)) = comment_ids.next() {
+        if comment_ids.next().is_some() {
+            return Err(ApiError::bad_request("comment_id 参数错误"));
+        }
+        Some(crate::group_content::parse_content_id(&value, "comment_id")?)
+    } else {
+        None
+    };
     let query = CommentListQuery {
-        page: session_pagination(query_text),
+        page: if comment_id.is_some() {
+            SessionPage {page: 1.0, page_size: 1.0, start: 1.0, end: 1.0}
+        } else {
+            session_pagination(query_text)
+        },
         sort: if sorts.len() == 1 {
             sorts[0].clone()
         } else {
             "newest".into()
         },
+        comment_id,
     };
     let (mut comments, total) = state
         .repository

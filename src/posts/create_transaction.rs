@@ -1,11 +1,11 @@
 use crate::{
     auth::login::js_trim,
     db::{
-        oracle::{bind_refs, bind_values, BindMap, DbError},
-        row::{oracle_row_to_db_row, DbRow},
+        oracle::{BindMap, DbError},
         tx::OracleTx,
         value::DbValue,
     },
+    media::private_bind::{self, Target},
     posts::create_request::PostCreateInput,
 };
 
@@ -15,6 +15,31 @@ const NEXT_POST_SQL: &str = "SELECT seq_post_id.NEXTVAL AS id FROM dual";
 const INSERT_POST_SQL: &str = "INSERT INTO n_posts (post_id,author_id,content,post_type,reply_to_post_id,repost_of_post_id,quoted_post_id,visibility,language,location) SELECT :post_id,:author_id,:content,:post_type,:reply_to_post_id,:repost_of_post_id,:quoted_post_id,:visibility,'zh',:location FROM dual";
 const INSERT_REFERENCED_POST_SQL: &str = "INSERT INTO n_posts (post_id,author_id,content,post_type,reply_to_post_id,repost_of_post_id,quoted_post_id,visibility,language,location) SELECT :post_id,:author_id,:content,:post_type,:reply_to_post_id,:repost_of_post_id,:quoted_post_id,:visibility,'zh',:location FROM dual WHERE EXISTS (SELECT 1 FROM n_posts p WHERE p.post_id=:source_post_id AND p.is_deleted=0 AND fn_can_view_post(:author_id,p.post_id)=1)";
 pub(super) const INSERT_MEDIA_SQL: &str = "INSERT INTO n_post_media (post_id,media_id,sort_order) SELECT :post_id,media_id,:sort_order FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id AND status IN ('uploaded','processing','ready')";
+const LOCK_MEDIA_SQL: &str = "SELECT media_id,storage_key FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id AND status IN ('uploaded','processing','ready') FOR UPDATE";
+
+pub(super) fn lock_post_media<T: PostCreateTransaction>(
+    tx: &T,
+    actor: u64,
+    media: &[f64],
+    target: Target,
+) -> Result<bool, DbError> {
+    let mut ordered = media.to_vec();
+    ordered.sort_by(f64::total_cmp);
+    for id in ordered {
+        let binds = BindMap::from([
+            ("media_id".into(), DbValue::F64(id)),
+            ("user_id".into(), DbValue::I64(actor as i64)),
+        ]);
+        let rows = tx.query(LOCK_MEDIA_SQL, binds)?;
+        let Some(row) = rows.first() else {
+            return Ok(false);
+        };
+        if !private_bind::can_attach(tx, row, DbValue::F64(id), target)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
 pub(super) const MERGE_TAG_SQL: &str = "MERGE INTO n_tags t USING (SELECT :name AS name, LOWER(:name) AS name_lower FROM dual) src ON (t.name_lower=src.name_lower) WHEN NOT MATCHED THEN INSERT (tag_id,name,name_lower) VALUES (seq_tag_id.NEXTVAL,src.name,src.name_lower)";
 pub(super) const ATTACH_TAG_SQL: &str = "INSERT INTO n_post_tags (post_id,tag_id) SELECT :post_id,tag_id FROM n_tags WHERE name_lower=LOWER(:name) AND NOT EXISTS (SELECT 1 FROM n_post_tags WHERE post_id=:post_id AND tag_id=n_tags.tag_id)";
 pub(super) const ATTACH_MENTION_SQL: &str = "INSERT INTO n_post_mentions (post_id,mentioned_user_id) SELECT :post_id,user_id FROM n_users WHERE user_id=:user_id AND NOT EXISTS (SELECT 1 FROM n_post_mentions WHERE post_id=:post_id AND mentioned_user_id=:user_id)";
@@ -26,16 +51,11 @@ pub enum PostCreation {
     MediaUnavailable,
     ContentEmpty,
     Invalid,
+    PublishForbidden,
 }
 
-/// A single connection and transaction; individual writes must never auto-commit.
 #[doc(hidden)]
-pub trait PostCreateTransaction {
-    fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError>;
-    fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError>;
-    fn commit(&self) -> Result<(), DbError>;
-    fn rollback(&self) -> Result<(), DbError>;
-}
+pub use crate::db::tx::Transaction as PostCreateTransaction;
 
 #[doc(hidden)]
 pub fn run<T: PostCreateTransaction>(
@@ -92,7 +112,13 @@ pub fn run<T: PostCreateTransaction>(
         .filter(|id| (1..=MAX_SAFE_ID).contains(id))
         .ok_or_else(|| DbError::ExpectedNumber("ID".into()))?;
 
-    match write_post(tx, actor, id, source, input, &media) {
+    let result=(|| {
+        if !crate::moderation::publish_policy::allowed(actor as i64,|sql,binds|tx.query(sql,binds))? {
+            return Ok(PostCreation::PublishForbidden);
+        }
+        write_post(tx, actor, id, source, input, &media)
+    })();
+    match result {
         Ok(PostCreation::Created(id)) => {
             if let Err(error) = tx.commit() {
                 // A failed commit may already have reached Oracle. Rollback is
@@ -154,6 +180,9 @@ fn write_post<T: PostCreateTransaction>(
         0 => return Ok(PostCreation::ReferenceUnavailable),
         1 => {}
         _ => return Err(DbError::SchemaNotReady),
+    }
+    if !lock_post_media(tx, actor, media, Target::post(id as i64, &input.visibility))? {
+        return Ok(PostCreation::MediaUnavailable);
     }
     for (index, media_id) in media.iter().enumerate() {
         let attached = tx.execute(
@@ -235,44 +264,10 @@ pub(super) fn unique_tags(values: &[String]) -> Vec<&str> {
     unique
 }
 
-struct OraclePostTransaction<'a> {
-    connection: &'a oracle::Connection,
-    tx: OracleTx<'a>,
-}
-
-impl PostCreateTransaction for OraclePostTransaction<'_> {
-    fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
-        let values = bind_values(binds);
-        let refs = bind_refs(&values);
-        self.connection
-            .query_named(sql, &refs)?
-            .map(|row| oracle_row_to_db_row(&row?))
-            .collect()
-    }
-    fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError> {
-        Ok(self.tx.execute(sql, binds)?.rows_affected)
-    }
-    fn commit(&self) -> Result<(), DbError> {
-        self.tx.commit()
-    }
-    fn rollback(&self) -> Result<(), DbError> {
-        self.tx.rollback()
-    }
-}
-
 pub fn execute(
     connection: &oracle::Connection,
     actor: u64,
     input: &PostCreateInput,
 ) -> Result<PostCreation, DbError> {
-    run(&oracle_transaction(connection), actor, input)
-}
-
-pub(super) fn oracle_transaction(
-    connection: &oracle::Connection,
-) -> impl PostCreateTransaction + '_ {
-    OraclePostTransaction {
-        connection,
-        tx: OracleTx::new(connection),
-    }
+    run(&OracleTx::new(connection), actor, input)
 }

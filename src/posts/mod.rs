@@ -1,4 +1,5 @@
 pub(crate) mod bookmark;
+pub(crate) mod likers;
 pub mod comment_create;
 pub mod comment_delete;
 pub mod comment_like;

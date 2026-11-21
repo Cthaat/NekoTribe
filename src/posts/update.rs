@@ -50,6 +50,7 @@ pub(crate) async fn edit(
             }
             PostUpdate::ContentEmpty => return Err(ApiError::bad_request("content 不能为空")),
             PostUpdate::Invalid => return Err(ApiError::server_error("服务器内部错误")),
+            PostUpdate::PublishForbidden => return Err(ApiError::forbidden(crate::moderation::publish_policy::message())),
         }
         let post = state
             .repository
