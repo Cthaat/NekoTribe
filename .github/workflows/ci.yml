@@ -1,0 +1,73 @@
+name: Go CI
+on:
+  push:
+    branches: [codex/go]
+  pull_request:
+    branches: [codex/go]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: write
+  packages: write
+  actions: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+  contracts:
+    permissions:
+      contents: read
+    uses: Cthaat/NekoTribe/.github/workflows/contracts.yml@master
+    with:
+      nuxt-ref: refs/heads/master
+      go-ref: ${{ github.sha }}
+      rust-ref: refs/heads/Rust
+      flutter-ref: refs/heads/Flutter
+      allow-missing: true
+  package:
+    if: github.event_name == 'push'
+    needs: [check, contracts]
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, windows-latest]
+    uses: Cthaat/NekoTribe/.github/workflows/package.yml@master
+    with:
+      target: go
+      runner: ${{ matrix.runner }}
+      ref: ${{ github.sha }}
+  image:
+    if: github.event_name == 'push'
+    needs: [check, contracts]
+    permissions:
+      contents: read
+      packages: write
+    uses: Cthaat/NekoTribe/.github/workflows/image.yml@master
+    with:
+      target: go
+      version: codex-go
+      ref: ${{ github.sha }}
+      rolling: true
+  rolling:
+    if: github.event_name == 'push'
+    needs: package
+    permissions:
+      contents: write
+      actions: read
+    uses: Cthaat/NekoTribe/.github/workflows/rolling.yml@master
+    with:
+      prefix: native-go
