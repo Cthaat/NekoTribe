@@ -10,6 +10,9 @@
 #ifndef BinaryVersion
   #define BinaryVersion "0.0.0"
 #endif
+#ifndef ChineseMessagesFile
+  #define ChineseMessagesFile "compiler:Languages\ChineseSimplified.isl"
+#endif
 
 [Setup]
 AppId=NekoTribe
@@ -35,7 +38,7 @@ SolidCompression=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "{#ChineseMessagesFile}"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

@@ -145,7 +145,7 @@ jobs:
         run: |
           $setup = Join-Path $env:PACKAGE_DIR 'NekoTribe-latest-windows-x64-setup.exe'
           $installed = Join-Path $env:RUNNER_TEMP 'nekotribe-install-smoke'
-          $result = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$installed`"") -Wait -PassThru -WindowStyle Hidden
+          $result = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LANG=chinesesimplified", "/DIR=`"$installed`"") -Wait -PassThru -WindowStyle Hidden
           if ($result.ExitCode -ne 0 -or !(Test-Path -LiteralPath (Join-Path $installed 'nekotribe.exe') -PathType Leaf)) {
             throw "The Windows installer smoke test failed (exit code $($result.ExitCode))."
           }

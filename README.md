@@ -116,7 +116,7 @@ node check-deployment-endpoints.mjs --api https://api.example.com --origin https
 
 ## 源码构建与验收
 
-Windows 需要 Visual Studio 的 **使用 C++ 的桌面开发** 工作负载。生成双语安装程序时使用 Inno Setup 6.5+，可通过 `INNO_SETUP_ISCC` 指定 `ISCC.exe` 路径。Android 需要 JDK 17、Android SDK Platform 36、Build Tools 及 NDK `28.2.13676358`。打包脚本使用 Node.js 22，APK 的结构校验还需要 PATH 中的 Python 3。
+Windows 需要 Visual Studio 的 **使用 C++ 的桌面开发** 工作负载。生成双语安装程序时使用 Inno Setup 6.5+，可通过 `INNO_SETUP_ISCC` 指定 `ISCC.exe` 路径。若 Inno Setup 未附带简体中文语言包，脚本会下载固定版本的官方翻译并核对 SHA-256。Android 需要 JDK 17、Android SDK Platform 36、Build Tools 及 NDK `28.2.13676358`。打包脚本使用 Node.js 22，APK 的结构校验还需要 PATH 中的 Python 3。
 
 在 Flutter 工作树根目录执行。打包脚本输出到新的目录；下面的 Windows、Android、Web 分别在对应的构建环境执行。
 
