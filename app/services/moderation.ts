@@ -26,6 +26,7 @@ import type {
   ModerationUserVM
 } from '@/types/moderation';
 import type { PageViewModel } from '@/types/posts';
+import { isPrivateMediaContent } from '@/utils/private-media';
 import {
   v2GetModerationSettings as apiGetModerationSettings,
   v2GetModerationStats as apiGetModerationStats,
@@ -40,7 +41,7 @@ import {
   v2PatchModerationSettings as apiPatchModerationSettings
 } from '@/api/v2/moderation';
 import {
-  normalizeAssetUrl,
+  normalizePublicMediaUrl,
   normalizeAvatarUrl
 } from '@/utils/assets';
 
@@ -70,9 +71,9 @@ function mapMedia(media: V2MediaAsset): {
       : 'image';
   return {
     type,
-    url: normalizeAssetUrl(media.public_url),
+    url: normalizePublicMediaUrl(media.public_url),
     thumbnail: media.thumbnail_url
-      ? normalizeAssetUrl(media.thumbnail_url)
+      ? normalizePublicMediaUrl(media.thumbnail_url)
       : undefined
   };
 }
@@ -110,6 +111,10 @@ function mapContentItem(
   return {
     id: item.post_id,
     caseId: item.case_id,
+    assignedTo: item.assigned_to ? {
+      id: item.assigned_to.user_id,
+      name: item.assigned_to.display_name || item.assigned_to.username
+    } : undefined,
     content: item.content,
     author: {
       id: item.author.user_id,
@@ -119,7 +124,7 @@ function mapContentItem(
       avatar: normalizeAvatarUrl(item.author.avatar_url),
       isVerified: item.author.is_verified === 1
     },
-    media: item.media.map(mapMedia),
+    media: item.media.filter(media => !isPrivateMediaContent(media.media_id, media.public_url)).map(mapMedia),
     reportCount: item.report_count,
     reportReasons: item.report_reasons,
     reports: item.reports.map(mapReport),
@@ -208,6 +213,7 @@ export async function listModerationContent(
   const result = await apiListModerationContent({
     q: request.q,
     status: request.status,
+    priority: request.priority,
     reason: request.reason,
     date_range: request.dateRange,
     sort: request.sort,

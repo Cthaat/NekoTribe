@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { useNuxtApp } from '#app';
+import { authQueueFor } from '@/services/auth-request-queue';
 import { Loader2, Save, Settings as SettingsIcon } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
@@ -13,10 +15,20 @@ import {
 import type { ModerationSettingVM } from '@/types/moderation';
 
 const { t } = useAppLocale();
+const queue = authQueueFor(useNuxtApp());
+const owner = queue.revision;
+const current = () => !disposed && !queue.isIdentityChanging && queue.revision === owner;
+let disposed = false;
 
 const settings = ref<ModerationSettingVM[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+let previous = new Map<string, string>();
+
+function replaceSettings(items: ModerationSettingVM[]) {
+  settings.value = items;
+  previous = new Map(items.map(item => [item.key, item.value]));
+}
 
 function boolValue(value: string): boolean {
   return value === 'true' || value === '1';
@@ -35,36 +47,56 @@ function settingDescription(setting: ModerationSettingVM): string {
 }
 
 async function loadSettings(): Promise<void> {
+  if (!current()) return;
   loading.value = true;
   try {
-    settings.value = await getModerationSettings();
+    const items = await getModerationSettings();
+    if (current()) replaceSettings(items);
   } catch (error) {
+    if (!current()) return;
     toast.error(t('moderation.feedback.loadFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    loading.value = false;
+    if (current()) loading.value = false;
   }
 }
 
 async function saveSettings(): Promise<void> {
+  if (!current() || loading.value || saving.value) return;
+  const changed = settings.value.filter(item => previous.get(item.key) !== item.value);
+  if (!changed.length) return;
   saving.value = true;
   try {
-    settings.value = await updateModerationSettings(settings.value);
+    const items = await updateModerationSettings(changed);
+    if (!current()) return;
+    replaceSettings(items);
     toast.success(t('moderation.settings.saved'));
   } catch (error) {
+    if (!current()) return;
     toast.error(t('moderation.settings.saveFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    saving.value = false;
+    if (current()) saving.value = false;
   }
 }
 
+let unsubscribe: (() => void) | undefined;
 onMounted(() => {
+  unsubscribe = queue.subscribe(() => {
+    if (current()) return;
+    replaceSettings([]);
+    loading.value = false;
+    saving.value = false;
+  });
   void loadSettings();
+});
+onUnmounted(() => {
+  disposed = true;
+  unsubscribe?.();
 });
 </script>
 
@@ -90,7 +122,7 @@ onMounted(() => {
       </div>
       <Button
         class="h-9 rounded-md shadow-xs sm:w-auto"
-        :disabled="saving"
+        :disabled="loading || saving || !settings.length"
         @click="saveSettings"
       >
         <Loader2 v-if="saving" class="h-3.5 w-3.5 animate-spin" />
@@ -132,6 +164,7 @@ onMounted(() => {
           </span>
           <Switch
             :model-value="boolValue(setting.value)"
+            :disabled="saving"
             @update:model-value="updateBool(setting, Boolean($event))"
           />
         </div>
@@ -140,6 +173,7 @@ onMounted(() => {
           v-model="setting.value"
           class="h-9 shadow-xs"
           :type="setting.valueType === 'number' ? 'number' : 'text'"
+          :disabled="saving"
         />
       </article>
     </div>

@@ -54,6 +54,7 @@ export interface ModerationTweetVM {
   reports: ModerationReportVM[];
   status: ModerationStatusVM;
   priority: ModerationPriorityVM;
+  assignedTo?: { id: number; name: string };
   createdAt: string;
   reportedAt: string;
   likes: number;
@@ -75,6 +76,7 @@ export interface ModerationStatsVM {
 export interface ModerationContentRequestVM {
   q?: string;
   status?: string;
+  priority?: string;
   reason?: string;
   dateRange?: string;
   sort?: string;

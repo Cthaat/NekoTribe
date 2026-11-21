@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { useNuxtApp } from '#app';
+import { authQueueFor } from '@/services/auth-request-queue';
 import {
   Ban,
   CheckCircle,
@@ -34,6 +36,11 @@ import {
 import type { ModerationUserVM } from '@/types/moderation';
 
 const { t } = useAppLocale();
+const queue = authQueueFor(useNuxtApp());
+const owner = queue.revision;
+let disposed = false;
+let request = 0;
+const current = () => !disposed && !queue.isIdentityChanging && queue.revision === owner;
 
 const users = ref<ModerationUserVM[]>([]);
 const loading = ref(false);
@@ -64,6 +71,8 @@ function initials(user: ModerationUserVM): string {
 }
 
 async function loadUsers(reset = true): Promise<void> {
+  if (!current() || (!reset && loading.value)) return;
+  const revision = ++request;
   loading.value = true;
   try {
     const nextPage = reset ? 1 : page.value + 1;
@@ -74,18 +83,20 @@ async function loadUsers(reset = true): Promise<void> {
       page: nextPage,
       pageSize
     });
+    if (!current() || revision !== request) return;
     users.value = reset
       ? result.items
       : [...users.value, ...result.items];
     page.value = result.page;
     hasNext.value = result.hasNext;
   } catch (error) {
+    if (!current() || revision !== request) return;
     toast.error(t('moderation.feedback.loadFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    loading.value = false;
+    if (current() && revision === request) loading.value = false;
   }
 }
 
@@ -93,15 +104,17 @@ async function applyUserAction(
   user: ModerationUserVM,
   action: 'ban' | 'unban' | 'mute' | 'unmute'
 ): Promise<void> {
+  if (!current() || !users.value.includes(user)) return;
   try {
     const updated = await moderateUser(user.id, action, {
-      reason: t('moderation.users.defaultReason'),
-      durationHours: 24
+      reason: t('moderation.users.defaultReason')
     });
+    if (!current()) return;
     const index = users.value.findIndex(item => item.id === user.id);
     if (index >= 0) users.value[index] = updated;
     toast.success(t('moderation.feedback.actionSuccess'));
   } catch (error) {
+    if (!current()) return;
     toast.error(t('moderation.feedback.actionFailed'), {
       description:
         error instanceof Error ? error.message : undefined
@@ -117,8 +130,21 @@ watch(
   { deep: true }
 );
 
+let unsubscribe: (() => void) | undefined;
 onMounted(() => {
+  unsubscribe = queue.subscribe(() => {
+    if (current()) return;
+    request++;
+    users.value = [];
+    filters.value.q = '';
+    hasNext.value = false;
+    loading.value = false;
+  });
   void loadUsers(true);
+});
+onUnmounted(() => {
+  disposed = true;
+  unsubscribe?.();
 });
 </script>
 

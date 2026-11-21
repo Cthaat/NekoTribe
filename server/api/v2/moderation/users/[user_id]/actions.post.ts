@@ -1,10 +1,5 @@
-import { v2ModerateUser } from '~/server/services/v2/moderation';
-import { defineV2Handler, v2RouterNumber } from '~/server/utils/v2';
+import { v2ModerateUser } from '~/server/services/v2/moderation-user-actions';
+import { safeAuthEntry } from '~/server/utils/auth-entry-errors';
+import { defineV2Handler } from '~/server/utils/v2';
 
-export default defineV2Handler((event, connection) =>
-  v2ModerateUser(
-    event,
-    connection,
-    v2RouterNumber(event, 'user_id')
-  )
-);
+export default defineV2Handler(safeAuthEntry(v2ModerateUser));

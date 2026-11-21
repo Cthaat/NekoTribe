@@ -4,6 +4,7 @@ import {
   v2RequestData,
   type V2QueryValue
 } from './client';
+import { currentSessionMutation } from './auth-mutation';
 import type {
   V2CreateReportPayload,
   V2ModerationAppeal,
@@ -23,6 +24,7 @@ export interface V2ModerationContentQuery
   extends Record<string, V2QueryValue> {
   q?: string;
   status?: string;
+  priority?: string;
   reason?: string;
   date_range?: string;
   sort?: string;
@@ -82,13 +84,13 @@ export async function v2ModeratePost(
   postId: number,
   payload: V2ModerationActionPayload
 ): Promise<V2ModerationContentItem> {
-  return await v2RequestData<
+  return await currentSessionMutation(() => v2RequestData<
     V2ModerationContentItem,
     V2ModerationActionPayload
   >(`/api/v2/moderation/content/${postId}/actions`, {
     method: 'POST',
     body: payload
-  });
+  }));
 }
 
 export async function v2BulkModeratePosts(payload: {
@@ -97,13 +99,13 @@ export async function v2BulkModeratePosts(payload: {
   note?: string;
   reason?: string;
 }): Promise<{ processed_count: number }> {
-  return await v2RequestData<
+  return await currentSessionMutation(() => v2RequestData<
     { processed_count: number },
     typeof payload
   >('/api/v2/moderation/content/bulk-actions', {
     method: 'POST',
     body: payload
-  });
+  }));
 }
 
 export async function v2ListModerationReports(
@@ -165,26 +167,26 @@ export async function v2PatchModerationAppeal(
   appealId: number,
   payload: V2ModerationAppealPayload
 ): Promise<V2ModerationAppeal> {
-  return await v2RequestData<
+  return await currentSessionMutation(() => v2RequestData<
     V2ModerationAppeal,
     V2ModerationAppealPayload
   >(`/api/v2/moderation/appeals/${appealId}`, {
     method: 'PATCH',
     body: payload
-  });
+  }));
 }
 
 export async function v2ModerateUser(
   userId: number,
   payload: V2ModerationUserActionPayload
 ): Promise<V2ModerationUserItem> {
-  return await v2RequestData<
+  return await currentSessionMutation(() => v2RequestData<
     V2ModerationUserItem,
     V2ModerationUserActionPayload
   >(`/api/v2/moderation/users/${userId}/actions`, {
     method: 'POST',
     body: payload
-  });
+  }));
 }
 
 export async function v2GetModerationSettings(): Promise<
@@ -201,23 +203,23 @@ export async function v2GetModerationSettings(): Promise<
 export async function v2PatchModerationSettings(
   payload: V2ModerationSettingsPayload
 ): Promise<V2ModerationSetting[]> {
-  return await v2RequestData<
+  return await currentSessionMutation(() => v2RequestData<
     V2ModerationSetting[],
     V2ModerationSettingsPayload
   >('/api/v2/moderation/settings', {
     method: 'PATCH',
     body: payload
-  });
+  }));
 }
 
 export async function v2CreateReport(
   payload: V2CreateReportPayload
 ): Promise<V2ModerationReport> {
-  return await v2RequestData<
+  return await currentSessionMutation(() => v2RequestData<
     V2ModerationReport,
     V2CreateReportPayload
   >('/api/v2/reports', {
     method: 'POST',
     body: payload
-  });
+  }));
 }
