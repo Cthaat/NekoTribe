@@ -94,7 +94,7 @@ jobs:
           ref: ${{ inputs.flutter-ref }}
           path: flutter
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.refs.outputs.ready == 'true'
         with:
           node-version: '22'

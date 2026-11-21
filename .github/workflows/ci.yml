@@ -44,7 +44,7 @@ jobs:
           path: flutter
           ref: ${{ needs.contracts.outputs.flutter }}
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: yarn
