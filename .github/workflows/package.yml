@@ -1,0 +1,152 @@
+name: Build portable package
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: nuxt, go, rust, flutter-web or flutter-windows
+        type: string
+        required: true
+      runner:
+        type: string
+        required: true
+      ref:
+        type: string
+        required: true
+      version:
+        type: string
+        default: latest
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET: ${{ inputs.target }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: ${{ inputs.target == 'nuxt' && 'yarn' || '' }}
+      - name: Enable Yarn Classic via Corepack
+        if: inputs.target == 'nuxt'
+        run: corepack enable
+      - uses: actions/setup-go@v5
+        if: inputs.target == 'go'
+        with:
+          go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@master
+        if: inputs.target == 'rust'
+        with:
+          toolchain: '1.95.0'
+      - uses: Swatinem/rust-cache@v2
+        if: inputs.target == 'rust'
+      - uses: subosito/flutter-action@v2
+        if: startsWith(inputs.target, 'flutter-')
+        with:
+          channel: stable
+          flutter-version: '3.41.9'
+          cache: true
+      - name: Name target package
+        id: package
+        run: |
+          case "$RUNNER_OS" in
+            Linux) os=linux ;;
+            Windows) os=windows ;;
+            *) exit 1 ;;
+          esac
+          case "$TARGET" in
+            nuxt) stem="nuxt-node-$os-x64" ;;
+            go|rust) stem="native-$TARGET-$os-x64" ;;
+            flutter-web) stem=flutter-web ;;
+            flutter-windows) stem=flutter-windows-x64 ;;
+            *) echo "::error::Unsupported package target"; exit 1 ;;
+          esac
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then exit 1; fi
+          echo "name=$stem-$VERSION" >> "$GITHUB_OUTPUT"
+          echo "PACKAGE_DIR=.ci-package/$stem-$VERSION" >> "$GITHUB_ENV"
+          mkdir .ci-package dist
+      - name: Build and verify Nuxt
+        if: inputs.target == 'nuxt'
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          NEKO_NUXT_BUILD_HEAP_MB: '6144'
+        run: |
+          yarn install --frozen-lockfile
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'nuxt.config.ts';
+          const source = readFileSync(path, 'utf8');
+          const config = source.replace('defineNuxtConfig({', 'defineNuxtConfig({\n  sourcemap: { server: false, client: false },');
+          if (config === source) throw new Error('Could not configure Nuxt sourcemaps');
+          writeFileSync(path, config);
+          NODE
+          node scripts/package-nuxt.mjs --out "$PACKAGE_DIR"
+          node scripts/package-nuxt.mjs --verify "$PACKAGE_DIR"
+      - name: Build and verify Go
+        if: inputs.target == 'go'
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          node scripts/package-native.mjs go --build --out "$PACKAGE_DIR"
+          node scripts/package-native.mjs --verify "$PACKAGE_DIR"
+      - name: Build and verify Rust
+        if: inputs.target == 'rust'
+        run: |
+          cargo build --locked --release --bin nekotribe-backend
+          binary=target/release/nekotribe-backend
+          if [[ "$RUNNER_OS" == Windows ]]; then binary="$binary.exe"; fi
+          node scripts/package-native.mjs rust --binary "$binary" --out "$PACKAGE_DIR"
+          node scripts/package-native.mjs --verify "$PACKAGE_DIR"
+      - name: Build and verify Flutter Web
+        if: inputs.target == 'flutter-web'
+        run: |
+          flutter pub get
+          flutter build web --release
+          node scripts/package-web.mjs build/web --out "$PACKAGE_DIR"
+          node "$PACKAGE_DIR/configure-web.mjs" "$PACKAGE_DIR/site" --check
+      - name: Build Flutter Windows
+        if: inputs.target == 'flutter-windows'
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          flutter build windows --release
+          bundle=build/windows/x64/runner/Release
+          test -f "$bundle/nekotribe.exe"
+          test -f "$bundle/flutter_windows.dll"
+          test -f "$bundle/data/flutter_assets/AssetManifest.bin"
+          mv "$bundle" "$PACKAGE_DIR"
+      - name: Archive package and compute SHA-256
+        env:
+          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          from shutil import make_archive
+          from zipfile import ZipFile
+
+          name = os.environ["PACKAGE_NAME"]
+          archive = Path(make_archive(f"dist/{name}", "zip", root_dir=".ci-package", base_dir=name))
+          with ZipFile(archive) as zipped:
+              damaged = zipped.testzip()
+              if damaged:
+                  raise RuntimeError(f"Invalid ZIP member: {damaged}")
+          with archive.open("rb") as contents:
+              digest = hashlib.file_digest(contents, "sha256").hexdigest()
+          archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: dist/
+          if-no-files-found: error

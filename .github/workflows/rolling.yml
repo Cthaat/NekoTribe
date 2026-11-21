@@ -1,0 +1,73 @@
+name: Publish rolling packages
+on:
+  workflow_call:
+    inputs:
+      prefix:
+        type: string
+        required: true
+permissions:
+  contents: write
+  actions: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.prefix }}-*-latest
+          merge-multiple: true
+          path: dist
+      - name: Verify download and record checksums
+        working-directory: dist
+        env:
+          PREFIX: ${{ inputs.prefix }}
+        run: |
+          shopt -s nullglob
+          archives=("$PREFIX"-*-latest.zip)
+          expected=2
+          # Publish the web archive even if Windows was unavailable.
+          if [[ "$PREFIX" == flutter ]]; then
+            expected=1
+            test -f flutter-web-latest.zip
+          fi
+          test "${#archives[@]}" -ge "$expected"
+          {
+            echo '### 持续构建产物'
+            echo
+            echo '| 文件 | 大小（字节） | SHA-256 |'
+            echo '| --- | ---: | --- |'
+            for archive in "${archives[@]}"; do
+              sha256sum --check --status "$archive.sha256"
+              read -r digest filename < "$archive.sha256"
+              test "$filename" = "$archive"
+              printf '| %s | %s | %s |\n' "$archive" "$(stat -c %s "$archive")" "$digest"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Initialize rolling prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=rolling-latest
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            if ! gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target master \
+              --title 'NekoTribe rolling-latest' --prerelease --latest=false \
+              --notes '由四个分支的 GitHub Actions 更新。每个包均附 SHA-256。' --draft=false; then
+              # Another branch can create the shared release at the same time.
+              gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
+            fi
+          fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rolling-latest
+          name: NekoTribe rolling-latest
+          prerelease: true
+          make_latest: false
+          target_commitish: master
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.zip
+            dist/*.zip.sha256

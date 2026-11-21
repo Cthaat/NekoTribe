@@ -1,0 +1,114 @@
+name: Four-stack contract checks
+on:
+  workflow_call:
+    inputs:
+      nuxt-ref:
+        type: string
+        required: true
+      go-ref:
+        type: string
+        required: true
+      rust-ref:
+        type: string
+        required: true
+      flutter-ref:
+        type: string
+        required: true
+      allow-missing:
+        type: boolean
+        default: false
+    outputs:
+      nuxt:
+        value: ${{ jobs.check.outputs.nuxt }}
+      go:
+        value: ${{ jobs.check.outputs.go }}
+      rust:
+        value: ${{ jobs.check.outputs.rust }}
+      flutter:
+        value: ${{ jobs.check.outputs.flutter }}
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      nuxt: ${{ steps.heads.outputs.nuxt }}
+      go: ${{ steps.heads.outputs.go }}
+      rust: ${{ steps.heads.outputs.rust }}
+      flutter: ${{ steps.heads.outputs.flutter }}
+    steps:
+      - name: Check remote branches
+        id: refs
+        env:
+          NUXT_REF: ${{ inputs.nuxt-ref }}
+          GO_REF: ${{ inputs.go-ref }}
+          RUST_REF: ${{ inputs.rust-ref }}
+          FLUTTER_REF: ${{ inputs.flutter-ref }}
+          ALLOW_MISSING: ${{ inputs.allow-missing }}
+        run: |
+          set -euo pipefail
+          remote="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          for target in nuxt go rust flutter; do
+            case "$target" in
+              nuxt) ref="$NUXT_REF" ;;
+              go) ref="$GO_REF" ;;
+              rust) ref="$RUST_REF" ;;
+              flutter) ref="$FLUTTER_REF" ;;
+            esac
+            if [[ "$ALLOW_MISSING" == true && "$ref" == refs/heads/* ]]; then
+              # A branch can be missing while a new remote is being initialized.
+              if git ls-remote --exit-code "$remote" "$ref" >/dev/null; then
+                :
+              else
+                status=$?
+                if [[ "$status" != 2 ]]; then exit "$status"; fi
+                echo "::warning::Branch $ref is unavailable; four-stack checks require all branches."
+                echo "### 四端契约联检未执行（远端分支尚未就绪）" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+            fi
+          done
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.refs.outputs.ready == 'true'
+        with:
+          ref: ${{ inputs.nuxt-ref }}
+          path: nuxt
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: steps.refs.outputs.ready == 'true'
+        with:
+          ref: ${{ inputs.go-ref }}
+          path: go
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: steps.refs.outputs.ready == 'true'
+        with:
+          ref: ${{ inputs.rust-ref }}
+          path: rust
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: steps.refs.outputs.ready == 'true'
+        with:
+          ref: ${{ inputs.flutter-ref }}
+          path: flutter
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: steps.refs.outputs.ready == 'true'
+        with:
+          node-version: '22'
+      - name: Verify all four checkouts
+        if: steps.refs.outputs.ready == 'true'
+        working-directory: nuxt
+        run: |
+          node scripts/contracts.mjs check --workspace-root ..
+          node scripts/parity.mjs check --workspace-root ..
+      - name: Record checked commits
+        if: steps.refs.outputs.ready == 'true'
+        id: heads
+        run: |
+          for target in nuxt go rust flutter; do
+            sha=$(git -C "$target" rev-parse HEAD)
+            echo "$target=$sha" >> "$GITHUB_OUTPUT"
+          done

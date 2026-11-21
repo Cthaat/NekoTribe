@@ -1,0 +1,89 @@
+name: Nuxt CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: write
+  packages: write
+  actions: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: yarn
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+      - name: Check specifications and types
+        run: |
+          yarn contracts:check
+          yarn parity:check
+          yarn schema-catalog:check
+          yarn ai-terms:check
+          yarn typecheck --dotenv .env.example
+      - name: Run core Node tests
+        run: >
+          node --experimental-strip-types --test
+          tests/ai-moderation-advice.test.mjs
+          tests/moderation-reports-sql.test.mjs
+          tests/moderation-appeals-sql.test.mjs
+          tests/posts-compatibility.test.mjs
+          tests/posts-creation-transaction.test.mjs
+  contracts:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/contracts.yml
+    with:
+      nuxt-ref: ${{ github.sha }}
+      go-ref: refs/heads/codex/go
+      rust-ref: refs/heads/Rust
+      flutter-ref: refs/heads/Flutter
+      allow-missing: true
+  package:
+    if: github.event_name == 'push'
+    needs: [check, contracts]
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, windows-latest]
+    uses: ./.github/workflows/package.yml
+    with:
+      target: nuxt
+      runner: ${{ matrix.runner }}
+      ref: ${{ github.sha }}
+  image:
+    if: github.event_name == 'push'
+    needs: [check, contracts]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/image.yml
+    with:
+      target: nuxt
+      version: master
+      ref: ${{ github.sha }}
+      rolling: true
+  rolling:
+    if: github.event_name == 'push'
+    needs: package
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/rolling.yml
+    with:
+      prefix: nuxt-node
