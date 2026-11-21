@@ -185,6 +185,13 @@ jobs:
           channel: stable
           flutter-version: 3.41.9
           cache: true
+      - name: Install Flutter's Android NDK
+        if: matrix.target == 'flutter-android'
+        run: |
+          ndk=28.2.13676358
+          if [[ ! -f "$ANDROID_HOME/ndk/$ndk/source.properties" ]]; then
+            JAVA_HOME="$JAVA_HOME_21_X64" "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk"
+          fi
       - uses: actions/setup-java@v4
         if: matrix.target == 'flutter-android'
         with:
@@ -257,6 +264,16 @@ jobs:
           build_name="${VERSION#v}"
           flutter build windows --release --no-pub --build-name "${build_name%%-*}"
           node scripts/package-windows.mjs --version "$VERSION" --out "$PACKAGE_DIR" --require-installer
+      - name: Smoke-test the Windows installer
+        if: matrix.target == 'flutter-windows'
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:PACKAGE_DIR "NekoTribe-$env:VERSION-windows-x64-setup.exe"
+          $installed = Join-Path $env:RUNNER_TEMP 'nekotribe-install-smoke'
+          $result = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$installed`"") -Wait -PassThru -WindowStyle Hidden
+          if ($result.ExitCode -ne 0 -or !(Test-Path -LiteralPath (Join-Path $installed 'nekotribe.exe') -PathType Leaf)) {
+            throw "The Windows installer smoke test failed (exit code $($result.ExitCode))."
+          }
       - name: Build and verify signed Flutter APK
         if: matrix.target == 'flutter-android'
         env:
