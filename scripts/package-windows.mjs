@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cp, lstat, mkdir, mkdtemp, realpath, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
+import { statSync } from 'node:fs';
+import { cp, lstat, mkdir, mkdtemp, realpath, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,29 +24,25 @@ async function requireFile(path) {
   if (!info?.isFile() || !info.size) throw Error(`Missing or empty Windows package file: ${path}`);
 }
 
-async function findCompiler() {
+function findCompiler() {
   if (process.env.INNO_SETUP_ISCC) return resolve(process.env.INNO_SETUP_ISCC);
   const roots = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles].filter(Boolean);
   for (const root of roots) {
     for (const directory of ['Inno Setup 7', 'Inno Setup 6']) {
       const compiler = join(root, directory, 'ISCC.exe');
-      const info = await stat(compiler).catch(error => {
-        if (error.code === 'ENOENT') return null;
-        throw error;
-      });
-      if (info?.isFile()) return compiler;
+      if (statSync(compiler, { throwIfNoEntry: false })?.isFile()) return compiler;
     }
   }
   for (const directory of (process.env.PATH ?? '').split(delimiter).filter(Boolean)) {
     const compiler = resolve(directory, 'ISCC.exe');
-    if ((await stat(compiler, { throwIfNoEntry: false }))?.isFile()) return compiler;
+    if (statSync(compiler, { throwIfNoEntry: false })?.isFile()) return compiler;
   }
   return null;
 }
 
 async function compileInstaller(compiler, args) {
   const bundledLanguage = join(dirname(compiler), 'Languages', 'ChineseSimplified.isl');
-  if ((await stat(bundledLanguage, { throwIfNoEntry: false }))?.isFile()) {
+  if (statSync(bundledLanguage, { throwIfNoEntry: false })?.isFile()) {
     return spawnSync(compiler, args, { stdio: 'inherit' });
   }
 
@@ -99,7 +96,7 @@ try {
 
   const installer = `NekoTribe-${version}-windows-x64-setup`;
   const binaryVersion = /^v?(\d+\.\d+\.\d+)(?:-|$)/.exec(version)?.[1];
-  const compiler = await findCompiler();
+  const compiler = findCompiler();
   if (!compiler) {
     if (values['require-installer']) throw Error('Inno Setup ISCC.exe is required for this package.');
     console.info(`Inno Setup not found. Portable bundle: ${portable}`);
