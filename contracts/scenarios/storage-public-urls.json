@@ -1,6 +1,6 @@
 {
   "id": "STORAGE-PUBLIC-URLS",
-  "revision": 1,
+  "revision": 2,
   "scope": "Public synthetic URL and configuration examples; no file access or deployment acceptance",
   "cases": [
     {"id":"URL-001","env":{},"input":null,"expected":"/storage/default-avatar.png"},
@@ -29,5 +29,15 @@
     {"id":"URL-024","env":{"STORAGE_PUBLIC_BASE":"//untrusted"},"input":"/storage/a.png","error":true},
     {"id":"URL-025","env":{"BASE_URL":"https://app.example","STORAGE_CDN_BASE_URL":"https://cdn.example"},"input":"https://app.example/storage/a.png","expected":"https://app.example/storage/a.png"},
     {"id":"URL-026","env":{"BASE_URL":"https://app.example"},"input":"https://other.example/a.png?token=abc","expected":"https://other.example/a.png?token=abc"}
+  ],
+  "clientCases": [
+    {"id":"CLIENT-URL-01","input":" https://provider.example/uploads/a%2Fb.png?sig=a%2Bz&x=1 ","expected":"https://provider.example/uploads/a%2Fb.png?sig=a%2Bz&x=1"},
+    {"id":"CLIENT-URL-02","input":"HTTPS://provider.example/upload/avatar.png?sig=key","expected":"HTTPS://provider.example/upload/avatar.png?sig=key"},
+    {"id":"CLIENT-URL-03","input":"/team-files/avatars/a.png?v=1","expected":"https://cdn.example:8443/public/team-files/avatars/a.png?v=1"},
+    {"id":"CLIENT-URL-04","input":"/uploads/a.png?version=1","expected":"https://cdn.example:8443/public/storage/a.png?version=1"},
+    {"id":"CLIENT-URL-05","input":"/upload//avatars/a.png","expected":"https://cdn.example:8443/public/storage/avatars/a.png"},
+    {"id":"CLIENT-URL-06","input":"/default-avatar.png","expected":"https://cdn.example:8443/public/storage/default-avatar.png"},
+    {"id":"CLIENT-URL-07","input":"/api/v2/media/42/content","expected":"/api/v2/media/42/content"},
+    {"id":"CLIENT-URL-08","input":"/custom/asset.png","useApiBase":true,"expected":"https://api.example:3443/gateway/custom/asset.png"}
   ]
 }

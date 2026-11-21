@@ -1,0 +1,22 @@
+{
+  "id": "GROUP-COMMENT-DELETE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "deleted-or-cross-post",
+      "status": 404
+    },
+    {
+      "id": "other-member-denied",
+      "status": 422
+    },
+    {
+      "id": "author-or-manager-soft-delete",
+      "status": 200
+    }
+  ]
+}

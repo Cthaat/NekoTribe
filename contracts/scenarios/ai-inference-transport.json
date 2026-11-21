@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "AI-INFERENCE-TRANSPORT",
-  "revision": 1,
+  "revision": 2,
   "scope": "Synthetic non-streaming transport component vectors; not product acceptance",
   "cases": [
     {
@@ -41,6 +41,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -175,6 +176,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -261,6 +263,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -381,6 +384,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -457,6 +461,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -519,6 +524,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -583,6 +589,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -643,6 +650,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -711,6 +719,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -767,6 +776,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -2349,6 +2359,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -2474,6 +2485,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -2676,6 +2688,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -2749,6 +2762,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -2829,6 +2843,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -2886,6 +2901,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -2951,6 +2967,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -3029,6 +3046,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -3122,6 +3140,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -3190,6 +3209,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192

@@ -1,0 +1,13 @@
+{
+  "id": "DIRECT-MESSAGE-DELETE",
+  "revision": 4,
+  "cases": [
+    {"id":"DM-DELETE-01","requirement":"未认证返回 401，认证后非法 ID 返回 400，均无删除动作"},
+    {"id":"DM-DELETE-02","requirement":"会话非参与者或消息非发送者返回 403，其他会话的同一消息 ID 返回 404"},
+    {"id":"DM-DELETE-03","requirement":"删除最新消息后摘要回退，删除最后一条后摘要清空，通知预览不再显示原文"},
+    {"id":"DM-DELETE-04","requirement":"重复删除成功且不重复变更，写入失败回滚，发送与删除共用会话锁"},
+    {"id":"DM-DELETE-05","requirement":"两个客户端确认后使用会话路由，仅本人消息有按钮，失败保留消息且旧的历史响应不恢复已删除消息"},
+    {"id":"DM-DELETE-06","requirement":"仅首次提交成功后发送无正文的删除事件，并在投递前复核接收者、消息归属及已删除状态"},
+    {"id":"DM-DELETE-07","requirement":"Flutter 会话列表收到删除时先隐藏旧预览，再从所选后端刷新，账号或端点切换时丢弃旧列表和进行中的请求结果"}
+  ]
+}

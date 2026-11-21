@@ -1,0 +1,30 @@
+{
+  "id": "GROUP-PREFERENCE-WRITE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "malformed-or-non-object",
+      "status": 400
+    },
+    {
+      "id": "inactive-dissolved-or-missing",
+      "status": 404
+    },
+    {
+      "id": "non-member-denied",
+      "status": 422
+    },
+    {
+      "id": "compat-flags-and-committed-readback",
+      "status": 200
+    },
+    {
+      "id": "write-or-readback-failure",
+      "status": 500
+    }
+  ]
+}

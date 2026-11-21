@@ -1,0 +1,12 @@
+{
+  "id": "GROUP-INVITE-PREVIEW",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"invalid-code","status":400},
+    {"id":"missing-or-other-user","status":404},
+    {"id":"expired-exhausted-or-duplicate","status":422},
+    {"id":"inactive-or-deleted-group","status":422},
+    {"id":"case-insensitive-read-does-not-consume","status":200}
+  ]
+}

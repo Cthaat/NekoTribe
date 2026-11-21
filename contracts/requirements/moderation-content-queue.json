@@ -1,0 +1,33 @@
+{
+  "statuses": [
+    "pending",
+    "approved",
+    "rejected",
+    "flagged",
+    "removed",
+    "restored"
+  ],
+  "priorities": [
+    "low",
+    "normal",
+    "high",
+    "urgent"
+  ],
+  "sorts": [
+    "newest",
+    "oldest",
+    "most_reports",
+    "most_engagement"
+  ],
+  "dates": [
+    "all",
+    "today",
+    "yesterday",
+    "week",
+    "month"
+  ],
+  "sql": {
+    "list": "WITH filtered_content AS (\n  SELECT c.case_id, c.target_id AS post_id, c.status, c.priority, c.assigned_to, c.report_count,\n         c.created_at, c.updated_at, c.latest_reported_at AS reported_at, p.author_id,\n         DBMS_LOB.SUBSTR(p.content, 4000, 1) AS content,\n         NVL(ps.likes_count, 0) AS likes_count_post, NVL(ps.retweets_count, 0) AS retweets_count,\n         NVL(ps.replies_count, 0) AS replies_count\n  FROM n_moderation_cases c JOIN n_posts p ON p.post_id = c.target_id\n  JOIN n_users u ON u.user_id = p.author_id\n  LEFT JOIN n_post_stats ps ON ps.post_id = p.post_id\n  WHERE c.target_type = 'post' AND (:post_id IS NULL OR c.target_id = :post_id)\n    AND (:status IS NULL OR c.status = :status)\n    AND (:priority IS NULL OR c.priority = :priority)\n    AND (:reason IS NULL OR EXISTS (\n      SELECT 1 FROM n_moderation_reports r\n      WHERE r.target_type = 'post' AND r.target_id = c.target_id AND r.reason = :reason\n    ))\n    AND (:q IS NULL OR INSTR(LOWER(DBMS_LOB.SUBSTR(p.content, 4000, 1)), LOWER(:q)) > 0\n         OR INSTR(LOWER(u.username), LOWER(:q)) > 0 OR INSTR(LOWER(u.display_name), LOWER(:q)) > 0)\n    AND (:date_range = 'all'\n         OR :date_range = 'today' AND c.latest_reported_at >= TRUNC(SYSDATE)\n         OR :date_range = 'yesterday' AND c.latest_reported_at >= TRUNC(SYSDATE) - 1 AND c.latest_reported_at < TRUNC(SYSDATE)\n         OR :date_range = 'week' AND c.latest_reported_at >= SYSTIMESTAMP - INTERVAL '7' DAY\n         OR :date_range = 'month' AND c.latest_reported_at >= SYSTIMESTAMP - INTERVAL '30' DAY)\n), ranked AS (\n  SELECT f.*, ROW_NUMBER() OVER (ORDER BY\n    CASE WHEN :sort = 'most_reports' THEN report_count END DESC,\n    CASE WHEN :sort = 'most_engagement' THEN likes_count_post + retweets_count + replies_count END DESC,\n    CASE WHEN :sort = 'oldest' THEN reported_at END ASC,\n    CASE WHEN :sort <> 'oldest' THEN reported_at END DESC,\n    CASE WHEN :sort = 'oldest' THEN case_id END ASC, case_id DESC\n  ) AS rn FROM filtered_content f\n)\nSELECT NVL(u.user_id, 0) AS user_id, u.username, u.avatar_url, u.display_name, u.bio, u.location, u.website,\n       u.is_verified, us.followers_count, us.following_count, us.posts_count, us.likes_count,\n       'offline' AS online_status, CAST(NULL AS TIMESTAMP) AS last_seen_at,\n       CASE WHEN u.user_id IS NOT NULL THEN fn_get_user_relationship(:viewer_id, u.user_id) END AS relation,\n       r.case_id, r.post_id, r.content, r.status, r.priority, r.assigned_to, r.report_count,\n       TO_CHAR(FROM_TZ(r.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at, TO_CHAR(FROM_TZ(r.updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at,\n       TO_CHAR(FROM_TZ(r.reported_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS reported_at,\n       r.likes_count_post, r.retweets_count, r.replies_count, t.total\nFROM (SELECT COUNT(*) AS total FROM filtered_content) t\nLEFT JOIN ranked r ON r.rn BETWEEN :start_row AND :end_row\nLEFT JOIN n_users u ON u.user_id = r.author_id\nLEFT JOIN n_user_stats us ON us.user_id = r.author_id\nORDER BY r.rn",
+    "reports": "SELECT r.report_id, r.target_type, r.target_id, r.reporter_user_id, r.reason, r.description, r.evidence_url,\n       r.status, r.priority, r.handled_by,\n       TO_CHAR(FROM_TZ(r.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at, TO_CHAR(FROM_TZ(r.updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at,\n       TO_CHAR(FROM_TZ(r.resolved_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS resolved_at, 0 AS total\nFROM n_moderation_reports r WHERE r.target_type = :target_type AND r.target_id = :target_id\nORDER BY r.created_at DESC, r.report_id DESC"
+  }
+}

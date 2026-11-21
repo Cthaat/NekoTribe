@@ -1,0 +1,2160 @@
+{
+  "id": "USER-SETTINGS-CLIENT-RESPONSE",
+  "description": "Canonical full settings response for both GET and PATCH; synthetic only. Legacy string values are preserved until a separate migration.",
+  "base": {
+    "code": 200,
+    "message": "success",
+    "meta": null,
+    "data": {
+      "user_id": 42,
+      "two_factor_enabled": false,
+      "login_alerts": true,
+      "profile_visibility": "public",
+      "show_online_status": true,
+      "allow_dm_from_strangers": false,
+      "push_notification_enabled": true,
+      "email_notification_enabled": true,
+      "ai_sentiment_enabled": false,
+      "ai_sentiment_model_id": null,
+      "ai_sentiment_return_probabilities": true,
+      "ai_sentiment_include_metadata": false,
+      "ai_sentiment_top_k": 3,
+      "updated_at": "2026-11-02T00:00:00.000Z"
+    }
+  },
+  "cases": [
+    {
+      "id": "valid",
+      "accepted": true,
+      "changes": []
+    },
+    {
+      "id": "legacy-string-fields",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "profile_visibility"
+          ],
+          "value": "legacy-value"
+        },
+        {
+          "path": [
+            "data",
+            "updated_at"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "model-text",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_model_id"
+          ],
+          "value": "legacy-model"
+        }
+      ]
+    },
+    {
+      "id": "additions",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "future"
+          ],
+          "value": 1
+        },
+        {
+          "path": [
+            "data",
+            "future"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": false,
+            "extra": "ignored"
+          }
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "null-meta-member",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "js-nel-message",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "root-null",
+      "accepted": false,
+      "changes": [],
+      "root": null
+    },
+    {
+      "id": "root-[]",
+      "accepted": false,
+      "changes": [],
+      "root": []
+    },
+    {
+      "id": "root-true",
+      "accepted": false,
+      "changes": [],
+      "root": true
+    },
+    {
+      "id": "root-1",
+      "accepted": false,
+      "changes": [],
+      "root": 1
+    },
+    {
+      "id": "root-\"synthetic-private\"",
+      "accepted": false,
+      "changes": [],
+      "root": "synthetic-private"
+    },
+    {
+      "id": "code-\"200\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": "200"
+        }
+      ]
+    },
+    {
+      "id": "code-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "code-true",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "code-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "code-201",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 201
+        }
+      ]
+    },
+    {
+      "id": "message-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "message-\"\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "message-\" \\t \"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": " \t "
+        }
+      ]
+    },
+    {
+      "id": "message-false",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "message-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "meta-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "meta-false",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "meta-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "meta-\"bad\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "data-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "data-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "data-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "data-\"bad\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "error-true",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "error-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "error-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "error-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "missing-code",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-message",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-meta",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-data",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "bad-meta-flag-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "bad-meta-flag-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": "false"
+          }
+        }
+      ]
+    },
+    {
+      "id": "bad-meta-flag-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "true-two_factor_enabled",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-two_factor_enabled",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "two_factor_enabled-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "two_factor_enabled-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "two_factor_enabled-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "two_factor_enabled-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "two_factor_enabled-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "two_factor_enabled-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "two_factor_enabled-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "true-login_alerts",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-login_alerts",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "login_alerts-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "login_alerts-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "login_alerts-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "login_alerts-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "login_alerts-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "login_alerts-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "login_alerts-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "true-show_online_status",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-show_online_status",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "show_online_status-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "show_online_status-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "show_online_status-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "show_online_status-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "show_online_status-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "show_online_status-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "show_online_status-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "true-allow_dm_from_strangers",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-allow_dm_from_strangers",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "allow_dm_from_strangers-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "allow_dm_from_strangers-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "allow_dm_from_strangers-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "allow_dm_from_strangers-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "allow_dm_from_strangers-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "allow_dm_from_strangers-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "allow_dm_from_strangers-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "true-push_notification_enabled",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-push_notification_enabled",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "push_notification_enabled-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "push_notification_enabled-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "push_notification_enabled-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "push_notification_enabled-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "push_notification_enabled-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "push_notification_enabled-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "push_notification_enabled-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "true-email_notification_enabled",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-email_notification_enabled",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "email_notification_enabled-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "email_notification_enabled-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "email_notification_enabled-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "email_notification_enabled-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "email_notification_enabled-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "email_notification_enabled-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "email_notification_enabled-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "true-ai_sentiment_enabled",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-ai_sentiment_enabled",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_enabled-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_enabled-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_enabled-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_enabled-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_enabled-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_enabled-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_enabled-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "true-ai_sentiment_return_probabilities",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-ai_sentiment_return_probabilities",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_return_probabilities-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_return_probabilities-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_return_probabilities-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_return_probabilities-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_return_probabilities-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_return_probabilities-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_return_probabilities-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "true-ai_sentiment_include_metadata",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "false-ai_sentiment_include_metadata",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_include_metadata-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_include_metadata-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_include_metadata-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_include_metadata-\"false\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_include_metadata-\"true\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_include_metadata-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "ai_sentiment_include_metadata-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "missing-user_id",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-two_factor_enabled",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "two_factor_enabled"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-login_alerts",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "login_alerts"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-profile_visibility",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "profile_visibility"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-show_online_status",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "show_online_status"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-allow_dm_from_strangers",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "allow_dm_from_strangers"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-push_notification_enabled",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "push_notification_enabled"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-email_notification_enabled",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_notification_enabled"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-ai_sentiment_enabled",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_enabled"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-ai_sentiment_model_id",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_model_id"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-ai_sentiment_return_probabilities",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_return_probabilities"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-ai_sentiment_include_metadata",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_include_metadata"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-ai_sentiment_top_k",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "missing-updated_at",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "updated_at"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "user-id-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "user-id--1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": -1
+        }
+      ]
+    },
+    {
+      "id": "user-id-1.5",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": 1.5
+        }
+      ]
+    },
+    {
+      "id": "user-id-\"42\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": "42"
+        }
+      ]
+    },
+    {
+      "id": "user-id-true",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "user-id-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "user-id-9007199254740992",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": 9007199254740992
+        }
+      ]
+    },
+    {
+      "id": "max-id",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": 9007199254740991
+        }
+      ]
+    },
+    {
+      "id": "profile_visibility-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "profile_visibility"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "profile_visibility-true",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "profile_visibility"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "profile_visibility-123",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "profile_visibility"
+          ],
+          "value": 123
+        }
+      ]
+    },
+    {
+      "id": "profile_visibility-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "profile_visibility"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "profile_visibility-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "profile_visibility"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "updated_at-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "updated_at"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "updated_at-true",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "updated_at"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "updated_at-123",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "updated_at"
+          ],
+          "value": 123
+        }
+      ]
+    },
+    {
+      "id": "updated_at-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "updated_at"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "updated_at-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "updated_at"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "model-false",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_model_id"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "model-1",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_model_id"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "model-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_model_id"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "model-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_model_id"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "top-null",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "top-0",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "top-11",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": 11
+        }
+      ]
+    },
+    {
+      "id": "top-3.5",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": 3.5
+        }
+      ]
+    },
+    {
+      "id": "top-\"3\"",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": "3"
+        }
+      ]
+    },
+    {
+      "id": "top-true",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "top-{}",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "top-[]",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "top-min",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "top-max",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "ai_sentiment_top_k"
+          ],
+          "value": 10
+        }
+      ]
+    }
+  ]
+}

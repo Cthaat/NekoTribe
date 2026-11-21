@@ -1,0 +1,7 @@
+{
+  "message": "当前账号不能发布内容",
+  "sql": {
+    "lock": "SELECT user_id FROM n_users WHERE user_id = :user_id FOR UPDATE",
+    "allowed": "SELECT CASE WHEN EXISTS (SELECT 1 FROM n_users WHERE user_id = :user_id AND status = 'active' AND is_active = 1) AND NOT EXISTS (SELECT 1 FROM n_moderation_user_restrictions WHERE user_id = :user_id AND restriction_type = 'mute' AND status = 'active' AND starts_at <= CURRENT_TIMESTAMP AND (ends_at IS NULL OR ends_at > CURRENT_TIMESTAMP)) THEN 1 ELSE 0 END AS allowed FROM dual"
+  }
+}

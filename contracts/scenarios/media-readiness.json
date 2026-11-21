@@ -65,9 +65,29 @@
             "CHAR_LENGTH": 1000,
             "NULLABLE": "Y",
             "DATA_DEFAULT": null
+          },
+          {
+            "COLUMN_NAME": "ACCESS_SCOPE",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 16,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": "'public'"
           }
         ],
-        "constraints": []
+        "constraints": [
+          {
+            "CONSTRAINT_NAME": "NT13_3B28F2CD8CE5C8283CEA",
+            "CONSTRAINT_TYPE": "C",
+            "SEARCH_CONDITION_VC": "access_scope IN ('public', 'chat', 'post')",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "REFERENCED_OWNER": null,
+            "columns": [],
+            "referencedColumns": []
+          }
+        ]
       }
     },
     "records": [

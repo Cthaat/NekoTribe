@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "AI-TOOL-HISTORY",
-  "revision": 1,
+  "revision": 2,
   "scope": "provider-transport-only",
   "cases": [
     {
@@ -121,6 +121,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -750,6 +751,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192
@@ -909,6 +911,7 @@
           }
         ],
         "stream": false,
+        "think": false,
         "options": {
           "num_predict": 512,
           "num_ctx": 8192

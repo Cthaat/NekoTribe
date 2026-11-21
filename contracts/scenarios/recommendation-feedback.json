@@ -1,0 +1,190 @@
+{
+  "id": "RECOMMENDATION-FEEDBACK",
+  "cases": [
+    {
+      "id": "anonymous",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 401,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 1,
+        "action": "not_interested"
+      },
+      "anonymous": true
+    },
+    {
+      "id": "canonical",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 200,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 1,
+        "action": "not_interested",
+        "reason": "  示例  "
+      },
+      "normalized": {
+        "type": "post",
+        "id": 1,
+        "action": "not_interested",
+        "reason": "示例"
+      }
+    },
+    {
+      "id": "legacy",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 200,
+      "body": {
+        "post_id": 1,
+        "feedback": "show_less"
+      },
+      "normalized": {
+        "type": "post",
+        "id": 1,
+        "action": "show_less",
+        "reason": ""
+      }
+    },
+    {
+      "id": "mixed",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 400,
+      "body": {
+        "post_id": 1,
+        "feedback": "show_less",
+        "resource_type": "post",
+        "resource_id": 1,
+        "action": "not_interested"
+      }
+    },
+    {
+      "id": "unsafe-id",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 400,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 9007199254740992,
+        "action": "show_less"
+      }
+    },
+    {
+      "id": "unsupported-action",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 400,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 1,
+        "action": "unknown"
+      }
+    },
+    {
+      "id": "fake-actor",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 400,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 1,
+        "action": "show_less",
+        "user_id": 42
+      }
+    },
+    {
+      "id": "null-reason",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 400,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 1,
+        "action": "show_less",
+        "reason": null
+      }
+    },
+    {
+      "id": "hidden-post",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 404,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 2,
+        "action": "show_less"
+      }
+    },
+    {
+      "id": "visible-user",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 200,
+      "body": {
+        "resource_type": "user",
+        "resource_id": 8,
+        "action": "not_interested"
+      },
+      "normalized": {
+        "type": "user",
+        "id": 8,
+        "action": "not_interested",
+        "reason": ""
+      }
+    },
+    {
+      "id": "private-group",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 404,
+      "body": {
+        "resource_type": "group",
+        "resource_id": 9,
+        "action": "not_interested"
+      }
+    },
+    {
+      "id": "visible-tag",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 200,
+      "body": {
+        "resource_type": "tag",
+        "resource_id": 3,
+        "action": "show_less"
+      },
+      "normalized": {
+        "type": "tag",
+        "id": 3,
+        "action": "show_less",
+        "reason": ""
+      }
+    },
+    {
+      "id": "unmigrated",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 503,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 1,
+        "action": "show_less"
+      },
+      "schemaMissing": true
+    },
+    {
+      "id": "transaction-failure",
+      "method": "POST",
+      "path": "/api/v2/recommendations/feedback",
+      "status": 500,
+      "body": {
+        "resource_type": "post",
+        "resource_id": 1,
+        "action": "show_less"
+      },
+      "writeFailure": true
+    }
+  ]
+}

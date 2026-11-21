@@ -1,0 +1,22 @@
+{
+  "id": "CHAT-MESSAGE-EDIT",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "active-author",
+      "status": 200
+    },
+    {
+      "id": "manager-not-author",
+      "status": 403
+    },
+    {
+      "id": "muted-author",
+      "status": 403
+    },
+    {
+      "id": "blank-content",
+      "status": 400
+    }
+  ]
+}

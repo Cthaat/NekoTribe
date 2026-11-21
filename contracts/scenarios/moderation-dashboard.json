@@ -1,0 +1,207 @@
+{
+  "id": "MODERATION-DASHBOARD",
+  "cases": [
+    {
+      "id": "stats-anonymous",
+      "method": "GET",
+      "path": "/api/v2/moderation/stats",
+      "status": 401
+    },
+    {
+      "id": "settings-non-moderator",
+      "method": "GET",
+      "path": "/api/v2/moderation/settings",
+      "status": 403,
+      "denied": true
+    },
+    {
+      "id": "settings-write-denied",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 403,
+      "denied": true,
+      "body": {
+        "settings": []
+      }
+    },
+    {
+      "id": "stats",
+      "method": "GET",
+      "path": "/api/v2/moderation/stats",
+      "status": 200,
+      "stats": {
+        "pending": 2,
+        "approved": 3,
+        "rejected": 1,
+        "flagged": 2,
+        "today_processed": 6,
+        "avg_process_minutes": 15,
+        "open_reports": 4,
+        "appeal_success_rate": 67
+      }
+    },
+    {
+      "id": "settings",
+      "method": "GET",
+      "path": "/api/v2/moderation/settings",
+      "status": 200,
+      "values": {
+        "default_mute_hours": "24",
+        "require_note_on_reject": "true"
+      }
+    },
+    {
+      "id": "batch-missing",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 400,
+      "body": {}
+    },
+    {
+      "id": "batch-not-array",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 400,
+      "body": {
+        "settings": {}
+      }
+    },
+    {
+      "id": "batch-unknown",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 400,
+      "body": {
+        "settings": [
+          {
+            "key": "__proto__",
+            "value": "true"
+          }
+        ]
+      }
+    },
+    {
+      "id": "batch-duplicate",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 400,
+      "body": {
+        "settings": [
+          {
+            "key": "default_mute_hours",
+            "value": "1"
+          },
+          {
+            "key": "default_mute_hours",
+            "value": "2"
+          }
+        ]
+      }
+    },
+    {
+      "id": "batch-invalid-boolean",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 400,
+      "body": {
+        "settings": [
+          {
+            "key": "require_note_on_reject",
+            "value": "yes"
+          }
+        ]
+      }
+    },
+    {
+      "id": "batch-fraction",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 400,
+      "body": {
+        "settings": [
+          {
+            "key": "default_mute_hours",
+            "value": 1.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "batch-out-of-range",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 400,
+      "body": {
+        "settings": [
+          {
+            "key": "default_mute_hours",
+            "value": "9007199254740992"
+          }
+        ]
+      }
+    },
+    {
+      "id": "batch-empty",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 200,
+      "body": {
+        "settings": []
+      },
+      "values": {
+        "default_mute_hours": "24",
+        "require_note_on_reject": "true"
+      }
+    },
+    {
+      "id": "batch-canonical",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 200,
+      "body": {
+        "settings": [
+          {
+            "key": "require_note_on_reject",
+            "value": false
+          },
+          {
+            "key": "default_mute_hours",
+            "value": " 0036 "
+          }
+        ]
+      },
+      "values": {
+        "default_mute_hours": "36",
+        "require_note_on_reject": "false"
+      }
+    },
+    {
+      "id": "batch-write-failure",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/settings",
+      "status": 500,
+      "body": {
+        "settings": [
+          {
+            "key": "require_note_on_reject",
+            "value": "true"
+          },
+          {
+            "key": "default_mute_hours",
+            "value": "77"
+          }
+        ]
+      }
+    },
+    {
+      "id": "settings-unchanged-after-rollback",
+      "method": "GET",
+      "path": "/api/v2/moderation/settings",
+      "status": 200,
+      "values": {
+        "default_mute_hours": "36",
+        "require_note_on_reject": "false"
+      }
+    }
+  ]
+}

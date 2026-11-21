@@ -1,5 +1,7 @@
 # 原生会话撤销切片 v1
 
+Nuxt Web 与 Flutter 的设备管理界面保护当前会话。撤销其他设备前须明确确认，撤销期间禁用重复操作。服务端确认后从当前列表移除已撤销设备并重新读取列表。账号或后端切换时忽略原请求的回执，确认框中的授权意图也只适用于打开时的会话。
+
 对应 `DELETE /api/v2/auth/sessions/{id}` 与 `DELETE /api/v2/auth/sessions/others`，以及二者共用的 access 会话鉴权。Nuxt 为既有行为基准；Rust 原生模式、Go 独立服务直接访问同一 Oracle 模型，不代理 Nuxt。本切片不实现登录/刷新/会话列表/2FA/其他业务；完整认证基线及尚未决策问题仍见 `authentication.md`。
 
 ## HTTP 与数据行为
@@ -35,7 +37,7 @@ Nuxt 的 session 列表停止使用 API 响应缓存；Rust/Go 的列表实现�
 
 - Go 新建实际 `cmd/server`、配置、HTTP router、Oracle session repository；固定 Oracle 官方 `github.com/oracle/go-oracledb/v26 v26.4.0`（Go最低1.26.9，当前SDK1.27.3），使用其公共 `oracle` API 和 database/sql。不需要 Nuxt、C++、Oracle Instant Client。官方称支持19c+；本轮不据文档/编译声称真实库已通过。
 - Go HOST 缺省127.0.0.1，GO_BACKEND_PORT 优先 PORT，缺省30006（避免30005现有公共网关）。AUTH ACCESS_SECRET/REFRESH_SECRET、Oracle host/port/service/user/password、pool范围显式配置；native缺密钥、无效端口/池值/必要数据库字段要安全拒绝。sample env不含真实密码，不自动加载父目录 `.env`，不回退到 Nuxt。监听前只读预检连接/必要会话列，不创建/初始化/迁移数据。优雅关闭 HTTP 与 DB，设置请求头/读写/闲置上限。进程 health 仅表示进程存活，不代表完整业务就绪。
-- Rust 增加 RUST_BACKEND_MODE=compat|native，缺省compat保留当前兼容路径；native明确不注册 legacy API/storage/WS 转发。native需要 access/refresh keys，接入既有 OraclePool 和新 repository、两条实际 Axum route，未实现业务明确404，不伪造成功。native监听前只读预检所需会话结构。兼容模式继续沿用旧启动/路由，不把它计作原生证据。
+- Rust 默认启动 native，显式设置 `RUST_BACKEND_MODE=compat` 或加载 `compose.compat.yaml` 可运行旧 Nuxt 代理。native 需要共享 access/refresh keys 和 Oracle 配置，监听前只读预检所需结构。缺少配置或预检失败时启动退出。native 只注册原生路由。兼容模式的验收独立于原生模式。
 - 服务端设置/错误/日志不格式化输出凭据。新增密钥类型/配置应有脱敏 Debug/String/GoString；Driver 的诊断不透传给 HTTP。进程只读本工程显式环境；改端口不触发初始化。
 - 原生 CORS 在鉴权之前处理 OPTIONS，复用当前 Nuxt `server/utils/cors.ts` 的精确 origin、method/header 白名单、Vary 与 credentials 语义（含 Flutter x-request-id/platform/device 头）。配置 CORS_ALLOWED_ORIGINS 与可选 NUXT_ 前缀，localhost放行须按既有规则显式配置/开发模式。无 Origin预检204；带不允许origin/method/header预检403；允许204，不查询会话/数据库。实际响应仍鉴权；CORS不是权限。
 

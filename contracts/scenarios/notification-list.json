@@ -1,6 +1,6 @@
 {
   "id": "NOTIFICATION-LIST",
-  "revision": 1,
+  "revision": 2,
   "cases": [
     {"id":"NOTIFY-LIST-01","name":"未登录、无效或撤销会话拒绝","status":"not-run"},
     {"id":"NOTIFY-LIST-02","name":"用户只能读取自己的通知，不接受客户端身份","status":"not-run"},
@@ -9,6 +9,7 @@
     {"id":"NOTIFY-LIST-05","name":"actor 可见资料、缺失 actor、头像映射","status":"not-run"},
     {"id":"NOTIFY-LIST-06","name":"metadata JSON、无效文本及空值","status":"not-run"},
     {"id":"NOTIFY-LIST-07","name":"数据库异常脱敏，分页元数据正确","status":"not-run"},
-    {"id":"NOTIFY-LIST-08","name":"真实 Oracle 与三后端双客户端交叉验证","status":"not-run"}
+    {"id":"NOTIFY-LIST-08","name":"真实 Oracle 与三后端双客户端交叉验证","status":"not-run"},
+    {"id":"NOTIFY-LIST-09","name":"同时间通知跨页按 ID 降序，总数与本页使用同一快照，越界页保留总数","status":"not-run"}
   ]
 }

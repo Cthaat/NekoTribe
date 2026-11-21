@@ -1,0 +1,128 @@
+{
+  "id": "MODERATION-PUBLISH-POLICY",
+  "cases": [
+    {
+      "id": "muted-0",
+      "method": "POST",
+      "path": "/api/v2/posts",
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "muted-1",
+      "method": "POST",
+      "path": "/api/v2/posts/{id}/retweets",
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "muted-2",
+      "method": "PATCH",
+      "path": "/api/v2/posts/{id}",
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "muted-3",
+      "method": "PUT",
+      "path": "/api/v2/posts/{id}",
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "muted-4",
+      "method": "POST",
+      "path": "/api/v2/posts/{id}/comments",
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "active-unrestricted",
+      "account": "active",
+      "allowed": true
+    },
+    {
+      "id": "inactive-account",
+      "account": "inactive",
+      "allowed": false
+    },
+    {
+      "id": "mute-time-boundary",
+      "startsAt": "inclusive",
+      "endsAt": "exclusive"
+    },
+    {
+      "id": "muted-group-post",
+      "method": "POST",
+      "path": "/api/v2/groups/{id}/posts",
+      "body": {
+        "content": "group post",
+        "is_announcement": true
+      },
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "muted-group-comment",
+      "method": "POST",
+      "path": "/api/v2/groups/{id}/posts/{post_id}/comments",
+      "body": {
+        "content": "group comment"
+      },
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "muted-direct-message",
+      "method": "POST",
+      "path": "/api/v2/chat/direct-conversations/{conversation_id}/messages",
+      "body": {
+        "content": "direct message"
+      },
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "muted-channel-message",
+      "method": "POST",
+      "path": "/api/v2/chat/channels/{channel_id}/messages",
+      "body": {
+        "media_ids": [
+          77
+        ]
+      },
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    },
+    {
+      "id": "muted-channel-edit",
+      "method": "PATCH",
+      "path": "/api/v2/chat/messages/{message_id}",
+      "body": {
+        "content": "edited message"
+      },
+      "restriction": "effective mute",
+      "status": 403,
+      "message": "当前账号不能发布内容",
+      "contentWrites": 0
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "GROUP-DISSOLUTION",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"invalid-id","status":400},
+    {"id":"missing-or-already-dissolved","status":404},
+    {"id":"non-owner-or-inconsistent-owner-role","status":422},
+    {"id":"active-owner-dissolves-existing-group","status":200},
+    {"id":"active-owner-dissolves-deactivated-group","status":200},
+    {"id":"update-audit-or-commit-fails","status":500},
+    {"id":"dissolved-group-detail-is-unavailable","status":404}
+  ]
+}

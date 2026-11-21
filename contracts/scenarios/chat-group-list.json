@@ -1,0 +1,11 @@
+{
+  "id": "CHAT-GROUP-LIST",
+  "revision": 1,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"muted-member","status":200,"role":"member","membership":"muted","isMember":true},
+    {"id":"private-channel-counts","status":200,"visibleChannelsOnly":true,"visibleUnreadOnly":true},
+    {"id":"empty-group","status":200,"channelCount":0,"writes":0},
+    {"id":"stable-pagination","status":200,"page":2,"pageSize":2,"order":["member_count:desc","created_at:desc","group_id:desc"]}
+  ]
+}

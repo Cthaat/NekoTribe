@@ -1,0 +1,27 @@
+{
+  "id": "GROUP-LIST-DISCOVER",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "public-and-active-memberships",
+      "status": 200
+    },
+    {
+      "id": "invalid-category",
+      "status": 400
+    },
+    {
+      "id": "filtered-page-and-stable-order",
+      "status": 200
+    },
+    {
+      "id": "no-matches",
+      "status": 200,
+      "data": []
+    }
+  ]
+}

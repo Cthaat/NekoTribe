@@ -1,0 +1,707 @@
+{
+  "id": "AUTH-CLIENT-RESPONSES",
+  "revision": 1,
+  "note": "Synthetic credentials only. Clone base and apply changes in order; remove deletes the field. Dates compare at microsecond precision like Dart.",
+  "bases": {
+    "success": {
+      "two_factor_required": false,
+      "user": {
+        "user_id": 1,
+        "username": "synthetic",
+        "display_name": "Synthetic",
+        "avatar_url": "",
+        "bio": "",
+        "location": "",
+        "website": "",
+        "is_verified": 0,
+        "followers_count": 0,
+        "following_count": 0,
+        "posts_count": 0,
+        "likes_count": 0,
+        "relationship": {
+          "is_self": true,
+          "is_following": false,
+          "is_blocked": false,
+          "is_blocking": false,
+          "relation": "self"
+        },
+        "online_status": "hidden",
+        "last_seen_at": null,
+        "email": "synthetic@example.test",
+        "phone": "",
+        "birth_date": null,
+        "email_verified_at": null,
+        "is_active": 1,
+        "status": "active",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z"
+      },
+      "tokens": {
+        "session_id": "synthetic-session",
+        "access_token": "synthetic-access",
+        "refresh_token": "synthetic-refresh",
+        "access_token_expires_at": "2030-01-01T00:00:00Z",
+        "refresh_token_expires_at": "2030-02-01T00:00:00Z"
+      }
+    },
+    "challenge": {
+      "two_factor_required": true,
+      "challenge_id": "synthetic-challenge",
+      "account": "synthetic",
+      "expires_at": "2030-01-01T00:00:00Z"
+    },
+    "refresh": {
+      "session_id": "synthetic-session",
+      "access_token": "synthetic-access",
+      "refresh_token": "synthetic-refresh",
+      "access_token_expires_at": "2030-01-01T00:00:00Z",
+      "refresh_token_expires_at": "2030-02-01T00:00:00Z"
+    }
+  },
+  "cases": [
+    {
+      "id": "login-success",
+      "operation": "login",
+      "base": "success",
+      "changes": [],
+      "expected": "success"
+    },
+    {
+      "id": "challenge-success",
+      "operation": "login",
+      "base": "challenge",
+      "changes": [],
+      "expected": "challenge"
+    },
+    {
+      "id": "completion-success",
+      "operation": "completion",
+      "base": "success",
+      "changes": [],
+      "expected": "success"
+    },
+    {
+      "id": "refresh-success",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [],
+      "expected": "success"
+    },
+    {
+      "id": "completion-without-flag",
+      "operation": "completion",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "two_factor_required"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "success"
+    },
+    {
+      "id": "login-without-flag",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "two_factor_required"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "login-flag-string",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "two_factor_required"
+          ],
+          "value": "false"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "completion-flag-string",
+      "operation": "completion",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "two_factor_required"
+          ],
+          "value": "false"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "login-flag-number",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "two_factor_required"
+          ],
+          "value": 0
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "completion-flag-number",
+      "operation": "completion",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "two_factor_required"
+          ],
+          "value": 0
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "login-flag-null",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "two_factor_required"
+          ],
+          "value": null
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "completion-flag-null",
+      "operation": "completion",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "two_factor_required"
+          ],
+          "value": null
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "completion-is-challenge",
+      "operation": "completion",
+      "base": "challenge",
+      "changes": [],
+      "expected": "reject"
+    },
+    {
+      "id": "challenge-missing-challenge_id",
+      "operation": "login",
+      "base": "challenge",
+      "changes": [
+        {
+          "path": [
+            "challenge_id"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "challenge-missing-account",
+      "operation": "login",
+      "base": "challenge",
+      "changes": [
+        {
+          "path": [
+            "account"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "challenge-missing-expires_at",
+      "operation": "login",
+      "base": "challenge",
+      "changes": [
+        {
+          "path": [
+            "expires_at"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "identity-zero",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": 0
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "identity-negative",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": -1
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "identity-fraction",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": 1.5
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "identity-unsafe",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": 9007199254740992
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "identity-string",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "user_id"
+          ],
+          "value": "1"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "identity-empty-name",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "user",
+            "username"
+          ],
+          "value": " "
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "login-missing-session_id",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "tokens",
+            "session_id"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "refresh-missing-session_id",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "session_id"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "login-missing-access_token",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "tokens",
+            "access_token"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "refresh-missing-access_token",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "login-missing-refresh_token",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "tokens",
+            "refresh_token"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "refresh-missing-refresh_token",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "refresh_token"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "login-missing-access_token_expires_at",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "tokens",
+            "access_token_expires_at"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "refresh-missing-access_token_expires_at",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "login-missing-refresh_token_expires_at",
+      "operation": "login",
+      "base": "success",
+      "changes": [
+        {
+          "path": [
+            "tokens",
+            "refresh_token_expires_at"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "refresh-missing-refresh_token_expires_at",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "refresh_token_expires_at"
+          ],
+          "remove": true
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-day",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-02-30T00:00:00Z"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-month",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-13-01T00:00:00Z"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-hour",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-01-01T24:00:00Z"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-minute",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-01-01T00:60:00Z"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-second",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:60Z"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-zone",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00+24:00"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-naive",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-equal",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "refresh_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00Z"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-reversed",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "refresh_token_expires_at"
+          ],
+          "value": "2029-01-01T00:00:00Z"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "expiry-offset-and-leap",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2028-02-29T01:00:00+01:00"
+        },
+        {
+          "path": [
+            "refresh_token_expires_at"
+          ],
+          "value": "2028-02-29T01:00:01+01:00"
+        }
+      ],
+      "expected": "success"
+    },
+    {
+      "id": "expiry-microsecond-order",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00.000001Z"
+        },
+        {
+          "path": [
+            "refresh_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00.000002Z"
+        }
+      ],
+      "expected": "success"
+    },
+    {
+      "id": "expiry-nine-digit-precision",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00.123456789Z"
+        },
+        {
+          "path": [
+            "refresh_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00.123457Z"
+        }
+      ],
+      "expected": "success"
+    },
+    {
+      "id": "expiry-submicrosecond-equal",
+      "operation": "refresh",
+      "base": "refresh",
+      "changes": [
+        {
+          "path": [
+            "access_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00.123456001Z"
+        },
+        {
+          "path": [
+            "refresh_token_expires_at"
+          ],
+          "value": "2030-01-01T00:00:00.123456999Z"
+        }
+      ],
+      "expected": "reject"
+    },
+    {
+      "id": "invalid-challenge-date",
+      "operation": "login",
+      "base": "challenge",
+      "changes": [
+        {
+          "path": [
+            "expires_at"
+          ],
+          "value": "2030-02-29T00:00:00Z"
+        }
+      ],
+      "expected": "reject"
+    }
+  ]
+}

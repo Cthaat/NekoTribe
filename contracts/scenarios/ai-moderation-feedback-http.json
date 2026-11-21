@@ -1,0 +1,23 @@
+{
+  "id": "AI-MODERATION-FEEDBACK-HTTP",
+  "revision": 1,
+  "conversationId": "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb",
+  "messageId": "e7dd4d7f-8462-45b6-9bf4-a630d0ba7478",
+  "cases": [
+    {"id":"save","condition":"current","body":"{\"rating\":\"helpful\"}","http":200,"rating":"helpful"},
+    {"id":"change","condition":"current","body":"{\"rating\":\"incorrect\"}","http":200,"rating":"incorrect"},
+    {"id":"replay","condition":"replay","body":"{\"rating\":\"insufficient\"}","http":200,"rating":"insufficient"},
+    {"id":"anonymous","condition":"anonymous","body":"{\"rating\":\"helpful\"}","http":401},
+    {"id":"forbidden","condition":"forbidden","body":"{\"rating\":\"helpful\"}","http":403},
+    {"id":"not-owner","condition":"not_owner","body":"{\"rating\":\"helpful\"}","http":404},
+    {"id":"not-message","condition":"not_message","body":"{\"rating\":\"helpful\"}","http":404},
+    {"id":"invalid-message-id","condition":"invalid_id","body":"{\"rating\":\"helpful\"}","http":404},
+    {"id":"redacted","condition":"redacted","body":"{\"rating\":\"helpful\"}","http":409},
+    {"id":"source-changed-before-commit","condition":"changed","body":"{\"rating\":\"helpful\"}","http":409},
+    {"id":"schema-unavailable","condition":"old_schema","body":"{\"rating\":\"helpful\"}","http":503},
+    {"id":"duplicate-rating","condition":"invalid","body":"{\"rating\":\"helpful\",\"rating\":\"incorrect\"}","http":400},
+    {"id":"unknown-rating","condition":"invalid","body":"{\"rating\":\"approved\"}","http":400},
+    {"id":"extra-content","condition":"invalid","body":"{\"rating\":\"helpful\",\"content\":\"case notes\"}","http":400},
+    {"id":"array","condition":"invalid","body":"[\"helpful\"]","http":400}
+  ]
+}

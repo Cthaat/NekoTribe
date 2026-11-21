@@ -1,0 +1,17 @@
+{
+  "actions": [
+    "not_interested",
+    "show_less"
+  ],
+  "schema": "SELECT table_name FROM user_tables WHERE table_name = 'N_RECOMMENDATION_FEEDBACK'",
+  "lockActor": "SELECT user_id FROM n_users WHERE user_id = :actor_id AND is_active = 1 FOR UPDATE",
+  "targets": {
+    "post": "SELECT p.post_id AS resource_id FROM n_posts p WHERE p.post_id = :resource_id AND p.is_deleted = 0 AND fn_can_view_post(:actor_id, p.post_id) = 1",
+    "user": "SELECT u.user_id AS resource_id FROM n_users u LEFT JOIN n_user_settings s ON s.user_id = u.user_id\nWHERE u.user_id = :resource_id AND u.is_active = 1\nAND (u.user_id = :actor_id OR (COALESCE(s.profile_visibility, 'public') = 'public' AND NOT EXISTS (\n  SELECT 1 FROM n_user_blocks b WHERE (b.user_id = :actor_id AND b.target_user_id = u.user_id)\n  OR (b.user_id = u.user_id AND b.target_user_id = :actor_id)\n)))",
+    "group": "SELECT g.group_id AS resource_id FROM n_groups g\nWHERE g.group_id = :resource_id AND g.is_active = 1 AND g.is_deleted = 0\nAND (g.privacy = 'public' OR EXISTS (\n  SELECT 1 FROM n_group_members m WHERE m.group_id = g.group_id AND m.user_id = :actor_id AND m.status = 'active'\n))",
+    "tag": "SELECT tag_id AS resource_id FROM n_tags WHERE tag_id = :resource_id"
+  },
+  "save": "MERGE INTO n_recommendation_feedback f USING (\n  SELECT :actor_id AS user_id, :resource_type AS resource_type, :resource_id AS resource_id,\n    :action AS action, CAST(:reason AS VARCHAR2(500)) AS reason FROM dual\n) s ON (f.user_id = s.user_id AND f.resource_type = s.resource_type AND f.resource_id = s.resource_id)\nWHEN MATCHED THEN UPDATE SET\n  f.updated_at = CASE WHEN f.action <> s.action OR NVL(f.reason, CHR(0)) <> NVL(s.reason, CHR(0))\n    THEN CURRENT_TIMESTAMP ELSE f.updated_at END,\n  f.action = s.action, f.reason = s.reason\nWHEN NOT MATCHED THEN INSERT (user_id, resource_type, resource_id, action, reason)\nVALUES (s.user_id, s.resource_type, s.resource_id, s.action, s.reason)",
+  "feedFilter": "AND NOT EXISTS (\n  SELECT 1 FROM n_recommendation_feedback rf\n  WHERE rf.user_id = :viewer_id AND rf.resource_type = 'post' AND rf.resource_id = v.post_id AND rf.action = 'not_interested'\n)",
+  "feedOrder": "CASE WHEN EXISTS (\n  SELECT 1 FROM n_recommendation_feedback rf JOIN n_posts fp ON fp.post_id = rf.resource_id\n  WHERE rf.user_id = :viewer_id AND rf.resource_type = 'post' AND rf.action = 'show_less' AND fp.author_id = v.author_id\n) THEN 1 ELSE 0 END"
+}

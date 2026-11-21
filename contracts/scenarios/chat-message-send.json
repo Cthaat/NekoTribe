@@ -1,0 +1,48 @@
+{
+  "id": "CHAT-MESSAGE-SEND",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "text-send",
+      "status": 200
+    },
+    {
+      "id": "attachment-only-preserves-order",
+      "status": 200,
+      "media_ids": [
+        9,
+        7
+      ]
+    },
+    {
+      "id": "duplicate-attachment",
+      "status": 400
+    },
+    {
+      "id": "cross-channel-reply",
+      "status": 400
+    },
+    {
+      "id": "media-not-owned-or-ready",
+      "status": 400
+    },
+    {
+      "id": "muted-or-announcement-non-manager",
+      "status": 403
+    },
+    {
+      "id": "attachment-write-failure",
+      "status": 500,
+      "commit": false,
+      "publish": false
+    },
+    {
+      "id": "commit-then-viewer-neutral-broadcast",
+      "status": 200
+    },
+    {
+      "id": "redis-unavailable-after-commit",
+      "status": 200
+    }
+  ]
+}

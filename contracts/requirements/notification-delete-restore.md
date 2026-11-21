@@ -6,4 +6,6 @@
 
 恢复按用户和通知 ID 清空 `deleted_at`，不要求此前必须已删除；零行返回相同 404。成功返回 `{notification_id,deleted_at:null}` 并发布 `notification_restored`，事件数据与返回数据相同。每次成功恢复均发送事件，包括重复恢复。数据库更新、删除后读取与 Redis 事件并非一个原子操作；读取失败可能发生在删除已提交之后，Redis 失败只降级实时推送。
 
+Nuxt Web 和 Flutter 以规定的删除响应信封确认删除，以返回的通知 ID 及显式的 deleted_at null 确认恢复。回执缺失或与请求不符时按失败处理，并且只在当前账号及后端仍有效时重新读取收件箱。
+
 真实 Oracle 日期与时区、自动提交、并发恢复和删除、跨实例 Redis 事件，以及 Nuxt Web 和 Flutter 联调尚待隔离环境验收。

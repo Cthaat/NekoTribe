@@ -1,0 +1,9 @@
+{
+  "sql": {
+    "lock": "SELECT user_id FROM n_users WHERE user_id = :user_id FOR UPDATE",
+    "restore": "UPDATE n_users SET status = 'active', is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND status = 'suspended' AND is_active = 0 AND EXISTS (SELECT 1 FROM n_moderation_user_restrictions r WHERE r.user_id = n_users.user_id AND r.restriction_type = 'ban' AND r.status = 'active' AND r.starts_at <= CURRENT_TIMESTAMP AND r.ends_at <= CURRENT_TIMESTAMP) AND NOT EXISTS (SELECT 1 FROM n_moderation_user_restrictions r WHERE r.user_id = n_users.user_id AND r.restriction_type = 'ban' AND r.status = 'active' AND (r.starts_at > CURRENT_TIMESTAMP OR r.ends_at IS NULL OR r.ends_at > CURRENT_TIMESTAMP))",
+    "expire": "UPDATE n_moderation_user_restrictions SET status = 'expired' WHERE user_id = :user_id AND restriction_type = 'ban' AND status = 'active' AND starts_at <= CURRENT_TIMESTAMP AND ends_at <= CURRENT_TIMESTAMP",
+    "candidates": "SELECT user_id FROM n_users WHERE status = 'suspended' AND is_active = 0 AND EXISTS (SELECT 1 FROM n_moderation_user_restrictions r WHERE r.user_id = n_users.user_id AND r.restriction_type = 'ban' AND r.status = 'active' AND r.starts_at <= CURRENT_TIMESTAMP AND r.ends_at <= CURRENT_TIMESTAMP) AND NOT EXISTS (SELECT 1 FROM n_moderation_user_restrictions r WHERE r.user_id = n_users.user_id AND r.restriction_type = 'ban' AND r.status = 'active' AND (r.starts_at > CURRENT_TIMESTAMP OR r.ends_at IS NULL OR r.ends_at > CURRENT_TIMESTAMP)) ORDER BY user_id FETCH FIRST 100 ROWS ONLY"
+  },
+  "intervalSeconds": 60
+}

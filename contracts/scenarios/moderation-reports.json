@@ -1,0 +1,291 @@
+{
+  "id": "MODERATION-REPORTS",
+  "cases": [
+    {
+      "id": "anonymous",
+      "method": "GET",
+      "path": "/api/v2/moderation/reports",
+      "status": 401
+    },
+    {
+      "id": "denied",
+      "method": "GET",
+      "path": "/api/v2/moderation/reports",
+      "status": 403,
+      "denied": true
+    },
+    {
+      "id": "empty-page",
+      "method": "GET",
+      "path": "/api/v2/moderation/reports?status=unknown&reason=spam&target_type=group_post&page=2&page_size=2",
+      "status": 200,
+      "meta": {
+        "page": 2,
+        "page_size": 2,
+        "total": 2,
+        "has_next": false
+      }
+    },
+    {
+      "id": "invalid-id",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/0",
+      "status": 400,
+      "body": {
+        "status": "pending"
+      }
+    },
+    {
+      "id": "missing-status",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/12",
+      "status": 400,
+      "body": {}
+    },
+    {
+      "id": "invalid-status",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/12",
+      "status": 400,
+      "body": {
+        "status": "unknown"
+      }
+    },
+    {
+      "id": "missing-report",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/99",
+      "status": 404,
+      "body": {
+        "status": "resolved"
+      }
+    },
+    {
+      "id": "resolve",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/12",
+      "status": 200,
+      "body": {
+        "status": " resolved "
+      },
+      "expectStatus": "resolved"
+    },
+    {
+      "id": "repeat",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/12",
+      "status": 200,
+      "body": {
+        "status": "resolved"
+      },
+      "expectStatus": "resolved"
+    },
+    {
+      "id": "reopen",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/12",
+      "status": 200,
+      "body": {
+        "status": "pending"
+      },
+      "expectStatus": "pending"
+    },
+    {
+      "id": "readback-failure",
+      "method": "PATCH",
+      "path": "/api/v2/moderation/reports/13",
+      "status": 500,
+      "body": {
+        "status": "resolved"
+      }
+    },
+    {
+      "id": "submit-anonymous",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 401,
+      "body": {
+        "target_type": "post",
+        "target_id": 30,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-type-invalid",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "target_type": "posts",
+        "target_id": 30,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-id-invalid",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "target_type": "post",
+        "target_id": 2.5,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-id-unsafe",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "target_type": "post",
+        "target_id": "9007199254740992",
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-reason-invalid",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "target_type": "post",
+        "target_id": 30,
+        "reason": null,
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-priority-invalid",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "target_type": "post",
+        "target_id": 30,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30",
+        "priority": "medium"
+      }
+    },
+    {
+      "id": "submit-description-invalid",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "target_type": "post",
+        "target_id": 30,
+        "reason": "spam",
+        "description": {
+          "bad": true
+        },
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-link-invalid",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "target_type": "post",
+        "target_id": 30,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "//example.test/tweet"
+      }
+    },
+    {
+      "id": "submit-self",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 403,
+      "body": {
+        "target_type": "user",
+        "target_id": 42,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-hidden",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 404,
+      "body": {
+        "target_type": "post",
+        "target_id": 99,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-first",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 200,
+      "body": {
+        "target_type": "post",
+        "target_id": 30,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      },
+      "reportId": 15
+    },
+    {
+      "id": "submit-identical",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 200,
+      "body": {
+        "target_type": "post",
+        "target_id": "30",
+        "reason": "spam",
+        "description": "Detail",
+        "evidence_url": "/tweet/30",
+        "priority": "normal"
+      },
+      "reportId": 15
+    },
+    {
+      "id": "submit-conflict",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 409,
+      "body": {
+        "target_type": "post",
+        "target_id": 30,
+        "reason": "hate",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    },
+    {
+      "id": "submit-rollback",
+      "path": "/api/v2/reports",
+      "method": "POST",
+      "status": 500,
+      "body": {
+        "target_type": "post",
+        "target_id": 13,
+        "reason": "spam",
+        "description": " Detail ",
+        "evidence_url": "/tweet/30"
+      }
+    }
+  ]
+}

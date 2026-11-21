@@ -1,0 +1,454 @@
+{
+  "id": "AI-GROUP-DRAFT",
+  "revision": 5,
+  "evidence": {
+    "window_start": "2026-11-10T12:00:00.000000",
+    "window_end": "2026-11-17T12:00:00.000000",
+    "posts_count": 1,
+    "comments_count": 0,
+    "examples": [
+      {
+        "kind": "post",
+        "source_id": 10,
+        "post_id": 10,
+        "excerpt": "公开资料<&🐱"
+      }
+    ]
+  },
+  "digest": "6394307eb9baf7be615754e1caec31cc21f7cae441204e3d69fe7a02a48eb53b",
+  "cases": [
+    {
+      "id": "admin-keeps-search",
+      "body": "{\"kind\":\"faq\",\"expected_sequence\":0,\"search_term\":\"活动报名\"}",
+      "http": 200,
+      "status": "generated",
+      "condition": "admin_search",
+      "loads": 2,
+      "inferences": 2,
+      "reservations": 1
+    },
+    {
+      "id": "admin-rejects-model-replacement",
+      "body": "{\"kind\":\"faq\",\"expected_sequence\":0,\"search_term\":\"活动报名\"}",
+      "http": 503,
+      "loads": 1,
+      "inferences": 1,
+      "reservations": 1,
+      "tools": [
+        {
+          "id": "terms",
+          "name": "public_search",
+          "arguments": {
+            "search_term": "不同关键词"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin-rejects-null-search",
+      "body": "{\"kind\":\"faq\",\"expected_sequence\":0,\"search_term\":null}",
+      "http": 400,
+      "loads": 0,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "focused-search",
+      "body": "{\"kind\":\"faq\",\"expected_sequence\":0}",
+      "http": 200,
+      "status": "generated",
+      "condition": "focused_search",
+      "loads": 2,
+      "inferences": 2,
+      "reservations": 1,
+      "tools": [
+        {
+          "id": "terms",
+          "name": "public_search",
+          "arguments": {
+            "search_term": "活动报名"
+          }
+        }
+      ]
+    },
+    {
+      "id": "statistics-rejects-terms",
+      "body": "{\"kind\":\"faq\",\"expected_sequence\":0}",
+      "http": 503,
+      "loads": 1,
+      "inferences": 1,
+      "reservations": 1,
+      "tools": [
+        {
+          "id": "sources",
+          "name": "public_search",
+          "arguments": {}
+        },
+        {
+          "id": "stats",
+          "name": "public_statistics",
+          "arguments": {
+            "search_term": "报名"
+          }
+        }
+      ]
+    },
+    {
+      "id": "search-rejects-untrimmed-term",
+      "body": "{\"kind\":\"faq\",\"expected_sequence\":0}",
+      "http": 503,
+      "loads": 1,
+      "inferences": 1,
+      "reservations": 1,
+      "tools": [
+        {
+          "id": "sources",
+          "name": "public_search",
+          "arguments": {
+            "search_term": " 报名"
+          }
+        }
+      ]
+    },
+    {
+      "id": "needs-auth",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 401,
+      "condition": "anonymous",
+      "loads": 0,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "wrong-purpose",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 400,
+      "condition": "wrong_purpose",
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "denied-group",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 403,
+      "condition": "forbidden",
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "skill-disabled",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "skill_unavailable",
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "empty-evidence",
+      "body": "{\"kind\":\"faq\",\"expected_sequence\":0}",
+      "http": 200,
+      "status": "insufficient_evidence",
+      "condition": "empty",
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "generated",
+      "body": "{\"kind\":\"announcement\",\"expected_sequence\":0}",
+      "http": 200,
+      "status": "generated",
+      "condition": "success",
+      "loads": 2,
+      "inferences": 2,
+      "reservations": 1
+    },
+    {
+      "id": "activity-plan-generated",
+      "body": "{\"kind\":\"activity_plan\",\"expected_sequence\":0}",
+      "http": 200,
+      "status": "generated",
+      "condition": "success",
+      "loads": 2,
+      "inferences": 2,
+      "reservations": 1
+    },
+    {
+      "id": "changed-on-commit",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 409,
+      "condition": "changed",
+      "loads": 2,
+      "inferences": 2,
+      "reservations": 1
+    },
+    {
+      "id": "tool-proposal",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "tool_call",
+      "loads": 1,
+      "inferences": 1,
+      "tools": [
+        {
+          "id": "publish",
+          "name": "publish",
+          "arguments": {}
+        }
+      ],
+      "reservations": 1
+    },
+    {
+      "id": "explicit-group-brief",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0,\"skill_id\":\"group-brief\"}",
+      "http": 200,
+      "condition": "success",
+      "status": "generated",
+      "loads": 2,
+      "inferences": 2,
+      "reservations": 1
+    },
+    {
+      "id": "wrong-purpose-skill",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0,\"skill_id\":\"writing-draft\"}",
+      "http": 400,
+      "condition": "invalid",
+      "loads": 0,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "duplicate-skill",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0,\"skill_id\":null,\"skill_id\":\"group-brief\"}",
+      "http": 400,
+      "condition": "invalid",
+      "loads": 0,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "unknown-kind",
+      "body": "{\"kind\":\"daily\",\"expected_sequence\":0}",
+      "http": 400,
+      "condition": "invalid",
+      "loads": 0,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "duplicate-member",
+      "body": "{\"kind\":\"faq\",\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 400,
+      "condition": "invalid",
+      "loads": 0,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "scope-field",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0,\"group_id\":9}",
+      "http": 400,
+      "condition": "invalid",
+      "loads": 0,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "examples-only",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 200,
+      "condition": "examples_only",
+      "loads": 2,
+      "inferences": 2,
+      "tools": [
+        {
+          "id": "examples",
+          "name": "public_search",
+          "arguments": {}
+        }
+      ],
+      "status": "generated",
+      "reservations": 1
+    },
+    {
+      "id": "no-tool-call",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "no_tool",
+      "loads": 1,
+      "inferences": 1,
+      "tools": [],
+      "reservations": 1
+    },
+    {
+      "id": "custom-group-argument",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "bad_arguments",
+      "loads": 1,
+      "inferences": 1,
+      "tools": [
+        {
+          "id": "examples",
+          "name": "public_search",
+          "arguments": {
+            "group_id": 999
+          }
+        }
+      ],
+      "reservations": 1
+    },
+    {
+      "id": "duplicate-tool",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "duplicate_tool",
+      "loads": 1,
+      "inferences": 1,
+      "tools": [
+        {
+          "id": "examples",
+          "name": "public_search",
+          "arguments": {}
+        },
+        {
+          "id": "another",
+          "name": "public_search",
+          "arguments": {}
+        }
+      ],
+      "reservations": 1
+    },
+    {
+      "id": "statistics-only",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "statistics_only",
+      "loads": 1,
+      "inferences": 1,
+      "tools": [
+        {
+          "id": "statistics",
+          "name": "public_statistics",
+          "arguments": {}
+        }
+      ],
+      "reservations": 1
+    },
+    {
+      "id": "extra-round",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "continued_tool",
+      "loads": 2,
+      "inferences": 2,
+      "reservations": 1
+    },
+    {
+      "id": "permission-revoked-after-proposal",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 403,
+      "condition": "revoked_after_proposal",
+      "loads": 2,
+      "inferences": 1,
+      "reservations": 1
+    },
+    {
+      "id": "skill-generation-changed",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 409,
+      "condition": "skill_changed",
+      "loads": 2,
+      "inferences": 1,
+      "reservations": 1
+    },
+    {
+      "id": "public-evidence-disappeared",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 200,
+      "condition": "evidence_gone",
+      "loads": 2,
+      "inferences": 1,
+      "status": "insufficient_evidence",
+      "reservations": 1
+    },
+    {
+      "id": "model-without-tool-support",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "tools_unsupported",
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "tool-schema-budget",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "low_budget",
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "trim-oldest-excerpts-to-budget",
+      "condition": "trimmed",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 200,
+      "status": "generated",
+      "loads": 2,
+      "inferences": 2,
+      "reservations": 1
+    },
+    {
+      "id": "skill-missing-tool-grant",
+      "body": "{\"kind\":\"faq\",\"expected_sequence\":0}",
+      "http": 503,
+      "condition": "missing_tool_grant",
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 0
+    },
+    {
+      "id": "group-quota-exhausted",
+      "condition": "quota_exhausted",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 429,
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 1,
+      "retryAfter": 30
+    },
+    {
+      "id": "group-quota-unavailable",
+      "condition": "quota_unavailable",
+      "body": "{\"kind\":\"weekly_report\",\"expected_sequence\":0}",
+      "http": 503,
+      "loads": 1,
+      "inferences": 0,
+      "reservations": 1
+    }
+  ],
+  "defaultTools": [
+    {
+      "id": "statistics",
+      "name": "public_statistics",
+      "arguments": {}
+    },
+    {
+      "id": "examples",
+      "name": "public_search",
+      "arguments": {}
+    }
+  ],
+  "bulk": {
+    "sampleCount": 8,
+    "excerpt": "公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开公开<&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&><&>\u2028\u2029",
+    "context": 5502,
+    "sampleUsed": 3,
+    "digest": "54c0daf16ba5e1d8b6b91a83c15a971d546d9c76506497c78c8d423b405935aa"
+  }
+}

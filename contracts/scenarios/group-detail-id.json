@@ -1,0 +1,30 @@
+{
+  "id": "GROUP-DETAIL-ID",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "invalid-path-value",
+      "status": 400
+    },
+    {
+      "id": "soft-deleted-or-missing",
+      "status": 404
+    },
+    {
+      "id": "authenticated-detail",
+      "status": 200
+    },
+    {
+      "id": "viewer-specific-membership",
+      "status": 200
+    },
+    {
+      "id": "missing-owner",
+      "status": 404
+    }
+  ]
+}

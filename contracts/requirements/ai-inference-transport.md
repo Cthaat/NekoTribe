@@ -26,7 +26,9 @@ baseUrl 是 API 基地址，移除尾随 `/` 后追加路径，保留现有前�
 | adapter | 追加路径 | 必需 JSON |
 | --- | --- | --- |
 | openai-compatible | /chat/completions | model、messages、stream:false、n:1、max_tokens=快照 maxOutputTokens |
-| ollama | /api/chat | model、messages、stream:false、options:{num_predict:maxOutputTokens,num_ctx:contextWindowTokens} |
+| ollama | /api/chat | model、messages、stream:false、think:false、options:{num_predict:maxOutputTokens,num_ctx:contextWindowTokens} |
+
+Ollama 请求关闭思考输出，把 `num_predict` 预算留给正文、工具调用或结构化结果。隔离验收使用 Qwen 3.5 4B 复现了默认思考耗尽输出预算并返回空正文。
 
 有工具时两者 tools 都编码为 `{type:"function",function:{name,description,parameters}}`。有 responseSchema 时 Ollama 使用 `format:schema`；OpenAI 兼容使用 `response_format:{type:"json_schema",json_schema:{name:"output",strict:true,schema}}`。不同引擎/模型可能不接受这些能力或 schema；拒绝须返回安全错误，不降级为普通文本成功。本切片不声称覆盖所有云厂商扩展参数。
 

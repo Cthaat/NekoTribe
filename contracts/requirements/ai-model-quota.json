@@ -1,0 +1,10 @@
+{
+  "id": "AI-MODEL-QUOTA",
+  "revision": 1,
+  "keyPrefix": "neko:ai:quota:v1:{ai-quota}",
+  "windowMilliseconds": 60000,
+  "actorLimit": 20,
+  "serviceLimit": 120,
+  "maxLimit": 100000,
+  "lua": "local cost = tonumber(ARGV[1])\nlocal actor_limit = tonumber(ARGV[2])\nlocal service_limit = tonumber(ARGV[3])\nlocal window = tonumber(ARGV[4])\nlocal maximum = tonumber(ARGV[5])\n\nlocal function read_counter(key)\n  local ttl = redis.call('PTTL', key)\n  if ttl == -2 then return 0, ttl end\n  local raw = redis.call('GET', key)\n  local count = raw and tonumber(raw)\n  if ttl < 0 or ttl > window or not count or count < 1 or count > maximum\n    or count ~= math.floor(count) or raw ~= tostring(count) then\n    return nil, ttl\n  end\n  return count, ttl\nend\n\nif KEYS[1] == KEYS[2] or not cost or cost < 1 or cost > 2 or cost ~= math.floor(cost)\n  or not actor_limit or not service_limit or not window or not maximum\n  or actor_limit < 2 or service_limit < 2 or actor_limit > maximum or service_limit > maximum then\n  return redis.error_reply('invalid AI quota request')\nend\nlocal actor, actor_ttl = read_counter(KEYS[1])\nlocal service, service_ttl = read_counter(KEYS[2])\nif not actor or not service then\n  return redis.error_reply('invalid AI quota state')\nend\n\nlocal retry = -1\nif actor + cost > actor_limit then retry = math.max(retry, actor_ttl) end\nif service + cost > service_limit then retry = math.max(retry, service_ttl) end\nif retry >= 0 then return math.max(1, math.ceil(retry / 1000)) end\n\nlocal function reserve(key, ttl)\n  if ttl == -2 then\n    redis.call('SET', key, tostring(cost), 'PX', window)\n  else\n    redis.call('INCRBY', key, cost)\n  end\nend\nreserve(KEYS[1], actor_ttl)\nreserve(KEYS[2], service_ttl)\nreturn 0"
+}

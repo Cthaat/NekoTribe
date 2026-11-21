@@ -1,0 +1,7 @@
+{
+  "lockConversation": "SELECT CASE WHEN user_low_id = :user_id THEN user_high_id ELSE user_low_id END AS recipient FROM n_direct_conversations WHERE conversation_id = :conversation_id AND is_deleted = 0 AND (user_low_id = :user_id OR user_high_id = :user_id) FOR UPDATE",
+  "lockMessage": "SELECT sender_id, is_deleted FROM n_direct_messages WHERE conversation_id = :conversation_id AND message_id = :message_id FOR UPDATE",
+  "deleteMessage": "UPDATE n_direct_messages SET is_deleted = 1, deleted_by = :user_id, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE conversation_id = :conversation_id AND message_id = :message_id AND sender_id = :user_id AND is_deleted = 0",
+  "refreshConversation": "UPDATE n_direct_conversations c SET (last_message_id, last_message_at, message_count) = (SELECT MAX(m.message_id) KEEP (DENSE_RANK LAST ORDER BY m.created_at, m.message_id), MAX(m.created_at), COUNT(*) FROM n_direct_messages m WHERE m.conversation_id = c.conversation_id AND m.is_deleted = 0), updated_at = CURRENT_TIMESTAMP WHERE c.conversation_id = :conversation_id",
+  "redactNotification": "UPDATE n_notifications SET message = '私信已删除' WHERE type = 'direct_message' AND resource_type = 'direct_message' AND resource_id = :message_id AND actor_id = :user_id"
+}

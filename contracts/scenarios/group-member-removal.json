@@ -1,0 +1,12 @@
+{
+  "id": "GROUP-MEMBER-REMOVAL",
+  "revision": 2,
+  "cases": [
+    { "id": "unauthenticated", "status": 401 },
+    { "id": "unsafe-id", "status": 400 },
+    { "id": "remove-lower-ranked-muted-member", "status": 200 },
+    { "id": "owner-peer-self-or-banned-preserved", "status": 422 },
+    { "id": "missing-member-or-group", "status": 404 },
+    { "id": "audit-failure-rolls-back", "status": 500 }
+  ]
+}

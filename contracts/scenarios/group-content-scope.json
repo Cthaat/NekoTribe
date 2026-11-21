@@ -1,0 +1,16 @@
+{
+  "id": "GROUP-CONTENT-SCOPE",
+  "revision": 1,
+  "cases": [
+    {"id":"malformed-or-unsafe-path-id","status":400},
+    {"id":"dissolved-or-invisible-group","status":404},
+    {"id":"post-belongs-to-another-group","status":404},
+    {"id":"comment-belongs-to-another-post","status":404},
+    {"id":"parent-comment-belongs-to-another-post","status":404},
+    {"id":"resource-deleted","status":404},
+    {"id":"insufficient-content-privilege","status":422},
+    {"id":"same-scope-mutation","status":200},
+    {"id":"repeat-like-or-unlike","status":200},
+    {"id":"write-failure-rolls-back","status":500}
+  ]
+}

@@ -2,37 +2,37 @@
   "schemaVersion": 2,
   "authority": "Nuxt doc/v2.openapi.json",
   "contractVersion": "2.0.0",
-  "revision": "2026-10-30-ai-terms-citations-preview",
+  "revision": "2026-11-19-media-storage-unavailable",
   "normalization": "UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.",
   "source": {
     "project": "nuxt",
     "branch": "master",
-    "commit": "cdc97591da7692bf9ea0e7725342ae886bee49f5"
+    "commit": "88c3f1362f0ba0e5b71491382c3372e07a9484bd"
   },
   "files": [
     {
       "path": "v2.openapi.json",
       "sourcePath": "doc/v2.openapi.json",
-      "sha256": "83cc7cd8610143d7bc0430dcaa89661d121fc3acf8303cc868c663fac24b553a",
-      "gitBlob": "e9ab871717206d78b9b8e060774e3683cb137a03",
+      "sha256": "786d3c714aab2ebf16abc356ae077109436040533dc7136e5b256c6290172b36",
+      "gitBlob": "66391b2ebf0b4410b7d8a244aea0887c0a073a90",
       "committedSource": {
-        "commit": "cdc97591da7692bf9ea0e7725342ae886bee49f5",
+        "commit": "88c3f1362f0ba0e5b71491382c3372e07a9484bd",
         "gitBlob": "e9ab871717206d78b9b8e060774e3683cb137a03",
         "sha256": "83cc7cd8610143d7bc0430dcaa89661d121fc3acf8303cc868c663fac24b553a"
       },
-      "differsFromCommittedSource": false
+      "differsFromCommittedSource": true
     },
     {
       "path": "runtime-addresses.md",
       "sourcePath": "doc/runtime-addresses.md",
-      "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7",
-      "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
+      "sha256": "eee953ed96ddb7db9f36871362b81527dc31456fe5ef7b13ad73b27eacd2aa1f",
+      "gitBlob": "b423b7a4c7fb274e888ae4b8f7ac7560259c4f7c",
       "committedSource": {
-        "commit": "cdc97591da7692bf9ea0e7725342ae886bee49f5",
+        "commit": "88c3f1362f0ba0e5b71491382c3372e07a9484bd",
         "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
         "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7"
       },
-      "differsFromCommittedSource": false
+      "differsFromCommittedSource": true
     }
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "id": "GROUP-INVITE-INBOX",
+  "revision": 3,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"only-valid-current-user-invites","status":200},
+    {"id":"ties-and-out-of-range-total","status":200},
+    {"id":"filter-visible-invite","query":"invite_id=1","status":200,"total":1},
+    {"id":"filter-unavailable-invite","query":"invite_id=3","status":200,"total":0},
+    {"id":"filter-invalid-id","query":"invite_id=01","status":400},
+    {"id":"filter-duplicate-id","query":"invite_id=1&invite_id=1","status":400}
+  ]
+}

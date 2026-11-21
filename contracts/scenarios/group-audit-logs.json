@@ -1,0 +1,30 @@
+{
+  "id": "GROUP-AUDIT-LOGS",
+  "revision": 3,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "unsafe-id",
+      "status": 400
+    },
+    {
+      "id": "inactive-dissolved-or-missing",
+      "status": 404
+    },
+    {
+      "id": "viewer-not-active-manager",
+      "status": 422
+    },
+    {
+      "id": "stable-order-and-empty-page-total",
+      "status": 200
+    },
+    {
+      "id": "unavailable-profile-retains-id",
+      "status": 200
+    }
+  ]
+}

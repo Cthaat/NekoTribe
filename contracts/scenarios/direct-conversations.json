@@ -1,0 +1,20 @@
+{
+  "id": "DIRECT-CONVERSATIONS",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "list-authentication",
+      "method": "GET",
+      "authenticated": false,
+      "status": 401
+    },
+    {
+      "id": "list-viewer-pagination",
+      "method": "GET",
+      "viewer": 42,
+      "page": 2,
+      "pageSize": 2,
+      "status": 200
+    }
+  ]
+}

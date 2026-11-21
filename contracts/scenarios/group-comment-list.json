@@ -1,0 +1,15 @@
+{
+  "id": "GROUP-COMMENT-LIST",
+  "revision": 3,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"invalid-sort-or-post-id","status":400},
+    {"id":"hidden-group-or-invalid-post-scope","status":404},
+    {"id":"reply-author-viewer-like-and-deletion-right","status":200},
+    {"id":"oldest-newest-popular-stable-order","status":200},
+    {"id":"empty-or-overflow-page","status":200},
+    {"id":"exact-comment-stays-within-post-and-visibility","status":200},
+    {"id":"exact-comment-rejects-invalid-or-duplicate-id","status":400},
+    {"id":"blocked-or-inactive-author-is-excluded-from-list-and-total","status":200}
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "GROUP-COMMENT-LIKE",
+  "revision": 3,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "deleted-or-cross-post",
+      "status": 404
+    },
+    {
+      "id": "repeat-like-keeps-count",
+      "status": 200
+    },
+    {
+      "id": "write-failure",
+      "status": 500
+    },
+    {
+      "id": "hidden-author-before-write",
+      "status": 404
+    },
+    {
+      "id": "visibility-lost-before-commit-rolls-back",
+      "status": 404
+    }
+  ]
+}

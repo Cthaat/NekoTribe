@@ -1,0 +1,14 @@
+{
+  "settings": {
+    "auto_hide_report_threshold": "number",
+    "require_note_on_reject": "boolean",
+    "allow_moderator_claim": "boolean",
+    "default_mute_hours": "number"
+  },
+  "maxNumber": 9007199254740991,
+  "sql": {
+    "stats": "SELECT\n      (SELECT COUNT(*) FROM n_moderation_cases WHERE status = 'pending') AS pending,\n      (SELECT COUNT(*) FROM n_moderation_cases WHERE status = 'approved') AS approved,\n      (SELECT COUNT(*) FROM n_moderation_cases WHERE status = 'rejected') AS rejected,\n      (SELECT COUNT(*) FROM n_moderation_cases WHERE status = 'flagged') AS flagged,\n      (\n        SELECT COUNT(*)\n        FROM n_moderation_actions\n        WHERE created_at >= TRUNC(SYSDATE)\n          AND action IN ('approve', 'reject', 'flag', 'remove', 'restore', 'ban', 'mute')\n      ) AS today_processed,\n      (\n        SELECT NVL(\n          ROUND(\n            AVG(\n              (CAST(resolved_at AS DATE) - CAST(created_at AS DATE))\n              * 24\n              * 60\n            )\n          ),\n          0\n        )\n        FROM n_moderation_cases\n        WHERE resolved_at IS NOT NULL\n      ) AS avg_process_minutes,\n      (\n        SELECT COUNT(*)\n        FROM n_moderation_reports\n        WHERE status IN ('pending', 'in_review')\n      ) AS open_reports,\n      (\n        SELECT NVL(\n          ROUND(\n            SUM(CASE WHEN appeal_status = 'approved' THEN 1 ELSE 0 END)\n            * 100\n            / NULLIF(COUNT(*), 0)\n          ),\n          0\n        )\n        FROM n_statement_appeals\n        WHERE appeal_status IN ('approved', 'rejected')\n      ) AS appeal_success_rate\n    FROM dual",
+    "list": "SELECT setting_key, setting_value, value_type, label, description, TO_CHAR(FROM_TZ(updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at FROM n_moderation_settings ORDER BY setting_key",
+    "update": "UPDATE n_moderation_settings SET setting_value = :setting_value, updated_at = CURRENT_TIMESTAMP, updated_by = :updated_by WHERE setting_key = :setting_key AND value_type = :value_type"
+  }
+}

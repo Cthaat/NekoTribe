@@ -21,6 +21,10 @@
 
 成功使用 HTTP 200、code 200，repost message 为 `retweet created`，其他类型为 `post created`；data 是完整帖子映射。最终读取不得增加浏览计数。数组去重和数量上限属于仓储阶段：媒体先去重取前 4 个；标签去掉一个开头 # 后 trim、过滤、按大小写敏感首次出现去重取前 20 个，数据库用 lower(name) 合并；提及关系先去重取前 50 个。
 
+Nuxt Web 和 Flutter 只有在收到正安全整数的新 `post_id`、其与原帖 ID 不同且 `repost_of_post_id` 等于所请求的原帖 ID 时才确认转发。在回执缺失或不匹配时，提示先刷新核对发布状态，避免自动重试或增加本地转发计数。
+
+在通用创建接口中，两端同样要求新 `post_id` 为正安全整数，且不能等于引用帖 ID。回执的回复、转发和引用关系应与提交一致，缺失或 null 均表示无引用。无法确认回执时保留编辑器中的草稿和附件，提示先核对发布结果，由用户决定是否重试。已经离开的页面或已经切换的登录会话不能被旧请求的结果修改。
+
 ## 提交后通知与错误
 
 帖子及关系成功提交后才发送通知，然后读取完整帖子。回复通知 type 为 `comment`、event 为 `post_reply`；转发与引用通知 type 均为 `retweet`、event 分别为 `post_repost` 和 `post_quote`。资源均为新创建的 post。三者 metadata 都有 source_post_id、target_post_id（均为原帖 ID）、action_post_id（新帖 ID）、post_excerpt，另分别有 reply_excerpt、retweet_excerpt、quote_excerpt。

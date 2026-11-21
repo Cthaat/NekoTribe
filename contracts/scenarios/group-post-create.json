@@ -1,0 +1,34 @@
+{
+  "id": "GROUP-POST-CREATE",
+  "revision": 3,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "invalid-content-media-or-announcement",
+      "status": 400
+    },
+    {
+      "id": "group-hidden-or-dissolved",
+      "status": 404
+    },
+    {
+      "id": "posting-or-announcement-permission",
+      "status": 422
+    },
+    {
+      "id": "readback-and-commit-before-notification",
+      "status": 200
+    },
+    {
+      "id": "write-or-readback-failure",
+      "status": 500
+    },
+    {
+      "id": "notifications-filter-inactive-and-blocked-members",
+      "status": 200
+    }
+  ]
+}
