@@ -1,0 +1,19 @@
+{
+  "maxResponseBytes": 2000,
+  "statuses": [
+    "pending",
+    "approved",
+    "rejected"
+  ],
+  "decisions": [
+    "approved",
+    "rejected"
+  ],
+  "sql": {
+    "list": "SELECT user_id, username, avatar_url, display_name, bio, location, website, is_verified, followers_count, following_count, posts_count, likes_count, online_status, last_seen_at, relation, appeal_id, statement_id, appeal_message, appeal_status, admin_response, created_at, updated_at, total\nFROM (\nWITH visible AS (\n  SELECT a.appeal_id, a.statement_id, a.user_id, a.appeal_message, a.appeal_status, a.admin_response, a.created_at, a.updated_at FROM n_statement_appeals a WHERE (:status IS NULL OR a.appeal_status = :status)\n), ranked AS (\n  SELECT visible.*, ROW_NUMBER() OVER (ORDER BY created_at DESC, appeal_id DESC) AS rn FROM visible\n)\nSELECT COALESCE(u.user_id, 0) AS user_id, u.username, u.avatar_url, u.display_name, u.bio, u.location, u.website,\n       u.is_verified, COALESCE(s.followers_count, 0) AS followers_count, COALESCE(s.following_count, 0) AS following_count,\n       COALESCE(s.posts_count, 0) AS posts_count, COALESCE(s.likes_count, 0) AS likes_count,\n       'offline' AS online_status, CAST(NULL AS TIMESTAMP) AS last_seen_at,\n       CASE WHEN u.user_id IS NOT NULL THEN fn_get_user_relationship(:viewer_id, u.user_id) END AS relation, COALESCE(a.appeal_id, 0) AS appeal_id, a.statement_id, a.appeal_message, a.appeal_status, a.admin_response,\n       TO_CHAR(FROM_TZ(a.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at, TO_CHAR(FROM_TZ(a.updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at, t.total, a.rn\nFROM (SELECT COUNT(*) AS total FROM visible) t\nLEFT JOIN ranked a ON a.rn BETWEEN :start_row AND :end_row\nLEFT JOIN n_users u ON u.user_id = a.user_id LEFT JOIN n_user_stats s ON s.user_id = a.user_id\n) ORDER BY rn",
+    "read": "SELECT COALESCE(u.user_id, 0) AS user_id, u.username, u.avatar_url, u.display_name, u.bio, u.location, u.website,\n       u.is_verified, COALESCE(s.followers_count, 0) AS followers_count, COALESCE(s.following_count, 0) AS following_count,\n       COALESCE(s.posts_count, 0) AS posts_count, COALESCE(s.likes_count, 0) AS likes_count,\n       'offline' AS online_status, CAST(NULL AS TIMESTAMP) AS last_seen_at,\n       CASE WHEN u.user_id IS NOT NULL THEN fn_get_user_relationship(:viewer_id, u.user_id) END AS relation, COALESCE(a.appeal_id, 0) AS appeal_id, a.statement_id, a.appeal_message, a.appeal_status, a.admin_response,\n       TO_CHAR(FROM_TZ(a.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at, TO_CHAR(FROM_TZ(a.updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at, 0 AS total FROM n_statement_appeals a\nLEFT JOIN n_users u ON u.user_id = a.user_id LEFT JOIN n_user_stats s ON s.user_id = a.user_id WHERE a.appeal_id = :appeal_id",
+    "lock": "SELECT user_id, appeal_status, admin_response FROM n_statement_appeals WHERE appeal_id = :appeal_id FOR UPDATE",
+    "update": "UPDATE n_statement_appeals SET appeal_status = :status, admin_response = :response, updated_at = CURRENT_TIMESTAMP WHERE appeal_id = :appeal_id AND appeal_status = 'pending'",
+    "audit": "INSERT INTO n_moderation_actions (action_id, target_type, target_id, action, moderator_user_id, reason, note) VALUES (seq_moderation_action_id.NEXTVAL, 'user', :target_id, :action, :viewer_id, :reason, :response)"
+  }
+}

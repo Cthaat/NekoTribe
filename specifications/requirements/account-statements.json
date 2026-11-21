@@ -1,0 +1,18 @@
+{
+  "maxAppealBytes": 2000,
+  "actions": {
+    "mark_read": "read",
+    "mark_unread": "unread",
+    "dismiss": "dismissed",
+    "resolve": "resolved"
+  },
+  "sql": {
+    "list": "WITH visible AS (\n  SELECT statement_id, statement_type, title, message, policy_code, status, created_at, updated_at\n  FROM n_account_statements\n  WHERE user_id = :user_id AND (:status IS NULL OR status = :status)\n    AND (:statement_type IS NULL OR statement_type = :statement_type)\n), ranked AS (\n  SELECT visible.*, ROW_NUMBER() OVER (ORDER BY created_at DESC, statement_id DESC) AS rn FROM visible\n)\nSELECT COALESCE(r.statement_id, 0) AS statement_id, r.statement_type, r.title, r.message, r.policy_code, r.status,\n       TO_CHAR(FROM_TZ(r.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at, TO_CHAR(FROM_TZ(r.updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at, t.total\nFROM (SELECT COUNT(*) AS total FROM visible) t\nLEFT JOIN ranked r ON r.rn BETWEEN :start_row AND :end_row\nORDER BY r.rn",
+    "update": "UPDATE n_account_statements SET status = :status, updated_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND statement_id = :statement_id",
+    "readStatus": "SELECT statement_id, status, TO_CHAR(FROM_TZ(updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at FROM n_account_statements WHERE user_id = :user_id AND statement_id = :statement_id",
+    "lock": "SELECT status FROM n_account_statements WHERE user_id = :user_id AND statement_id = :statement_id FOR UPDATE",
+    "pending": "SELECT appeal_id, appeal_message FROM n_statement_appeals WHERE user_id = :user_id AND statement_id = :statement_id AND appeal_status = 'pending' ORDER BY appeal_id FETCH FIRST 1 ROWS ONLY",
+    "next": "SELECT seq_statement_appeal_id.NEXTVAL AS id FROM dual",
+    "insert": "INSERT INTO n_statement_appeals (appeal_id, statement_id, user_id, appeal_message, appeal_status) VALUES (:appeal_id, :statement_id, :user_id, :appeal_message, 'pending')"
+  }
+}

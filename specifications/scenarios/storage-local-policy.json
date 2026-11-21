@@ -1,6 +1,18 @@
 {
   "id": "STORAGE-LOCAL-POLICY",
-  "revision": 1,
+  "revision": 2,
+  "publicContentTypes": {
+    "posts/preview.WEBP": "image/webp",
+    "posts/preview.avif": "image/avif",
+    "posts/track.oga": "audio/ogg",
+    "posts/track.ogg": "audio/ogg",
+    "posts/track.opus": "audio/ogg",
+    "posts/track.spx": "audio/ogg",
+    "posts/clip.ogm": "video/ogg",
+    "posts/clip.ogv": "video/ogg",
+    "posts/.avif": "application/octet-stream",
+    "posts/file.unknown": "application/octet-stream"
+  },
   "cases": [
     {
       "id": "key-0",

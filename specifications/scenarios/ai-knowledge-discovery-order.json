@@ -1,6 +1,6 @@
 {
   "id": "AI-KNOWLEDGE-DISCOVERY-ORDER",
-  "revision": 1,
+  "revision": 2,
   "executionStatus": "component-vectors-not-product-acceptance",
   "cases": [
     {"id":"first-post","query":"账户","limit":1,"posts":[11,10],"comments":[21,20],"authority":"enabled","expected":["post:11"]},
@@ -9,6 +9,8 @@
     {"id":"second-round","query":"账户","limit":5,"posts":[11,10],"comments":[21,20],"authority":"enabled","expected":["post:11","comment:21","terms:2","post:10","comment:20"]},
     {"id":"terms-only","query":"账户","limit":3,"posts":[],"comments":[],"authority":"enabled","expected":["terms:2"]},
     {"id":"disabled-matching","query":"账户","limit":3,"posts":[11],"comments":[21],"authority":"disabled","error":true},
-    {"id":"disabled-no-match","query":"猫","limit":3,"posts":[11],"comments":[21],"authority":"disabled","expected":["post:11","comment:21"]}
+    {"id":"disabled-no-match","query":"猫","limit":3,"posts":[11],"comments":[21],"authority":"disabled","expected":["post:11","comment:21"]},
+    {"id":"group-content-only","query":"猫","limit":3,"posts":[],"comments":[],"groupPosts":[11,10],"groupComments":[21,20],"authority":"disabled","expected":["group_post:11","group_comment:21","group_post:10"]},
+    {"id":"mixed-group-and-ordinary","query":"账户","limit":6,"posts":[11,10],"comments":[21,20],"groupPosts":[11,10],"groupComments":[21,20],"authority":"enabled","expected":["post:11","comment:21","terms:2","group_post:11","group_comment:21","post:10"]}
   ]
 }

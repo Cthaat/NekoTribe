@@ -1,0 +1,16 @@
+{
+  "id": "GROUP-SETTINGS",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"invalid-id-field-or-tag-shape","status":400},
+    {"id":"owner-or-admin-updates-partial-settings","status":200},
+    {"id":"empty-patch-reads-without-writing","status":200},
+    {"id":"null-clears-optional-fields","status":200},
+    {"id":"empty-tags-clears-tags","status":200},
+    {"id":"case-insensitive-utf8-tags","status":200},
+    {"id":"inactive-staff-or-ordinary-member","status":422},
+    {"id":"missing-or-inactive-group","status":404},
+    {"id":"tag-write-or-response-mapping-failure-rolls-back","status":500}
+  ]
+}

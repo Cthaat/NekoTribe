@@ -1,6 +1,6 @@
 {
   "id":"NOTIFICATION-WEBSOCKET",
-  "revision":1,
+  "revision":7,
   "cases":[
     {"id":"WS-NOTIFY-01","name":"Cookie、Bearer、查询 token 优先级和有效会话","status":"not-run"},
     {"id":"WS-NOTIFY-02","name":"无效、过期、撤销 token 以及非法来源被拒绝","status":"not-run"},
@@ -8,6 +8,26 @@
     {"id":"WS-NOTIFY-04","name":"仅将当前用户频道通知投递给当前连接","status":"not-run"},
     {"id":"WS-NOTIFY-05","name":"撤销或过期后的通知不投递并关闭连接","status":"not-run"},
     {"id":"WS-NOTIFY-06","name":"订阅失败、慢客户端、取消和断连释放资源","status":"not-run"},
-    {"id":"WS-NOTIFY-07","name":"真实 Redis、Oracle、跨机器、两客户端联调","status":"not-run"}
+    {"id":"WS-NOTIFY-07","name":"真实 Redis、Oracle、跨机器、两客户端联调","status":"not-run"},
+    {"id":"WS-NOTIFY-08","name":"TLS 代理后的 HTTPS Origin 精确匹配 BASE_URL，错误端口和伪造转发头不能放行","status":"not-run"},
+    {"id":"WS-NOTIFY-09","name":"通知、私信和频道事件遵循相同的来源、时间戳和 ID 规则","status":"not-run"},
+    {"id":"WS-NOTIFY-10","name":"私信投递复核当前会话参与人、消息归属及删除状态，查询失败时保留连接并丢弃该帧","status":"not-run"},
+    {"id":"WS-NOTIFY-11","name":"频道首次及恢复订阅确认后通知当前客户端补读历史，已离开频道不触发补读","status":"not-run"},
+    {"id":"WS-NOTIFY-12","name":"私信恢复历史与同时到达的事件按会话及消息 ID 合并，旧连接与旧会话响应失效","status":"not-run"}
+  ],
+  "brokerCases":[
+    {"id":"notification-raw","channel":"ws:user:42","raw":"{\"type\":\"notification_created\",\"data\":{\"text\":\"\\ud83d\"},\"timestamp\":1}","valid":true},
+    {"id":"notification-negative-clock","channel":"ws:user:42","raw":"{\"type\":\"notification_created\",\"data\":{},\"timestamp\":-1}","valid":false},
+    {"id":"notification-fractional-clock","channel":"ws:user:42","raw":"{\"type\":\"notification_created\",\"data\":{},\"timestamp\":1.5}","valid":false},
+    {"id":"notification-overflow-clock","channel":"ws:user:42","raw":"{\"type\":\"notification_created\",\"data\":{},\"timestamp\":9007199254740992}","valid":false},
+    {"id":"direct-matches","channel":"ws:user:42","raw":"{\"type\":\"direct_message\",\"data\":{\"conversation_id\":12,\"direct_message\":{\"conversation_id\":12.0,\"message_id\":1}},\"timestamp\":0}","valid":true},
+    {"id":"direct-mismatched-ids","channel":"ws:user:42","raw":"{\"type\":\"direct_message\",\"data\":{\"conversation_id\":12,\"direct_message\":{\"conversation_id\":13,\"message_id\":1}},\"timestamp\":1}","valid":false},
+    {"id":"direct-wrong-user-channel","channel":"ws:user:43","raw":"{\"type\":\"direct_message\",\"data\":{\"conversation_id\":12,\"direct_message\":{\"conversation_id\":12,\"message_id\":1}},\"timestamp\":1}","valid":false},
+    {"id":"direct-delete-matches","channel":"ws:user:42","raw":"{\"type\":\"direct_message_deleted\",\"data\":{\"conversation_id\":12,\"message_id\":1,\"server_id\":\"peer\"},\"timestamp\":1}","valid":true},
+    {"id":"direct-delete-no-content","channel":"ws:user:42","raw":"{\"type\":\"direct_message_deleted\",\"data\":{\"conversation_id\":12,\"message_id\":1,\"content\":\"ignored\"},\"timestamp\":1}","valid":false},
+    {"id":"chat-matches","channel":"ws:chat:channel:7","channel_id":7,"raw":"{\"type\":\"chat_message\",\"room\":null,\"data\":{\"channel_id\":7},\"timestamp\":1}","valid":true},
+    {"id":"chat-on-user-channel","channel":"ws:user:42","raw":"{\"type\":\"chat_message\",\"data\":{\"channel_id\":7},\"timestamp\":1}","valid":false},
+    {"id":"chat-missing-channel","channel":"ws:chat:channel:7","channel_id":7,"raw":"{\"type\":\"chat_message\",\"room\":\"chat:channel:7\",\"data\":{},\"timestamp\":1}","valid":false},
+    {"id":"chat-empty-room","channel":"ws:chat:channel:7","channel_id":7,"raw":"{\"type\":\"chat_message\",\"room\":\"\",\"data\":{\"channel_id\":7},\"timestamp\":1}","valid":false}
   ]
 }

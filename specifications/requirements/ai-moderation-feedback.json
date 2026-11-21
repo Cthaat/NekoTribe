@@ -1,0 +1,13 @@
+{
+  "id": "AI-MODERATION-FEEDBACK",
+  "revision": 1,
+  "ratings": ["helpful", "incorrect", "insufficient"],
+  "queries": {
+    "schema": "SELECT table_name FROM user_tables WHERE table_name = 'N_AI_MODERATION_FEEDBACK'",
+    "lock": "SELECT conversation_id FROM n_ai_conversations WHERE conversation_id = :conversation_id AND owner_user_id = :owner_user_id AND purpose = 'moderation' AND group_id IS NULL FOR UPDATE",
+    "message": "SELECT m.content FROM n_ai_messages m WHERE m.conversation_id = :conversation_id AND m.message_id = :message_id AND m.role = 'assistant'",
+    "read": "SELECT rating FROM n_ai_moderation_feedback WHERE message_id = :message_id",
+    "save": "MERGE INTO n_ai_moderation_feedback f USING (SELECT :message_id AS message_id, :rating AS rating FROM dual) s ON (f.message_id = s.message_id) WHEN MATCHED THEN UPDATE SET f.rating = s.rating, f.updated_at = CURRENT_TIMESTAMP WHERE f.rating <> s.rating WHEN NOT MATCHED THEN INSERT (message_id, rating) VALUES (s.message_id, s.rating)",
+    "aggregate": "SELECT m.model_id AS \"model_id\", m.model_version AS \"model_version\", m.config_revision AS \"config_revision\", f.rating AS \"rating\", COUNT(*) AS \"count\"\nFROM n_ai_moderation_feedback f\nJOIN n_ai_messages m ON m.message_id = f.message_id\nJOIN n_ai_conversations c ON c.conversation_id = m.conversation_id\nWHERE c.purpose = 'moderation' AND m.role = 'assistant' AND m.model_id IS NOT NULL AND m.config_revision > 0\nGROUP BY m.model_id, m.model_version, m.config_revision, f.rating"
+  }
+}

@@ -1,0 +1,17 @@
+# 设置提交后的在线状态事件
+
+PATCH /api/v2/users/me/settings先完成user-settings-snapshot.md定义的事务。仅当输入对象包含show_online_status时，才在提交后查询当前服务端状态；null/false/数字等转换后的值不改变“字段存在即触发”。其他设置、GET、非法输入、鉴权或设置事务失败不查询presence或发布。不得用请求中的布尔值构造事件，因为提交后其他后端可能已再次修改设置。
+
+查询当前n_users与n_user_settings，90秒窗口内至少一个未撤销会话视为online；last_seen_at取未撤销会话的最大last_accessed_at。可见标志只有原始NUMBER精确1才为可见，先截断1.9再判断是错误的。SQL使用NVL(show_online_status,1)，NULL按既有默认可见；其他非1值hidden，绝不泄露last_seen_at。读取的status须为online/offline/hidden；可见标志不可信或status为hidden时，输出hidden/null。用户已不存在时输出offline/null，兼容提交后并发删除。数据库/状态读取失败为固定500/50001，Cache-Control仍private,no-store，不发布；此前设置可能已提交，不回滚或自动重放。
+
+正常输出通道为ws:presence，事件type为presence_update。数据只包含user_id、online_status、last_seen_at和服务端生成的server_id；额外字段不广播，调用方传入的server_id不能覆盖真实实例ID。user_id为1..9007199254740991整数，online_status枚举固定；hidden时无条件将last_seen_at置null（即使输入是非法对象），其他状态只接受字符串/null。server_id必须为非空字符串。timestamp为服务端epoch毫秒，0..9007199254740991整数。完整输出schema见OpenAPI AuditedPresenceEvent，共同向量见user-settings-presence.json。
+
+查询成功后，编码/实例ID/时钟或发布故障属于事件交付降级，不改变已保存设置的200响应；拒绝非法事件，不回滚设置、不重放PATCH。无publisher仍成功。三后端应先尝试独立本地WebSocket分发，再独立尝试Redis；本地单个订阅失败不阻止Redis，Redis失败不撤销本地结果。本地分发和远程订阅状态遵循local-presence.md；原生入口必须让发布与订阅共用同一实例级分发器，不能仅在测试中使用独立本地包装器。真实跨实例送达仍须单独验收。
+
+发布是非持久、尽力而为，不保证送达、不保证断线重放或跨并发写入全序。Redis返回0订阅者也不等于HTTP失败。Go/Rust现有发布调用有1.5秒超时；Nuxt发布者就绪等待和命令分别受1.5秒界限，发布者关闭未完成命令自动重发及每命令重试。不能把配置/夹具证明当成真实网络超时测试，也不能把超时当成已发送消息被撤销。需要可靠有序事件时，应单独定义版本/持久投递策略，不能偷偷重放设置请求。
+
+发布日志不包含事件正文或原始Redis异常。Nuxt公共Redis发布工具的发布者创建、错误事件、就绪等待和发布分支使用固定失败日志；不据此宣称整个Redis模块/所有WS日志均已完成安全审计。
+
+账户注销后的presence以及现有WebSocket进入/离开也复用这些编码/映射规则。保持其原有鉴权、注销提交后尽力发布和WS状态语义；相应功能修订/任务同步登记，并运行相关隔离回归。当前共同HTTP场景针对设置，不能替代注销或完整WebSocket握手、权限、令牌撤销、跨机送达验收。
+
+本轮测试分别覆盖实际HTTP组装、生产查询/mapper和生产encoder。Nuxt与Go使用隔离驱动核对提交后查询；Rust生产OracleSessions及HTTP路由使用SessionExecutor原子操作边界夹具，实际Oracle事务顺序另由settings_read的Transaction测试覆盖，不把夹具记录的commit当真实Oracle提交证明。真实Oracle并发、Redis/WS、客户端组合和部署仍未验收，整体不得标accepted。

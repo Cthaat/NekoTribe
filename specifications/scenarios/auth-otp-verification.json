@@ -1,6 +1,6 @@
 {
   "id":"AUTH-OTP-VERIFY",
-  "revision":1,
+  "revision":2,
   "fixture":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","hash":"$2b$04$abcdefghijklmnopqrstuuFwMibPVIyV1/Vdxb3PVZCmM4bYxIada","verified_at":"2026-01-02T03:04:05.000Z"},
   "cases":[
     {"id":"OTP-V01","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"status":200,"updates":1},
@@ -18,6 +18,8 @@
     {"id":"OTP-V13","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"repeat":true,"status":200,"updates":2},
     {"id":"OTP-V14","body":{"account":"fake@example.test","verification_id":"otp_fixture","code":"123456"},"status":400,"updates":0},
     {"id":"OTP-V15","body":{"account":"fake@example.test","type":"register","code":"123456"},"status":400,"updates":0},
-    {"id":"OTP-V16","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture"},"status":400,"updates":0}
+    {"id":"OTP-V16","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture"},"status":400,"updates":0},
+    {"id":"OTP-V17","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"fault":"exhausted","status":429,"updates":0},
+    {"id":"OTP-V18","body":{"account":"fake@example.test","type":"register","verification_id":"otp_fixture","code":"123456"},"fault":"unavailable","status":503,"updates":0}
   ]
 }

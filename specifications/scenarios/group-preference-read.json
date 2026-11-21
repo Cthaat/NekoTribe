@@ -1,0 +1,26 @@
+{
+  "id": "GROUP-PREFERENCE-READ",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "inactive-dissolved-or-missing",
+      "status": 404
+    },
+    {
+      "id": "non-member-denied",
+      "status": 422
+    },
+    {
+      "id": "default-enabled",
+      "status": 200
+    },
+    {
+      "id": "stored-disabled",
+      "status": 200
+    }
+  ]
+}

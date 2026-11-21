@@ -1,0 +1,38 @@
+{
+  "id": "CHAT-CHANNEL-READ-STATUS",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "latest",
+      "status": 200,
+      "body": {}
+    },
+    {
+      "id": "stale-cursor",
+      "status": 200,
+      "previous": 12,
+      "body": {
+        "last_read_message_id": 8
+      },
+      "last_read_message_id": 12
+    },
+    {
+      "id": "other-channel-message",
+      "status": 400
+    },
+    {
+      "id": "deleted-message",
+      "status": 400
+    },
+    {
+      "id": "permission-revoked-after-lock",
+      "status": 403,
+      "writes": 0
+    },
+    {
+      "id": "readback-failure",
+      "status": 500,
+      "commit": false
+    }
+  ]
+}

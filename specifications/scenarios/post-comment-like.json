@@ -1,12 +1,12 @@
 {
   "id": "POST-COMMENT-LIKE",
-  "revision": 1,
+  "revision": 2,
   "cases": [
     {"id":"LIKE-01","assertion":"valid session and canonical safe ID are required"},
-    {"id":"LIKE-02","assertion":"missing, deleted and invisible comments cannot be liked, unliked or counted"},
+    {"id":"LIKE-02","assertion":"missing or deleted comments, inactive authors and either direction of a comment-author block are excluded at preflight, write and count"},
     {"id":"LIKE-03","assertion":"like and unlike are idempotent while write-time visibility is enforced"},
-    {"id":"LIKE-04","assertion":"first like alone notifies the author with proper metadata and preferences"},
+    {"id":"LIKE-04","assertion":"first like alone notifies a still-visible author with proper metadata and preferences"},
     {"id":"LIKE-05","assertion":"committed like and later notification failure have explicit partial-success behavior"},
-    {"id":"LIKE-06","assertion":"isolated Oracle, Redis, concurrency and both clients are validated"}
+    {"id":"LIKE-06","assertion":"both clients serialize a comment's reactions and display the confirmed server count in regular and cited views, with actual Oracle and Redis acceptance tracked separately"}
   ]
 }

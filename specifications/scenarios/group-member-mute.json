@@ -1,0 +1,30 @@
+{
+  "id": "GROUP-MEMBER-MUTE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "status": 401
+    },
+    {
+      "id": "duration-reason-or-id-invalid",
+      "status": 400
+    },
+    {
+      "id": "defaults-to-24-hours",
+      "status": 200
+    },
+    {
+      "id": "refresh-existing-mute",
+      "status": 200
+    },
+    {
+      "id": "pending-banned-owner-or-peer-protected",
+      "status": 422
+    },
+    {
+      "id": "expiry-or-audit-failure-rolls-back",
+      "status": 500
+    }
+  ]
+}

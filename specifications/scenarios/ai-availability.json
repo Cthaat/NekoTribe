@@ -1,0 +1,92 @@
+{
+  "id": "AI-AVAILABILITY",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "AV-01",
+      "authenticated": true,
+      "enabled": [],
+      "status": 200,
+      "data": {
+        "knowledge": false,
+        "writing": false,
+        "group": false,
+        "moderation": false
+      }
+    },
+    {
+      "id": "AV-02",
+      "authenticated": true,
+      "enabled": [
+        "knowledge-answer"
+      ],
+      "status": 200,
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": false,
+        "moderation": false
+      }
+    },
+    {
+      "id": "AV-03",
+      "authenticated": true,
+      "enabled": [
+        "writing-draft",
+        "group-brief",
+        "moderation-advice"
+      ],
+      "status": 200,
+      "data": {
+        "knowledge": false,
+        "writing": true,
+        "group": true,
+        "moderation": true
+      }
+    },
+    {
+      "id": "AV-04",
+      "authenticated": true,
+      "enabled": [
+        "knowledge-answer",
+        "writing-draft"
+      ],
+      "status": 200,
+      "data": {
+        "knowledge": true,
+        "writing": true,
+        "group": false,
+        "moderation": false
+      }
+    },
+    {
+      "id": "AV-05",
+      "authenticated": false,
+      "enabled": [],
+      "status": 401
+    },
+    {
+      "id": "AV-06",
+      "authenticated": true,
+      "enabled": [
+        "unknown"
+      ],
+      "status": 503
+    },
+    {
+      "id": "AV-07",
+      "authenticated": true,
+      "enabled": [
+        "writing-draft",
+        "writing-draft"
+      ],
+      "status": 503
+    },
+    {
+      "id": "AV-08",
+      "authenticated": true,
+      "unavailable": true,
+      "status": 503
+    }
+  ]
+}

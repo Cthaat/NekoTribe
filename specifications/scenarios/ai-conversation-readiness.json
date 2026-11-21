@@ -1,6 +1,6 @@
 {
   "id": "AI-CONVERSATION-READINESS",
-  "revision": 1,
+  "revision": 3,
   "baseline": {
     "owner": {
       "user": "NEKO_APP",
@@ -87,7 +87,7 @@
           {
             "COLUMN_NAME": "GROUP_ID",
             "DATA_TYPE": "NUMBER",
-            "DATA_PRECISION": 15,
+            "DATA_PRECISION": 19,
             "DATA_SCALE": 0,
             "CHAR_LENGTH": 0,
             "NULLABLE": "Y",
@@ -100,7 +100,8 @@
             "DATA_SCALE": null,
             "CHAR_LENGTH": 200,
             "NULLABLE": "Y",
-            "DATA_DEFAULT": null
+            "DATA_DEFAULT": null,
+            "CHAR_USED": "C"
           },
           {
             "COLUMN_NAME": "CREATED_AT",
@@ -442,6 +443,40 @@
             "CHECKSUM"
           ],
           "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-09",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": [
+            "tables",
+            "N_AI_CONVERSATIONS",
+            "columns",
+            4,
+            "CHAR_USED"
+          ],
+          "value": "B"
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-10",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": [
+            "tables",
+            "N_AI_CONVERSATIONS",
+            "columns",
+            3,
+            "DATA_PRECISION"
+          ],
+          "value": 15
         }
       ]
     }

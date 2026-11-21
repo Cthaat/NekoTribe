@@ -1,0 +1,20 @@
+{
+  "id": "CHAT-MESSAGE-DELETE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "soft-delete-and-update-summary",
+      "status": 200
+    },
+    {
+      "id": "repeat-delete",
+      "status": 404
+    },
+    {
+      "id": "summary-failure",
+      "status": 500,
+      "commit": false,
+      "publish": false
+    }
+  ]
+}

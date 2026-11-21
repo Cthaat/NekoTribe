@@ -1,0 +1,108 @@
+{
+  "id": "USER-FOLLOW",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "follow",
+      "method": "POST",
+      "path": "/api/v2/users/9/followers",
+      "status": 200,
+      "relationship": "following",
+      "count": 1,
+      "notify": true
+    },
+    {
+      "id": "repeat-follow",
+      "method": "POST",
+      "path": "/api/v2/users/9/followers",
+      "status": 200,
+      "relationship": "following",
+      "count": 1,
+      "notify": false
+    },
+    {
+      "id": "block-prevents-follow",
+      "method": "POST",
+      "path": "/api/v2/users/7/followers",
+      "status": 403
+    },
+    {
+      "id": "follow-self",
+      "method": "POST",
+      "path": "/api/v2/users/42/followers",
+      "status": 422
+    },
+    {
+      "id": "missing-profile",
+      "method": "POST",
+      "path": "/api/v2/users/81/followers",
+      "status": 404
+    },
+    {
+      "id": "invalid-id",
+      "method": "POST",
+      "path": "/api/v2/users/09/followers",
+      "status": 400
+    },
+    {
+      "id": "unfollow",
+      "method": "DELETE",
+      "path": "/api/v2/users/9/followers",
+      "status": 200,
+      "relationship": "none",
+      "count": 0,
+      "notify": false
+    },
+    {
+      "id": "repeat-unfollow",
+      "method": "DELETE",
+      "path": "/api/v2/users/9/followers",
+      "status": 200,
+      "relationship": "none",
+      "count": 0,
+      "notify": false
+    },
+    {
+      "id": "missing-unfollow",
+      "method": "DELETE",
+      "path": "/api/v2/users/81/followers",
+      "status": 200,
+      "relationship": "none",
+      "count": 0,
+      "notify": false
+    },
+    {
+      "id": "follow-again",
+      "method": "POST",
+      "path": "/api/v2/users/9/followers",
+      "status": 200,
+      "relationship": "following",
+      "count": 1,
+      "notify": true
+    },
+    {
+      "id": "followers",
+      "method": "GET",
+      "path": "/api/v2/users/9/followers?page=2&page_size=2",
+      "status": 200
+    },
+    {
+      "id": "following",
+      "method": "GET",
+      "path": "/api/v2/users/9/following?page=2&page_size=2",
+      "status": 200
+    },
+    {
+      "id": "mutual-following",
+      "method": "GET",
+      "path": "/api/v2/users/9/mutual-following?page=2&page_size=2",
+      "status": 200
+    },
+    {
+      "id": "anonymous",
+      "method": "GET",
+      "path": "/api/v2/users/9/followers",
+      "status": 401
+    }
+  ]
+}

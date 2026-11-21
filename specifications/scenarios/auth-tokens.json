@@ -1,6 +1,6 @@
 {
   "id": "AUTH-TOKEN-CODEC",
-  "revision": 2,
+  "revision": 3,
   "scope": "unit-vectors-not-session-or-business-acceptance",
   "generatedWith": "Nuxt jsonwebtoken 9.0.2; signing follows v2SignAccessToken/v2SignRefreshToken",
   "now": 1700000000,
@@ -138,6 +138,69 @@
       "expectedUserId": 42
     },
     {
+      "id": "decimal-exponent-user-id",
+      "type": "access",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIgNC4yZTEgIiwidXNlck5hbWUiOiLmtYvor5XnlKjmiLciLCJzZXNzaW9uSWQiOiJmaXh0dXJlLXNlc3Npb24tNDIiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNjk5OTk5OTQwLCJleHAiOjE3MDAwMDA5MDAsImp0aSI6ImZpeHR1cmUtYWNjZXNzLWp0aS00MiJ9.kGqWrv39KqkWwcQQFzNIgJ4-OSZv9dMmMDS9XXHMQvE",
+      "expectedValid": true,
+      "expectedUserId": 42
+    },
+    {
+      "id": "boolean-user-id",
+      "type": "access",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOnRydWUsInVzZXJOYW1lIjoi5rWL6K-V55So5oi3Iiwic2Vzc2lvbklkIjoiZml4dHVyZS1zZXNzaW9uLTQyIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTY5OTk5OTk0MCwiZXhwIjoxNzAwMDAwOTAwLCJqdGkiOiJmaXh0dXJlLWFjY2Vzcy1qdGktNDIifQ.hXCyAIwUeXLL8ohZfk_vpiWJj2_Nhqvqu2srhOjJcjU",
+      "expectedValid": false
+    },
+    {
+      "id": "array-user-id",
+      "type": "access",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOls0Ml0sInVzZXJOYW1lIjoi5rWL6K-V55So5oi3Iiwic2Vzc2lvbklkIjoiZml4dHVyZS1zZXNzaW9uLTQyIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTY5OTk5OTk0MCwiZXhwIjoxNzAwMDAwOTAwLCJqdGkiOiJmaXh0dXJlLWFjY2Vzcy1qdGktNDIifQ.iKTSlzjhHTdkEm7wSjgyBXCV2ZnLnknizBZ_l1VSTJ8",
+      "expectedValid": false
+    },
+    {
+      "id": "hexadecimal-user-id",
+      "type": "access",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIweDJhIiwidXNlck5hbWUiOiLmtYvor5XnlKjmiLciLCJzZXNzaW9uSWQiOiJmaXh0dXJlLXNlc3Npb24tNDIiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNjk5OTk5OTQwLCJleHAiOjE3MDAwMDA5MDAsImp0aSI6ImZpeHR1cmUtYWNjZXNzLWp0aS00MiJ9.0UXQY4lrGxBNoWgvBgGUeApcMddXlvsuTEt8Z2RI3Q0",
+      "expectedValid": false
+    },
+    {
+      "id": "hexadecimal-floating-user-id",
+      "type": "access",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIweDJhcDAiLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.YiPnNYrUb_nIoPcbWl81crN6xQlp6pG7nCMbmkD7JJw",
+      "expectedValid": false
+    },
+    {
+      "id": "underscored-user-id",
+      "type": "access",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0XzIiLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.9E2mkGWjEV6eijApN4kegxd0wesRJTvoOU3ts3gkob8",
+      "expectedValid": false
+    },
+    {
+      "id": "unicode-whitespace-user-id",
+      "type": "access",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiLCoDQyIiwidXNlck5hbWUiOiLmtYvor5XnlKjmiLciLCJzZXNzaW9uSWQiOiJmaXh0dXJlLXNlc3Npb24tNDIiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNjk5OTk5OTQwLCJleHAiOjE3MDAwMDA5MDAsImp0aSI6ImZpeHR1cmUtYWNjZXNzLWp0aS00MiJ9.xmeF95WHySONlg8pVKxP-_wSHWl5-wDf1wpg8C7ugCs",
+      "expectedValid": false
+    },
+    {
+      "id": "refresh-wrong-token-type",
+      "type": "refresh",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImV4cCI6MTcwMDAwMDkwMCwianRpIjoiZml4dHVyZS1hY2Nlc3MtanRpLTQyIn0.J4D6qC5JUcRmI6-n1V90CGEt4aNuR5pV-131R2QXk0M",
+      "expectedValid": false
+    },
+    {
+      "id": "refresh-missing-jti",
+      "type": "refresh",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNjk5OTk5OTQwLCJleHAiOjE3MDAwMDA5MDB9.Gpx6zInGTPd0WhsuqRI5vKPs3gBt3IWYrNw2EyPCfr8",
+      "expectedValid": false,
+      "expectedValidForRotation": true,
+      "expectedUserId": 42
+    },
+    {
+      "id": "refresh-numeric-session-id",
+      "type": "refresh",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6NDIsInR5cGUiOiJyZWZyZXNoIiwiaWF0IjoxNjk5OTk5OTQwLCJleHAiOjE3MDAwMDA5MDAsImp0aSI6ImZpeHR1cmUtYWNjZXNzLWp0aS00MiJ9.IAmU5Qb71OQuiU0dUWOAdojha7FpAAjUdS1iVjOdvPI",
+      "expectedValid": false
+    },
+    {
       "id": "missing-expiration",
       "type": "access",
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQyLCJ1c2VyTmFtZSI6Iua1i-ivleeUqOaItyIsInNlc3Npb25JZCI6ImZpeHR1cmUtc2Vzc2lvbi00MiIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE2OTk5OTk5NDAsImp0aSI6ImZpeHR1cmUtYWNjZXNzLWp0aS00MiJ9.vcDelyFRtNL694NJA7O5G41dEXJtLcNhOJ0dECqbHyw",
@@ -172,9 +235,9 @@
   ],
   "notes": [
     "Only public synthetic keys and identities. No application env, DB, Redis or real credentials.",
-    "Signed token format and HMAC allowlist follow current Nuxt; explicit expected token kind is required by native codec.",
+    "All three V2 backends require the expected token kind and use the same HMAC allowlist.",
     "Missing exp and future iat reflect current JWT library behavior; database session expiration/revocation is still mandatory.",
-    "Wrong token kind rejection is the desired typed codec boundary, not proof that the existing Nuxt refresh service checks type strictly.",
+    "The refresh route and logout accept a legacy refresh JWT without jti and still require a matching database token hash.",
     "This does not settle AUTH-901..907 or prove complete authentication, cookies, login, refresh rotation or native endpoints."
   ]
 }

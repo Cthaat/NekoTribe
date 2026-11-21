@@ -1,0 +1,26 @@
+{
+  "id": "GROUP-MEMBER-ROLES-ALIAS",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "status": 401
+    },
+    {
+      "id": "same-role-operation",
+      "status": 200
+    },
+    {
+      "id": "role-required-and-owner-invalid",
+      "status": 400
+    },
+    {
+      "id": "same-protection",
+      "status": 422
+    },
+    {
+      "id": "missing-target",
+      "status": 404
+    }
+  ]
+}

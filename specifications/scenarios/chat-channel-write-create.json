@@ -1,0 +1,44 @@
+{
+  "id": "CHAT-CHANNEL-CREATE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "status": 401
+    },
+    {
+      "id": "manager-create-defaults",
+      "status": 200,
+      "body": {
+        "name": " 技术交流 "
+      },
+      "type": "text",
+      "category": "文字频道",
+      "isPrivate": false
+    },
+    {
+      "id": "muted-moderator",
+      "status": 200
+    },
+    {
+      "id": "ordinary-member",
+      "status": 403
+    },
+    {
+      "id": "invalid-type-or-id",
+      "status": 400
+    },
+    {
+      "id": "blank-or-too-long-name",
+      "status": 400
+    },
+    {
+      "id": "group-lock-serializes-positions",
+      "status": 200
+    },
+    {
+      "id": "failed-readback-rolls-back",
+      "status": 500
+    }
+  ]
+}

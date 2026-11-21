@@ -1,0 +1,641 @@
+{
+  "id": "AUTH-ACCOUNT-INPUT",
+  "revision": 1,
+  "emailPolicy": "Nuxt installed zod/v3 email after JS trim; case preserved",
+  "nameMinUtf16": 2,
+  "cases": [
+    {
+      "id": "email-simple",
+      "raw": "new@example.test",
+      "normalized": "new@example.test",
+      "valid": true,
+      "field": "email"
+    },
+    {
+      "id": "email-bom-pad",
+      "raw": "﻿ new@example.test ",
+      "normalized": "new@example.test",
+      "valid": true,
+      "field": "email"
+    },
+    {
+      "id": "email-uppercase",
+      "raw": "USER@EXAMPLE.TEST",
+      "normalized": "USER@EXAMPLE.TEST",
+      "valid": true,
+      "field": "email"
+    },
+    {
+      "id": "email-plus",
+      "raw": "user+tag@example.test",
+      "normalized": "user+tag@example.test",
+      "valid": true,
+      "field": "email"
+    },
+    {
+      "id": "email-apostrophe",
+      "raw": "o'neil@example.test",
+      "normalized": "o'neil@example.test",
+      "valid": true,
+      "field": "email"
+    },
+    {
+      "id": "email-apostrophe-end",
+      "raw": "user'@example.test",
+      "normalized": "user'@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-leading-dot",
+      "raw": ".user@example.test",
+      "normalized": ".user@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-double-dot",
+      "raw": "a..b@example.test",
+      "normalized": "a..b@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-dot-before-at",
+      "raw": "a.@example.test",
+      "normalized": "a.@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-domain-hyphen",
+      "raw": "a@label-.test",
+      "normalized": "a@label-.test",
+      "valid": true,
+      "field": "email"
+    },
+    {
+      "id": "email-unicode-local",
+      "raw": "猫@example.test",
+      "normalized": "猫@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-unicode-domain",
+      "raw": "a@猫.test",
+      "normalized": "a@猫.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-punycode",
+      "raw": "a@xn--test.test",
+      "normalized": "a@xn--test.test",
+      "valid": true,
+      "field": "email"
+    },
+    {
+      "id": "email-digit-tld",
+      "raw": "a@example.123",
+      "normalized": "a@example.123",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-one-tld",
+      "raw": "a@example.t",
+      "normalized": "a@example.t",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-quoted",
+      "raw": "\"a\"@example.test",
+      "normalized": "\"a\"@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-two-at",
+      "raw": "a@b@example.test",
+      "normalized": "a@b@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-empty",
+      "raw": " ",
+      "normalized": "",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-internal-newline",
+      "raw": "a\nb@example.test",
+      "normalized": "a\nb@example.test",
+      "valid": false,
+      "widgetValid": true,
+      "widgetNormalized": "ab@example.test",
+      "field": "email"
+    },
+    {
+      "id": "email-nel",
+      "raw": "a@example.test",
+      "normalized": "a@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-zero-width",
+      "raw": "a​@example.test",
+      "normalized": "a​@example.test",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-display-address",
+      "raw": "User <a@example.test>",
+      "normalized": "User <a@example.test>",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-missing-at",
+      "raw": "old-account",
+      "normalized": "old-account",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-numeric",
+      "raw": 123456,
+      "normalized": "123456",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "email-boolean",
+      "raw": true,
+      "normalized": "true",
+      "valid": false,
+      "field": "email"
+    },
+    {
+      "id": "username-two",
+      "raw": "ab",
+      "normalized": "ab",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-short",
+      "raw": "a",
+      "normalized": "a",
+      "valid": false,
+      "field": "username"
+    },
+    {
+      "id": "username-padded-short",
+      "raw": " a ",
+      "normalized": "a",
+      "valid": false,
+      "field": "username"
+    },
+    {
+      "id": "username-padded-two",
+      "raw": " ab ",
+      "normalized": "ab",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-bom",
+      "raw": "﻿ab ",
+      "normalized": "ab",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-one-emoji",
+      "raw": "😀",
+      "normalized": "😀",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-one-cjk",
+      "raw": "猫",
+      "normalized": "猫",
+      "valid": false,
+      "field": "username"
+    },
+    {
+      "id": "username-two-cjk",
+      "raw": "猫咪",
+      "normalized": "猫咪",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-internal-space",
+      "raw": "a b",
+      "normalized": "a b",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-nel",
+      "raw": "a",
+      "normalized": "a",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-zero-width",
+      "raw": "​a",
+      "normalized": "​a",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-blank",
+      "raw": " \t",
+      "normalized": "",
+      "valid": false,
+      "field": "username"
+    },
+    {
+      "id": "username-numeric-one",
+      "raw": 7,
+      "normalized": "7",
+      "valid": false,
+      "field": "username"
+    },
+    {
+      "id": "username-numeric-two",
+      "raw": 42,
+      "normalized": "42",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "username-boolean",
+      "raw": false,
+      "normalized": "false",
+      "valid": true,
+      "field": "username"
+    },
+    {
+      "id": "display_name-two",
+      "raw": "ab",
+      "normalized": "ab",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-short",
+      "raw": "a",
+      "normalized": "a",
+      "valid": false,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-padded-short",
+      "raw": " a ",
+      "normalized": "a",
+      "valid": false,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-padded-two",
+      "raw": " ab ",
+      "normalized": "ab",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-bom",
+      "raw": "﻿ab ",
+      "normalized": "ab",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-one-emoji",
+      "raw": "😀",
+      "normalized": "😀",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-one-cjk",
+      "raw": "猫",
+      "normalized": "猫",
+      "valid": false,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-two-cjk",
+      "raw": "猫咪",
+      "normalized": "猫咪",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-internal-space",
+      "raw": "a b",
+      "normalized": "a b",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-nel",
+      "raw": "a",
+      "normalized": "a",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-zero-width",
+      "raw": "​a",
+      "normalized": "​a",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-blank",
+      "raw": " \t",
+      "normalized": "",
+      "valid": false,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-numeric-one",
+      "raw": 7,
+      "normalized": "7",
+      "valid": false,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-numeric-two",
+      "raw": 42,
+      "normalized": "42",
+      "valid": true,
+      "field": "display_name"
+    },
+    {
+      "id": "display_name-boolean",
+      "raw": false,
+      "normalized": "false",
+      "valid": true,
+      "field": "display_name"
+    }
+  ],
+  "emailCases": [
+    {
+      "id": "simple",
+      "raw": "new@example.test",
+      "normalized": "new@example.test",
+      "valid": true
+    },
+    {
+      "id": "bom-pad",
+      "raw": "﻿ new@example.test ",
+      "normalized": "new@example.test",
+      "valid": true
+    },
+    {
+      "id": "uppercase",
+      "raw": "USER@EXAMPLE.TEST",
+      "normalized": "USER@EXAMPLE.TEST",
+      "valid": true
+    },
+    {
+      "id": "plus",
+      "raw": "user+tag@example.test",
+      "normalized": "user+tag@example.test",
+      "valid": true
+    },
+    {
+      "id": "apostrophe",
+      "raw": "o'neil@example.test",
+      "normalized": "o'neil@example.test",
+      "valid": true
+    },
+    {
+      "id": "apostrophe-end",
+      "raw": "user'@example.test",
+      "normalized": "user'@example.test",
+      "valid": false
+    },
+    {
+      "id": "leading-dot",
+      "raw": ".user@example.test",
+      "normalized": ".user@example.test",
+      "valid": false
+    },
+    {
+      "id": "double-dot",
+      "raw": "a..b@example.test",
+      "normalized": "a..b@example.test",
+      "valid": false
+    },
+    {
+      "id": "dot-before-at",
+      "raw": "a.@example.test",
+      "normalized": "a.@example.test",
+      "valid": false
+    },
+    {
+      "id": "domain-hyphen",
+      "raw": "a@label-.test",
+      "normalized": "a@label-.test",
+      "valid": true
+    },
+    {
+      "id": "unicode-local",
+      "raw": "猫@example.test",
+      "normalized": "猫@example.test",
+      "valid": false
+    },
+    {
+      "id": "unicode-domain",
+      "raw": "a@猫.test",
+      "normalized": "a@猫.test",
+      "valid": false
+    },
+    {
+      "id": "punycode",
+      "raw": "a@xn--test.test",
+      "normalized": "a@xn--test.test",
+      "valid": true
+    },
+    {
+      "id": "digit-tld",
+      "raw": "a@example.123",
+      "normalized": "a@example.123",
+      "valid": false
+    },
+    {
+      "id": "one-tld",
+      "raw": "a@example.t",
+      "normalized": "a@example.t",
+      "valid": false
+    },
+    {
+      "id": "quoted",
+      "raw": "\"a\"@example.test",
+      "normalized": "\"a\"@example.test",
+      "valid": false
+    },
+    {
+      "id": "two-at",
+      "raw": "a@b@example.test",
+      "normalized": "a@b@example.test",
+      "valid": false
+    },
+    {
+      "id": "empty",
+      "raw": " ",
+      "normalized": "",
+      "valid": false
+    },
+    {
+      "id": "internal-newline",
+      "raw": "a\nb@example.test",
+      "normalized": "a\nb@example.test",
+      "valid": false,
+      "widgetValid": true,
+      "widgetNormalized": "ab@example.test"
+    },
+    {
+      "id": "nel",
+      "raw": "a@example.test",
+      "normalized": "a@example.test",
+      "valid": false
+    },
+    {
+      "id": "zero-width",
+      "raw": "a​@example.test",
+      "normalized": "a​@example.test",
+      "valid": false
+    },
+    {
+      "id": "display-address",
+      "raw": "User <a@example.test>",
+      "normalized": "User <a@example.test>",
+      "valid": false
+    },
+    {
+      "id": "missing-at",
+      "raw": "old-account",
+      "normalized": "old-account",
+      "valid": false
+    },
+    {
+      "id": "numeric",
+      "raw": 123456,
+      "normalized": "123456",
+      "valid": false
+    },
+    {
+      "id": "boolean",
+      "raw": true,
+      "normalized": "true",
+      "valid": false
+    }
+  ],
+  "nameCases": [
+    {
+      "id": "two",
+      "raw": "ab",
+      "normalized": "ab",
+      "valid": true
+    },
+    {
+      "id": "short",
+      "raw": "a",
+      "normalized": "a",
+      "valid": false
+    },
+    {
+      "id": "padded-short",
+      "raw": " a ",
+      "normalized": "a",
+      "valid": false
+    },
+    {
+      "id": "padded-two",
+      "raw": " ab ",
+      "normalized": "ab",
+      "valid": true
+    },
+    {
+      "id": "bom",
+      "raw": "﻿ab ",
+      "normalized": "ab",
+      "valid": true
+    },
+    {
+      "id": "one-emoji",
+      "raw": "😀",
+      "normalized": "😀",
+      "valid": true
+    },
+    {
+      "id": "one-cjk",
+      "raw": "猫",
+      "normalized": "猫",
+      "valid": false
+    },
+    {
+      "id": "two-cjk",
+      "raw": "猫咪",
+      "normalized": "猫咪",
+      "valid": true
+    },
+    {
+      "id": "internal-space",
+      "raw": "a b",
+      "normalized": "a b",
+      "valid": true
+    },
+    {
+      "id": "nel",
+      "raw": "a",
+      "normalized": "a",
+      "valid": true
+    },
+    {
+      "id": "zero-width",
+      "raw": "​a",
+      "normalized": "​a",
+      "valid": true
+    },
+    {
+      "id": "blank",
+      "raw": " \t",
+      "normalized": "",
+      "valid": false
+    },
+    {
+      "id": "numeric-one",
+      "raw": 7,
+      "normalized": "7",
+      "valid": false
+    },
+    {
+      "id": "numeric-two",
+      "raw": 42,
+      "normalized": "42",
+      "valid": true
+    },
+    {
+      "id": "boolean",
+      "raw": false,
+      "normalized": "false",
+      "valid": true
+    }
+  ]
+}

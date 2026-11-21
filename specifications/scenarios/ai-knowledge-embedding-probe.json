@@ -1,0 +1,12 @@
+{
+  "id": "AI-KNOWLEDGE-EMBEDDING-PROBE",
+  "cases": [
+    {"id":"normalized-by-store","stored":[0.6,0.8,0],"live":[3,4,0],"expect":"match"},
+    {"id":"small-floating-point-difference","stored":[0.6,0.8,0],"live":[3.00001,3.99999,0],"expect":"match"},
+    {"id":"same-dimension-model-drift","stored":[0.6,0.8,0],"live":[4,3,0],"expect":"reject"},
+    {"id":"opposite-direction","stored":[0.6,0.8,0],"live":[-3,-4,0],"expect":"reject"},
+    {"id":"changed-dimension","stored":[0.6,0.8,0],"live":[3,4],"expect":"reject"},
+    {"id":"missing-vector","live":[3,4,0],"expect":"reject"},
+    {"id":"zero-vector","stored":[0,0,0],"live":[3,4,0],"expect":"reject"}
+  ]
+}

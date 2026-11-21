@@ -52,10 +52,10 @@
 
 ### AUTH-002 受保护接口身份验证
 
-已观察：`access_token` Cookie非空时优先于Authorization；否则中间件去除可选的Bearer前缀并trim（并非严格要求Bearer）。v2要求userId正安全整数、type=access、非空sessionId/jti，按accessSecret验证JWT。Oracle更新匹配userId/sessionId/access_jti、未吊销且access过期时间仍有效的唯一会话，并autoCommit更新last_accessed_at，恰好一行才建立auth上下文。校验、连接获取、会话更新和关闭异常均变401 `Token无效或已过期`；0.2修复finally关闭异常覆盖结果/泄露底层错误，成功关闭后才发布auth上下文。此处未检查n_users状态。公开认证路径按正则跳过中间件，不受过期access Cookie阻挡；公开posts GET无凭据可访问，有凭据则须校验。来源：`server/middleware/auth.ts`。
+已观察：`access_token` Cookie非空时优先于Authorization；否则中间件去除可选的Bearer前缀并trim（并非严格要求Bearer）。v2要求userId正安全整数、type=access、非空sessionId/jti，按accessSecret验证JWT。Oracle更新匹配userId/sessionId/access_jti、未吊销且access过期时间仍有效的唯一会话，并在同一语句检查该用户 `is_active = 1 AND status = 'active'`。恰好更新一行并提交、释放连接成功后建立auth上下文。校验、连接获取、会话更新和关闭异常均变401 `Token无效或已过期`。公开认证路径按正则跳过中间件，不受过期access Cookie阻挡；公开posts GET无凭据可访问，有凭据则须校验。来源：`server/middleware/auth.ts`。
 
 - AUTH-S003：有效Cookie与另一有效Bearer同时提供时，使用Cookie所属身份；失效Cookie加有效Bearer仍401。
-- AUTH-S004：错误签名、到期、refresh类型、无jti、无sessionId、不安全userId、已吊销或DB access过期均401；有效请求仅更新对应会话last_accessed_at。
+- AUTH-S004：错误签名、到期、refresh类型、无jti、无sessionId、不安全userId、已吊销、DB access过期或账号不可用均401；有效请求仅更新对应会话last_accessed_at。
 - AUTH-S005：过期access Cookie不阻挡登录、refresh、logout、OTP、注册、重置或challenge入口；公开posts有无凭据两种路径分别验证。
 
 ### AUTH-003 OTP创建与投递
@@ -90,7 +90,7 @@
 
 ### AUTH-007 Token编码、Cookie与跨客户端
 
-已观察：两JWT均含userId/userName/sessionId/type，库补iat/exp/jti；access使用accessSecret，refresh使用refreshSecret且每次随机jti。应用未设置issuer/audience/算法allowlist；本地jsonwebtoken9.0.2默认签HS256，对称密钥默认验HS256/384/512，不能宣称只接受HS256。access秒数为Number(config)||900，refresh为Number(config)||2592000；没有此处正值校验。Cookie名access_token/refresh_token，HttpOnly、SameSite=Lax、Path=/、Max-Age分别对应TTL，Secure仅COOKIE_SECURE字符串严格等于true，不设置Domain。删除仅给Path=/。HTTP tokens同时返回session_id、两原始token、两个ISO到期时间，移动端可使用Bearer/body refresh。来源：`auth.ts:363-493`、`auth-token-response.ts:9-34`。
+两类 V2 JWT 都使用 HS256 签发，带 userId、userName、sessionId、type、iat、exp 和 jti。access 与 refresh 使用各自的密钥，refresh 每次随机生成 jti。三后端只验证 HS256、HS384、HS512，并严格匹配预期 type。若提供 `exp` 或 `nbf`，须为有限数值，按整数秒时钟和零容差比较。兼容缺少 `exp` 的旧令牌，仍须检查 Oracle 会话过期和撤销状态。`iat` 仅供记录。Cookie 名为 access_token 和 refresh_token，使用 HttpOnly、SameSite=Lax、Path=/，各自 Max-Age 对应有效期。Secure 由 COOKIE_SECURE 控制。移动端可使用响应中的 token。有效期配置见[刷新契约](auth-refresh.md)。
 
 - AUTH-S014：解码并验证签名/claims/TTL/jti，Cookie和响应token完全相同；跨语言发行的token必须能由另外两后端校验并匹配共享session。
 - AUTH-S015：COOKIE_SECURE=true时两Cookie带Secure，其余值不带；Cookie都有HttpOnly/Lax/Path和正确Max-Age；正文返回原始token满足Flutter独立凭据存储需求。
@@ -119,7 +119,7 @@
 
 ### AUTH-011 Refresh轮换
 
-已观察：refresh Cookie优先，否则读body.refresh_token并trim；正文解析失败按空对象，缺凭据401。验refreshSecret签名并取sessionId；匹配user/session/SHA256(refresh)/未吊销/DB refresh未到期，生成新access_jti和两token，UPDATE再次匹配旧hash及上述状态，恰好一行才写Cookie并返回token数据。更新时间/两个过期时间，采用滑动refresh期限；sessionId保持。旧refresh不再匹配，旧access因jti变更立即失效；随机refresh jti避免同秒token重复。无refresh失败时自动清Cookie或吊销整族逻辑；此处不读取用户active状态，type检查不严格，见AUTH-904。来源：`auth.ts:1664-1756`。
+已观察：refresh Cookie优先，否则读body.refresh_token并trim；正文解析失败按空对象，缺凭据401。验refreshSecret签名并取sessionId；匹配user/session/SHA256(refresh)/未吊销/DB refresh未到期，生成新access_jti和两token。UPDATE再次匹配旧hash、会话和用户启用状态，恰好一行才写Cookie并返回token数据。更新时间/两个过期时间，采用滑动refresh期限；sessionId保持。旧refresh不再匹配，旧access因jti变更立即失效；随机refresh jti避免同秒token重复。类型兼容边界见AUTH-904。
 
 - AUTH-S023：有效Cookie可无JSON刷新；无Cookie时body字符串刷新；失效Cookie+有效body仍401；无/非字符串/过期/错签名refresh401且无会话写入。
 - AUTH-S024：连续同秒刷新产生不同refresh，sessionId不变，旧access/refresh均失败，新token可访问；旧hash并发刷新条件更新仅一请求成功，失败者不发新Cookie。跨三后端轮换需各方向验证。
@@ -140,11 +140,11 @@
 
 ### AUTH-014 会话查询与定向吊销
 
-已观察：仅登录用户自己的未吊销session；列表未排除已到期会话，按last_accessed_at降序分配ROW_NUMBER后筛选分页成员，外层查询无ORDER BY，响应行顺序未显式保证；分页缺省1/20，上限10000/100；输出session_id/device_info/ip_address/last_accessed_at/created_at/is_current及meta。也没有同时间戳稳定次序。定向吊销仅匹配自身未吊销session，0行404（含重复调用、他人session），吊销当前时清Cookie；others排除当前session并返回rowsAffected，无匹配返回0。来源：`auth.ts:1840-1953`、`v2.ts:497-511`。
+会话列表的当前规则见 [认证会话列表](auth-session-list.md)。三套后端使用一条 Oracle 查询读取当前用户的未撤销会话及总数，按最后活跃时间降序、会话 ID 升序分页。定向吊销仅匹配自身未吊销session，0行404（含重复调用、他人session），吊销当前时清Cookie；others排除当前session并返回rowsAffected，无匹配返回0。
 
 - AUTH-S029：两个用户各两session，用户A只能列出/吊销自身；他人和不存在ID404；已吊销ID再次请求404，不能统一描述为所有退出幂等。
 - AUTH-S030：吊销当前session清Cookie；others保留当前、不清Cookie，首次正确计数、重复为0；被吊销会话下一次访问/refresh失败。
-- AUTH-S031：未吊销但到期记录仍显示，is_current按sessionId；核对分页边界及同时间戳排序未保证的现状。
+- AUTH-S031：未吊销但到期记录仍显示，is_current按sessionId。核对同时间戳按会话 ID 升序分页，超出末页仍返回该次查询的总数。
 
 ### AUTH-015 登录提醒、Redis与缓存副作用
 
@@ -168,16 +168,16 @@
 
 | ID | 现存缺口与决策 | 关联场景/来源 |
 | --- | --- | --- |
-| AUTH-901 | OTP已升级安全随机源，sms改为明确不可用；密码重置引入事务内消费，注册及其他用途的消费策略、服务内限流、尝试次数和实际短信能力仍缺失。不可假设已经Redis限流。 | S006-009/S028；auth-otp-creation.md |
-| AUTH-902 | 受信凭据只有客户端fingerprint，无服务器签发设备秘密；挑战完成没有绑定请求设备/IP；决定共享信任凭据与挑战绑定规则。 | S021-022；auth:843-961,1599-1662 |
-| AUTH-903 | 多语句autoCommit导致setup/confirm/disable及恢复码→challenge→信任→session流程部分完成；单行消费防重放不等于全流程原子。决定事务边界、外部邮件/WS/Redis投递时机、失败恢复。 | S007/S020/S035；v2:263-273 |
-| AUTH-904 | service token verifier仅要求type为access或refresh，refresh流程不强制refresh；userId规范化比middleware宽松，refresh及受保护请求未重新检查账号可用；JWT验算法未固定allowlist且无iss/aud。决定统一校验、停用生效及密钥兼容策略。 | S004/S014/S024；auth:405-493,1664-1697；middleware:78-100,237-250 |
-| AUTH-905 | 重置事务撤销当时已有session并消费OTP，但并发旧密码登录、在途双因素挑战、受信设备和已建立的WebSocket尚未处理；注册/新密码缺少后端强度/格式规则，必填密码trim。 | S010/S027-028；auth-password-reset.md |
-| AUTH-906 | session列表含过期记录、外层查询无ORDER BY且同时间戳无稳定排序，分页可为小数，日期解释跨主机需核对；这些列表语义仍待统一。0.2已选择列表绕过响应缓存，并纠正仅看challenge路由neutral的旧观察；实际SQL层也失效API tag。 | S031/S033；auth:1840-1905；api-cache与oracle-query-cache实际包装 |
-| AUTH-907 | TTL配置缺正值/大小关系预检，DB却要求refresh>access；2FA key派生有固定fallback，改secret后旧密文可无法解密；基本schema双副本及注册并发唯一错误映射未统一。决定配置拒绝条件、密钥轮换/版本、迁移权威和并发错误契约。 | S011/S014/S034；auth:290-337,363-371；DDL:304-306 |
+| AUTH-901 | OTP已升级安全随机源，sms改为明确不可用。密码重置、改邮箱与注册均在各自写入事务中消费 OTP。三后端共用 Redis 发送额度与每验证码五次比对额度。真实 Oracle、Redis、邮件及六种部署组合仍待验收，短信能力仍待推进。 | S006-009/S028；auth-otp-creation.md |
+| AUTH-902 | 三后端完成挑战时校验发起设备标识，允许 IP 变化。记住设备后签发随机 Cookie，Oracle 只存摘要。受信设备的有效性与会话写入在同一事务检查和提交。真实客户端 Cookie、部署和 Oracle 并发待验收。 | S021-022；[双因素完成](auth-login.md#双因素) |
+| AUTH-903 | 双因素设置、确认、关闭已各自使用事务。挑战完成用同一事务消费挑战及恢复码，插入可选受信设备和会话。通知、邮件与资料加载继续发生在登录事务提交后。真实 Oracle 回滚、双连接交错和提交结果不明确时的客户端表现待验收。 | S007/S020/S035；v2:263-273 |
+| AUTH-904 | 三套后端已对齐 V2 JWT 的 HMAC 算法、用途、用户 ID、会话 ID 和时间边界。访问令牌要求非空字符串 jti，刷新与退出允许旧 refresh JWT 缺少该字段并仍复核数据库哈希。应用未给这些会话令牌配置额外的 issuer 或 audience。跨发行者、真实会话和旧部署版本切换留待验收。 | S004/S014/S024；[刷新契约](auth-refresh.md) |
+| AUTH-905 | 重置事务撤销已有会话并消费 OTP。密码入口在会话签发或新挑战写入前锁住同一用户行并重验密码版本，防止并发旧密码在重置后写入授权。同一重置事务撤销既有挑战和受信设备，在途完成的各项写入受密码版本约束。WebSocket 在下次应用帧、推送或例行复核时关闭已撤销的会话。真实 Oracle 并发和跨实例、客户端重连待验收。 | S010/S027-028；auth-password-reset.md |
+| AUTH-906 | 会话列表仍包含未撤销的到期记录，并沿用可为小数的分页参数。总数和结果现在由同一条查询返回，同时间戳按会话 ID 升序。跨主机的日期解释仍需核对，列表绕过响应缓存。 | S031/S033；[认证会话列表](auth-session-list.md) |
+| AUTH-907 | 三后端已对 TTL 正值、上限及 refresh 大于 access 执行启动校验。2FA key派生有固定fallback，改secret后旧密文可无法解密；基本schema双副本及注册并发唯一错误映射仍需核对。 | S011/S014/S034；[刷新契约](auth-refresh.md) |
 
 ## 验收记录要求
 
 所有AUTH-S001至AUTH-S035当前为 `not-run`。每个场景分别记录Nuxt/Rust/Go提交、规则版本、运行模式、隔离Oracle/Redis身份、输入/HTTP/Cookie、数据库前后状态及事件证据；跨后端token签发/验证/轮换/吊销必须覆盖三个发行者与三个接收者，不可只做各自闭环。Flutter与Web分别验证Cookie和Bearer/body refresh路径。条件更新竞争必须真实Oracle执行；失败注入需检查逐语句提交副作用。已有测试源码只作为可复用测试设计来源，本轮未执行，且不覆盖真实Oracle/Redis/mail/部署。未经这些证据不把任何路由标为accepted。
 
-原生 token codec 的共同单元样例另见 `specifications/scenarios/auth-tokens.json`。它只验证签发格式、签名、类型及数值边界，不替代上述业务场景。数字字符串当前覆盖普通十进制和首尾空白；Nuxt `Number()` 更宽的十六进制/boolean/array 转换仍属于 AUTH-904 的统一规则审查，不据这些单元样例宣称所有畸形 claim 行为完全一致。
+三套后端的 V2 JWT 共用 `specifications/scenarios/auth-tokens.json` 中的签名、类型及数值边界样例。userId 可为正安全整数或解析为正安全整数的十进制数字字符串。字符串允许首尾 ASCII 空白和十进制指数。布尔值、数组、十六进制、带下划线的文本以及数字类型的 sessionId 均拒绝。

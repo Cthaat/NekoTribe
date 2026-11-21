@@ -1,0 +1,13 @@
+{
+  "id": "CHAT-CHANNEL-LIST",
+  "revision": 1,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"nonmember","status":403},
+    {"id":"private-manager","status":200,"role":"admin","includesPrivate":true},
+    {"id":"private-member","status":200,"role":"member","includesPrivate":false},
+    {"id":"deleted-preview","status":200,"lastMessage":null},
+    {"id":"empty-group-concurrent-init","status":200,"defaults":["公告板","综合讨论"],"duplicates":0},
+    {"id":"second-default-fails","status":500,"defaultsCommitted":0}
+  ]
+}

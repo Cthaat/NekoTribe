@@ -1,0 +1,110 @@
+{
+  "id": "SENTIMENT-RETIREMENT",
+  "cases": [
+    {
+      "id": "legacy-config",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/config",
+      "status": 200,
+      "code": 200
+    },
+    {
+      "id": "post-auth-login",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/auth/login",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "post-predict",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/predict",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "post-training-start",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/training/start",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "get-training-status-job-7",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/training/status/job-7",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "get-training-jobs",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/training/jobs",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "post-training-cancel-job-7",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/training/cancel/job-7",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "get-models",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/models",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "get-models-active",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/models/active",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "put-models-active",
+      "method": "PUT",
+      "path": "/api/v2/integrations/sentiment-flow/models/active",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "delete-models-model-7",
+      "method": "DELETE",
+      "path": "/api/v2/integrations/sentiment-flow/models/model-7",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "get-stats-overview",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/stats/overview",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "get-admin-users",
+      "method": "GET",
+      "path": "/api/v2/integrations/sentiment-flow/admin/users",
+      "status": 410,
+      "code": 41001
+    },
+    {
+      "id": "undeclared-command",
+      "method": "POST",
+      "path": "/api/v2/integrations/sentiment-flow/models/import",
+      "status": 404,
+      "code": 40404
+    },
+    {
+      "id": "unsupported-method",
+      "method": "DELETE",
+      "path": "/api/v2/integrations/sentiment-flow/training/start",
+      "status": 404,
+      "code": 40404
+    }
+  ]
+}

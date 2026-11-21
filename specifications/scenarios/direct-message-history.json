@@ -1,0 +1,13 @@
+{
+  "id": "DIRECT-MESSAGE-HISTORY",
+  "revision": 2,
+  "cases": [
+    {"id":"no-credential","conversationId":"7","authenticated":false,"status":401},
+    {"id":"unsafe-id","conversationId":"9007199254740992","authenticated":true,"status":400},
+    {"id":"nonparticipant","conversationId":"7","authenticated":true,"participant":false,"status":403},
+    {"id":"first-page","conversationId":"7","authenticated":true,"participant":true,"page":1,"pageSize":2,"orderedMessageIds":[10,11],"markRead":11,"status":200},
+    {"id":"keep-newer-read-position","conversationId":"7","authenticated":true,"participant":true,"page":1,"orderedMessageIds":[10,11],"markRead":11,"existingReadPosition":12,"expectedReadPosition":12,"status":200},
+    {"id":"older-page","conversationId":"7","authenticated":true,"participant":true,"page":2,"pageSize":2,"orderedMessageIds":[8,9],"markRead":null,"status":200},
+    {"id":"empty-page","conversationId":"7","authenticated":true,"participant":true,"page":1,"orderedMessageIds":[],"markRead":null,"status":200}
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "id": "MODERATION-POST-ACTIONS",
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "path": "/api/v2/moderation/content/81/actions",
+      "method": "POST",
+      "status": 401,
+      "body": {
+        "action": "flag"
+      }
+    },
+    {
+      "id": "forbidden",
+      "path": "/api/v2/moderation/content/81/actions",
+      "method": "POST",
+      "status": 403,
+      "body": {
+        "action": "flag"
+      },
+      "denied": true
+    },
+    {
+      "id": "invalid-id",
+      "path": "/api/v2/moderation/content/081/actions",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "action": "flag"
+      }
+    },
+    {
+      "id": "invalid-action",
+      "path": "/api/v2/moderation/content/81/actions",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "action": "delete"
+      }
+    },
+    {
+      "id": "invalid-note",
+      "path": "/api/v2/moderation/content/81/actions",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "action": "flag",
+        "note": false
+      }
+    },
+    {
+      "id": "reject-missing-note",
+      "path": "/api/v2/moderation/content/81/actions",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "action": "reject"
+      },
+      "error": "请填写审核备注"
+    },
+    {
+      "id": "claim-disabled",
+      "path": "/api/v2/moderation/content/81/actions",
+      "method": "POST",
+      "status": 403,
+      "body": {
+        "action": "claim"
+      },
+      "setting": "disabled",
+      "error": "审核领取已关闭"
+    },
+    {
+      "id": "claim-conflict",
+      "path": "/api/v2/moderation/content/81/actions",
+      "method": "POST",
+      "status": 409,
+      "body": {
+        "action": "release"
+      },
+      "assigned": 7,
+      "error": "案件由其他审核员领取"
+    },
+    {
+      "id": "missing-post",
+      "path": "/api/v2/moderation/content/99/actions",
+      "method": "POST",
+      "status": 404,
+      "body": {
+        "action": "flag"
+      },
+      "error": "帖子不存在"
+    },
+    {
+      "id": "note-trimmed",
+      "path": "/api/v2/moderation/content/81/actions?page=9",
+      "method": "POST",
+      "status": 200,
+      "body": {
+        "action": "reject",
+        "note": "  Reviewed  ",
+        "reason": "  duplicate  "
+      },
+      "item": {
+        "post_id": 81,
+        "case_id": 17,
+        "status": "rejected"
+      }
+    },
+    {
+      "id": "default-flag",
+      "path": "/api/v2/moderation/content/81/actions",
+      "method": "POST",
+      "status": 200,
+      "body": {},
+      "item": {
+        "post_id": 81,
+        "case_id": 17,
+        "status": "flagged"
+      }
+    },
+    {
+      "id": "empty-bulk",
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "post_ids": []
+      }
+    },
+    {
+      "id": "invalid-bulk-id",
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "post_ids": [
+          81,
+          -1
+        ]
+      }
+    },
+    {
+      "id": "bulk-claim-blocked",
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "POST",
+      "status": 400,
+      "body": {
+        "action": "claim",
+        "post_ids": [
+          81
+        ]
+      }
+    },
+    {
+      "id": "bulk-missing",
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "POST",
+      "status": 404,
+      "body": {
+        "action": "flag",
+        "post_ids": [
+          81,
+          99
+        ]
+      }
+    },
+    {
+      "id": "bulk-atomic-failure",
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "POST",
+      "status": 500,
+      "body": {
+        "action": "flag",
+        "post_ids": [
+          82,
+          81
+        ]
+      },
+      "auditFail": 82
+    },
+    {
+      "id": "bulk-dedupe",
+      "path": "/api/v2/moderation/content/bulk-actions",
+      "method": "POST",
+      "status": 200,
+      "body": {
+        "action": "approve",
+        "post_ids": [
+          82,
+          "81",
+          81
+        ]
+      },
+      "processed": 2
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "id": "MODERATION-USER-QUEUE",
+  "cases": [
+    {
+      "id": "anonymous",
+      "path": "/api/v2/moderation/users",
+      "status": 401,
+      "method": "GET"
+    },
+    {
+      "id": "ordinary-member",
+      "path": "/api/v2/moderation/users",
+      "status": 403,
+      "denied": true,
+      "method": "GET"
+    },
+    {
+      "id": "filtered",
+      "path": "/api/v2/moderation/users?q=%20Reader%25%20&status=active&sort=reports&page_size=2",
+      "status": 200,
+      "query": {
+        "q": "Reader%",
+        "status": "active",
+        "sort": "reports",
+        "start_row": 1,
+        "end_row": 2
+      },
+      "data": [
+        {
+          "user_id": 7,
+          "username": "reader",
+          "display_name": "Reader",
+          "avatar_url": "",
+          "email": "reader@example.test",
+          "status": "active",
+          "is_active": 1,
+          "is_verified": 0,
+          "followers_count": 1,
+          "posts_count": 2,
+          "likes_count": 3,
+          "report_count": 4,
+          "active_restriction": "mute",
+          "restriction_until": null,
+          "created_at": "2026-11-16T00:00:00.000Z",
+          "updated_at": "2026-11-16T00:00:00.000Z"
+        }
+      ],
+      "meta": {
+        "page": 1,
+        "page_size": 2,
+        "total": 1,
+        "has_next": false
+      },
+      "method": "GET"
+    },
+    {
+      "id": "beyond-last-page",
+      "path": "/api/v2/moderation/users?q=%20Reader%25%20&status=active&sort=reports&page_size=2&page=2",
+      "status": 200,
+      "query": {
+        "q": "Reader%",
+        "status": "active",
+        "sort": "reports",
+        "start_row": 3,
+        "end_row": 4
+      },
+      "data": [],
+      "meta": {
+        "page": 2,
+        "page_size": 2,
+        "total": 1,
+        "has_next": false
+      },
+      "method": "GET"
+    },
+    {
+      "id": "duplicates-and-unknown-sort",
+      "path": "/api/v2/moderation/users?status=active&status=suspended&q=x&q=y&sort=nope&page_size=2",
+      "status": 200,
+      "query": {
+        "q": null,
+        "status": null,
+        "sort": "newest",
+        "start_row": 1,
+        "end_row": 2
+      },
+      "data": [],
+      "meta": {
+        "page": 1,
+        "page_size": 2,
+        "total": 0,
+        "has_next": false
+      },
+      "method": "GET"
+    }
+  ]
+}

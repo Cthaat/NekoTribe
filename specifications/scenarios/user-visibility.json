@@ -1,0 +1,125 @@
+{
+  "id": "USER-VISIBILITY",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "block",
+      "method": "POST",
+      "path": "/api/v2/users/me/blocks/9",
+      "status": 200,
+      "relationship": "blocking"
+    },
+    {
+      "id": "unblock",
+      "method": "DELETE",
+      "path": "/api/v2/users/me/blocks/81",
+      "status": 200,
+      "relationship": "none"
+    },
+    {
+      "id": "mute-no-body",
+      "method": "POST",
+      "path": "/api/v2/users/me/mutes/9",
+      "status": 200,
+      "relationship": "muted",
+      "expires_at": null
+    },
+    {
+      "id": "mute-null",
+      "method": "POST",
+      "path": "/api/v2/users/me/mutes/9",
+      "body": {
+        "expires_at": null
+      },
+      "status": 200,
+      "relationship": "muted",
+      "expires_at": null
+    },
+    {
+      "id": "mute-expiry",
+      "method": "POST",
+      "path": "/api/v2/users/me/mutes/9",
+      "body": {
+        "expires_at": "2030-02-28T09:04:05.7+08:00"
+      },
+      "status": 200,
+      "relationship": "muted",
+      "expires_at": "2030-02-28T01:04:05.700Z"
+    },
+    {
+      "id": "mute-submillisecond",
+      "method": "POST",
+      "path": "/api/v2/users/me/mutes/9",
+      "body": {
+        "expires_at": "2030-01-01T01:04:05.123456Z"
+      },
+      "status": 200,
+      "relationship": "muted",
+      "expires_at": "2030-01-01T01:04:05.123Z"
+    },
+    {
+      "id": "invalid-calendar",
+      "method": "POST",
+      "path": "/api/v2/users/me/mutes/9",
+      "body": {
+        "expires_at": "2030-02-29T01:04:05Z"
+      },
+      "status": 400
+    },
+    {
+      "id": "missing-timezone",
+      "method": "POST",
+      "path": "/api/v2/users/me/mutes/9",
+      "body": {
+        "expires_at": "2030-02-28T01:04:05"
+      },
+      "status": 400
+    },
+    {
+      "id": "non-string-expiry",
+      "method": "POST",
+      "path": "/api/v2/users/me/mutes/9",
+      "body": {
+        "expires_at": 123
+      },
+      "status": 400
+    },
+    {
+      "id": "unmute",
+      "method": "DELETE",
+      "path": "/api/v2/users/me/mutes/81",
+      "status": 200,
+      "relationship": "none"
+    },
+    {
+      "id": "self-block",
+      "method": "POST",
+      "path": "/api/v2/users/me/blocks/42",
+      "status": 422
+    },
+    {
+      "id": "invalid-id",
+      "method": "DELETE",
+      "path": "/api/v2/users/me/mutes/09",
+      "status": 400
+    },
+    {
+      "id": "absent-user",
+      "method": "POST",
+      "path": "/api/v2/users/me/blocks/81",
+      "status": 404
+    },
+    {
+      "id": "blocks-page",
+      "method": "GET",
+      "path": "/api/v2/users/me/blocks?page=2&page_size=2",
+      "status": 200
+    },
+    {
+      "id": "mutes-page",
+      "method": "GET",
+      "path": "/api/v2/users/me/mutes?page=2&page_size=2",
+      "status": 200
+    }
+  ]
+}

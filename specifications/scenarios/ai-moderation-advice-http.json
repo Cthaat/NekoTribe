@@ -1,0 +1,114 @@
+{
+  "id": "AI-MODERATION-ADVICE-HTTP",
+  "revision": 2,
+  "text": "example public text",
+  "goodAdvice": {
+    "risk": "harassment",
+    "reason": "请复核公开正文是否针对他人。",
+    "recommendation": "human_review",
+    "rule_ids": [
+      3
+    ]
+  },
+  "cases": [
+    {
+      "id": "anonymous",
+      "condition": "anonymous",
+      "http": 401,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "forbidden",
+      "condition": "forbidden",
+      "http": 403,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "wrong_purpose",
+      "condition": "wrong_purpose",
+      "http": 400,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "disabled",
+      "condition": "disabled",
+      "http": 503,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "terms_unavailable",
+      "condition": "terms_unavailable",
+      "http": 503,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "empty",
+      "condition": "empty",
+      "http": 200,
+      "status": "insufficient_evidence",
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "generated",
+      "condition": "generated",
+      "http": 200,
+      "status": "generated",
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "changed",
+      "condition": "changed",
+      "http": 409,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "explicit_skill",
+      "condition": "generated",
+      "http": 200,
+      "status": "generated",
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0,\"skill_id\":\"moderation-advice\"}"
+    },
+    {
+      "id": "wrong_skill",
+      "condition": "invalid",
+      "http": 400,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0,\"skill_id\":\"group-brief\"}"
+    },
+    {
+      "id": "duplicate_skill",
+      "condition": "invalid",
+      "http": 400,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0,\"skill_id\":\"moderation-advice\",\"skill_id\":\"moderation-advice\"}"
+    },
+    {
+      "id": "fabricated_rule",
+      "condition": "fabricated_rule",
+      "http": 503,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "wrong_locale",
+      "condition": "wrong_locale",
+      "http": 503,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "tool_proposal",
+      "condition": "tool_proposal",
+      "http": 503,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    },
+    {
+      "id": "private_input",
+      "condition": "invalid",
+      "http": 400,
+      "body": "{\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0,\"text\":\"override\"}"
+    },
+    {
+      "id": "duplicate_scope",
+      "condition": "invalid",
+      "http": 400,
+      "body": "{\"target_type\":\"comment\",\"target_type\":\"post\",\"target_id\":42,\"locale\":\"zh\",\"expected_sequence\":0}"
+    }
+  ]
+}

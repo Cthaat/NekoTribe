@@ -1,0 +1,38 @@
+{
+  "id": "GROUP-MEMBER-ROLE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "status": 401
+    },
+    {
+      "id": "role-shape-or-invalid-id",
+      "status": 400
+    },
+    {
+      "id": "admin-grants-moderator",
+      "status": 200
+    },
+    {
+      "id": "owner-grants-admin",
+      "status": 200
+    },
+    {
+      "id": "cannot-grant-peer-rank",
+      "status": 422
+    },
+    {
+      "id": "protected-target",
+      "status": 422
+    },
+    {
+      "id": "same-role-idempotent",
+      "status": 200
+    },
+    {
+      "id": "missing-member",
+      "status": 404
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "prefix": "/api/v2/integrations/sentiment-flow",
+  "config": {
+    "enabled": false,
+    "baseUrlConfigured": false,
+    "proxyBasePath": "/api/v2/integrations/sentiment-flow",
+    "timeoutMs": 10000
+  },
+  "configMessage": "sentimentflow config",
+  "retiredMessage": "情感分析功能已停用，请使用 AI 知识助手或写作助手。",
+  "operations": [
+    {
+      "method": "POST",
+      "path": "auth/login"
+    },
+    {
+      "method": "POST",
+      "path": "predict"
+    },
+    {
+      "method": "POST",
+      "path": "training/start"
+    },
+    {
+      "method": "GET",
+      "path": "training/status/{jobId}"
+    },
+    {
+      "method": "GET",
+      "path": "training/jobs"
+    },
+    {
+      "method": "POST",
+      "path": "training/cancel/{jobId}"
+    },
+    {
+      "method": "GET",
+      "path": "models"
+    },
+    {
+      "method": "GET",
+      "path": "models/active"
+    },
+    {
+      "method": "PUT",
+      "path": "models/active"
+    },
+    {
+      "method": "DELETE",
+      "path": "models/{modelId}"
+    },
+    {
+      "method": "GET",
+      "path": "stats/overview"
+    },
+    {
+      "method": "GET",
+      "path": "admin/users"
+    }
+  ]
+}

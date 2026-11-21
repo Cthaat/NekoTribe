@@ -1,0 +1,541 @@
+{
+  "id": "AUTH-EMAIL-CLIENT-RESPONSE",
+  "revision": 1,
+  "account": "new@example.test",
+  "base": {
+    "code": 200,
+    "message": "success",
+    "data": {
+      "email": "new@example.test",
+      "email_verified_at": "2026-01-02T03:04:05.000Z"
+    },
+    "meta": null
+  },
+  "cases": [
+    {
+      "id": "valid",
+      "changes": [],
+      "accepted": true
+    },
+    {
+      "id": "root-null",
+      "root": null,
+      "changes": [],
+      "accepted": false
+    },
+    {
+      "id": "root-array",
+      "root": [],
+      "changes": [],
+      "accepted": false
+    },
+    {
+      "id": "root-boolean",
+      "root": false,
+      "changes": [],
+      "accepted": false
+    },
+    {
+      "id": "root-number",
+      "root": 200,
+      "changes": [],
+      "accepted": false
+    },
+    {
+      "id": "root-text",
+      "root": "synthetic-private-value",
+      "changes": [],
+      "accepted": false
+    },
+    {
+      "id": "code-invalid-0",
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "code-invalid-1",
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "code-invalid-2",
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": "200"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "code-invalid-3",
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 201
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "code-invalid-4",
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 40101
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "code-missing",
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "message-invalid-0",
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "message-invalid-1",
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "message-invalid-2",
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": " "
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "message-missing",
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "meta-invalid-0",
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "meta-invalid-1",
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": 123
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "meta-invalid-2",
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": "private-meta"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "meta-missing",
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data-invalid-0",
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data-invalid-1",
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data-invalid-2",
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data-missing",
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email-invalid-0",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email-invalid-1",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email"
+          ],
+          "value": 1
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email-invalid-2",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email"
+          ],
+          "value": " "
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email-invalid-3",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email"
+          ],
+          "value": "other@example.test"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email-invalid-4",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email"
+          ],
+          "value": " new@example.test "
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email-missing",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-invalid-0",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-invalid-1",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": 1
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-invalid-2",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": ""
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-invalid-3",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": "2026-02-30T00:00:00Z"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-invalid-4",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": "2026-13-01T00:00:00Z"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-invalid-5",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": "2026-01-02T24:00:00Z"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-invalid-6",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": "2026-01-02T03:04:05"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-invalid-7",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": "2026-01-02T03:04:05+08:60"
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "data.email_verified_at-missing",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "error-success-conflict",
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": true
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "meta-known-invalid",
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": "true"
+          }
+        }
+      ],
+      "accepted": false
+    },
+    {
+      "id": "leap-offset",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": "2024-02-29T03:04:05.123456789+08:00"
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "id": "year-zero",
+      "changes": [
+        {
+          "path": [
+            "data",
+            "email_verified_at"
+          ],
+          "value": "0000-01-01T00:00:00Z"
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "id": "unknown-extra",
+      "changes": [
+        {
+          "path": [
+            "extra"
+          ],
+          "value": "allowed"
+        },
+        {
+          "path": [
+            "data",
+            "trace"
+          ],
+          "value": "allowed"
+        },
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "trace": "allowed"
+          }
+        }
+      ],
+      "accepted": true
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "statuses": [
+    "pending",
+    "in_review",
+    "resolved",
+    "dismissed"
+  ],
+  "reasons": [
+    "spam",
+    "harassment",
+    "hate",
+    "violence",
+    "adult",
+    "misinformation",
+    "copyright",
+    "other"
+  ],
+  "targetTypes": [
+    "post",
+    "comment",
+    "user",
+    "group_post",
+    "group_comment"
+  ],
+  "sql": {
+    "list": "SELECT report_id, target_type, target_id, reporter_user_id, reason, description, evidence_url, status, priority, handled_by, created_at, updated_at, resolved_at, total\nFROM (\nWITH filtered AS (\n  SELECT r.* FROM n_moderation_reports r\n  WHERE (:status IS NULL OR r.status = :status)\n    AND (:reason IS NULL OR r.reason = :reason)\n    AND (:target_type IS NULL OR r.target_type = :target_type)\n), ranked AS (\n  SELECT filtered.*, ROW_NUMBER() OVER (ORDER BY created_at DESC, report_id DESC) AS rn FROM filtered\n)\nSELECT r.report_id, r.target_type, r.target_id, r.reporter_user_id, r.reason, r.description, r.evidence_url,\n       r.status, r.priority, r.handled_by,\n       TO_CHAR(FROM_TZ(r.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at,\n       TO_CHAR(FROM_TZ(r.updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at,\n       TO_CHAR(FROM_TZ(r.resolved_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS resolved_at, totals.total, r.rn\nFROM (SELECT COUNT(*) AS total FROM filtered) totals\nLEFT JOIN ranked r ON r.rn BETWEEN :start_row AND :end_row\n) ORDER BY rn",
+    "read": "SELECT r.report_id, r.target_type, r.target_id, r.reporter_user_id, r.reason, r.description, r.evidence_url,\n       r.status, r.priority, r.handled_by,\n       TO_CHAR(FROM_TZ(r.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at,\n       TO_CHAR(FROM_TZ(r.updated_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at,\n       TO_CHAR(FROM_TZ(r.resolved_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS resolved_at, 0 AS total\nFROM n_moderation_reports r WHERE r.report_id = :report_id",
+    "lock": "SELECT status, handled_by, CASE WHEN resolved_at IS NULL THEN 0 ELSE 1 END AS is_resolved\nFROM n_moderation_reports WHERE report_id = :report_id FOR UPDATE",
+    "update": "UPDATE n_moderation_reports\nSET status = :status, handled_by = :handled_by, updated_at = CURRENT_TIMESTAMP,\n    resolved_at = CASE WHEN :status IN ('resolved', 'dismissed') THEN CURRENT_TIMESTAMP ELSE NULL END\nWHERE report_id = :report_id",
+    "findOpen": "SELECT report_id, reason, description, evidence_url, priority FROM (SELECT report_id, reason, description, evidence_url, priority FROM n_moderation_reports WHERE target_type = :target_type AND target_id = :target_id AND reporter_user_id = :viewer_id AND status IN ('pending','in_review') ORDER BY report_id DESC) WHERE ROWNUM = 1",
+    "next": "SELECT seq_moderation_report_id.NEXTVAL AS report_id FROM dual",
+    "insert": "INSERT INTO n_moderation_reports (report_id,target_type,target_id,reporter_user_id,reason,description,evidence_url,priority) VALUES (:report_id,:target_type,:target_id,:viewer_id,:reason,:description,:evidence_url,:priority)",
+    "mergeCase": "MERGE INTO n_moderation_cases c USING (\n  SELECT s.target_type, s.target_id, s.report_count, s.latest_reported_at,\n    CASE s.priority_rank WHEN 4 THEN 'urgent' WHEN 3 THEN 'high' WHEN 2 THEN 'normal' ELSE 'low' END AS report_priority,\n    CASE WHEN s.target_type IN ('post','comment','group_post','group_comment')\n      AND s.open_reporters >= CASE\n        WHEN REGEXP_LIKE(a.setting_value, '^[1-9][0-9]{0,15}$', 'c') THEN CASE WHEN TO_NUMBER(a.setting_value) <= 9007199254740991 THEN TO_NUMBER(a.setting_value) END\n      END\n      THEN 1 ELSE 0 END AS threshold_met\n  FROM (\n    SELECT target_type, target_id, COUNT(*) AS report_count, MAX(created_at) AS latest_reported_at,\n      MAX(CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END) AS priority_rank,\n      COUNT(DISTINCT CASE WHEN status IN ('pending','in_review') THEN reporter_user_id END) AS open_reporters\n    FROM n_moderation_reports WHERE target_type = :target_type AND target_id = :target_id\n    GROUP BY target_type, target_id\n  ) s\n  LEFT JOIN n_moderation_settings a ON a.setting_key = 'auto_hide_report_threshold'\n) r ON (c.target_type = r.target_type AND c.target_id = r.target_id)\nWHEN MATCHED THEN UPDATE SET\n  c.report_count = r.report_count, c.latest_reported_at = r.latest_reported_at,\n  c.priority = CASE WHEN c.status IN ('pending','flagged') AND r.threshold_met = 1\n    AND r.report_priority IN ('low','normal') THEN 'high' ELSE r.report_priority END,\n  c.updated_at = CURRENT_TIMESTAMP\nWHEN NOT MATCHED THEN INSERT (case_id,target_type,target_id,status,priority,report_count,latest_reported_at)\nVALUES (seq_moderation_case_id.NEXTVAL,r.target_type,r.target_id,'pending',\n  CASE WHEN r.threshold_met = 1 AND r.report_priority IN ('low','normal') THEN 'high' ELSE r.report_priority END,\n  r.report_count,r.latest_reported_at)"
+  },
+  "create": {
+    "maxTextBytes": 1000,
+    "priorities": [
+      "low",
+      "normal",
+      "high",
+      "urgent"
+    ],
+    "evidencePattern": "^(?:/|/[^/\\x00-\\x20\\x7f\\\\][^\\x00-\\x20\\x7f\\\\]*|https?://[^\\x00-\\x20\\x7f\\\\/?#]+[^\\x00-\\x20\\x7f\\\\]*)$",
+    "targets": {
+      "post": "SELECT p.post_id AS target_id FROM n_posts p WHERE p.post_id = :target_id AND p.is_deleted = 0 AND fn_can_view_post(:viewer_id, p.post_id) = 1 FOR UPDATE",
+      "comment": "SELECT c.comment_id AS target_id FROM n_comments c WHERE c.comment_id = :target_id AND c.is_deleted = 0 AND fn_can_view_post(:viewer_id, c.post_id) = 1 FOR UPDATE",
+      "user": "SELECT u.user_id AS target_id FROM n_users u WHERE u.user_id = :target_id AND u.is_active = 1 AND fn_get_user_relationship(:viewer_id, u.user_id) NOT IN ('blocking', 'blocked_by') FOR UPDATE",
+      "group_post": "SELECT p.post_id AS target_id FROM n_group_posts p WHERE p.post_id = :target_id AND p.is_deleted = 0 AND EXISTS (SELECT 1 FROM n_groups g WHERE g.group_id = p.group_id AND g.is_active = 1 AND g.is_deleted = 0 AND (g.privacy = 'public' OR EXISTS (SELECT 1 FROM n_group_members m WHERE m.group_id = g.group_id AND m.user_id = :viewer_id AND m.status = 'active'))) FOR UPDATE",
+      "group_comment": "SELECT c.comment_id AS target_id FROM n_group_comments c WHERE c.comment_id = :target_id AND c.is_deleted = 0 AND EXISTS (SELECT 1 FROM n_group_posts p JOIN n_groups g ON g.group_id = p.group_id WHERE p.post_id = c.post_id AND p.is_deleted = 0 AND g.is_active = 1 AND g.is_deleted = 0 AND (g.privacy = 'public' OR EXISTS (SELECT 1 FROM n_group_members m WHERE m.group_id = g.group_id AND m.user_id = :viewer_id AND m.status = 'active'))) FOR UPDATE"
+    }
+  }
+}

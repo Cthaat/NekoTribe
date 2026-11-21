@@ -1,0 +1,153 @@
+{
+  "id": "USER-AVATAR",
+  "revision": 3,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401,
+      "parts": [
+        {
+          "field": "file",
+          "name": "avatar.png",
+          "hex": "89504e470d0a1a0a1122"
+        }
+      ]
+    },
+    {
+      "id": "empty",
+      "status": 400,
+      "parts": []
+    },
+    {
+      "id": "unavailable-storage",
+      "status": 503,
+      "legacyStatus": 500,
+      "fault": "storage-config",
+      "parts": [
+        {
+          "field": "file",
+          "name": "avatar.png",
+          "hex": "89504e470d0a1a0a1122"
+        }
+      ]
+    },
+    {
+      "id": "incorrect-field",
+      "status": 400,
+      "parts": [
+        {
+          "field": "media",
+          "name": "avatar.png",
+          "hex": "89504e470d0a1a0a1122"
+        }
+      ]
+    },
+    {
+      "id": "filename-without-part-content-type",
+      "status": 200,
+      "parts": [
+        {
+          "field": "file",
+          "name": "avatar.png",
+          "contentType": "",
+          "hex": "89504e470d0a1a0a1122"
+        }
+      ],
+      "extension": ".png",
+      "mime": "image/png"
+    },
+    {
+      "id": "part-content-type-without-filename",
+      "status": 400,
+      "parts": [
+        {
+          "field": "file",
+          "contentType": "image/png",
+          "hex": "89504e470d0a1a0a1122"
+        }
+      ]
+    },
+    {
+      "id": "spoofed-mime",
+      "status": 400,
+      "parts": [
+        {
+          "field": "file",
+          "name": "avatar.png",
+          "hex": "6e6f7420616e20696d616765"
+        }
+      ]
+    },
+    {
+      "id": "oversized",
+      "status": 400,
+      "parts": [
+        {
+          "field": "file",
+          "name": "avatar.png",
+          "hex": "89504e470d0a1a0a1122",
+          "size": 10485761
+        }
+      ]
+    },
+    {
+      "id": "avatar-alias",
+      "status": 200,
+      "parts": [
+        {
+          "field": "avatar",
+          "name": "avatar.png",
+          "hex": "89504e470d0a1a0a1122"
+        }
+      ],
+      "extension": ".png",
+      "mime": "image/png"
+    },
+    {
+      "id": "file-wins-over-avatar",
+      "status": 200,
+      "parts": [
+        {
+          "field": "avatar",
+          "name": "avatar.png",
+          "hex": "89504e470d0a1a0a1122"
+        },
+        {
+          "field": "file",
+          "name": "from-phone.png",
+          "hex": "474946383961123456"
+        }
+      ],
+      "extension": ".gif",
+      "mime": "image/gif"
+    },
+    {
+      "id": "rollback",
+      "status": 500,
+      "parts": [
+        {
+          "field": "file",
+          "name": "avatar.png",
+          "hex": "89504e470d0a1a0a1122"
+        }
+      ],
+      "extension": ".png",
+      "mime": "image/png",
+      "fault": "rollback"
+    },
+    {
+      "id": "commit-unknown",
+      "status": 500,
+      "parts": [
+        {
+          "field": "file",
+          "name": "avatar.png",
+          "hex": "89504e470d0a1a0a1122"
+        }
+      ],
+      "extension": ".png",
+      "mime": "image/png",
+      "fault": "commit"
+    }
+  ]
+}
