@@ -3,6 +3,7 @@ class ApiException implements Exception {
     required this.code,
     required this.message,
     this.statusCode,
+    this.retryAfterSeconds,
     this.data,
     this.cause,
   });
@@ -10,6 +11,7 @@ class ApiException implements Exception {
   final int code;
   final String message;
   final int? statusCode;
+  final int? retryAfterSeconds;
   final dynamic data;
   final Object? cause;
 

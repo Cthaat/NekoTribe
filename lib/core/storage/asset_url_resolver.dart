@@ -15,40 +15,15 @@ class AssetUrlResolver {
     if (trimmed == '/default-avatar.png' || trimmed == 'default-avatar.png') {
       return _join(config.storageBaseUrl, defaultAvatarPath);
     }
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      // 完整 URL：可能需要把 /uploads 或 /upload 替换为 /storage
-      try {
-        final uri = Uri.parse(trimmed);
-        final newPath = _convertLegacyPath(uri.path);
-        if (newPath != uri.path) {
-          return uri.replace(path: newPath).toString();
-        }
-        return trimmed;
-      } catch (_) {
-        return trimmed;
-      }
+    if (_absoluteHttp.hasMatch(trimmed) || trimmed.startsWith('/api/')) {
+      return trimmed;
     }
-    if (trimmed.startsWith('/storage/')) {
-      return _join(config.storageBaseUrl, trimmed);
-    }
-    if (trimmed.startsWith('/uploads/') || trimmed.startsWith('/upload/')) {
-      return _join(config.storageBaseUrl, _convertLegacyPath(trimmed));
-    }
-    if (trimmed.startsWith('/')) {
-      return _join(config.storageBaseUrl, trimmed);
-    }
-    return _join(config.storageBaseUrl, '/$trimmed');
+    final path = trimmed.replaceFirst(_legacyStorage, '/storage/');
+    return _join(config.storageBaseUrl, path);
   }
 
-  String _convertLegacyPath(String path) {
-    if (path.startsWith('/uploads/')) {
-      return '/storage/${path.substring('/uploads/'.length)}';
-    }
-    if (path.startsWith('/upload/')) {
-      return '/storage/${path.substring('/upload/'.length)}';
-    }
-    return path;
-  }
+  static final _absoluteHttp = RegExp(r'^https?://', caseSensitive: false);
+  static final _legacyStorage = RegExp(r'^/uploads?/+');
 
   String _join(String base, String path) {
     if (base.endsWith('/') && path.startsWith('/')) {

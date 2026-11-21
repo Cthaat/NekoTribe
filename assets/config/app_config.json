@@ -1,9 +1,8 @@
 {
+  "groupPostShareBaseUrl": "",
   "defaults": {
     "apiBaseUrl": "http://127.0.0.1:3000",
-    "wsBaseUrl": "ws://127.0.0.1:3000",
-    "storageBaseUrl": "http://127.0.0.1:3000",
-    "presetId": "nuxt-local"
+    "presetId": "custom"
   },
   "presets": [
     {
@@ -13,6 +12,27 @@
       "apiBaseUrl": "http://127.0.0.1:3000",
       "wsBaseUrl": "ws://127.0.0.1:3000",
       "storageBaseUrl": "http://127.0.0.1:3000"
+    },
+    {
+      "id": "go-local",
+      "label": "Go 本机服务 (30006)",
+      "apiBaseUrl": "http://127.0.0.1:30006",
+      "wsBaseUrl": "ws://127.0.0.1:30006",
+      "storageBaseUrl": "http://127.0.0.1:30006"
+    },
+    {
+      "id": "rust-local",
+      "label": "Rust 本机服务 (30003)",
+      "apiBaseUrl": "http://127.0.0.1:30003",
+      "wsBaseUrl": "ws://127.0.0.1:30003",
+      "storageBaseUrl": "http://127.0.0.1:30003"
+    },
+    {
+      "id": "gateway-local",
+      "label": "统一网关 (30005)",
+      "apiBaseUrl": "http://127.0.0.1:30005",
+      "wsBaseUrl": "ws://127.0.0.1:30005",
+      "storageBaseUrl": "http://127.0.0.1:30005"
     },
     {
       "id": "entry",

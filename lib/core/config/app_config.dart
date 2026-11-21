@@ -1,9 +1,42 @@
 import 'dart:convert';
 
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/storage_keys.dart';
+import 'app_config_asset.dart'
+    if (dart.library.js_interop) 'app_config_asset_web.dart';
+
+class BrowserEndpointTransportException implements Exception {
+  const BrowserEndpointTransportException();
+}
+
+Uri? get currentBrowserPage => kIsWeb ? Uri.base : null;
+
+bool hasMixedEndpointTransport(AppConfig config, Uri? browserPage) {
+  if (browserPage?.scheme != 'https') return false;
+  return [config.apiBaseUrl, config.wsBaseUrl, config.storageBaseUrl].any((
+    address,
+  ) {
+    final endpoint = Uri.tryParse(address);
+    if (endpoint == null ||
+        (endpoint.scheme != 'http' && endpoint.scheme != 'ws')) {
+      return false;
+    }
+    final host = endpoint.host.toLowerCase().replaceFirst(RegExp(r'\.$'), '');
+    if (host == 'localhost' || host.endsWith('.localhost')) return false;
+    if (host == '::1' || host == '0:0:0:0:0:0:0:1') return false;
+    final ipv4 = host.split('.');
+    return ipv4.length != 4 ||
+        ipv4.first != '127' ||
+        !ipv4.every((byte) {
+          final value = int.tryParse(byte);
+          return RegExp(r'^\d{1,3}$').hasMatch(byte) &&
+              value != null &&
+              value <= 255;
+        });
+  });
+}
 
 /// 一个端点预设（一组完整的 API / WS / Storage 基址）。
 class EndpointPreset {
@@ -24,13 +57,14 @@ class EndpointPreset {
   final String storageBaseUrl;
 
   static EndpointPreset fromJson(Map<String, dynamic> json) {
+    final endpoints = AppConfig.fromJson(json);
     return EndpointPreset(
       id: (json['id'] as String?) ?? '',
       label: (json['label'] as String?) ?? (json['id'] as String?) ?? '',
       description: json['description'] as String?,
-      apiBaseUrl: (json['apiBaseUrl'] as String?) ?? '',
-      wsBaseUrl: (json['wsBaseUrl'] as String?) ?? '',
-      storageBaseUrl: (json['storageBaseUrl'] as String?) ?? '',
+      apiBaseUrl: endpoints.apiBaseUrl,
+      wsBaseUrl: endpoints.wsBaseUrl,
+      storageBaseUrl: endpoints.storageBaseUrl,
     );
   }
 }
@@ -38,25 +72,32 @@ class EndpointPreset {
 /// 从 `assets/config/app_config.json` 加载得到的不可变包，
 /// 包含默认值（首次启动 fallback）和预置端点列表。
 class AppConfigBundle {
-  const AppConfigBundle({required this.defaults, required this.presets});
+  const AppConfigBundle({
+    required this.defaults,
+    required this.presets,
+    this.groupPostShareBaseUrl = '',
+  });
 
   final AppConfig defaults;
   final List<EndpointPreset> presets;
+  final String groupPostShareBaseUrl;
 
   static AppConfigBundle fromJson(Map<String, dynamic> json) {
     final defaultsJson = (json['defaults'] as Map<String, dynamic>?) ?? {};
-    final defaults = AppConfig(
-      presetId: (defaultsJson['presetId'] as String?) ?? '',
-      apiBaseUrl: (defaultsJson['apiBaseUrl'] as String?) ?? '',
-      wsBaseUrl: (defaultsJson['wsBaseUrl'] as String?) ?? '',
-      storageBaseUrl: (defaultsJson['storageBaseUrl'] as String?) ?? '',
-    );
+    final defaults = AppConfig.fromJson(defaultsJson);
     final raw = (json['presets'] as List?) ?? const [];
     final presets = raw
         .whereType<Map<String, dynamic>>()
         .map(EndpointPreset.fromJson)
         .toList(growable: false);
-    return AppConfigBundle(defaults: defaults, presets: presets);
+    final shareBase = json['groupPostShareBaseUrl'];
+    return AppConfigBundle(
+      defaults: defaults.presetId == null
+          ? defaults.copyWith(presetId: '')
+          : defaults,
+      presets: presets,
+      groupPostShareBaseUrl: shareBase is String ? shareBase : '',
+    );
   }
 }
 
@@ -69,6 +110,67 @@ class AppConfig {
     required this.storageBaseUrl,
     this.presetId,
   });
+
+  factory AppConfig.fromOrigin(String address) {
+    final origin = _parseBase(address, const {'http', 'https'});
+    if (origin.path.isNotEmpty && origin.path != '/') {
+      throw const FormatException('Expected an HTTP or HTTPS origin');
+    }
+    return _sharedBase(origin);
+  }
+
+  factory AppConfig.fromCustom({
+    required String apiBaseUrl,
+    String wsBaseUrl = '',
+    String storageBaseUrl = '',
+  }) {
+    final api = _parseBase(apiBaseUrl, const {'http', 'https'});
+    final shared = _sharedBase(api);
+    return shared.copyWith(
+      wsBaseUrl: wsBaseUrl.trim().isEmpty
+          ? null
+          : _baseWithoutTrailingSlashes(
+              _parseBase(wsBaseUrl, const {'ws', 'wss'}),
+            ),
+      storageBaseUrl: storageBaseUrl.trim().isEmpty
+          ? null
+          : _baseWithoutTrailingSlashes(
+              _parseBase(storageBaseUrl, const {'http', 'https'}),
+            ),
+    );
+  }
+
+  static Uri _parseBase(String address, Set<String> schemes) {
+    final value = address.trim();
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        !schemes.contains(uri.scheme) ||
+        uri.host.isEmpty ||
+        uri.authority.contains('@') ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        RegExp(r'\s').hasMatch(value) ||
+        (uri.hasPort && (uri.port < 1 || uri.port > 65535))) {
+      throw const FormatException('Invalid backend base URL');
+    }
+    return uri;
+  }
+
+  static String _baseWithoutTrailingSlashes(Uri uri) =>
+      uri.toString().replaceFirst(RegExp(r'/+$'), '');
+
+  static AppConfig _sharedBase(Uri api) {
+    final base = _baseWithoutTrailingSlashes(api);
+    final websocketScheme = api.scheme == 'https' ? 'wss' : 'ws';
+    return AppConfig(
+      presetId: 'custom',
+      apiBaseUrl: base,
+      wsBaseUrl: _baseWithoutTrailingSlashes(
+        api.replace(scheme: websocketScheme),
+      ),
+      storageBaseUrl: base,
+    );
+  }
 
   /// 当前选中的预设 id；若为 `null` 或 `custom` 表示用户输入的自定义端点。
   final String? presetId;
@@ -101,12 +203,29 @@ class AppConfig {
   };
 
   static AppConfig fromJson(Map<String, dynamic> json) {
-    return AppConfig(
+    final config = AppConfig(
       apiBaseUrl: (json['apiBaseUrl'] as String?) ?? '',
       wsBaseUrl: (json['wsBaseUrl'] as String?) ?? '',
       storageBaseUrl: (json['storageBaseUrl'] as String?) ?? '',
       presetId: json['presetId'] as String?,
     );
+    final missingRealtime = config.wsBaseUrl.trim().isEmpty;
+    final missingStorage = config.storageBaseUrl.trim().isEmpty;
+    if (config.apiBaseUrl.trim().isEmpty ||
+        (!missingRealtime && !missingStorage)) {
+      return config;
+    }
+    try {
+      final shared = AppConfig.fromCustom(apiBaseUrl: config.apiBaseUrl);
+      return config.copyWith(
+        apiBaseUrl: shared.apiBaseUrl,
+        wsBaseUrl: missingRealtime ? shared.wsBaseUrl : null,
+        storageBaseUrl: missingStorage ? shared.storageBaseUrl : null,
+      );
+    } on FormatException {
+      // Keep the configured values available for manual correction.
+      return config;
+    }
   }
 }
 
@@ -135,7 +254,7 @@ class AppConfigLoader {
 
   static Future<AppConfigBundle> loadBundle() async {
     try {
-      final raw = await rootBundle.loadString(assetPath);
+      final raw = await loadAppConfigAsset(assetPath);
       final decoded = jsonDecode(raw);
       if (decoded is Map<String, dynamic>) {
         return AppConfigBundle.fromJson(decoded);
@@ -152,15 +271,29 @@ class AppConfigLoader {
   /// 计算应用启动时使用的初始 AppConfig（优先级：
   /// SharedPreferences override → --dart-define → bundle.defaults）。
   static Future<AppConfig> initialConfig(AppConfigBundle bundle) async {
-    final override = await readOverride();
-    if (override != null) return override;
+    return await readOverride() ?? buildDefaults(bundle);
+  }
+
+  static AppConfig buildDefaults(AppConfigBundle bundle) {
     if (_envApi.isNotEmpty || _envWs.isNotEmpty || _envStorage.isNotEmpty) {
+      AppConfig? derived;
+      if (_envApi.isNotEmpty) {
+        try {
+          derived = AppConfig.fromCustom(apiBaseUrl: _envApi);
+        } on FormatException {
+          // Preserve independently configured bases for an invalid API override.
+        }
+      }
       return AppConfig(
-        apiBaseUrl: _envApi.isNotEmpty ? _envApi : bundle.defaults.apiBaseUrl,
-        wsBaseUrl: _envWs.isNotEmpty ? _envWs : bundle.defaults.wsBaseUrl,
+        apiBaseUrl: _envApi.isNotEmpty
+            ? (derived?.apiBaseUrl ?? _envApi)
+            : bundle.defaults.apiBaseUrl,
+        wsBaseUrl: _envWs.isNotEmpty
+            ? _envWs
+            : (derived?.wsBaseUrl ?? bundle.defaults.wsBaseUrl),
         storageBaseUrl: _envStorage.isNotEmpty
             ? _envStorage
-            : bundle.defaults.storageBaseUrl,
+            : (derived?.storageBaseUrl ?? bundle.defaults.storageBaseUrl),
         presetId: 'custom',
       );
     }
@@ -169,18 +302,19 @@ class AppConfigLoader {
 
   static Future<AppConfig?> readOverride() async {
     final prefs = await SharedPreferences.getInstance();
+    // A failed setString or remove can still change the legacy in-memory cache.
+    await prefs.reload();
     final raw = prefs.getString(StorageKeys.endpointOverride);
     if (raw == null || raw.isEmpty) return null;
     try {
       final decoded = jsonDecode(raw);
       if (decoded is Map<String, dynamic>) {
-        final cfg = AppConfig.fromJson(decoded);
-        if (cfg.apiBaseUrl.isEmpty &&
-            cfg.wsBaseUrl.isEmpty &&
-            cfg.storageBaseUrl.isEmpty) {
-          return null;
-        }
-        return cfg;
+        final presetId = decoded['presetId'] as String?;
+        return AppConfig.fromCustom(
+          apiBaseUrl: (decoded['apiBaseUrl'] as String?) ?? '',
+          wsBaseUrl: (decoded['wsBaseUrl'] as String?) ?? '',
+          storageBaseUrl: (decoded['storageBaseUrl'] as String?) ?? '',
+        ).copyWith(presetId: presetId, clearPresetId: presetId == null);
       }
     } catch (_) {}
     return null;
@@ -188,14 +322,17 @@ class AppConfigLoader {
 
   static Future<void> writeOverride(AppConfig config) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
+    final saved = await prefs.setString(
       StorageKeys.endpointOverride,
       jsonEncode(config.toJson()),
     );
+    if (!saved) throw StateError('Endpoint settings were not saved');
   }
 
   static Future<void> clearOverride() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(StorageKeys.endpointOverride);
+    if (!await prefs.remove(StorageKeys.endpointOverride)) {
+      throw StateError('Endpoint settings were not cleared');
+    }
   }
 }

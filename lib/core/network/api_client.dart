@@ -9,6 +9,8 @@ import '../config/app_config.dart';
 import '../constants/api_paths.dart';
 import 'api_exception.dart';
 import 'api_response.dart';
+import 'strict_redirect_native.dart'
+    if (dart.library.js_interop) 'strict_redirect_web.dart';
 
 typedef LogoutCallback = Future<void> Function();
 
@@ -18,7 +20,8 @@ class ApiClient {
     required this.tokenStore,
     this.onLogout,
     Dio? dio,
-  }) : _dio = dio ?? Dio() {
+  }) : _dio = dio ?? createApiDio(),
+       _endpointRevision = tokenStore.endpointRevision {
     _dio.options
       ..baseUrl = config.apiBaseUrl
       ..connectTimeout = const Duration(seconds: 20)
@@ -34,11 +37,31 @@ class ApiClient {
   final TokenStore tokenStore;
   final LogoutCallback? onLogout;
   final Dio _dio;
+  final int _endpointRevision;
   final _uuid = const Uuid();
+  bool _disposed = false;
+  bool get _inactive =>
+      _disposed || _endpointRevision != tokenStore.endpointRevision;
 
   Future<void>? _refreshFuture;
+  int? _refreshRevision;
+  static const _authRevision = 'nekotribe.auth.revision';
+  static const _authRetried = 'nekotribe.auth.retried';
+  static const trustedDeviceCookie = 'nekotribe_trusted_device';
 
   Dio get raw => _dio;
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _dio.close(force: true);
+  }
+
+  DioException _endpointChanged(RequestOptions options) => DioException(
+    requestOptions: options,
+    type: DioExceptionType.cancel,
+    error: StateError('Endpoint changed'),
+  );
 
   Future<ApiResponse<T>> request<T>(
     String path, {
@@ -48,15 +71,34 @@ class ApiClient {
     Map<String, String>? headers,
     T Function(dynamic data)? decode,
     bool sendAuth = true,
+    void Function(Object? envelope)? validateSuccessEnvelope,
+    void Function(String proof)? onTrustedDeviceProof,
+    CancelToken? cancelToken,
   }) async {
-    final options = Options(method: method, headers: headers);
+    if (_inactive) {
+      throw _endpointChanged(RequestOptions(path: path, method: method));
+    }
+    final options = Options(
+      method: method,
+      headers: headers,
+      followRedirects:
+          path == ApiPaths.authTokens || onTrustedDeviceProof != null
+          ? false
+          : null,
+    );
     final response = await _dio.request<dynamic>(
       path,
       data: data,
       queryParameters: _sanitizeQuery(query),
       options: options,
+      cancelToken: cancelToken,
     );
-    return _processResponse<T>(
+    if (_inactive) throw _endpointChanged(response.requestOptions);
+    final status = response.statusCode ?? 0;
+    if (status >= 200 && status < 300) {
+      validateSuccessEnvelope?.call(response.data);
+    }
+    final result = await _processResponse<T>(
       path: path,
       method: method,
       data: data,
@@ -66,6 +108,26 @@ class ApiClient {
       decode: decode,
       sendAuth: sendAuth,
     );
+    if (!_inactive &&
+        !kIsWeb &&
+        onTrustedDeviceProof != null &&
+        status >= 200 &&
+        status < 300) {
+      for (final header in _setCookieHeaderValues(response)) {
+        final proof = _cookieValue(header, trustedDeviceCookie);
+        final secure = header
+            .split(';')
+            .skip(1)
+            .any((part) => part.trim().toLowerCase() == 'secure');
+        if (proof != null &&
+            isTrustedDeviceProof(proof) &&
+            (!secure || response.requestOptions.uri.scheme == 'https')) {
+          onTrustedDeviceProof(proof);
+          break;
+        }
+      }
+    }
+    return result;
   }
 
   Future<T> requestData<T>(
@@ -76,6 +138,8 @@ class ApiClient {
     Map<String, String>? headers,
     T Function(dynamic data)? decode,
     bool sendAuth = true,
+    void Function(Object? envelope)? validateSuccessEnvelope,
+    CancelToken? cancelToken,
   }) async {
     final res = await request<T>(
       path,
@@ -85,6 +149,8 @@ class ApiClient {
       headers: headers,
       decode: decode,
       sendAuth: sendAuth,
+      validateSuccessEnvelope: validateSuccessEnvelope,
+      cancelToken: cancelToken,
     );
     return res.data;
   }
@@ -97,6 +163,7 @@ class ApiClient {
     Map<String, String>? headers,
     required T Function(dynamic item) decodeItem,
     bool sendAuth = true,
+    CancelToken? cancelToken,
   }) async {
     final res = await request<dynamic>(
       path,
@@ -105,6 +172,7 @@ class ApiClient {
       query: query,
       headers: headers,
       sendAuth: sendAuth,
+      cancelToken: cancelToken,
     );
     return PagedResult<T>(
       items: _decodePagedItems(res.data, decodeItem),
@@ -188,6 +256,16 @@ class ApiClient {
   }) async {
     final status = response.statusCode ?? 0;
     final body = response.data;
+    final retryAfterValues = status == 429
+        ? response.headers['retry-after']
+        : null;
+    final retryAfter = retryAfterValues?.length == 1
+        ? retryAfterValues!.single
+        : null;
+    final retryAfterSeconds =
+        retryAfter != null && RegExp(r'^\d+$').hasMatch(retryAfter)
+        ? int.tryParse(retryAfter)
+        : null;
 
     // 401 自动刷新逻辑：通过 interceptor 实现，这里只处理统一响应
     if (body is Map<String, dynamic>) {
@@ -203,6 +281,7 @@ class ApiClient {
         throw ApiException(
           code: status,
           statusCode: status,
+          retryAfterSeconds: retryAfterSeconds,
           message: 'HTTP $status',
           data: body,
         );
@@ -234,6 +313,7 @@ class ApiClient {
       throw ApiException(
         code: code,
         statusCode: status,
+        retryAfterSeconds: retryAfterSeconds,
         message: message,
         data: raw,
       );
@@ -247,6 +327,7 @@ class ApiClient {
     throw ApiException(
       code: status,
       statusCode: status,
+      retryAfterSeconds: retryAfterSeconds,
       message: 'HTTP $status',
       data: body,
     );
@@ -270,6 +351,16 @@ class ApiClient {
   Interceptor _buildInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) async {
+        if (_inactive) {
+          handler.reject(_endpointChanged(options));
+          return;
+        }
+        final protected =
+            !ApiPaths.isAuthEntryPath(options.path) ||
+            ApiPaths.isRefreshPath(options.path);
+        if (protected) {
+          options.extra.putIfAbsent(_authRevision, () => tokenStore.revision);
+        }
         // 标准头
         options.headers['x-request-id'] = _uuid.v4();
         options.headers['x-client-platform'] = _platformTag();
@@ -290,53 +381,102 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer ${pair.accessToken}';
           }
         }
-        if (!options.headers.keys.any(
-          (key) => key.toLowerCase() == 'accept',
-        )) {
+        if (!options.headers.keys.any((key) => key.toLowerCase() == 'accept')) {
           options.headers['Accept'] = 'application/json';
+        }
+        if (_inactive) {
+          handler.reject(_endpointChanged(options));
+          return;
+        }
+        if (protected && options.extra[_authRevision] != tokenStore.revision) {
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              type: DioExceptionType.cancel,
+              error: StateError('Session changed'),
+            ),
+          );
+          return;
         }
         handler.next(options);
       },
       onResponse: (response, handler) async {
+        if (_inactive) {
+          handler.reject(_endpointChanged(response.requestOptions));
+          return;
+        }
+        final revision = response.requestOptions.extra[_authRevision];
+        if (response.statusCode != 401 &&
+            revision is int &&
+            revision != tokenStore.revision) {
+          handler.reject(
+            DioException(
+              requestOptions: response.requestOptions,
+              type: DioExceptionType.cancel,
+              error: StateError('Session changed'),
+            ),
+          );
+          return;
+        }
         final path = response.requestOptions.path;
         final status = response.statusCode ?? 0;
         final isAuthEntry = ApiPaths.isAuthEntryPath(path);
         final isRefresh = ApiPaths.isRefreshPath(path);
 
-        if (status == 401 && !isAuthEntry && !isRefresh) {
+        if (status == 401 &&
+            !isAuthEntry &&
+            !isRefresh &&
+            !ApiPaths.isCredentialMutationPath(
+              path,
+              method: response.requestOptions.method,
+            )) {
           try {
-            await _refreshToken();
-            // 重试
-            final retry = await _dio.fetch<dynamic>(
-              response.requestOptions..headers.remove('Authorization'),
-            );
-            handler.resolve(retry);
+            final retry = await _recoverUnauthorized(response.requestOptions);
+            if (_inactive) {
+              handler.reject(_endpointChanged(response.requestOptions));
+              return;
+            }
+            if (retry != null) {
+              handler.resolve(retry);
+              return;
+            }
+          } on DioException catch (error) {
+            handler.reject(error);
             return;
-          } catch (e) {
-            await tokenStore.clear();
-            await onLogout?.call();
-            // 继续返回原响应，调用方会得到 401
           }
         }
         handler.next(response);
       },
       onError: (DioException err, handler) async {
+        if (_inactive) {
+          handler.next(_endpointChanged(err.requestOptions));
+          return;
+        }
         final path = err.requestOptions.path;
         final status = err.response?.statusCode ?? 0;
         final isAuthEntry = ApiPaths.isAuthEntryPath(path);
         final isRefresh = ApiPaths.isRefreshPath(path);
 
-        if (status == 401 && !isAuthEntry && !isRefresh) {
+        if (status == 401 &&
+            !isAuthEntry &&
+            !isRefresh &&
+            !ApiPaths.isCredentialMutationPath(
+              path,
+              method: err.requestOptions.method,
+            )) {
           try {
-            await _refreshToken();
-            final retry = await _dio.fetch<dynamic>(
-              err.requestOptions..headers.remove('Authorization'),
-            );
-            handler.resolve(retry);
+            final retry = await _recoverUnauthorized(err.requestOptions);
+            if (_inactive) {
+              handler.next(_endpointChanged(err.requestOptions));
+              return;
+            }
+            if (retry != null) {
+              handler.resolve(retry);
+              return;
+            }
+          } on DioException catch (error) {
+            handler.next(error);
             return;
-          } catch (_) {
-            await tokenStore.clear();
-            await onLogout?.call();
           }
         }
         handler.next(err);
@@ -344,22 +484,61 @@ class ApiClient {
     );
   }
 
-  Future<void> _refreshToken() {
+  Future<void> _clearCurrent(int revision) async {
+    if (_inactive) return;
+    try {
+      final cleared = await tokenStore.clearIfCurrent(revision);
+      if (cleared && tokenStore.revision == revision + 1) {
+        await onLogout?.call();
+      }
+    } catch (_) {
+      // Return the original authentication failure even if local cleanup fails.
+    }
+  }
+
+  Future<Response<dynamic>?> _recoverUnauthorized(
+    RequestOptions options,
+  ) async {
+    final revision = options.extra[_authRevision];
+    if (_inactive || revision is! int || revision != tokenStore.revision) {
+      return null;
+    }
+    if (options.extra[_authRetried] == true) {
+      await _clearCurrent(revision);
+      return null;
+    }
+    try {
+      await _refreshToken(revision);
+    } catch (_) {
+      await _clearCurrent(revision);
+      return null;
+    }
+    if (_inactive || revision != tokenStore.revision) return null;
+    final body = options.data;
+    // Refresh the session, but leave the caller to submit a fresh upload.
+    if (body is FormData && body.isFinalized) return null;
+    options.extra[_authRetried] = true;
+    options.headers.remove('Authorization');
+    return _dio.fetch<dynamic>(options);
+  }
+
+  Future<void> _refreshToken(int revision) {
     final existing = _refreshFuture;
-    if (existing != null) return existing;
+    if (existing != null && _refreshRevision == revision) return existing;
     late final Future<void> refresh;
-    refresh = _performRefreshToken().whenComplete(() {
+    refresh = _performRefreshToken(revision).whenComplete(() {
       if (identical(_refreshFuture, refresh)) {
         _refreshFuture = null;
       }
     });
     _refreshFuture = refresh;
+    _refreshRevision = revision;
     return refresh;
   }
 
-  Future<void> _performRefreshToken() async {
+  Future<void> _performRefreshToken(int revision) async {
     final pair = await tokenStore.read();
-    if (pair == null) {
+    if (_inactive || pair == null || revision != tokenStore.revision) {
       throw ApiException(
         code: 40101,
         message: 'No refresh token',
@@ -370,36 +549,29 @@ class ApiClient {
       ApiPaths.authTokensCurrent,
       data: {'refresh_token': pair.refreshToken},
       options: Options(
+        extra: {_authRevision: revision},
         headers: {'Cookie': 'refresh_token=${pair.refreshToken}'},
       ),
     );
+    if (_inactive) throw _endpointChanged(response.requestOptions);
     final body = response.data;
     if (body is Map<String, dynamic> && body['code'] == 200) {
       final data = body['data'] as Map<String, dynamic>?;
       if (data != null) {
         final cookies = _authCookiesFromResponse(response);
-        final accessToken =
-            cookies.accessToken ??
-            data['access_token'] as String? ??
-            pair.accessToken;
-        final refreshToken =
-            cookies.refreshToken ??
-            data['refresh_token'] as String? ??
-            pair.refreshToken;
-        final accessExpStr = data['access_token_expires_at'] as String?;
-        final refreshExpStr = data['refresh_token_expires_at'] as String?;
-        final updated = TokenPair(
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-          sessionId: (data['session_id'] as String?) ?? pair.sessionId,
-          accessTokenExpiresAt: accessExpStr == null
-              ? pair.accessTokenExpiresAt
-              : DateTime.tryParse(accessExpStr),
-          refreshTokenExpiresAt: refreshExpStr == null
-              ? pair.refreshTokenExpiresAt
-              : DateTime.tryParse(refreshExpStr),
-        );
-        await tokenStore.write(updated);
+        final updated = TokenPair.fromJson(data);
+        if (updated.sessionId != pair.sessionId ||
+            (cookies.accessToken != null &&
+                cookies.accessToken != updated.accessToken) ||
+            (cookies.refreshToken != null &&
+                cookies.refreshToken != updated.refreshToken)) {
+          throw const FormatException('Invalid refresh session or cookies');
+        }
+        if (!await tokenStore.writeIfCurrent(updated, revision)) {
+          throw StateError('Session changed');
+        }
+      } else {
+        throw StateError('Invalid refresh response');
       }
     } else {
       throw ApiException(
