@@ -58,6 +58,17 @@ function getRedisInstance(): Redis {
 
 export default defineNitroPlugin(nitroApp => {
   const redis = getRedisInstance();
+  const quotaRedis = new Redis({
+    ...resolveRedisOptions(),
+    lazyConnect: true,
+    enableOfflineQueue: false,
+    autoResendUnfulfilledCommands: false,
+    maxRetriesPerRequest: 0,
+    connectTimeout: 2000,
+    commandTimeout: 2000
+  });
+  quotaRedis.connect().catch(() => {});
+  nitroApp.hooks.hook('close', () => quotaRedis.disconnect());
   redis.connect().catch(err => {
     logError('redis', {
       event: 'client:connect:failed',
@@ -66,6 +77,7 @@ export default defineNitroPlugin(nitroApp => {
   });
 
   nitroApp.hooks.hook('request', (event: H3Event) => {
+    event.context.aiQuotaRedis = quotaRedis;
     Object.defineProperty(
       event.context as RedisEventContext,
       'redis',

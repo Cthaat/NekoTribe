@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { isIP } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
@@ -7,6 +8,60 @@ import { parseEnv } from 'node:util';
 const rootDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sqlSettings = 'WHENEVER OSERROR EXIT FAILURE ROLLBACK\nWHENEVER SQLERROR EXIT FAILURE ROLLBACK\nSET ECHO OFF VERIFY OFF DEFINE OFF FEEDBACK OFF HEADING OFF PAGESIZE 0\n';
 const occupied = `(SELECT COUNT(*) FROM dba_users WHERE username IN ('NEKO_APP','NEKO_ADMIN','NEKO_READONLY')) + (SELECT COUNT(*) FROM dba_tablespaces WHERE tablespace_name IN ('NEKO_DATA','NEKO_INDEX','NEKO_TEMP'))`;
+
+export function initializeSchemaOnly({ args, root = rootDirectory, env = process.env, run = spawnSync } = {}) {
+  if (args?.length !== 2 || args[0] !== '--dotenv' || typeof args[1] !== 'string' ||
+      !args[1].trim() || args[1].startsWith('--')) {
+    throw new Error('Use --schema-only --dotenv PATH with a private environment file.');
+  }
+  const path = resolve(root, args[1]);
+  if (!existsSync(path)) throw new Error('The requested environment file does not exist.');
+  const config = { ...parseEnv(readFileSync(path, 'utf8')), ...env };
+  if (config.DB_INIT_ALLOW_EMPTY !== 'true') throw new Error('Set DB_INIT_ALLOW_EMPTY=true explicitly for a new, empty schema.');
+  const get = key => config[`NUXT_ORACLE_${key}`] ?? config[`ORACLE_${key}`] ?? '';
+  const user = get('USER');
+  const password = get('PASSWORD');
+  const host = get('HOST');
+  const port = get('PORT');
+  const service = get('SERVICE_NAME');
+  if (!/^[A-Za-z][A-Za-z0-9_$#]{0,127}$/.test(user) || /^(?:sys|system)$/i.test(user) ||
+      !password || /["\u0000-\u001f\u007f]/.test(password) ||
+      !/^[A-Za-z0-9][A-Za-z0-9._$#-]*$/.test(service) || !/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+    throw new Error('Invalid schema owner, password, port or service configuration.');
+  }
+  const bareHost = host.replace(/^\[([^\]]+)\]$/, '$1');
+  const ipv6 = isIP(bareHost) === 6;
+  if (!ipv6 && !/^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(host)) {
+    throw new Error('Invalid Oracle host configuration.');
+  }
+  const address = ipv6 ? `[${bareHost}]` : host;
+  const sqlFile = resolve(root, 'data/nekotribe-schema-only.sql');
+  if (!existsSync(sqlFile) || /["\u0000-\u001f\u007f]/.test(sqlFile)) throw new Error('The schema-only SQL file is missing or invalid.');
+
+  const childEnv = { ...env, NLS_LANG: 'AMERICAN_AMERICA.AL32UTF8' };
+  for (const key of ['ORACLE_PASSWORD', 'NUXT_ORACLE_PASSWORD', 'ORACLE_PWD']) delete childEnv[key];
+  const input = [
+    'WHENEVER OSERROR EXIT FAILURE ROLLBACK',
+    'WHENEVER SQLERROR EXIT FAILURE ROLLBACK',
+    'SET ECHO OFF', 'SET VERIFY OFF', 'SET DEFINE OFF', 'SET FEEDBACK OFF', 'SET HEADING OFF', 'SET PAGESIZE 0',
+    `CONNECT ${user}/"${password}"@//${address}:${port}/${service}`,
+    `@"${sqlFile}"`,
+    "SELECT 'NEKO_SCHEMA_CREATED' FROM dual;",
+    'EXIT SUCCESS', '',
+  ].join('\n');
+  let result;
+  try {
+    result = run('sqlplus', ['-L', '-s', '/nolog'], { cwd: root, env: childEnv, input, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, windowsHide: true });
+  } catch {
+    throw new Error('SQLPlus failed; schema initialization stopped (SQL output suppressed).');
+  }
+  const markers = (result.stdout ?? '').split(/\r?\n/).filter(line => line.trim() === 'NEKO_SCHEMA_CREATED');
+  if (result.error || result.status !== 0 || markers.length !== 1 ||
+      /(?:ORA-|SP2-|TNS-)\d{4,5}/.test(`${result.stdout ?? ''}\n${result.stderr ?? ''}`)) {
+    throw new Error('SQLPlus did not confirm schema initialization (SQL output suppressed).');
+  }
+  console.log('Schema-only baseline applied. Run the shared incremental migrations next.');
+}
 
 export function initializeDatabase({ root = rootDirectory, env = process.env, run = spawnSync } = {}) {
   const envFile = resolve(root, '.env');
@@ -56,5 +111,10 @@ export function initializeDatabase({ root = rootDirectory, env = process.env, ru
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { initializeDatabase(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+  try {
+    const [mode, ...args] = process.argv.slice(2);
+    if (mode === '--schema-only') initializeSchemaOnly({args});
+    else if (mode === undefined) initializeDatabase();
+    else throw new Error('Use init-db.mjs or init-db.mjs --schema-only --dotenv PATH.');
+  } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

@@ -1,6 +1,8 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
+import publicTermsCatalog from './specifications/requirements/ai-public-terms-catalog.json';
+import { parseTermsCatalog } from './server/services/ai/public-terms-source';
 
 type ViteHmrProtocol = 'ws' | 'wss';
 
@@ -47,6 +49,9 @@ function devViteServerConfig(): ViteServerConfig | undefined {
 const viteServerConfig = devViteServerConfig();
 
 export default defineNuxtConfig({
+  appConfig: {
+    publicTermsReferences: parseTermsCatalog(publicTermsCatalog).slice()
+  },
   compatibilityDate: '2026-04-26',
   debug: false,
   devtools: {
@@ -163,6 +168,7 @@ export default defineNuxtConfig({
   // Defaults are portable; private deployment values are injected at runtime.
   // scripts/run-nuxt.mjs maps legacy .env keys to the matching NUXT_* keys.
   runtimeConfig: {
+    apiServerBase: '',
     accessSecret: '',
     accessExpiresIn: '900',
     cookieSecure: false,
@@ -187,14 +193,11 @@ export default defineNuxtConfig({
     smtpPort: '',
     smtpUser: '',
     smtpPass: '',
-    sentimentFlowEnabled: false,
-    sentimentFlowBaseUrl: '',
-    sentimentFlowTimeoutMs: '10000',
     nlsLang: '',
     public: {
       wsUrl: '',
       apiBase: '',
-      sentimentFlowEnabled: false
+      storageBase: ''
     }
   }
 });

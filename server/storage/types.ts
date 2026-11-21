@@ -34,6 +34,7 @@ export interface StoredObject {
 
 export interface StorageReadRequest {
   rangeHeader?: string | null;
+  headOnly?: boolean;
 }
 
 export interface StorageReadResult {
@@ -54,6 +55,10 @@ export interface StorageProvider {
     visibility?: StorageVisibility
   ): string;
   readObject(
+    key: string,
+    request: StorageReadRequest
+  ): Promise<StorageReadResult>;
+  readPrivateObject(
     key: string,
     request: StorageReadRequest
   ): Promise<StorageReadResult>;

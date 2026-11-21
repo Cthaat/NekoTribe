@@ -1,5 +1,6 @@
 import {
   type H3Event,
+  send,
   sendStream,
   setResponseHeader,
   setResponseStatus
@@ -12,7 +13,7 @@ import {
 import { StorageHttpError } from '~/server/storage/http';
 
 const DEFAULT_AVATAR_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAQAAAAAYLlVAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAiklEQVR4nO3XwQmAMBAEwTn77y6doC3YgGCWoJcQecBqYSkAAAAAAAAAAAAAAGBc2q7r+7y7e0T7Yx5smN1vyXodD9bK7q7I0cxdMM9wPZz8x0y2H2Y9nLxj5mx1dbrYqX5cJ8eVnqE7x1B8hTn7gk3f4g0AAAAAAAAAAAAAAIB3bQF6rA1Xj2GmQAAAAABJRU5ErkJggg==',
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAA/UlEQVR42u2YOw4CMQxENyOuyg2oKai5AbejouQI9FCQOJOf8lyuVva8OJE/6fl6HyubjsUNAAAAAAAAAJa2UyO/t/vj68v1cm4RKNl7oV/pTTHUU33ODyMBMsV5GdRZvZ1B/dV7GagDFWdpSQIZAAAAAMLtjaUvIgPRs3S1pbYMFAkyNtXOK5QpyzsSmN/AX3H2gSY12k4vPFJSyAA49tkLucbCmvcdfMT27UgYQ5OoD7vVJOrDzjWP+lgITaU+EGibOtDt+EvDUYkBAGATgEbzVH24na5QtyQUBdKQbZQxhEZt1FzONWop63JbtVZZeKSkkAEAAAAAADCHfQBIWmGUrvIeKwAAAABJRU5ErkJggg==',
   'base64'
 );
 
@@ -29,7 +30,7 @@ function sendDefaultAvatar(event: H3Event) {
     'Content-Length',
     DEFAULT_AVATAR_PNG.length
   );
-  return DEFAULT_AVATAR_PNG;
+  return event.method === 'HEAD' ? send(event, '') : DEFAULT_AVATAR_PNG;
 }
 
 export default defineEventHandler(async event => {
@@ -47,6 +48,7 @@ export default defineEventHandler(async event => {
 
   try {
     const result = await getStorageProvider().readObject(key, {
+      headOnly: event.method === 'HEAD',
       rangeHeader:
         event.node.req.headers.range?.toString() || null
     });

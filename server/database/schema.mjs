@@ -93,10 +93,11 @@ export function describeStep(step) {
   for (const raw of parts(step.sql.slice(step.sql.indexOf('(') + 1, step.sql.lastIndexOf(')')))) {
     const named = raw.match(/^CONSTRAINT\s+(\w+)\s+([\s\S]+)$/);
     if (named) { constraint(named[2], named[1].toUpperCase()); continue; }
-    const m = raw.match(/^(\w+)\s+(VARCHAR2\(\d+\)|NUMBER(?:\(\d+(?:,\s*\d+)?\))?|TIMESTAMP|CLOB)([\s\S]*)$/);
+    const m = raw.match(/^(\w+)\s+(VARCHAR2\(\d+(?: CHAR)?\)|NUMBER(?:\(\d+(?:,\s*\d+)?\))?|TIMESTAMP|CLOB)([\s\S]*)$/);
     if (!m) throw new Error('Unsupported schema column definition.');
     const tail = m[3]; const defaultValue = tail.match(/\bDEFAULT\s+(.+?)(?=\s+NOT NULL|\s+CHECK|$)/);
-    columns.push({ name: m[1].toUpperCase(), type: m[2].replace(/\s/g, ''), nullable: !/NOT NULL|PRIMARY KEY/.test(tail), default: defaultValue?.[1] ?? null });
+    const charUsed = m[2].endsWith(' CHAR)') ? 'C' : undefined;
+    columns.push({ name: m[1].toUpperCase(), type: m[2].replace(' CHAR)', ')').replace(/\s/g, ''), nullable: !/NOT NULL|PRIMARY KEY/.test(tail), default: defaultValue?.[1] ?? null, ...(charUsed ? { charUsed } : {}) });
     if (/PRIMARY KEY|CHECK\s*\(/.test(tail)) constraint(tail, undefined, m[1].toUpperCase());
   }
   return { ...step, table, columns, constraints };
@@ -138,7 +139,8 @@ function matchingColumn(expected, actual) {
   const number = expected.type.match(/^NUMBER(?:\((\d+)(?:,(\d+))?\))?$/);
   if (number) return actual.DATA_TYPE === 'NUMBER' && (number[1] ? Number(actual.DATA_PRECISION) === Number(number[1]) && Number(actual.DATA_SCALE) === Number(number[2] ?? 0) : actual.DATA_PRECISION == null && actual.DATA_SCALE == null);
   const varchar = expected.type.match(/^VARCHAR2\((\d+)\)$/);
-  if (varchar) return actual.DATA_TYPE === 'VARCHAR2' && Number(actual.CHAR_LENGTH) === Number(varchar[1]);
+  if (varchar) return actual.DATA_TYPE === 'VARCHAR2' && Number(actual.CHAR_LENGTH) === Number(varchar[1]) &&
+    (expected.charUsed === undefined || expected.charUsed === actual.CHAR_USED);
   if (expected.type === 'TIMESTAMP') return actual.DATA_TYPE === 'TIMESTAMP(6)';
   return actual.DATA_TYPE === expected.type;
 }
@@ -162,9 +164,25 @@ async function inspect(adapter, step) {
     return !found.length ? 'missing' : found[0].VALUE_TYPE === step.setting.value_type ? 'ready' : 'incompatible';
   }
   if (!await exists(adapter, 'table', step.table)) return step.kind === 'table' ? 'missing' : 'incompatible';
-  const found = await rows(adapter, 'SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default FROM user_tab_columns WHERE table_name = :table_name', { table_name: step.table });
+  const found = await rows(adapter, 'SELECT column_name, data_type, data_precision, data_scale, char_length, nullable, data_default, char_used FROM user_tab_columns WHERE table_name = :table_name', { table_name: step.table });
+  if (step.previousCharUsed || step.previousType) {
+    const [expected] = step.columns;
+    const actual = found.find(c => c.COLUMN_NAME === expected.name);
+    if (matchingColumn(expected, actual)) return 'ready';
+    const previous = step.previousType
+      ? { ...expected, type: step.previousType }
+      : { ...expected, charUsed: step.previousCharUsed };
+    return matchingColumn(previous, actual) ? 'missing' : 'incompatible';
+  }
   if (step.kind === 'column' && !found.some(c => c.COLUMN_NAME === step.columns[0].name)) return 'missing';
-  if (step.columns.some(c => !matchingColumn(c, found.find(x => x.COLUMN_NAME === c.name)))) return 'incompatible';
+  for (const column of step.columns) {
+    const actual = found.find(row => row.COLUMN_NAME === column.name);
+    if (matchingColumn(column, actual)) continue;
+    // A completed widening is valid when inspecting the original CREATE step.
+    const widening = step.kind === 'table' && steps.find(later => later.table === step.table &&
+      later.previousType === column.type && later.columns[0].name === column.name);
+    if (!widening || !matchingColumn(widening.columns[0], actual)) return 'incompatible';
+  }
   const actual = await constraintsFor(adapter, step.table);
   let repair = false;
   for (const expected of step.constraints) {

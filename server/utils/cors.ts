@@ -6,12 +6,17 @@ export const DEFAULT_CORS_ALLOWED_HEADERS =
 export const DEFAULT_CORS_ALLOWED_METHODS =
   'GET,POST,PUT,PATCH,DELETE,OPTIONS';
 
+export function isPublicStoragePath(path: string): boolean {
+  return path.startsWith('/storage/') && path.length > '/storage/'.length;
+}
+
 export interface CorsPolicyOptions {
   allowedOrigins?: readonly string[];
   allowLocalhostOrigins?: boolean;
 }
 
 interface CorsHeadersOptions extends CorsPolicyOptions {
+  path?: string;
   origin?: string | null;
   requestHeaders?: string | null;
   requestMethod?: string | null;
@@ -76,19 +81,27 @@ export function corsHeadersForRequest(
 ): Record<string, string> | null {
   const allowedOrigin = resolveCorsOrigin(options.origin, options);
   if (!allowedOrigin) return null;
+  const path = options.path ?? '';
+  const privateMedia = /^\/api\/v2\/media\/[^/]+\/content$/.test(path);
+  const mediaRead = privateMedia || isPublicStoragePath(path);
+  const methods = mediaRead ? 'GET,HEAD,OPTIONS' : DEFAULT_CORS_ALLOWED_METHODS;
+  const allowedHeaders = mediaRead ? `${DEFAULT_CORS_ALLOWED_HEADERS},range` : DEFAULT_CORS_ALLOWED_HEADERS;
+  let exposedHeaders = 'content-length,content-type,Retry-After';
+  if (mediaRead) exposedHeaders += ',content-range,accept-ranges';
+  if (privateMedia) exposedHeaders += ',content-disposition';
   if (options.requestMethod != null &&
-      !DEFAULT_CORS_ALLOWED_METHODS.split(',').includes(options.requestMethod)) return null;
+      !methods.split(',').includes(options.requestMethod)) return null;
   const requested = options.requestHeaders == null ? [] :
     options.requestHeaders.split(',').map(header => header.trim().toLowerCase());
-  const allowed = DEFAULT_CORS_ALLOWED_HEADERS.split(',');
+  const allowed = allowedHeaders.split(',');
   if (requested.some(header => !allowed.includes(header))) return null;
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Methods': DEFAULT_CORS_ALLOWED_METHODS,
+    'Access-Control-Allow-Methods': methods,
     'Access-Control-Allow-Headers': requested.length
-      ? [...new Set(requested)].join(',') : DEFAULT_CORS_ALLOWED_HEADERS,
-    'Access-Control-Expose-Headers': 'content-length,content-type',
+      ? [...new Set(requested)].join(',') : allowedHeaders,
+    'Access-Control-Expose-Headers': exposedHeaders,
     'Access-Control-Max-Age': '86400'
   };
 }

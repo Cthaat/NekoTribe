@@ -6,9 +6,12 @@ import {
   defineEventHandler,
   getCookie,
   getHeader,
-  getRequestURL
+  getRequestURL,
+  setResponseHeader
 } from 'h3';
 import { useRuntimeConfig } from '#imports';
+import { touchActiveSession } from '../utils/auth-session';
+import { verifyV2SessionToken } from '../utils/auth-session-token';
 
 const runtimeConfig = useRuntimeConfig();
 
@@ -72,6 +75,7 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
       /^\/api\/v2\/auth\/two-factor\/challenges(?:\/[^/]+)?$/,
       /^\/api\/v2\/auth\/tokens\/current$/,
       /^\/api\/v2\/auth\/password-reset$/,
+      /^\/api\/v2\/integrations\/sentiment-flow(?:\/|$)/,
       { pattern: /^\/api\/v2\/posts$/, methods: ['GET'] },
       { pattern: /^\/api\/v2\/posts\/(?:[1-9]\d*|trending)$/, methods: ['GET'] }
     ],
@@ -79,24 +83,10 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
       if (payload.type !== 'access' || !payload.sessionId || !payload.jti) {
         throw new Error('Invalid access session payload');
       }
-      const result = await connection.execute(
-        `
-        UPDATE n_auth_sessions
-        SET last_accessed_at = CURRENT_TIMESTAMP
-        WHERE user_id = :userId
-          AND session_id = :sessionId
-          AND access_jti = :accessJti
-          AND revoked_at IS NULL
-          AND access_token_expires_at > CURRENT_TIMESTAMP
-        `,
-        {
-          userId: payload.userId,
-          sessionId: payload.sessionId,
-          accessJti: payload.jti
-        },
-        { autoCommit: true }
-      );
-      if (result.rowsAffected !== 1) throw new Error('Access session is no longer active');
+      const active = await touchActiveSession(connection, {
+        userId: payload.userId, sessionId: payload.sessionId, jti: payload.jti
+      });
+      if (!active) throw new Error('Access session is no longer active');
     }
   }
 ];
@@ -212,6 +202,10 @@ function authError(
 
 export default defineEventHandler(async event => {
   const pathname = getRequestURL(event).pathname;
+  // Browser and proxy caches must not retain API payloads across backend switches.
+  if (pathname === '/api/v2' || pathname.startsWith('/api/v2/')) {
+    setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  }
   const policy = getAuthPolicy(pathname);
 
   if (!policy) return;
@@ -235,15 +229,11 @@ export default defineEventHandler(async event => {
   let connection: oracledb.Connection | null = null;
   let verifiedPayload: CommonAuthPayload | null = null;
   try {
-    const decoded = jwt.verify(
-      token,
-      String(runtimeConfig.accessSecret)
-    );
-    const payload = normalizeAuthPayload(decoded);
-    if (!payload || (policy.version === 'v2' &&
-        (!Number.isSafeInteger(payload.userId) || payload.type !== 'access' ||
-          !payload.sessionId || !payload.jti)))
-      throw authError(policy, 'Token无效或已过期');
+    const secret = String(runtimeConfig.accessSecret ?? '');
+    const payload = policy.version === 'v2'
+      ? verifyV2SessionToken(token, secret, 'access')
+      : normalizeAuthPayload(jwt.verify(token, secret));
+    if (!payload) throw authError(policy, 'Token无效或已过期');
 
     const context =
       event.context as unknown as AuthEventContext;

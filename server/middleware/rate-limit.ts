@@ -44,11 +44,13 @@ export default defineEventHandler(async event => {
   // --- [新增的保护代码] ---
   // 获取请求路径。event.path 是 h3 提供的标准方式。
   const path = event.path;
+  const pathname = path.split('?', 1)[0];
 
   // 如果请求是针对Nuxt内部API（如 __nuxt_content, _nuxt 等），
   // 则立即返回，不执行任何限流逻辑。
   // 这是解决 `nuxt build` 时连接Redis的关键。
-  if (path.startsWith('/__') || path.startsWith('/_nuxt')) {
+  // Deployment probes must work during a Redis outage and must not write rate-limit keys.
+  if (path.startsWith('/__') || path.startsWith('/_nuxt') || pathname === '/api/health' || pathname === '/api/ready') {
     return;
   }
   // --- [保护代码结束] ---

@@ -1,6 +1,5 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import {normalizeLocalStorageKey,resolveLocalStoragePath} from '../local-path';
+import {isPrivateStorageKey, normalizeLocalStorageKey, reservedStoragePrefix, resolveLocalStoragePath} from '../local-path';
 import {
   createLocalReadResult,
   StorageHttpError
@@ -19,25 +18,15 @@ import type {
 const LOCAL_CAPABILITIES: StorageCapabilities = {
   multipartUpload: false,
   cdn: false,
-  privateObjects: false
+  privateObjects: true
 };
 
-function normalizeStorageKey(key: string): string {
-  const normalized = key
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '');
-  const safe = path.posix.normalize(normalized);
-
-  if (
-    !safe ||
-    safe === '.' ||
-    safe.startsWith('../') ||
-    safe.includes('/../')
-  ) {
-    throw new StorageHttpError(400, '非法存储路径');
+function publicStorageKey(key: string): string {
+  const normalized = normalizeLocalStorageKey(key);
+  if (reservedStoragePrefix(normalized)) {
+    throw new StorageHttpError(404, '文件不存在');
   }
-
-  return safe;
+  return normalized;
 }
 
 function buildPublicUrl(
@@ -81,6 +70,10 @@ export class LocalStorageProvider
     const visibility: StorageVisibility =
       input.visibility || 'public';
     const key=normalizeLocalStorageKey(input.key);
+    if (visibility === 'private' && !isPrivateStorageKey(key)) {
+      throw new StorageHttpError(400, '非法存储路径');
+    }
+    const url = visibility === 'private' ? '' : this.getPublicUrl(key);
     const absolutePath = await this.resolveAbsolutePath(key,true);
     const stat=await fs.promises.stat(input.sourcePath);
     if(!stat.isFile())throw new StorageHttpError(400,'上传文件不可用');
@@ -88,7 +81,7 @@ export class LocalStorageProvider
 
     return {
       key,
-      url: this.getPublicUrl(input.key, visibility),
+      url,
       contentType: input.contentType,
       size: stat.size,
       visibility
@@ -96,6 +89,10 @@ export class LocalStorageProvider
   }
 
   async deleteObject(key: string): Promise<void> {
+    key = normalizeLocalStorageKey(key);
+    if (reservedStoragePrefix(key) && !isPrivateStorageKey(key)) {
+      throw new StorageHttpError(400, '非法存储路径');
+    }
     try {
       const absolutePath = await this.resolveAbsolutePath(key);
       await fs.promises.rm(absolutePath, { force: true });
@@ -104,21 +101,37 @@ export class LocalStorageProvider
 
   getPublicUrl(
     key: string,
-    _visibility: StorageVisibility = 'public'
+    visibility: StorageVisibility = 'public'
   ): string {
-    return buildPublicUrl(
-      this.config,
-      normalizeStorageKey(key)
-    );
+    if (visibility !== 'public') {
+      throw new StorageHttpError(404, '文件不存在');
+    }
+    return buildPublicUrl(this.config, publicStorageKey(key));
   }
 
   async readObject(
     key: string,
     request: StorageReadRequest
   ): Promise<StorageReadResult> {
+    return this.readFile(publicStorageKey(key), request);
+  }
+
+  async readPrivateObject(
+    key: string,
+    request: StorageReadRequest
+  ): Promise<StorageReadResult> {
+    const normalized = normalizeLocalStorageKey(key);
+    if (!isPrivateStorageKey(normalized)) {
+      throw new StorageHttpError(404, '文件不存在');
+    }
+    return this.readFile(normalized, request);
+  }
+
+  private async readFile(
+    key: string,
+    request: StorageReadRequest
+  ): Promise<StorageReadResult> {
     try {
-      const normalized=normalizeLocalStorageKey(key);
-      if(normalized.split('/')[0]!.toLowerCase()==='temp')throw new StorageHttpError(404,'文件不存在');
       const absolutePath = await this.resolveAbsolutePath(key);
       return await createLocalReadResult(absolutePath, request);
     } catch (error) {

@@ -1,9 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { Readable } from 'node:stream';
+import type formidable from 'formidable';
 import type { StorageReadRequest, StorageReadResult } from './types';
+
+export function classifyMultipartPartsByFilename(form: ReturnType<typeof formidable>): void {
+  const handlePart = form.onPart.bind(form);
+  form.onPart = part => {
+    // Formidable uses the MIME value to choose between file and field parsing.
+    part.mimetype = part.originalFilename === null ? null : (part.mimetype || 'application/octet-stream');
+    return handlePart(part);
+  };
+}
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   '.7z': 'application/x-7z-compressed',
+  '.avif': 'image/avif',
   '.csv': 'text/csv',
   '.doc': 'application/msword',
   '.docx':
@@ -16,6 +28,10 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   '.md': 'text/markdown',
   '.mp3': 'audio/mpeg',
   '.mp4': 'video/mp4',
+  '.oga': 'audio/ogg',
+  '.ogm': 'video/ogg',
+  '.ogv': 'video/ogg',
+  '.opus': 'audio/ogg',
   '.odp': 'application/vnd.oasis.opendocument.presentation',
   '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
   '.odt': 'application/vnd.oasis.opendocument.text',
@@ -27,11 +43,13 @@ const MIME_BY_EXTENSION: Record<string, string> = {
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   '.rar': 'application/vnd.rar',
   '.rtf': 'application/rtf',
+  '.spx': 'audio/ogg',
   '.tar': 'application/x-tar',
   '.tsv': 'text/tab-separated-values',
   '.txt': 'text/plain',
   '.wav': 'audio/wav',
   '.webm': 'video/webm',
+  '.webp': 'image/webp',
   '.xls': 'application/vnd.ms-excel',
   '.xlsx':
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -60,7 +78,7 @@ export class StorageHttpError extends Error {
   }
 }
 
-function inferMimeType(filePath: string): string {
+export function inferMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   return (
     MIME_BY_EXTENSION[ext] || 'application/octet-stream'
@@ -139,9 +157,13 @@ export async function createLocalReadResult(
       ETag:`"${stat.size}-${stat.mtimeMs}"`,
       'Last-Modified':stat.mtime.toUTCString()
     };
-    const range=parseLocalByteRange(request.rangeHeader,stat.size);
+    const range=request.headOnly ? null : parseLocalByteRange(request.rangeHeader,stat.size);
     headers['Content-Length']=String(range?range.end-range.start+1:stat.size);
     if(range)headers['Content-Range']=`bytes ${range.start}-${range.end}/${stat.size}`;
+    if (request.headOnly) {
+      await file.close();
+      return { statusCode: 200, headers, stream: Readable.from([]) };
+    }
     return {
       statusCode:range?206:200,
       headers,

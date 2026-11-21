@@ -82,6 +82,20 @@ CONSTRAINT fk_ai_message_conversation FOREIGN KEY (conversation_id) REFERENCES n
         "kind": "index",
         "name": "IDX_AI_CONV_OWNER",
         "sql": `CREATE INDEX idx_ai_conv_owner ON n_ai_conversations (owner_user_id, updated_at)`
+      },
+      {
+        "id": "ai-conversations-title-char",
+        "kind": "column",
+        "name": "TITLE",
+        "previousCharUsed": "B",
+        "sql": `ALTER TABLE n_ai_conversations MODIFY (title VARCHAR2(200 CHAR))`
+      },
+      {
+        "id": "ai-conversations-group-id-precision",
+        "kind": "column",
+        "name": "GROUP_ID",
+        "previousType": "NUMBER(15)",
+        "sql": `ALTER TABLE n_ai_conversations MODIFY (group_id NUMBER(19))`
       }
     ]
   },
@@ -461,6 +475,77 @@ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
 CONSTRAINT ck_ai_terms_singleton CHECK (singleton_id = 1),
 CONSTRAINT ck_ai_terms_generation CHECK (generation > 0),
 CONSTRAINT ck_ai_terms_enabled CHECK (enabled IN (0, 1))
+)`
+      }
+    ]
+  },
+  {
+    "id": "ai-skills",
+    "steps": [
+      {
+        "id": "t16-ai-skills-n_ai_skill_config",
+        "kind": "table",
+        "name": "N_AI_SKILL_CONFIG",
+        "sql": `CREATE TABLE n_ai_skill_config (
+singleton_id NUMBER(1) PRIMARY KEY,
+generation NUMBER(15) NOT NULL,
+enabled_ids VARCHAR2(512) NOT NULL,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT ck_ai_skill_singleton CHECK (singleton_id = 1),
+CONSTRAINT ck_ai_skill_generation CHECK (generation > 0)
+)`
+      }
+    ]
+  },
+  {
+    "id": "recommendation-feedback",
+    "steps": [
+      {
+        "id": "t17-recommendation-feedback-n_recommendation_feedback",
+        "kind": "table",
+        "name": "N_RECOMMENDATION_FEEDBACK",
+        "sql": `CREATE TABLE n_recommendation_feedback (
+user_id NUMBER(10) NOT NULL,
+resource_type VARCHAR2(16) NOT NULL,
+resource_id NUMBER(16) NOT NULL,
+action VARCHAR2(20) NOT NULL,
+reason VARCHAR2(500),
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT pk_recommendation_feedback PRIMARY KEY (user_id, resource_type, resource_id),
+CONSTRAINT fk_rec_feedback_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT ck_rec_feedback_type CHECK (resource_type IN ('post', 'user', 'group', 'tag')),
+CONSTRAINT ck_rec_feedback_id CHECK (resource_id > 0),
+CONSTRAINT ck_rec_feedback_action CHECK (action IN ('not_interested', 'show_less'))
+)`
+      }
+    ]
+  },
+  {
+    "id": "ai-moderation-feedback",
+    "steps": [
+      {
+        "id": "t18-ai-moderation-feedback-n_ai_moderation_feedback",
+        "kind": "table",
+        "name": "N_AI_MODERATION_FEEDBACK",
+        "sql": `CREATE TABLE n_ai_moderation_feedback (
+message_id VARCHAR2(36) PRIMARY KEY,
+rating VARCHAR2(16) NOT NULL,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_ai_mod_feedback_message FOREIGN KEY (message_id) REFERENCES n_ai_messages(message_id) ON DELETE CASCADE,
+CONSTRAINT ck_ai_mod_feedback_rating CHECK (rating IN ('helpful', 'incorrect', 'insufficient'))
+)`
+      }
+    ]
+  },
+  {
+    "id": "media-access-scope",
+    "steps": [
+      {
+        "id": "t19-media-n_media_assets.access_scope",
+        "kind": "column",
+        "name": "N_MEDIA_ASSETS.ACCESS_SCOPE",
+        "sql": `ALTER TABLE n_media_assets ADD (
+access_scope VARCHAR2(16) DEFAULT 'public' NOT NULL CHECK (access_scope IN ('public', 'chat', 'post'))
 )`
       }
     ]

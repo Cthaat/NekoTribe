@@ -11,6 +11,15 @@ export function normalizeLocalStorageKey(key:string):string {
   return normalized;
 }
 
+export function isPrivateStorageKey(key: string): boolean {
+  return key.startsWith('private/chat/') || key.startsWith('private/post/');
+}
+
+export function reservedStoragePrefix(key: string): boolean {
+  const prefix = key.split('/')[0]?.toLowerCase();
+  return prefix === 'temp' || prefix === 'private';
+}
+
 async function checkedDirectory(directory:string,create:boolean):Promise<void> {
   let stat;
   try { stat=await fs.lstat(directory); }

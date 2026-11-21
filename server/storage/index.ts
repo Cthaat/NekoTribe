@@ -1,16 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import type { File } from 'formidable';
 import { fileTypeFromFile } from 'file-type';
 import sharp from 'sharp';
 import ffprobe from 'ffprobe-static';
 import { getStorageConfig } from './config';
+import { pcmWaveDuration, probeRichMedia } from './media-probe';
 import { StorageHttpError } from './http';
 import { LocalStorageProvider } from './providers/local';
-import {ensureLocalStorageDirectory} from './local-path';
+import {ensureLocalStorageDirectory, normalizeLocalStorageKey, reservedStoragePrefix} from './local-path';
 import { S3StorageProvider } from './providers/s3';
 import type {
   FileMetadata,
@@ -22,7 +21,6 @@ import type {
   ValidatedMediaFile
 } from './types';
 
-const execFileAsync = promisify(execFile);
 
 const AVATAR_MIME_TYPES = new Set([
   'image/gif',
@@ -118,22 +116,6 @@ export const DEFAULT_AVATAR_STORAGE_KEY =
   'default-avatar.png';
 
 let cachedProvider: StorageProvider | null = null;
-
-interface FfprobeStream {
-  codec_type?: string;
-  duration?: string;
-  height?: number;
-  width?: number;
-}
-
-interface FfprobeFormat {
-  duration?: string;
-}
-
-interface FfprobePayload {
-  format?: FfprobeFormat;
-  streams?: FfprobeStream[];
-}
 
 function normalizeStorageKey(key: string): string {
   const normalized = key
@@ -337,48 +319,15 @@ async function readImageMetadata(
 }
 
 async function readRichMediaMetadata(
-  filePath: string
+  filePath: string,
+  mimeType: string,
 ): Promise<FileMetadata> {
-  const ffprobeBinary =
-    typeof ffprobe === 'string' ? ffprobe : ffprobe.path;
-
-  if (!ffprobeBinary) {
-    return {
-      width: null,
-      height: null,
-      duration: null
-    };
+  const binary = process.env.FFPROBE_PATH?.trim() || (typeof ffprobe === 'string' ? ffprobe : ffprobe.path);
+  const metadata = await probeRichMedia(binary, filePath, mimeType) ?? emptyFileMetadata();
+  if (mimeType === 'audio/wav' && metadata.duration === null) {
+    metadata.duration = await pcmWaveDuration(filePath);
   }
-
-  const { stdout } = await execFileAsync(ffprobeBinary, [
-    '-v',
-    'quiet',
-    '-print_format',
-    'json',
-    '-show_format',
-    '-show_streams',
-    filePath
-  ]);
-  const payload = JSON.parse(stdout) as FfprobePayload;
-  const videoStream = payload.streams?.find(
-    stream => stream.codec_type === 'video'
-  );
-  const audioStream = payload.streams?.find(
-    stream => stream.codec_type === 'audio'
-  );
-
-  const rawDuration =
-    payload.format?.duration ||
-    videoStream?.duration ||
-    audioStream?.duration;
-
-  return {
-    width: videoStream?.width ?? null,
-    height: videoStream?.height ?? null,
-    duration: rawDuration
-      ? Math.round(Number.parseFloat(rawDuration))
-      : null
-  };
+  return metadata;
 }
 
 function emptyFileMetadata(): FileMetadata {
@@ -400,7 +349,7 @@ async function readManagedMediaMetadata(
     }
 
     if (RICH_MEDIA_MIME_TYPES.has(mimeType)) {
-      return await readRichMediaMetadata(filePath);
+      return await readRichMediaMetadata(filePath, mimeType);
     }
   } catch {
     return emptyFileMetadata();
@@ -506,7 +455,7 @@ export async function deleteManagedObject(
   storageKey: string
 ): Promise<void> {
   const provider = getProvider();
-  await provider.deleteObject(normalizeStorageKey(storageKey));
+  await provider.deleteObject(normalizeLocalStorageKey(storageKey));
 }
 
 export async function deletePublicFileReference(
@@ -517,7 +466,7 @@ export async function deletePublicFileReference(
   }
 
   const managedKey = managedPublicUrlToStorageKey(publicUrl);
-  if (managedKey) {
+  if (managedKey && !reservedStoragePrefix(managedKey)) {
     await deleteManagedObject(managedKey);
     return;
   }
@@ -602,11 +551,18 @@ export async function storeAvatarFile(
   userId: number,
   file: File
 ): Promise<StoredManagedFile> {
-  const provider = getProvider();
   const validated = await validateAvatarFile(file);
-  const stored = await provider.saveFromPath({
+  return storeValidatedAvatarFile(userId, file.filepath, validated);
+}
+
+export async function storeValidatedAvatarFile(
+  userId: number,
+  sourcePath: string,
+  validated: ValidatedAvatarFile
+): Promise<StoredManagedFile> {
+  const stored = await getProvider().saveFromPath({
     key: buildAvatarStorageKey(userId, validated.extension),
-    sourcePath: file.filepath,
+    sourcePath,
     contentType: validated.mimeType
   });
 
@@ -618,16 +574,15 @@ export async function storeAvatarFile(
 
 export async function storePostMediaFile(
   userId: number,
-  file: File
+  file: File,
+  privateScope?: 'chat' | 'post'
 ): Promise<StoredManagedMedia> {
   const provider = getProvider();
   const validated = await validateMediaFile(file);
+  const publicKey = buildPostMediaStorageKey(userId, validated.mediaType, validated.extension);
   const stored = await provider.saveFromPath({
-    key: buildPostMediaStorageKey(
-      userId,
-      validated.mediaType,
-      validated.extension
-    ),
+    key: privateScope ? `private/${privateScope}/${publicKey.slice('posts/'.length)}` : publicKey,
+    visibility: privateScope ? 'private' : 'public',
     sourcePath: file.filepath,
     contentType: validated.mimeType
   });
