@@ -282,13 +282,13 @@ Copy-Item .env.example .env
 | 通用           | `ACCESS_SECRET`、`REFRESH_SECRET`                                                                            | 必须替换为随机长字符串；本地临时调试可以保留模板值，但不要用于共享环境或生产环境。可用密码管理器或 `openssl rand -base64 48` 生成。                                                                                                   |
 | 通用           | `ACCESS_EXPIRES_IN`、`REFRESH_EXPIRES_IN`                                                                    | 模板值可直接启动，分别表示访问令牌 15 分钟、刷新令牌 30 天；需要缩短登录有效期时再调整。                                                                                                                                              |
 | 本地开发       | `NODE_ENV`                                                                                                   | 保持 `development`，否则本地 HTTP 调试可能因为安全 Cookie 配置导致登录状态异常。                                                                                                                                                      |
-| 本地开发       | `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`                        | 使用内置 Compose Oracle 时保持模板值：`localhost`、`5501`、`ORCLPDB1`、`neko_app`、`NekoApp2026#`。如果连接外部 Oracle，必须改成外部实例真实地址、服务名、用户名和密码。                                                              |
+| 本地开发       | `ORACLE_HOST`、`ORACLE_PORT`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`                        | 使用内置 Compose Oracle 时保持模板值：`localhost`、`5501`、`ORCLPDB1`、`neko_app`、`replace-with-oracle-password`。如果连接外部 Oracle，必须改成外部实例真实地址、服务名、用户名和密码。                                                              |
 | 完整 Docker 栈 | `APP_PORT`、`NGINX_PORT`、`DOCKER_PUBLIC_WS_URL`                                                             | 默认应用端口是 `30001`，Nginx 端口是 `30002`。`DOCKER_PUBLIC_WS_URL` 建议留空，让浏览器按当前页面自动使用同源 WebSocket。通过 HTTPS 或 Cloudflare Tunnel 访问时，浏览器必须使用 `wss://.../_ws`，不能使用 `ws://.../_ws`。            |
 | 完整 Docker 栈 | `DOCKER_ORACLE_HOST`、`DOCKER_ORACLE_PORT`、`DOCKER_REDIS_URL`、`DOCKER_REDIS_HOST`、`DOCKER_REDIS_PORT`     | 使用内置 Compose 服务时不要改，必须分别指向 Docker 网络内的 `oracle19c` 和 `redis`，不能写成 `localhost`。                                                                                                                            |
-| Oracle 初始化/存储 | `ORACLE_IMAGE`、`ORACLE_PWD`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`、`DB_INIT_CHECK_TABLE`、`ORACLE_DATA_VOLUME`、`ORACLE_DATA_MOUNT_OPTIONS` | `.env.example` 默认使用国内 Oracle 19c 镜像。`ORACLE_PWD` 是容器 `SYS/SYSTEM` 密码；`ORACLE_PASSWORD` 必须和 v2 SQL 创建的 `neko_app` 密码一致，模板值是 `NekoApp2026#`；Oracle 数据默认使用 Docker named volume `oracle-data`，避免 Rocky Linux/SELinux 下项目目录挂载权限失败。 |
+| Oracle 初始化/存储 | `ORACLE_IMAGE`、`ORACLE_PWD`、`ORACLE_SERVICE_NAME`、`ORACLE_USER`、`ORACLE_PASSWORD`、`DB_INIT_CHECK_TABLE`、`ORACLE_DATA_VOLUME`、`ORACLE_DATA_MOUNT_OPTIONS` | `.env.example` 默认使用国内 Oracle 19c 镜像。`ORACLE_PWD` 是容器 `SYS/SYSTEM` 密码；`ORACLE_PASSWORD` 必须和 v2 SQL 创建的 `neko_app` 密码一致，模板值是 `replace-with-oracle-password`；Oracle 数据默认使用 Docker named volume `oracle-data`，避免 Rocky Linux/SELinux 下项目目录挂载权限失败。 |
 | Redis          | `REDIS_PASSWORD`                                                                                             | 内置 Redis 服务会读取这个密码。已有 Redis 数据卷启动后再改密码，可能导致旧客户端或健康检查认证失败，需要同步清理数据卷或保持旧密码。                                                                                                  |
 | 邮件功能       | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`                                                           | 应用可以在未配置 SMTP 时启动，但注册验证码、密码重置和账号邮件依赖真实 SMTP。163/QQ/Gmail 等服务通常需要应用专用密码或授权码，不是网页登录密码。                                                                                      |
-| SentimentFlow  | `COMPOSE_PROFILES`、`SENTIMENTFLOW_ENABLED`、`SENTIMENTFLOW_HOST_PORT`、`SENTIMENTFLOW_FRONTEND_HOST_PORT`   | 保持 `COMPOSE_PROFILES=true`。将 `SENTIMENTFLOW_ENABLED=true` 时才会纳入情感分析后端和前端；设为 `false` 时，普通 Compose 启动会跳过拉取、构建和启动这些可选服务。                                                                    |
+| SentimentFlow | `--profile sentimentflow-legacy` | 仅在单独运行旧服务时显式启用。 |
 
 如果 `.env` 已经存在，不要再次直接复制模板覆盖；只按上表补齐或修改需要的字段即可。
 
@@ -378,20 +378,18 @@ Oracle 数据默认持久化到 Docker named volume `oracle-data`。这样可以
 - `sentimentflow`：FastAPI 后端，提供预测、训练、模型管理和统计接口。
 - `sentimentflow-frontend`：Next.js 前端界面，通过 `BACKEND_API_URL` 访问后端。
 
-需要让 NekoTribe 应用调用情感分析后端时，在 `.env` 中保持代理开启：
+平台已停用旧情感分析接口。独立运行 SentimentFlow 时，可在 `.env` 配置端口。
 
 ```env
-COMPOSE_PROFILES=true
-SENTIMENTFLOW_ENABLED=true
 SENTIMENTFLOW_HOST_PORT=8846
 SENTIMENTFLOW_CONTAINER_PORT=8846
 SENTIMENTFLOW_FRONTEND_HOST_PORT=30008
 SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
 ```
 
-`COMPOSE_PROFILES=true` 是 Compose 的服务选择器。两个 SentimentFlow 服务会挂到 `SENTIMENTFLOW_ENABLED` 对应的 profile 上，所以 `SENTIMENTFLOW_ENABLED=false` 会让普通 `docker compose up` / `docker compose -f docker-compose.local.yml up --build` 跳过它们。
+使用 `--profile sentimentflow-legacy` 或显式选择两个服务来启动它们。旧环境开关不会启用此 profile。
 
-端口变更集中在 `.env`。`SENTIMENTFLOW_HOST_PORT` 控制后端暴露给宿主机和浏览器的端口，例如 `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`；`SENTIMENTFLOW_CONTAINER_PORT` 控制后端进程监听端口、Docker 目标端口、后端健康检查、NekoTribe app 容器访问后端的地址，以及 SentimentFlow 前端容器内的 `BACKEND_API_URL`。`SENTIMENTFLOW_FRONTEND_HOST_PORT` 控制宿主机和浏览器访问 SentimentFlow 前端界面的端口，`SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` 控制前端容器内 Next.js 服务器端口。
+端口变更集中在 `.env`。`SENTIMENTFLOW_HOST_PORT` 控制后端暴露给宿主机和浏览器的端口，例如 `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`；`SENTIMENTFLOW_CONTAINER_PORT` 控制后端进程监听端口、Docker 目标端口、后端健康检查，以及 SentimentFlow 前端容器内的 `BACKEND_API_URL`。`SENTIMENTFLOW_FRONTEND_HOST_PORT` 控制宿主机和浏览器访问 SentimentFlow 前端界面的端口，`SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` 控制前端容器内 Next.js 服务器端口。
 
 ### Docker 部署：拉取 GHCR 镜像
 
@@ -402,16 +400,16 @@ SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
 
 ```bash
 cp .env.example .env
-docker compose pull sentimentflow sentimentflow-frontend
-docker compose up -d
+docker compose --profile sentimentflow-legacy pull sentimentflow sentimentflow-frontend
+docker compose --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
 ```
 
 PowerShell：
 
 ```powershell
 Copy-Item .env.example .env
-docker compose pull sentimentflow sentimentflow-frontend
-docker compose up -d
+docker compose --profile sentimentflow-legacy pull sentimentflow sentimentflow-frontend
+docker compose --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
 ```
 
 如果后端镜像一直显示 `Pulling` 但看不到层进度，先停止当前 Compose 命令，再使用进度辅助脚本。它会先打印远程镜像的层大小，再用 Compose plain progress 拉取：
@@ -471,13 +469,13 @@ docker compose -f docker-compose.local.yml up -d --build sentimentflow sentiment
 GHCR 模式启用 GPU：
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
 ```
 
 本地构建模式启用 GPU：
 
 ```bash
-docker compose -f docker-compose.local.yml -f docker-compose.gpu.yml up -d --build
+docker compose -f docker-compose.local.yml -f docker-compose.gpu.yml --profile sentimentflow-legacy up -d --build sentimentflow sentimentflow-frontend
 ```
 
 `docker-compose.gpu.yml` 会通过 `gpus: all` 给 `sentimentflow` 后端请求所有可用 GPU，向容器传入 `NVIDIA_DRIVER_CAPABILITIES=compute,utility`，并使用 `SENTIMENTFLOW_GPUS` 控制 `NVIDIA_VISIBLE_DEVICES`。
@@ -527,16 +525,7 @@ $env:BACKEND_API_URL = "http://localhost:8846"
 yarn start
 ```
 
-4. NekoTribe 的 `.env` 中，使用默认后端宿主机端口时保持 `SENTIMENTFLOW_BASE_URL` 为空；如果后端在其他地址，则显式写入完整 `/api` 地址：
-
-```env
-SENTIMENTFLOW_ENABLED=true
-SENTIMENTFLOW_BASE_URL=
-SENTIMENTFLOW_HOST_PORT=8846
-SENTIMENTFLOW_CONTAINER_PORT=8846
-```
-
-然后运行 `yarn dev`。检查 `http://localhost:8846/health`、`http://localhost:8846/docs`、`http://localhost:30008`，以及 NekoTribe 内的 SentimentFlow 集成功能。
+验证独立服务的 `http://localhost:8846/health`、`http://localhost:8846/docs` 和 `http://localhost:30008`。
 
 ## 脚本说明
 
@@ -608,10 +597,7 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | `NUXT_DEV_HMR_PROTOCOL`、`NUXT_DEV_HMR_HOST`、`NUXT_DEV_HMR_CLIENT_PORT` | 仅开发        | 空                                                      | 仅在把 `yarn dev` 通过 HTTPS 或 Cloudflare Tunnel 暴露时使用。常见取值是 `wss`、公网域名和 `443`。                                      |
 | `DOCKER_PUBLIC_WS_URL`                                                   | Docker        | 空                                                      | Docker 模式 WebSocket 地址覆盖项。Nginx、HTTPS 或 Cloudflare Tunnel 后建议留空；只有确实需要独立公网入口时才填写 `wss://你的域名/_ws`。 |
 | `NUXT_PUBLIC_API_BASE`                                                   | 否            | 空                                                      | 客户端 API 基础地址；空表示同源。                                                                                                       |
-| `COMPOSE_PROFILES`                                                       | Docker        | `true`                                                  | 让 Compose 启用 profile 名为 `true` 的服务；保持该值，才能让 `SENTIMENTFLOW_ENABLED` 控制可选 SentimentFlow 服务。                      |
-| `SENTIMENTFLOW_ENABLED`                                                  | 否            | `false` / `true`                                        | 是否启用 SentimentFlow 集成和代理访问；同时控制可选 Compose 服务是否被选中。                                                            |
-| `SENTIMENTFLOW_BASE_URL`                                                 | 否            | 空                                                      | 外部 SentimentFlow 地址覆盖项；留空时宿主机开发访问会从 `SENTIMENTFLOW_HOST_PORT` 派生。                                                |
-| `SENTIMENTFLOW_TIMEOUT_MS`                                               | 否            | `10000`                                                 | 上游代理超时时间，单位毫秒。                                                                                                            |
+| `SENTIMENTFLOW_TIMEOUT_MS` | 否 | `10000` | 独立前端访问 SentimentFlow 后端的超时（毫秒）。 |
 | `SENTIMENTFLOW_IMAGE`                                                    | Docker        | `ghcr.io/cthaat/sentimentflow-backend:latest`           | `docker-compose.yml` 拉取的 GHCR 镜像。                                                                                                 |
 | `SENTIMENTFLOW_LOCAL_IMAGE`                                              | Docker 本地   | `sentimentflow-backend:local`                           | `docker-compose.local.yml` 构建出的本地镜像标签。                                                                                       |
 | `SENTIMENTFLOW_FRONTEND_IMAGE`                                           | Docker        | `ghcr.io/cthaat/sentimentflow-frontend:latest`          | `docker-compose.yml` 拉取的 SentimentFlow 前端 GHCR 镜像。                                                                              |
@@ -626,7 +612,7 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT`                                   | Docker        | `/workspace`                                            | SentimentFlow 容器内项目根目录。                                                                                                        |
 | `SENTIMENTFLOW_MODELS_DIR`                                               | Docker        | `/workspace/models`                                     | SentimentFlow 容器内模型持久化挂载目录。                                                                                                |
 | `SENTIMENTFLOW_HOST_PORT`                                                | Docker        | `8846`                                                  | SentimentFlow 暴露给宿主机和浏览器的端口；修改后访问 `localhost:<端口>`。                                                               |
-| `SENTIMENTFLOW_CONTAINER_PORT`                                           | Docker        | `8846`                                                  | SentimentFlow 容器内端口，用于 Uvicorn、Docker 目标端口、健康检查和 app 容器内访问地址。                                                |
+| `SENTIMENTFLOW_CONTAINER_PORT`                                           | Docker        | `8846`                                                  | SentimentFlow 容器内端口，用于 Uvicorn、Docker 目标端口、健康检查和独立前端的后端地址。                                                |
 | `SENTIMENTFLOW_FRONTEND_HOST_PORT`                                       | Docker        | `30008`                                                 | SentimentFlow 前端界面暴露给宿主机和浏览器的端口。                                                                                      |
 | `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`                                  | Docker        | `3000`                                                  | SentimentFlow 前端容器内 Next.js 服务器端口，用于 Docker 目标端口和前端健康检查。                                                       |
 
@@ -637,10 +623,10 @@ SENTIMENTFLOW_CONTAINER_PORT=8846
 | Oracle 19c                | 用户、帖子、群组、通知、认证会话、媒体元数据等主业务数据库。              | 包含在 `docker compose up -d` 中；`db-init` 会在 app 启动前写入 v2 基线。                                               | `.env` 中的 `ORACLE_*`。                                                                                                                                                                                  |
 | Redis 7                   | v2 API 响应缓存、v1 验证码存储、限流状态、WebSocket 发布/订阅和实时广播。 | `docker compose up -d redis`。                                                                                          | `.env` 中的 `REDIS_*`。                                                                                                                                                                                   |
 | SMTP                      | 发送邮箱验证码、密码重置和账号相关邮件。                                  | 使用任意兼容 SMTP 的邮件服务商。                                                                                        | `.env` 中的 `SMTP_*`。                                                                                                                                                                                    |
-| Nginx                     | 静态服务 `/upload/` 文件，并在 Docker 模式下反向代理应用。                | 包含在 `docker compose up -d` 中。                                                                                      | 完整 Docker 使用 `nginx/nginx.compose.conf`；反代宿主机 dev 服务使用 `nginx/nginx.conf`。                                                                                                                 |
+| Nginx | 将包含 `/storage/` 的应用请求统一反代到 Nuxt。 | 包含在 `docker compose up -d` 中。 | Docker 使用 `nginx/nginx.compose.conf`，宿主机开发反代使用 `nginx/nginx.conf`。 |
 | 文件系统上传              | 存储用户头像和媒体文件。                                                  | 按需在 `upload/` 下创建，已被 git 忽略。                                                                                | 挂载到 Nginx 容器的 `/usr/share/nginx/upload`。                                                                                                                                                           |
 | 媒体工具链                | 校验图片、视频、音频并为旧版链路生成缩略图。                              | Docker 镜像已安装 `ffmpeg`；宿主机旧版媒体链路需要系统 `ffmpeg`。                                                       | `sharp`、`file-type`、`ffprobe-static`，可选系统 `ffmpeg`。                                                                                                                                               |
-| SentimentFlow 后端 + 前端 | 外部情感分析 API 与界面，提供预测、训练、模型管理和统计功能。             | GHCR 模式：运行 `docker compose up -d`；本地构建模式：运行 `docker compose -f docker-compose.local.yml up -d --build`。 | `.env` 中的 `SENTIMENTFLOW_*`；后端端口由 `SENTIMENTFLOW_HOST_PORT` / `SENTIMENTFLOW_CONTAINER_PORT` 控制，前端端口由 `SENTIMENTFLOW_FRONTEND_HOST_PORT` / `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` 控制。 |
+| SentimentFlow 后端 + 前端 | 外部情感分析 API 与界面，提供预测、训练、模型管理和统计功能。             | 使用 `--profile sentimentflow-legacy`，可配合 `-f docker-compose.local.yml` 源码构建。 | `.env` 中的 `SENTIMENTFLOW_*`；后端端口由 `SENTIMENTFLOW_HOST_PORT` / `SENTIMENTFLOW_CONTAINER_PORT` 控制，前端端口由 `SENTIMENTFLOW_FRONTEND_HOST_PORT` / `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` 控制。 |
 
 备注：`doc/neko_tribe-oracle-v2.sql` 是当前 v2 开发数据库基线，并会挂载到 `db-init` 服务。`data/oracle-init/` 下的文件保留为历史群组模块脚本，因为这些脚本本身不是完整数据库基线。
 

@@ -8,12 +8,13 @@ import path from 'node:path';
 import {build} from 'esbuild';
 import {createEvent} from 'h3';
 
+const publishPolicy = JSON.parse(readFileSync(new URL('../specifications/requirements/moderation-publish-policy.json', import.meta.url), 'utf8'));
 const root=fileURLToPath(new URL('../',import.meta.url)), require=createRequire(import.meta.url);
 const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/post-update-request.json',import.meta.url),'utf8'));
 const stubs={
   '~/server/models/v2': `export const v2RequirePostById=async connection=>connection.readMappedPost();
     const unused=()=>{throw new Error('unexpected model');};
-    export const v2CommentCount=unused,v2MapComment=unused,v2MapPost=unused,v2MapPublicUser=unused,v2PostCountSql=unused,v2PostSelectSql=unused,v2SortOrder=unused;`,
+    export const v2CommentCount=unused,v2MapComment=unused,v2MapPost=unused,v2MapPublicUser=unused,v2PostCountSql=unused,v2PostSelectSql=unused,v2SortOrder=unused,v2VisiblePostCommentScope=unused;`,
   './notifications': `export const v2CreateNotification=()=>{throw new Error('unexpected notification');};`,
   './api-cache': `export const readApiResponseCache=async()=>({status:'disabled'}),writeApiResponseCache=async()=>{},invalidateApiResponseCache=async()=>{},shouldInvalidateApiResponseCache=()=>false;`,
   './logging': `export const getRequestLogContext=()=>null,logError=()=>{},logInfo=()=>{},serializeLogError=()=>({});`,
@@ -38,7 +39,7 @@ const compiled=await build({
 });
 const routes=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 const initial=()=>({content:'old',visibility:'public',language:'zh',location:'there',media:[8],tags:['old'],mentions:[7],updated:false});
-function database({fail='',owner=42,missing=false,repost=false,deleted=false}={}){
+function database({fail='',owner=42,missing=false,repost=false,deleted=false,muted=false,retainsPrivate=false,privateMediaIds=[]}={}){
   let saved=initial(),pending;
   const calls=[];
   const fault=stage=>{if(fail===stage)throw new Error('private driver detail');};
@@ -47,11 +48,20 @@ function database({fail='',owner=42,missing=false,repost=false,deleted=false}={}
     saved:()=>structuredClone(saved),
     async execute(raw,binds={},options={}){
       const sql=raw.replace(/\s+/g,' ').trim();calls.push({sql,binds,options});
+      if (sql === publishPolicy.sql.lock) return {rows: [{USER_ID: binds.user_id}]};
+      if (sql === publishPolicy.sql.allowed) return {rows: [{ALLOWED: muted ? 0 : 1}]};
       if(sql.startsWith('SELECT author_id')){
         fault('read');if(sql.endsWith('FOR UPDATE'))pending=structuredClone(saved);
-        return {rows:missing?[]:[{AUTHOR_ID:owner,IS_DELETED:deleted?1:0,POST_TYPE:repost?'repost':'post',CONTENT:saved.content}]};
+        return {rows:missing?[]:[{AUTHOR_ID:owner,IS_DELETED:deleted?1:0,POST_TYPE:repost?'repost':'post',VISIBILITY:saved.visibility,CONTENT:saved.content}]};
       }
       if(sql.startsWith('SELECT COUNT(*) AS total FROM n_post_media'))return {rows:[{TOTAL:(pending??saved).media.length}]};
+      if(sql.startsWith('SELECT 1 AS found FROM n_post_media'))return {rows:retainsPrivate?[{FOUND:1}]:[]};
+      if(sql.startsWith('SELECT 1 AS permitted FROM n_media_assets'))return {rows:[{PERMITTED:1}]};
+      if(sql.startsWith('SELECT media_id, storage_key FROM n_media_assets')){
+        const id=binds.media_id;
+        const key=privateMediaIds.includes(id)?`private/post/${id}.txt`:`posts/files/${id}.txt`;
+        return {rows:id===999?[]:[{MEDIA_ID:id,STORAGE_KEY:key}]};
+      }
       let stage;
       if(sql.startsWith('UPDATE n_posts'))stage='update';
       else if(sql.startsWith('DELETE FROM n_post_media'))stage='media-delete';
@@ -104,6 +114,15 @@ for(const vector of vectors.cases)test(`post update request: ${vector.id}`,async
   if(vector.expected.status===200){const result=await invoke(vector.body,db);assert.equal(result.message,'post updated');assert.deepEqual(db.observed,vector.expected.input);}
   else{await rejects(()=>invoke(vector.body,db),400,vector.expected.message);assert.equal(db.calls.length,0);}
 });
+test('PATCH and PUT refuse a muted account before writing', async () => {
+  for (const method of ['patch', 'put']) {
+    const db = database({muted: true});
+    await rejects(() => invoke({content: 'new'}, db, {method}), 403, publishPolicy.message);
+    assert.equal(db.rollbacks, 1);
+    assert.equal(db.commits, 0);
+    assert.deepEqual(db.calls.map(({sql}) => sql), [publishPolicy.sql.lock, publishPolicy.sql.allowed]);
+  }
+});
 test('PATCH and PUT atomically update scalar and relationship fields',async()=>{
   for(const method of ['patch','put']){
     const db=database();const result=await invoke({content:' changed ',visibility:'private',language:' EN-us ',location:' ',media_ids:[3,3,4],tag_names:[' #News ','news','other'],mention_user_ids:[9,9,10]},db,{method});
@@ -125,6 +144,19 @@ test('unusable media and concurrent missing row never retain earlier edits',asyn
   for(const [fail,body,status,message] of [['',{content:'new',media_ids:[3,999]},400,'附件不存在或无权使用'],['race',{content:'new'},404,'帖子不存在']]){
     const db=database({fail});await rejects(()=>invoke(body,db),status,message);assert.deepEqual(db.saved(),initial());assert.equal(db.rollbacks,1);
   }
+});
+test('making a post public requires explicitly removing or replacing private attachments', async () => {
+ const retained = database({retainsPrivate:true,privateMediaIds:[3]});
+ await rejects(() => invoke({visibility:'public'}, retained), 400, '附件不存在或无权使用');
+ assert.equal(retained.commits,0);
+ assert.equal(retained.calls.some(call=>call.sql.startsWith('UPDATE n_posts')),false);
+ await rejects(() => invoke({visibility:'public',media_ids:[3]}, retained), 400, '附件不存在或无权使用');
+ assert.equal(retained.commits,0);
+
+ const result = await invoke({visibility:'public',media_ids:[4]}, retained);
+ assert.deepEqual(result.data.media,[4]);
+ assert.equal(result.data.visibility,'public');
+ assert.equal(retained.commits,1);
 });
 test('no-op preserves timestamp, omission preserves relations, explicit empty clears',async()=>{
   const db=database();await invoke({},db);assert.deepEqual(db.saved(),initial());assert.equal(db.commits,1);

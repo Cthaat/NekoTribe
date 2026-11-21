@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "providers": [
+    {
+      "id": "local",
+      "adapter": "ollama",
+      "baseUrl": "http://127.0.0.1:11434"
+    }
+  ],
+  "models": [
+    {
+      "id": "local-model",
+      "providerId": "local",
+      "model": "replace-with-installed-model",
+      "capabilities": ["tools", "structured-output"],
+      "contextWindowTokens": 8192,
+      "maxOutputTokens": 1024
+    }
+  ],
+  "bindings": {
+    "knowledge": "local-model",
+    "writing": "local-model",
+    "agent": "local-model",
+    "moderation": "local-model"
+  }
+}

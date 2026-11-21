@@ -14,6 +14,7 @@ import path from 'node:path';
 import {build} from 'esbuild';
 import {createEvent} from 'h3';
 
+const publishPolicy = JSON.parse(readFileSync(new URL('../specifications/requirements/moderation-publish-policy.json', import.meta.url), 'utf8'));
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
 const fixture = JSON.parse(readFileSync(
@@ -90,8 +91,10 @@ function database() {
     close: async () => {},
     commit: async () => {},
     rollback: async () => {},
-    async execute(raw) {
+    async execute(raw, binds) {
       const sql = raw.replace(/\s+/g, ' ').trim();
+      if (sql === publishPolicy.sql.lock) return {rows: [{USER_ID: binds.user_id}]};
+      if (sql === publishPolicy.sql.allowed) return {rows: [{ALLOWED: 1}]};
       if (sql.startsWith('SELECT seq_post_id')) return {rows: [{ID: 100}]};
       if (sql.startsWith('SELECT COALESCE')) return {rows: [{NAME: 'viewer'}]};
       if (sql.startsWith('SELECT p.post_id')) return {rows: [{POST_ID: 3}]};

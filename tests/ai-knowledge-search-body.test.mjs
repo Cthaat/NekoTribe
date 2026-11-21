@@ -11,17 +11,22 @@ const vectors=JSON.parse(await readFile(new URL('../specifications/scenarios/ai-
 test('shared search body vectors preserve compatibility and reject invalid input',()=>{
  for(const item of vectors.cases) {
    const bytes=Buffer.from(item.body,'utf8');
-   if(item.accepted) assert.equal(parseKnowledgeSearchBody(bytes),item.phrase,item.id);
+   if(item.accepted) {
+     const input=parseKnowledgeSearchBody(bytes);
+     assert.equal(input.phrase ?? null,item.phrase,item.id);
+     assert.equal(input.skillId ?? null,item.skill_id ?? null,item.id);
+     assert.equal(input.expectedSequence ?? null,item.expected_sequence ?? null,item.id);
+   }
    else assert.throws(()=>parseKnowledgeSearchBody(bytes),undefined,item.id);
  }
 });
 test('streaming reads enforce the actual byte limit without relying on headers',async()=>{
- assert.equal(await readKnowledgeSearchBody(Readable.from([Buffer.from('{"search_'),Buffer.from('phrase":"猫"}')])), '猫');
+ assert.deepEqual(await readKnowledgeSearchBody(Readable.from([Buffer.from('{"search_'),Buffer.from('phrase":"猫"}')])), {phrase:'猫'});
  await assert.rejects(()=>readKnowledgeSearchBody(Readable.from([Buffer.alloc(2048),Buffer.alloc(2049)])));
 });
 test('enforces UTF-8 and byte limits',()=>{
  assert.throws(()=>parseKnowledgeSearchBody(Buffer.from([0xff])));
  assert.throws(()=>parseKnowledgeSearchBody(Buffer.alloc(4097,32)));
- assert.equal(parseKnowledgeSearchBody(Buffer.from(JSON.stringify({search_phrase:'猫'.repeat(85)}))),'猫'.repeat(85));
+ assert.equal(parseKnowledgeSearchBody(Buffer.from(JSON.stringify({search_phrase:'猫'.repeat(85)}))).phrase,'猫'.repeat(85));
  assert.throws(()=>parseKnowledgeSearchBody(Buffer.from(JSON.stringify({search_phrase:'猫'.repeat(86)}))));
 });

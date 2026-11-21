@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "featureId": "SERVICE-READINESS",
+  "revision": 3,
+  "backend": "nuxt",
+  "result": "passed",
+  "mode": "native",
+  "nuxtDependency": "self",
+  "requirementsSha256": "fc28550ed19366807e43e931247ffd50228782ccc6e4e4a76a5f0271b41bb297",
+  "scenarios": [
+    {
+      "id": "SERVICE-READINESS",
+      "sha256": "bf6491f32bab769dd2ea8fb56a698845fd99254f34977d5fed31bd865eb5468a"
+    }
+  ],
+  "sources": [
+    {
+      "path": "docker-compose.external.yml",
+      "sha256": "217662fdf5ae44dec3b59b3dbb8048629d1fc6bb368677e9609c69fb8e3a363d"
+    },
+    {
+      "path": "docker-compose.local.yml",
+      "sha256": "957f101404398aa24f9645d548140b7e4ee721fd9e9db49098e527f4e57a4043"
+    },
+    {
+      "path": "server/api/ready.get.ts",
+      "sha256": "65ba80667e440fb773950a03e9af6f25727b344061856e649f0f6e009f4112d9"
+    },
+    {
+      "path": "server/middleware/rate-limit.ts",
+      "sha256": "a9e7715ba44f44ad936f5ef7da4f3a1284c5ea487d6aff0ff7aff630e482080e"
+    }
+  ],
+  "execution": {
+    "release": "20261121-rc7",
+    "cases": [
+      "oracle-unavailable",
+      "ready",
+      "recovers",
+      "redis-unavailable",
+      "timeout"
+    ],
+    "readinessTargets": [
+      "Windows x64",
+      "Ubuntu 22.04 WSL",
+      "Docker Linux x64"
+    ],
+    "isolatedOracleAndRedis": true,
+    "commands": [
+      "python phase_a_readiness.py nuxt",
+      "python stage_e.py linux nuxt",
+      "python stage_e.py docker nuxt"
+    ],
+    "packageManifests": [
+      {
+        "path": "nuxt-node-windows-x64-20261121-rc7/nuxt-package.json",
+        "sha256": "678cc168a9c897e4c685068a965fcb6372ee7a65c0e66e75fd9e4a60ee334e94"
+      },
+      {
+        "path": "nuxt-node-linux-x64-20261121-rc7/nuxt-package.json",
+        "sha256": "357417f64fc347420ac2ae0b62ccf167ff77388d24d64040fdc12eff7f640d20"
+      }
+    ],
+    "proof": [
+      {
+        "path": "docs/deployment/evidence/20261121/readiness-windows-rc7.jsonl",
+        "sha256": "d0e9bce7fdb09ad185ed8724731340e4fa1d940ef9f445a9eb8f8e21e8a5a424"
+      },
+      {
+        "path": "docs/deployment/evidence/20261121/ubuntu-wsl-rc7.jsonl",
+        "sha256": "6a2f8c49e2112db849b0a808ea9acc5db0fecb298d2e7b9bd55303a26b2d0064"
+      },
+      {
+        "path": "docs/deployment/evidence/20261121/docker-linux-rc7.jsonl",
+        "sha256": "84df3027aff8dfa34d4cc9402e29f14263d884beafa3bc121fcb76ad337a6f9c"
+      }
+    ]
+  }
+}

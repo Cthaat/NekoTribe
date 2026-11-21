@@ -48,16 +48,21 @@ test('packaged runtime can execute offline without source files or development d
  try {
   const scripts=join(path,'scripts'),server=join(path,'.output','server'),spec=join(path,'specifications','requirements'),database=join(path,'server','database');mkdirSync(scripts,{recursive:true});mkdirSync(join(server,'node_modules','oracledb'),{recursive:true});mkdirSync(spec,{recursive:true});mkdirSync(database,{recursive:true});
   copyFileSync(new URL('../scripts/ai-public-terms-maintenance.mjs',import.meta.url),join(scripts,'ai-public-terms-maintenance.mjs'));
+  copyFileSync(new URL('../scripts/ai-skill-config-maintenance.mjs',import.meta.url),join(scripts,'ai-skill-config-maintenance.mjs'));
   copyFileSync(new URL('../scripts/migrate-db.mjs',import.meta.url),join(scripts,'migrate-db.mjs'));
   for(const name of ['schema.mjs','schema-definition.mjs'])copyFileSync(new URL(`../server/database/${name}`,import.meta.url),join(database,name));
   copyFileSync(new URL('../specifications/requirements/ai-public-terms-catalog.json',import.meta.url),join(spec,'ai-public-terms-catalog.json'));
   writeFileSync(join(server,'index.mjs'),'');
-  writeFileSync(join(server,'node_modules','oracledb','index.js'),`module.exports={OUT_FORMAT_OBJECT:4002,async getConnection(){return {async execute(sql){if(!/^SELECT/.test(sql))throw Error('unexpected write');return {rows:[{CATALOG_DIGEST:'a'.repeat(64),GENERATION:3,ENABLED:1}]}},async close(){}}}}`);
+  writeFileSync(join(server,'node_modules','oracledb','index.js'),`module.exports={OUT_FORMAT_OBJECT:4002,async getConnection(){return {async execute(sql){if(!/^SELECT/.test(sql))throw Error('unexpected write');return {rows:[/n_ai_skill_config/.test(sql)?{GENERATION:4,ENABLED_IDS:'["writing-draft"]'}:{CATALOG_DIGEST:'a'.repeat(64),GENERATION:3,ENABLED:1}]}},async close(){}}}}`);
   await buildTermsMaintenanceBundle({outfile:join(server,'ai-terms-maintenance.cjs')});
   const result=spawnSync(process.execPath,[join(scripts,'ai-public-terms-maintenance.mjs'),'--plan'],{encoding:'utf8',env:{...process.env,NEKO_TERMS_PACKAGED:'1'}});
   assert.equal(result.status,0,result.stderr);const plan=JSON.parse(result.stdout);assert.equal(plan.connected,false);assert.match(plan.digest,/^[a-f0-9]{64}$/);
+  const skillPlan=spawnSync(process.execPath,[join(scripts,'ai-skill-config-maintenance.mjs'),'--plan','--enabled-json','["writing-draft"]'],{encoding:'utf8',env:{...process.env,NEKO_TERMS_PACKAGED:'1'}});
+  assert.equal(skillPlan.status,0,skillPlan.stderr);assert.deepEqual(JSON.parse(skillPlan.stdout).enabled,['writing-draft']);
   const dotenv=join(path,'fixture.env');writeFileSync(dotenv,'ORACLE_USER=test\nORACLE_PASSWORD=test\nORACLE_HOST=localhost\nORACLE_PORT=1521\nORACLE_SERVICE_NAME=test\n');
   const status=spawnSync(process.execPath,[join(scripts,'ai-public-terms-maintenance.mjs'),'--status','--dotenv',dotenv],{encoding:'utf8',env:{...process.env,NEKO_TERMS_PACKAGED:'1',NUXT_ORACLE_USER:'test',NUXT_ORACLE_PASSWORD:'test',NUXT_ORACLE_HOST:'localhost',NUXT_ORACLE_PORT:'1521',NUXT_ORACLE_SERVICE_NAME:'test'}});
   assert.equal(status.status,0,status.stderr);assert.equal(JSON.parse(status.stdout).generation,3);
+  const skillStatus=spawnSync(process.execPath,[join(scripts,'ai-skill-config-maintenance.mjs'),'--status','--dotenv',dotenv],{encoding:'utf8',env:{...process.env,NEKO_TERMS_PACKAGED:'1',NUXT_ORACLE_USER:'test',NUXT_ORACLE_PASSWORD:'test',NUXT_ORACLE_HOST:'localhost',NUXT_ORACLE_PORT:'1521',NUXT_ORACLE_SERVICE_NAME:'test'}});
+  assert.equal(skillStatus.status,0,skillStatus.stderr);assert.deepEqual(JSON.parse(skillStatus.stdout).enabled,['writing-draft']);
  } finally {rmSync(path,{recursive:true,force:true})}
 });

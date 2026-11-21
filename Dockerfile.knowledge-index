@@ -1,0 +1,30 @@
+FROM node:22-bookworm-slim AS maintenance-build
+
+WORKDIR /app
+COPY package.json yarn.lock ./
+RUN corepack enable && yarn install --frozen-lockfile --ignore-scripts
+COPY scripts ./scripts
+COPY server ./server
+COPY specifications ./specifications
+RUN node scripts/build-ai-public-terms.mjs
+
+FROM node:22-bookworm-slim AS updater
+
+WORKDIR /app
+ENV AI_INDEX_ACTIVE_PROFILE=/app/profiles/active.json NEKO_TERMS_PACKAGED=1
+COPY --from=maintenance-build /app/node_modules/oracledb ./node_modules/oracledb
+COPY --from=maintenance-build /app/.output/server/ai-terms-maintenance.cjs ./.output/server/
+COPY specifications/requirements/ai-public-terms-catalog.json ./specifications/requirements/
+COPY scripts/migrate-db.mjs scripts/ai-public-terms-maintenance.mjs ./scripts/
+COPY server/database/schema.mjs server/database/schema-definition.mjs ./server/database/
+COPY scripts/knowledge-index ./scripts/knowledge-index
+ENTRYPOINT ["node", "scripts/knowledge-index/cli.mjs"]
+CMD ["watch"]
+
+FROM node:22-bookworm-slim AS retrieval
+
+WORKDIR /app
+COPY scripts/knowledge-index ./index
+ENV AI_INDEX_HOST=0.0.0.0 AI_INDEX_PORT=3818 AI_INDEX_ACTIVE_PROFILE=/app/profiles/active.json
+EXPOSE 3818
+CMD ["node", "index/cli.mjs", "serve"]

@@ -16,6 +16,33 @@ test('source fingerprints match shared cross-language vectors',()=>{
   const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-knowledge-source-vectors.json',import.meta.url),'utf8'));
   for(const row of vectors.cases) assert.equal(sourceVersion(row.kind,row.source_id,row.post_id,row.content),row.version,row.id);
 });
+test('group sources use their own public authority and omit stale or unavailable rows', async () => {
+  const actor = {userId:42};
+  const candidate = {kind:'group_comment', id:21, version:sourceVersion('group_comment',21,11,'comment')};
+  let rows = [{SOURCE_ID:21,POST_ID:11,GROUP_ID:7,CONTENT:'comment'}];
+  const db = {async execute(sql, binds) {
+    assert.match(sql, /FROM n_group_comments c/);
+    assert.match(sql, /g\.privacy='public' AND g\.is_active=1 AND g\.is_deleted=0/);
+    assert.match(sql, /b\.target_user_id IN \(p\.author_id,c\.author_id\)/);
+    assert.match(sql, /b\.user_id IN \(p\.author_id,c\.author_id\)/);
+    assert.match(sql, /p\.post_id BETWEEN 1 AND :max_id/);
+    assert.match(sql, /p\.group_id BETWEEN 1 AND :max_id/);
+    assert.deepEqual(binds, {source_id:21,viewer_id:42,max_id:999_999_999_999_999});
+    return {rows};
+  }};
+  assert.deepEqual(await hydrateKnowledgeSources(actor, db, [candidate]), [
+    {...candidate,post_id:11,group_id:7,content:'comment'},
+  ]);
+  const stored = encodeKnowledgeMessage({answer:'group answer',sources:[candidate]});
+  const restore = () => restoreKnowledgeMessage(stored, refs => hydrateKnowledgeSources(actor, db, refs));
+  assert.deepEqual((await restore()).citations, [{...candidate,post_id:11,group_id:7}]);
+  assert(!stored.includes('group_id'));
+  rows = [{SOURCE_ID:21,POST_ID:11,GROUP_ID:7,CONTENT:'edited'}];
+  assert.deepEqual(await hydrateKnowledgeSources(actor, db, [candidate]), []);
+  await assert.rejects(restore, /SOURCE_CHANGED/);
+  rows = [];
+  assert.deepEqual(await hydrateKnowledgeSources(actor, db, [candidate]), []);
+});
 test('mixed term references are checked against the current shared authority',async()=>{
  const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-public-terms-source-vectors.json',import.meta.url),'utf8'));
  const version=vectors.versions[0].version,ref={kind:'terms',id:1,version};let active=true,calls=0;
@@ -45,7 +72,15 @@ test('current public sources are reloaded with owner-independent public and view
   assert.equal(calls[0].binds.viewer_id,42);assert.equal(out[0].content,'public post');assert.equal(out[0].version,version);
 });
 test('stale, inaccessible and deleted sources are omitted instead of exposing indexed content',async()=>{
-  const db={async execute(sql,binds){assert.match(sql,/c\.is_deleted\s*=\s*0/i);return binds.source_id===21?{rows:[{SOURCE_ID:21,POST_ID:11,CONTENT:'edited'}]}:{rows:[]}}};
+  const db={async execute(sql,binds){
+    assert.match(sql,/c\.is_deleted\s*=\s*0/i);
+    assert.match(sql,/post_author\.is_active=1/);
+    assert.match(sql,/comment_author\.is_active=1/);
+    assert.match(sql,/NOT EXISTS\s*\(\s*SELECT 1 FROM n_user_blocks/);
+    assert.match(sql,/b\.user_id=:viewer_id AND b\.target_user_id=c\.user_id/);
+    assert.match(sql,/b\.target_user_id=:viewer_id AND b\.user_id=c\.user_id/);
+    return binds.source_id===21?{rows:[{SOURCE_ID:21,POST_ID:11,CONTENT:'edited'}]}:{rows:[]};
+  }};
   const before=sourceVersion('comment',21,11,'old');
   const out=await hydrateKnowledgeSources({userId:42},db,[{kind:'comment',id:21,version:before},{kind:'comment',id:22,version:'0'.repeat(64)}]);
   assert.deepEqual(out,[]);

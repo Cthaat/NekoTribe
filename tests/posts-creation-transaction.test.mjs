@@ -8,10 +8,12 @@ import path from 'node:path';
 import {build} from 'esbuild';
 import {createEvent} from 'h3';
 
+import {readFileSync as readPublishPolicy} from 'node:fs';
+const publishPolicy = JSON.parse(readPublishPolicy(new URL('../specifications/requirements/moderation-publish-policy.json', import.meta.url), 'utf8'));
 const root=fileURLToPath(new URL('../',import.meta.url));
 const require=createRequire(import.meta.url);
 const stubs={
- '~/server/models/v2': `export const v2RequirePostById = async c => c.snapshot(); const unexpected=()=>{throw new Error('unexpected model')}; export const v2CommentCount=unexpected,v2MapComment=unexpected,v2MapPost=unexpected,v2MapPublicUser=unexpected,v2PostCountSql=unexpected,v2PostSelectSql=unexpected,v2SortOrder=unexpected;`,
+ '~/server/models/v2': `export const v2RequirePostById = async c => c.snapshot(); const unexpected=()=>{throw new Error('unexpected model')}; export const v2CommentCount=unexpected,v2MapComment=unexpected,v2MapPost=unexpected,v2MapPublicUser=unexpected,v2PostCountSql=unexpected,v2PostSelectSql=unexpected,v2SortOrder=unexpected,v2VisiblePostCommentScope=unexpected;`,
  './notifications': `export const v2CreateNotification=async (c,n)=>{c.notices.push(n);if(c.failNotification)throw new Error('private notification error')};`,
  './api-cache': 'export const readApiResponseCache=async()=>({status:"disabled"});export const writeApiResponseCache=async()=>{};export const invalidateApiResponseCache=async()=>{};export const shouldInvalidateApiResponseCache=()=>false;',
  './logging':'export const getRequestLogContext=()=>null;export const logError=()=>{};export const logInfo=()=>{};export const serializeLogError=()=>({});',
@@ -23,15 +25,21 @@ const compiled=await build({stdin:{contents:`export {default as create} from './
 }}]});
 const routes=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 
-function database({media=[11],failAt='',failNotification=false,failCommit=false,failRollback=false}={}){
+function database({media=[11],mediaKey='posts/files/11.txt',canBindPrivate=true,failAt='',failNotification=false,failCommit=false,failRollback=false,muted=false}={}){
  const db={pending:[],committed:[],calls:[],notices:[],commits:0,rollbacks:0,failNotification,close:async()=>{},snapshot(){return {post_id:100,committed:this.committed.length}},
   async execute(raw,binds={},options={}){
    const sql=raw.replace(/\s+/g,' ').trim();this.calls.push({sql,binds,options});
+   if (sql === publishPolicy.sql.lock) return {rows: [{USER_ID: binds.user_id}]};
+   if (sql === publishPolicy.sql.allowed) return {rows: [{ALLOWED: muted ? 0 : 1}]};
    if(sql.startsWith('SELECT seq_post_id'))return{rows:[{ID:100}]};
    if(sql.startsWith('SELECT COALESCE'))return{rows:[{NAME:'viewer'}]};
    if(sql.startsWith('SELECT DBMS_LOB.SUBSTR')&&sql.includes('FROM n_posts'))return{rows:[{CONTENT:'posted'}]};
    if(sql.startsWith('SELECT p.post_id'))return{rows:[{POST_ID:binds.post_id}]};
    if(sql.startsWith('SELECT author_id'))return{rows:[{AUTHOR_ID:2}]};
+   if(sql.startsWith('SELECT media_id, storage_key FROM n_media_assets')&&sql.endsWith('FOR UPDATE')){
+    return{rows:media.includes(binds.media_id)?[{MEDIA_ID:binds.media_id,STORAGE_KEY:mediaKey}]:[]};
+   }
+   if(sql.startsWith('SELECT 1 AS permitted FROM n_media_assets'))return {rows:canBindPrivate?[{PERMITTED:1}]:[]};
    const kind=sql.startsWith('INSERT INTO n_posts')?'post':sql.startsWith('INSERT INTO n_post_media')?'media':sql.startsWith('MERGE INTO n_tags')?'tag':sql.startsWith('INSERT INTO n_post_tags')?'post_tag':sql.startsWith('INSERT INTO n_post_mentions')?'mention':null;
    if(!kind)throw new Error(`unexpected SQL ${sql}`);
    if(failAt===kind)throw new Error('private database failure');
@@ -43,6 +51,44 @@ function database({media=[11],failAt='',failNotification=false,failCommit=false,
  };return db;
 }
 async function invoke(body,db){const request={method:'POST',url:'/api/v2/posts',headers:{'content-type':'application/json'},body};const response=new ServerResponse(request);const event=createEvent(request,response);event.context.auth={userId:1};event.context.getOracleConnection=async()=>db;try{return await routes.create(event);}finally{response.destroy();}}
+
+test('a muted account cannot publish, with no writes or notifications', async () => {
+ const db = database({muted: true});
+ await assert.rejects(() => invoke({content: 'hello'}, db), error => error.statusCode === 403 && error.data.message === publishPolicy.message);
+ assert.equal(db.rollbacks, 1);
+ assert.equal(db.commits, 0);
+ assert.equal(db.notices.length, 0);
+ assert.ok(db.calls.every(({sql}) => sql.startsWith('SELECT')));
+});
+test('post attachment locks are ordered while media display follows the submitted order',async()=>{
+ const db=database({media:[11,12]});await invoke({media_ids:[12,11]},db);
+ assert.deepEqual(db.calls.filter(call=>call.sql.startsWith('SELECT media_id, storage_key FROM n_media_assets')).map(call=>call.binds.media_id),[11,12]);
+ assert.deepEqual(db.committed.filter(call=>call.kind==='media').map(call=>call.binds.media_id),[12,11]);
+});
+
+test('private post attachments require restricted visibility and a free same-scope asset', async () => {
+ for (const [visibility, mediaKey, canBindPrivate, permitted] of [
+  ['followers','private/post/42/a.txt',true,true],
+  ['mentioned','private/post/42/a.txt',true,true],
+  ['public','private/post/42/a.txt',true,false],
+  ['private','private/chat/42/a.txt',true,false],
+  ['private','private/post/42/a.txt',false,false]
+ ]) {
+  const db = database({mediaKey,canBindPrivate});
+  if (permitted) {
+   await invoke({visibility,media_ids:[11]},db);
+   const lock=db.calls.findIndex(call=>call.sql.startsWith('SELECT media_id, storage_key'));
+   const check=db.calls.findIndex(call=>call.sql.startsWith('SELECT 1 AS permitted'));
+   assert.ok(lock>=0 && check>lock);
+   assert.deepEqual(db.calls[check].binds,{media_id:11,post_id:100});
+   assert.equal(db.commits,1);
+  } else {
+   await assert.rejects(invoke({visibility,media_ids:[11]},db), {statusCode:400});
+   assert.equal(db.rollbacks,1);
+   assert.deepEqual(db.committed,[]);
+  }
+ }
+});
 
 test('post and valid distinct media, tags and mentions commit together',async()=>{
  const db=database();const result=await invoke({content:'',media_ids:[11,11],tag_names:['#cat'],mention_user_ids:[2]},db);

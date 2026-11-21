@@ -46,6 +46,12 @@
         "operationId": "listDirectConversations",
         "parameters": [
           {
+            "name": "conversation_id",
+            "in": "query",
+            "description": "按单个规范正整数筛选当前用户可见的会话。非法或重复值返回 400。",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+          },
+          {
             "$ref": "#/components/parameters/Page"
           },
           {
@@ -107,6 +113,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

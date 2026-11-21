@@ -24,6 +24,26 @@ test('stale discovery never reaches the model, and no evidence returns without i
  const result=await runKnowledgeTurn({async discover(){return [source]},async hydrate(){return []},async infer(){inferred=true;return 'answer'}});
  assert.equal(inferred,false);assert.deepEqual(result,{answer:null,sources:[]});
 });
+test('drops invalid indexed chunks and only refreshes when all indexed hits are unusable',async()=>{
+ const other={...source,id:2,post_id:2,content:'有效内容'};
+ const blank={...source,id:3,post_id:3,content:'\ufeff'.repeat(769)+'正文'};
+ const stale=[{...candidate,chunk:1},{kind:blank.kind,id:blank.id,version:blank.version,chunk:0}];
+ const fresh={kind:other.kind,id:other.id,version:other.version};
+ for(const [hits,expected,expectedRef,refreshes] of [
+  [[...stale,{...fresh,chunk:0}],other,fresh,0],
+  [stale,source,candidate,1]
+ ]) {
+  let refreshCount=0;
+  const result=await runKnowledgeTurn({
+   async discover(){return hits},
+   async hydrate(input){return input.map(ref=>[source,other,blank].find(row=>row.id===ref.id))},
+   async refreshStale(){refreshCount++;return [candidate]},
+   async infer(input){assert.deepEqual(input,[expected]);return 'answer'}
+  });
+  assert.equal(refreshCount,refreshes);
+  assert.deepEqual(result,{answer:'answer',sources:[expectedRef]});
+ }
+});
 test('withholds model output if any used source changes, is removed or permission is revoked',async()=>{
  let reads=0;
  await assert.rejects(()=>runKnowledgeTurn({async discover(){return [source]},async hydrate(){return ++reads===1?[source]:[]},async infer(){return 'private result'}}),/SOURCE_CHANGED/);

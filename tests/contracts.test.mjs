@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -19,6 +19,11 @@ function fixture(t) {
   writeFileSync(join(root, 'nuxt/doc/v2.openapi.json'), JSON.stringify(spec) + '\n');
   writeFileSync(join(root, 'nuxt/doc/runtime-addresses.md'), '# Addresses\n');
   writeFileSync(join(root, 'nuxt/server/api/v2/items/[id].get.ts'), 'export default defineEventHandler(() => ({}));\n');
+  for (const path of ['start-native.mjs', 'package-native.mjs', 'check-deployment-endpoints.mjs', 'release/native/start.cmd', 'release/native/start.sh']) {
+    const target = join(root, 'nuxt/scripts', path);
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(new URL(`../scripts/${path}`, import.meta.url), target);
+  }
   const git = (...args) => execFileSync('git', ['-c', `safe.directory=${join(root, 'nuxt')}`, '-C', join(root, 'nuxt'), ...args], { stdio: 'pipe' });
   git('init', '-b', 'master');
   git('add', '.');
@@ -40,6 +45,16 @@ test('sync is explicit and check works offline with only the Nuxt checkout', (t)
   assert.equal(run('check').status, 0);
   assert.notEqual(run('sync').status, 0);
   assert.notEqual(run('check', '--workspace-root', root).status, 0);
+});
+
+test('workspace root lookup accepts alternate Windows path casing', {skip:process.platform !== 'win32'}, (t) => {
+  const { root, run } = fixture(t);
+  const alias = root.toUpperCase();
+  const sync = run('sync', '--workspace-root', alias);
+  assert.equal(sync.status, 0, sync.stderr);
+  const result = run('check', '--workspace-root', alias);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).scope, 'workspace');
 });
 
 test('workspace check rejects a changed copy and a missing addresses file', (t) => {

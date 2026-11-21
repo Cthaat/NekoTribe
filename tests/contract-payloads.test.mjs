@@ -12,6 +12,76 @@ const base = 'https://neko.invalid/payload-contract';
 ajv.addSchema(spec, base);
 const validate = (name, value) => ajv.compile({ $ref: `${base}#/components/schemas/${name}` })(value);
 
+test('moderation appeal input requires an explicit decision and documents conflicts', () => {
+  const schema = 'AuditedModerationAppealInput';
+  assert.equal(validate(schema,{appeal_status:'approved'}),true);
+  assert.equal(validate(schema,{appeal_status:'rejected',admin_response:'Reviewed'}),true);
+  assert.equal(validate(schema,{status:'approved',response:'Reviewed'}),false);
+  assert.equal(validate(schema,{appeal_status:'pending'}),false);
+  assert.equal(validate(schema,{appeal_status:'approved',admin_response:null}),false);
+  assert.ok(spec.paths['/api/v2/moderation/appeals/{appeal_id}'].patch.responses['409']);
+});
+
+test('local realtime status contract validates shared cases and rejects unsafe control fields', () => {
+  assert(spec.components.schemas.AuditedRealtimeStatusEvent, 'Local realtime status schema is required');
+  const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/local-presence.json', import.meta.url)));
+  const frame = { type: 'system_notification', data: { code: 'realtime_status', user_id: 42, server_id: 'instance', local_presence: true, remote_events: 'connected' }, timestamp: 1234 };
+  for (const item of fixture.statusCases) {
+    assert.equal(validate('AuditedRealtimeStatusEvent', { ...frame, data: { ...frame.data, local_presence: item.local_presence, remote_events: item.remote_events } }), item.valid, item.id);
+  }
+  for (const value of [-1, 0.5, 9007199254740992, null, '1234']) {
+    assert.equal(validate('AuditedRealtimeStatusEvent', { ...frame, timestamp: value }), false);
+  }
+  for (const changes of [{ user_id: 0 }, { user_id: 9007199254740992 }, { local_presence: false }, { server_id: '' }, { code: 'fake' }, { secret: 'forbidden' }]) {
+    assert.equal(validate('AuditedRealtimeStatusEvent', { ...frame, data: { ...frame.data, ...changes } }), false);
+  }
+  assert.equal(validate('AuditedRealtimeStatusEvent', { ...frame, extra: true }), false);
+  assert(spec.paths['/_ws'].get['x-audited-native-events'].some(item => item.schema.$ref.endsWith('/AuditedRealtimeStatusEvent')));
+});
+
+test('presence output schema covers canonical shared frames and rejects invalid event fields',()=>{
+ assert(spec.components.schemas.AuditedPresenceEvent,'Presence frame schema is required');
+ const vectors=JSON.parse(readFileSync(new URL('../specifications/scenarios/user-settings-presence.json',import.meta.url)));
+ for(const c of vectors.eventCases){
+  const data=c.valid?{user_id:c.data.user_id,online_status:c.data.online_status,last_seen_at:c.data.online_status==='hidden'?null:c.data.last_seen_at,server_id:c.serverId}:{...c.data,server_id:c.serverId};
+  const frame={type:'presence_update',data,timestamp:c.timestamp};
+  assert.equal(validate('AuditedPresenceEvent',frame),c.valid,c.id);
+  if(c.valid)assert.equal(validate('AuditedPresenceEvent',{...frame,data:{...data,private:'forbidden'}}),false,c.id+' extra field');
+ }
+ const remote=JSON.parse(readFileSync(new URL('../specifications/scenarios/local-presence.json',import.meta.url)));
+ for(const item of remote.remoteCases) assert.equal(validate('AuditedPresenceEvent',item.frame),item.valid,item.id);
+});
+
+test('GET and PATCH settings schemas match every shared full-snapshot vector',()=>{
+ const fixture=JSON.parse(readFileSync(new URL('../specifications/scenarios/user-settings-client-response-vectors.json',import.meta.url)));
+ for(const method of ['get','patch']){
+  const check=ajv.compile({$ref:`${base}#/paths/~1api~1v2~1users~1me~1settings/${method}/responses/200/content/application~1json/schema`});
+  for(const c of fixture.cases){const body=structuredClone(Object.hasOwn(c,'root')?c.root:fixture.base);for(const e of c.changes){let n=body;for(const k of e.path.slice(0,-1))n=n[k];if(e.remove)delete n[e.path.at(-1)];else n[e.path.at(-1)]=e.value;}assert.equal(check(body),c.accepted,method+' '+c.id+' '+JSON.stringify(check.errors));}
+ }
+});
+
+test('PATCH settings input schema permits existing scalar coercions and forbids direct two-factor changes',()=>{
+ const check=ajv.compile({$ref:`${base}#/paths/~1api~1v2~1users~1me~1settings/patch/requestBody/content/application~1json/schema`});
+ const fixture=JSON.parse(readFileSync(new URL('../specifications/scenarios/user-settings-patch.json',import.meta.url)));
+ for(const c of fixture.cases.filter(c=>!c.error))assert.equal(check(c.body),true,c.id+JSON.stringify(check.errors));
+ assert.equal(check({two_factor_enabled:false}),false);assert.equal(check([]),false);assert.equal(check({profile_visibility:'PRIVATE'}),false);
+ assert.equal(check({profile_visibility:'followers'}),false);
+ assert.equal(check({profile_visibility:' private '}),false);
+});
+
+test('security response schemas allow compatible additions and reject malformed structural fields', () => {
+  const fixture=JSON.parse(readFileSync(new URL('../specifications/scenarios/auth-security-client-response-vectors.json',import.meta.url)));
+  for(const [operation,name]of Object.entries({setup:'Setup',confirm:'Confirm',disable:'Disable',deletion:'Deletion'})){
+    const check=ajv.compile({$ref:`${base}#/components/schemas/AuditedAccount${name}Response`});
+    const valid=structuredClone(fixture.bases[operation]);
+    valid.meta={has_next:false,additional:1};valid.error=false;valid.future='compatible';valid.data.future='compatible';
+    assert.equal(check(valid),true,`${operation}: ${JSON.stringify(check.errors)}`);
+    for(const patch of [{code:'200'},{message:''},{error:true},{meta:[]},{meta:{has_next:'false'}},{data:null}])assert.equal(check({...valid,...patch}),false,operation+JSON.stringify(patch));
+  }
+  for(const user_id of [0,-1,1.5,'1',true,9007199254740992])assert.equal(validate('AuditedAccountDeletionData',{deleted:true,user_id}),false);
+  assert.equal(validate('AuditedAccountDeletionData',{deleted:true,user_id:9007199254740991}),true);
+});
+
 test('post detail contract describes anonymous access and actual rich response', () => {
   const operation = spec.paths['/api/v2/posts/{id}'].get;
   assert.ok(operation.security.some(item => Object.keys(item).length === 0));
@@ -133,7 +203,7 @@ test('password reset contract requires scalar fields and documents both error tr
   }
 });
 
-test('the 39 audited operations have concrete success contracts and retain evidence', () => {
+test('the 39 audited operations have concrete contracts for current or retired behavior', () => {
   assert.equal(evidence.operations, 39);
   const keys = new Set();
   for (const item of evidence.evidence) {
@@ -141,11 +211,36 @@ test('the 39 audited operations have concrete success contracts and retain evide
     assert(!keys.has(key), key);
     keys.add(key);
     const operation = spec.paths[item.path][item.method];
+    if (item.path.startsWith('/api/v2/integrations/sentiment-flow/')) {
+      assert.equal(operation.deprecated, true, key);
+      const status = item.path.endsWith('/config') ? '200' : '410';
+      assert(operation.responses[status].content['application/json'].schema, key);
+      continue;
+    }
     assert.equal(operation['x-contract-audit'].status, 'source-audited', key);
     assert.equal(operation['x-schema-audit-status'], undefined, key);
     assert(operation.responses['200'].content['application/json'].schema, key);
   }
   assert.equal(keys.size, 39);
+});
+
+test('email change contract requires captured OTP fields and covers cookie auth and conflict',()=>{
+  const op=spec.paths['/api/v2/users/me/email'].patch,request=requestValidator('patch','/api/v2/users/me/email');
+  assert.equal(request({new_email:'new@example.test',verification_id:'email_fixture',code:123456}),true);
+  assert.equal(request({new_email:'new@example.test',verification_id:'email_fixture'}),false);
+  assert.equal(request({new_email:' ',verification_id:'email_fixture',code:'123456'}),false);
+  assert(op.security.some(s=>Object.hasOwn(s,'accessTokenCookie')));
+  assert(op.requestBody.content['application/x-www-form-urlencoded']);
+  const pointer='/api/v2/users/me/email'.replaceAll('/','~1');
+  const success=ajv.compile({$ref:`${base}#/paths/${pointer}/patch/responses/200/content/application~1json/schema`});
+  assert.equal(success({code:200,message:'success',data:{email:'new@example.test',email_verified_at:'2026-01-02T03:04:05.000Z'},meta:null}),true);
+  assert.equal(success({code:200,message:'success',data:{email:'new@example.test'},meta:null}),false);
+  assert.equal(success({code:200,message:'success',data:{email:'new@example.test',email_verified_at:'2026-01-02T03:04:05.000Z',trace:'allowed'},meta:{trace:'allowed',has_next:true},trace:'allowed'}),true);
+  assert.equal(success({code:200,message:'success',data:{email:'new@example.test',email_verified_at:'2026-01-02T03:04:05.000Z'},meta:{has_next:'true'}}),false);
+  for(const status of [400,401,404,409,500]){
+    const check=ajv.compile({$ref:`${base}#/paths/${pointer}/patch/responses/${status}/content/application~1json/schema`});
+    const business={code:status*100+1,message:'safe fixed error',data:null,meta:null};assert.equal(check(business),true);assert.equal(check({error:true,url:'/api/v2/users/me/email',statusCode:status,statusMessage:'Error',message:'safe fixed error',data:business}),true);
+  }
 });
 
 test('JSON errors preserve the actual Nitro outer transport and optional business envelope', () => {
@@ -175,6 +270,20 @@ test('account required text matches scalar coercion without accepting blank or o
   for (const value of ['', '   ', null, {}, []]) assert.equal(validate('AuditedAccountRequiredText', value), false);
 });
 
+test('factor management contracts preserve optional normalized code and generated recovery format',()=>{
+ const request=requestValidator('post','/api/v2/users/me/two-factor/confirm');
+ for(const body of [{},{code:null},{code:[]},{code:true},{code:'123-456'}])assert.equal(request(body),true);
+ assert.equal(request([]),false);
+ const otpauth_url='otpauth://totp/NekoTribe:test?secret='+ 'A'.repeat(32)+'&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30';
+ assert.equal(validate('AuditedAccountSetupData',{secret:'A'.repeat(32),otpauth_url}),true);
+ assert.equal(validate('AuditedAccountSetupData',{secret:'not-base32',otpauth_url}),false);
+ assert.equal(validate('AuditedAccountConfirmData',{enabled:true,recovery_codes:Array(10).fill('AAAAA-BBBBB-CCCCC')}),true);
+ assert.equal(validate('AuditedAccountConfirmData',{enabled:true,recovery_codes:['invalid']}),false);
+ for(const [path,method]of [['/api/v2/users/me/two-factor/setup','post'],['/api/v2/users/me/two-factor/confirm','post'],['/api/v2/users/me/two-factor','delete']]){
+  const op=spec.paths[path][method];assert(op.responses['409']);assert(op.responses['500']);assert.equal(op.responses['200'].headers['Cache-Control'].schema.enum[0],'private, no-store');
+ }
+});
+
 test('self profile contract represents nullable fields, online status and both error transports', () => {
   const fixture=JSON.parse(readFileSync(new URL('../specifications/scenarios/user-self-profile.json',import.meta.url)));
   const pointer='/api/v2/users/me'.replaceAll('/','~1');
@@ -192,21 +301,25 @@ test('self profile contract represents nullable fields, online status and both e
   assert.equal(spec.paths['/api/v2/users/me'].get.responses['200'].headers['Cache-Control'].schema.enum[0],'private, no-store');
 });
 
-test('SentimentFlow contracts preserve the pinned upstream body and explicitly identify stubs', () => {
+test('SentimentFlow archives retain the audited schemas and published routes describe retirement', () => {
   assert.equal(validate('AuditedSentimentPredictRequest', { text: 'hello', model: null }), true);
   assert.equal(validate('AuditedSentimentPredictRequest', { text: '', model: 'lstm' }), false);
   assert.equal(validate('AuditedSentimentPredictRequest', { text: 'hello', model: 'unknown' }), false);
   assert.equal(validate('AuditedSentimentPredictRequest', { text: 'hello', client_extension: true }), true);
   assert.equal(validate('AuditedSentimentLoginStub', { message: 'login stub' }), true);
   assert.equal(validate('AuditedSentimentLoginStub', { access_token: 'invented-token' }), false);
-  for (const [path, operations] of Object.entries(spec.paths)) {
-    for (const operation of Object.values(operations)) {
-      if (operation['x-implementation-kind'] !== 'dynamic-proxy') continue;
-      assert.equal(operation['x-contract-audit'].upstream.commit, '744b7a448588266f1c54b1d1db38e07ae7e0894e');
-      assert.equal(operation['x-contract-audit'].runtimeVerification, 'pending');
-      assert(operation.responses['400'].content['application/json'].schema, path);
-      assert(operation.responses['500'].content['application/json'].schema, path);
-    }
+  const policy = JSON.parse(readFileSync(new URL('../specifications/requirements/sentiment-retirement.json', import.meta.url)));
+  const config = spec.paths[policy.prefix+'/config'].get;
+  assert.equal(config.deprecated,true);
+  assert.deepEqual(config.security,[]);
+  assert.deepEqual(config.responses['200'].content['application/json'].example.data,policy.config);
+  for(const {method,path} of policy.operations) {
+    const operation = spec.paths[policy.prefix+'/'+path][method.toLowerCase()];
+    assert.equal(operation.deprecated,true,path);
+    assert.deepEqual(operation.security,[],path);
+    assert.deepEqual(Object.keys(operation.responses),['410'],path);
+    assert.equal(operation['x-implementation-kind'],undefined,path);
+    assert.equal(operation.responses['410'].content['application/json'].example.message,policy.retiredMessage);
   }
 });
 

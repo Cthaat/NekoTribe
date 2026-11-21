@@ -44,7 +44,7 @@ for (const vector of vectors.cases) test(`Nuxt settings ${vector.id}`, async () 
   const response = new ServerResponse(request);
   const event = createEvent(request, response);
   event.context.auth = { userId: 42 };
-  const db = { presence: 0, update: null, calls: [], async execute(sql, binds, options) {
+  const db = { presence: 0, update: null, calls: [], async commit() {}, async rollback() {}, async execute(sql, binds, options) {
     this.calls.push({ sql, binds, options });
     if (sql.includes('FOR UPDATE')) return { rows: [{ USER_ID: 42 }] };
     if (sql.includes('UPDATE n_user_settings')) this.update = Object.fromEntries(Object.entries(binds).filter(([key]) => key !== 'user_id'));
@@ -62,7 +62,7 @@ for (const vector of vectors.cases) test(`Nuxt settings ${vector.id}`, async () 
       if (!db.calls[index].sql.includes('MERGE INTO n_user_settings')) continue;
       assert.match(db.calls[index - 1].sql, /n_users.*FOR UPDATE/s);
       assert.equal(db.calls[index - 1].binds.user_id, 42);
-      assert.equal(db.calls[index].options.autoCommit, true);
+      assert.equal(db.calls[index].options.autoCommit, false);
     }
   } finally { response.destroy(); }
 });
@@ -73,7 +73,7 @@ test('Nuxt settings do not create a row for a missing user', async () => {
   const event = createEvent(request, response);
   event.context.auth = { userId: 42 };
   const calls = [];
-  const db = { async execute(sql) { calls.push(sql); return { rows: [] }; } };
+  const db = { async rollback() {}, async execute(sql) { calls.push(sql); return { rows: [] }; } };
   try {
     await assert.rejects(() => v2PatchSettings(event, db), error => error.statusCode === 404);
     assert.equal(calls.length, 1);

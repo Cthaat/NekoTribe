@@ -12,16 +12,35 @@ const ddl = calls => calls.filter(c => /^(CREATE|ALTER|DROP)\b/.test(c.sql));
 test('default plan does not read dotenv, load a driver or connect', async () => {
   let loaded = false; const output = [];
   const plan = await migrateDatabase({ root: '\0invalid-directory', env: { ORACLE_PASSWORD: 'do-not-print' }, loadDriver: () => { loaded = true; throw Error('connected'); }, output: s => output.push(s) });
-  assert.equal(loaded, false); assert.equal(plan.length, 7); assert(!output.join('').includes('do-not-print'));
-  assert.equal(plan.flatMap(f => f.steps).length, 35);
+  assert.equal(loaded, false); assert.equal(plan.length, 11); assert(!output.join('').includes('do-not-print'));
+  assert.equal(plan.flatMap(f => f.steps).length, 41);
 });
-test('baseline metadata with migrated AI tables passes readiness and idempotent apply', async () => {
+test('the baseline prepares feedback and media access scope through explicit idempotent migrations', async () => {
   const db = schemaFixture({ baseline: true });
   const initial = await checkSchema(db);
-  assert(initial.every(x => x.status === 'ready'), JSON.stringify(initial.filter(x => x.status !== 'ready')));
+  assert.deepEqual(initial.filter(x => x.status !== 'ready').map(x => [x.feature, x.status]), [
+    ['ai-conversations', 'missing'],
+    ['ai-conversations', 'missing'],
+    ['recommendation-feedback', 'missing'],
+    ['ai-moderation-feedback', 'missing'],
+    ['media-access-scope', 'missing'],
+  ]);
   assert(db.state.calls.every(c => /^SELECT\b/.test(c.sql)));
   await applySchema(db);
-  assert.deepEqual(ddl(db.state.calls).map(c => c.sql.split('(')[0].trim()), ['CREATE TABLE N_SCHEMA_MIGRATIONS']);
+  assert.deepEqual(ddl(db.state.calls).map(c => c.sql.split('(')[0].trim()), [
+    'CREATE TABLE N_SCHEMA_MIGRATIONS', 'ALTER TABLE n_ai_conversations MODIFY', 'ALTER TABLE n_ai_conversations MODIFY',
+    'CREATE TABLE n_recommendation_feedback', 'CREATE TABLE n_ai_moderation_feedback',
+    'ALTER TABLE n_media_assets ADD',
+  ]);
+  assert((await checkSchema(db, 'recommendation-feedback')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'ai-moderation-feedback')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'media-access-scope')).every(item => item.status === 'ready' && item.recorded));
+  const media = db.state.tables.get('N_MEDIA_ASSETS');
+  const scope = media.columns.find(column => column.COLUMN_NAME === 'ACCESS_SCOPE');
+  assert.equal(scope.DATA_DEFAULT, "'public'");
+  assert.equal(scope.NULLABLE, 'N');
+  assert(media.constraints.some(constraint =>
+    normalizeExpression(constraint.SEARCH_CONDITION_VC) === "ACCESS_SCOPEIN('chat','post','public')"));
   const before = db.state.calls.length;
   await applySchema(db);
   assert.equal(ddl(db.state.calls.slice(before)).length, 0);
@@ -42,9 +61,44 @@ test('AI conversation migration creates missing tables without changing existing
   await applySchema(db);
   assert.deepEqual(db.state.tables.get('N_USER_SETTINGS'), existing);
   assert((await checkSchema(db, 'ai-conversations')).every(item => item.status === 'ready'));
+  const title = db.state.tables.get('N_AI_CONVERSATIONS').columns.find(row => row.COLUMN_NAME === 'TITLE');
+  assert.equal(title.CHAR_LENGTH, 200);
+  assert.equal(title.CHAR_USED, 'C');
+  const groupId = db.state.tables.get('N_AI_CONVERSATIONS').columns.find(row => row.COLUMN_NAME === 'GROUP_ID');
+  assert.equal(groupId.DATA_PRECISION, 19);
   const count = db.state.calls.length;
   await applySchema(db);
   assert.equal(ddl(db.state.calls.slice(count)).length, 0);
+});
+test('title migration widens the legacy column and rejects unrelated schema drift', async () => {
+  const db = schemaFixture();
+  const title = db.state.tables.get('N_AI_CONVERSATIONS').columns.find(row => row.COLUMN_NAME === 'TITLE');
+  title.CHAR_USED = 'B';
+  const titleStep = async () => (await checkSchema(db, 'ai-conversations')).find(row => row.id === 'ai-conversations-title-char');
+  assert.equal((await titleStep()).status, 'missing');
+  await assert.rejects(() => assertSchemaReady(db, 'ai-conversations'));
+  title.NULLABLE = 'N';
+  assert.equal((await titleStep()).status, 'incompatible');
+  title.NULLABLE = 'Y';
+  await applySchema(db);
+  assert.equal((await titleStep()).status, 'ready');
+  assert.equal(title.CHAR_USED, 'C');
+});
+test('group conversation migration widens precision without invalidating the original table step', async () => {
+  const db = schemaFixture();
+  const groupId = db.state.tables.get('N_AI_CONVERSATIONS').columns.find(row => row.COLUMN_NAME === 'GROUP_ID');
+  groupId.DATA_PRECISION = 15;
+  const steps = () => checkSchema(db, 'ai-conversations');
+  assert.deepEqual((await steps()).filter(row => row.status !== 'ready').map(row => row.id), ['ai-conversations-group-id-precision']);
+  groupId.DATA_SCALE = 1;
+  assert.equal((await steps()).at(-1).status, 'incompatible');
+  groupId.DATA_SCALE = 0;
+  await applySchema(db);
+  assert.equal(groupId.DATA_PRECISION, 19);
+  assert((await steps()).every(row => row.status === 'ready' && row.recorded));
+  const before = db.state.calls.length;
+  await applySchema(db);
+  assert.deepEqual(ddl(db.state.calls.slice(before)), []);
 });
 test('terms authority migration creates an empty guarded singleton without publishing rules',async()=>{
  const db=schemaFixture();db.state.tables.delete('N_AI_TERMS_ACTIVE');
@@ -56,6 +110,17 @@ test('terms authority migration creates an empty guarded singleton without publi
  assert.deepEqual(db.state.tables.get('N_USER_SETTINGS'),before);
  assert((await checkSchema(db,'ai-terms')).every(step=>step.status==='ready'));
  assert(!db.state.calls.some(call=>/^(INSERT|MERGE|UPDATE)\s+.*N_AI_TERMS_ACTIVE/i.test(call.sql)));
+ const count=db.state.calls.length;await applySchema(db);assert.equal(ddl(db.state.calls.slice(count)).length,0);
+});
+test('skill configuration migration creates an empty singleton without enabling any skill',async()=>{
+ const db=schemaFixture();db.state.tables.delete('N_AI_SKILL_CONFIG');
+ const steps=planSchema().find(feature=>feature.feature==='ai-skills')?.steps;
+ assert.equal(steps?.length,1);assert.equal(steps[0].name,'N_AI_SKILL_CONFIG');
+ assert((await checkSchema(db,'ai-skills')).some(step=>step.status==='missing'));
+ const existing=structuredClone(db.state.tables.get('N_USER_SETTINGS'));await applySchema(db);
+ assert.deepEqual(db.state.tables.get('N_USER_SETTINGS'),existing);
+ assert((await checkSchema(db,'ai-skills')).every(step=>step.status==='ready'));
+ assert(!db.state.calls.some(call=>/^(INSERT|MERGE|UPDATE)\s+.*N_AI_SKILL_CONFIG/i.test(call.sql)));
  const count=db.state.calls.length;await applySchema(db);assert.equal(ddl(db.state.calls.slice(count)).length,0);
 });
 test('existing settings and sequence state are preserved; missing settings insert only', async () => {
@@ -174,7 +239,7 @@ test('lock denial/driver permissions fail closed without creating a ledger or do
 });
 test('connected CLI suppresses driver secrets and check never executes locks or DDL', async () => {
   const output = []; const env = { ORACLE_USER: 'NEKO_APP', ORACLE_PASSWORD: 'top-secret', ORACLE_HOST: 'private-host', ORACLE_PORT: '1521', ORACLE_SERVICE_NAME: 'PDB' };
-  const db = schemaFixture({ baseline: true }); let closed = 0;
+  const db = schemaFixture(); let closed = 0;
   await migrateDatabase({ args: ['--check'], root: '\0invalid', env, output: x => output.push(x), loadDriver: async () => ({ getConnection: async config => { assert.equal(config.password, 'top-secret'); return { execute: db.execute, close: async () => { closed++; } }; } }) });
   assert(db.state.calls.every(c => /^SELECT\b/.test(c.sql))); assert.equal(closed, 1); assert(!output.join('').includes('top-secret'));
   await assert.rejects(migrateDatabase({ args: ['--apply'], root: '\0invalid', env, output: x => output.push(x), loadDriver: async () => { throw Error('top-secret private-host'); } }), e => !/top-secret|private-host/.test(e.message));

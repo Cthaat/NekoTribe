@@ -30,6 +30,7 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV STORAGE_PATH=/app/storage
 ENV NEKO_TERMS_PACKAGED=1
+ENV FFPROBE_PATH=/usr/bin/ffprobe
 
 RUN apk add --no-cache ffmpeg libc6-compat \
   && mkdir -p /app/storage/temp
@@ -41,6 +42,7 @@ COPY --from=build /app/.output ./.output
 COPY scripts/run-nuxt.mjs scripts/runtime-env.mjs ./scripts/
 COPY scripts/migrate-db.mjs ./scripts/
 COPY scripts/ai-public-terms-maintenance.mjs ./scripts/
+COPY scripts/ai-skill-config-maintenance.mjs ./scripts/
 COPY specifications/requirements/ai-public-terms-catalog.json ./specifications/requirements/
 COPY server/database/schema.mjs server/database/schema-definition.mjs ./server/database/
 

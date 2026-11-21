@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { loadEnvFile } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { resolveRuntimeEnvironment } from './runtime-env.mjs';
+import { resolveRuntimeEnvironment, sessionLifetimes } from './runtime-env.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 process.chdir(root);
@@ -17,7 +17,9 @@ if (dotenvIndex >= 0 && !args[dotenvIndex + 1]) {
 const dotenv = resolve(root, dotenvIndex >= 0 ? args[dotenvIndex + 1] : '.env');
 if (existsSync(dotenv)) loadEnvFile(dotenv);
 else if (dotenvIndex >= 0) throw new Error('The requested environment file does not exist');
-Object.assign(process.env, resolveRuntimeEnvironment(process.env, mode));
+const runtimeEnv = resolveRuntimeEnvironment(process.env, mode);
+sessionLifetimes(runtimeEnv);
+Object.assign(process.env, runtimeEnv);
 
 if (mode === 'dev') {
   process.argv = [process.argv[0], process.argv[1], 'dev', ...args];

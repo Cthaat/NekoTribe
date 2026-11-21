@@ -37,6 +37,8 @@
 
 权威基线是 `data/neko_tribe-oracle-v2.sql`。当前脚本只支持其固定的 `ORCLPDB1`、`NEKO_APP`、`N_USERS`，以及 SQL 中固定的表空间路径和示例用户密码；这不是通用迁移器。外部环境应预先由管理员配置兼容 schema，不应直接运行该开发基线。
 
+跨机部署可使用 `data/nekotribe-schema-only.sql`。管理员先为目标 PDB 准备新所有者、表空间配额，以及创建表、序列、过程、触发器、视图和物化视图所需权限。可以以所有者身份在 SQL*Plus 手动执行，或用 `node scripts/init-db.mjs --schema-only --dotenv PATH` 明确选择目标私有配置，并显式设置 `DB_INIT_ALLOW_EMPTY=true`。脚本在 DDL 前拒绝管理员会话、切换过当前 schema 的会话及已有对象的 schema。结束时通过 `USER_OBJECTS` 检查无效对象。Oracle DDL 单独提交，初始化途中报错时按错误修复或通过管理员准备新的空 schema。详细命令见 [新库部署](deployment.md#新-oracle-库只创建应用结构)。
+
 初始化判断：
 
 1. 若已有 `NEKO_APP.N_USERS`，跳过整个基线。此标记仅防止重跑，**不代表所有 schema 对象完整**。

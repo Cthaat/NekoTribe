@@ -285,13 +285,13 @@ At minimum, confirm these fields:
 | Common            | `ACCESS_EXPIRES_IN`, `REFRESH_EXPIRES_IN`                                                                    | Template values can start the app: 15 minutes for access tokens and 30 days for refresh tokens. Change only if you need a different login lifetime.                                                                                                                                                       |
 | Common            | `COOKIE_SECURE`, `TRUST_PROXY`, `ENABLE_V1_API`, `MODERATION_ADMIN_ACCOUNTS`                                 | For production HTTPS, set `COOKIE_SECURE=true`. Keep `TRUST_PROXY=false` unless the app only receives traffic from a trusted reverse proxy. Keep `ENABLE_V1_API=false` unless legacy APIs have been reviewed. Set moderation admin usernames or emails explicitly.                                        |
 | Host dev          | `NODE_ENV`                                                                                                   | Keep `development`; otherwise local HTTP login can fail because secure-cookie behavior changes.                                                                                                                                                                                                           |
-| Host dev          | `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`                        | With built-in Compose Oracle, keep the template values: `localhost`, `5501`, `ORCLPDB1`, `neko_app`, `NekoApp2026#`. For an external Oracle instance, replace them with the real host, service name, user, and password.                                                                                  |
+| Host dev          | `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`                        | With built-in Compose Oracle, keep the template values: `localhost`, `5501`, `ORCLPDB1`, `neko_app`, `replace-with-oracle-password`. For an external Oracle instance, replace them with the real host, service name, user, and password.                                                                                  |
 | Full Docker stack | `APP_PORT`, `NGINX_PORT`, `DOCKER_PUBLIC_WS_URL`                                                             | Defaults are app `30001` and Nginx `30002`. Keep `DOCKER_PUBLIC_WS_URL` empty for same-origin WebSocket auto-detection. If exposing the site through HTTPS or Cloudflare Tunnel, the browser must use `wss://.../_ws`, not `ws://.../_ws`.                                                                |
 | Full Docker stack | `DOCKER_ORACLE_HOST`, `DOCKER_ORACLE_PORT`, `DOCKER_REDIS_URL`, `DOCKER_REDIS_HOST`, `DOCKER_REDIS_PORT`     | Keep these values when using built-in Compose services. They must point to Docker-network names `oracle19c` and `redis`, not `localhost`.                                                                                                                                                                 |
-| Oracle init/storage | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE`, `ORACLE_DATA_VOLUME`, `ORACLE_DATA_MOUNT_OPTIONS` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `NekoApp2026#`. Oracle data uses the Docker named volume `oracle-data` by default to avoid Rocky Linux/SELinux bind-mount permission failures. |
+| Oracle init/storage | `ORACLE_IMAGE`, `ORACLE_PWD`, `ORACLE_SERVICE_NAME`, `ORACLE_USER`, `ORACLE_PASSWORD`, `DB_INIT_CHECK_TABLE`, `ORACLE_DATA_VOLUME`, `ORACLE_DATA_MOUNT_OPTIONS` | `.env.example` defaults to a domestic Oracle 19c mirror. `ORACLE_PWD` is the container `SYS/SYSTEM` password. `ORACLE_PASSWORD` must match the v2 SQL `neko_app` password; the template value is `replace-with-oracle-password`. Oracle data uses the Docker named volume `oracle-data` by default to avoid Rocky Linux/SELinux bind-mount permission failures. |
 | Redis             | `REDIS_PASSWORD`                                                                                             | The built-in Redis service reads this password. Changing it after a Redis volume already exists can break old clients or health checks unless you also reset/update the volume.                                                                                                                           |
 | Email features    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`                                                           | The app can start without SMTP, but registration OTP, password reset, and account emails require a real SMTP account. 163/QQ/Gmail usually require an app-specific password or authorization code, not the web login password.                                                                            |
-| SentimentFlow     | `COMPOSE_PROFILES`, `SENTIMENTFLOW_ENABLED`, `SENTIMENTFLOW_HOST_PORT`, `SENTIMENTFLOW_FRONTEND_HOST_PORT`   | Keep `COMPOSE_PROFILES=true`. Set `SENTIMENTFLOW_ENABLED=true` to include the SentimentFlow backend and frontend; set it to `false` to skip pulling, building, and starting those optional services during plain Compose startup.                                                                         |
+| SentimentFlow | `--profile sentimentflow-legacy` | Explicitly enable this profile for standalone legacy services. |
 
 If `.env` already exists, do not copy the template over it again; only fill in or adjust the fields above.
 
@@ -381,20 +381,18 @@ SentimentFlow is included in both Compose files as two services:
 - `sentimentflow`: FastAPI backend for prediction, training, models, and statistics.
 - `sentimentflow-frontend`: Next.js frontend UI that talks to the backend through `BACKEND_API_URL`.
 
-Keep the NekoTribe proxy enabled in `.env` when the app should call the sentiment-analysis backend:
+The platform has retired its old sentiment endpoints. Configure these ports in `.env` for standalone SentimentFlow.
 
 ```env
-COMPOSE_PROFILES=true
-SENTIMENTFLOW_ENABLED=true
 SENTIMENTFLOW_HOST_PORT=8846
 SENTIMENTFLOW_CONTAINER_PORT=8846
 SENTIMENTFLOW_FRONTEND_HOST_PORT=30008
 SENTIMENTFLOW_FRONTEND_CONTAINER_PORT=3000
 ```
 
-`COMPOSE_PROFILES=true` is the Compose selector. The two SentimentFlow services are attached to the profile named by `SENTIMENTFLOW_ENABLED`, so `SENTIMENTFLOW_ENABLED=false` removes them from normal `docker compose up` / `docker compose -f docker-compose.local.yml up --build` runs.
+Select the `sentimentflow-legacy` profile or explicitly target both services to start them. The old environment flags do not activate this profile.
 
-Port changes are centralized in `.env`. `SENTIMENTFLOW_HOST_PORT` controls host/browser access to the backend, for example `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`; `SENTIMENTFLOW_CONTAINER_PORT` controls the backend process port, Docker target port, backend healthcheck, NekoTribe app-to-backend URL, and the frontend container's `BACKEND_API_URL`. `SENTIMENTFLOW_FRONTEND_HOST_PORT` controls host/browser access to the SentimentFlow UI, and `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` controls the Next.js server port inside the frontend container.
+Port changes are centralized in `.env`. `SENTIMENTFLOW_HOST_PORT` controls host/browser access to the backend, for example `http://localhost:${SENTIMENTFLOW_HOST_PORT}/docs`; `SENTIMENTFLOW_CONTAINER_PORT` controls the backend process port, Docker target port, backend healthcheck, and the frontend container's `BACKEND_API_URL`. `SENTIMENTFLOW_FRONTEND_HOST_PORT` controls host/browser access to the SentimentFlow UI, and `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT` controls the Next.js server port inside the frontend container.
 
 ### Docker Deployment: GHCR Images
 
@@ -405,16 +403,16 @@ Port changes are centralized in `.env`. `SENTIMENTFLOW_HOST_PORT` controls host/
 
 ```bash
 cp .env.example .env
-docker compose pull sentimentflow sentimentflow-frontend
-docker compose up -d
+docker compose --profile sentimentflow-legacy pull sentimentflow sentimentflow-frontend
+docker compose --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
 ```
 
 PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
-docker compose pull sentimentflow sentimentflow-frontend
-docker compose up -d
+docker compose --profile sentimentflow-legacy pull sentimentflow sentimentflow-frontend
+docker compose --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
 ```
 
 If the backend image appears stuck at `Pulling`, stop the current Compose command first and use the progress helper. It prints the remote image layers before pulling and then uses Compose plain progress:
@@ -474,13 +472,13 @@ By default, the Compose files do not request GPU devices, so `docker compose up 
 GHCR mode with GPU:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile sentimentflow-legacy up -d sentimentflow sentimentflow-frontend
 ```
 
 Local-build mode with GPU:
 
 ```bash
-docker compose -f docker-compose.local.yml -f docker-compose.gpu.yml up -d --build
+docker compose -f docker-compose.local.yml -f docker-compose.gpu.yml --profile sentimentflow-legacy up -d --build sentimentflow sentimentflow-frontend
 ```
 
 `docker-compose.gpu.yml` requests all available GPUs for the `sentimentflow` backend with `gpus: all`, passes `NVIDIA_DRIVER_CAPABILITIES=compute,utility` into the container, and uses `SENTIMENTFLOW_GPUS` for `NVIDIA_VISIBLE_DEVICES`.
@@ -530,16 +528,7 @@ $env:BACKEND_API_URL = "http://localhost:8846"
 yarn start
 ```
 
-4. In NekoTribe `.env`, keep `SENTIMENTFLOW_BASE_URL` empty when using the default backend host port, or set it explicitly when the backend is elsewhere:
-
-```env
-SENTIMENTFLOW_ENABLED=true
-SENTIMENTFLOW_BASE_URL=
-SENTIMENTFLOW_HOST_PORT=8846
-SENTIMENTFLOW_CONTAINER_PORT=8846
-```
-
-Then run `yarn dev`. Verify `http://localhost:8846/health`, `http://localhost:8846/docs`, `http://localhost:30008`, and NekoTribe's SentimentFlow integration page.
+Verify the standalone backend at `http://localhost:8846/health` and `http://localhost:8846/docs`, and its UI at `http://localhost:30008`.
 
 ## Scripts
 
@@ -616,10 +605,7 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `NUXT_DEV_HMR_PROTOCOL`, `NUXT_DEV_HMR_HOST`, `NUXT_DEV_HMR_CLIENT_PORT` | Dev only     | empty                                                   | Optional Vite HMR override for `yarn dev` behind HTTPS or Cloudflare Tunnel. Typical tunnel values are `wss`, your public host, and `443`.                          |
 | `DOCKER_PUBLIC_WS_URL`                                                   | Docker       | empty                                                   | Docker WebSocket URL override. Keep empty behind Nginx, HTTPS, or Cloudflare Tunnel; use `wss://your-domain/_ws` only when an explicit public endpoint is required. |
 | `NUXT_PUBLIC_API_BASE`                                                   | No           | empty                                                   | Client API base; empty means same origin.                                                                                                                           |
-| `COMPOSE_PROFILES`                                                       | Docker       | `true`                                                  | Lets Compose activate services whose profile is named `true`; keep this value so `SENTIMENTFLOW_ENABLED` can control the optional SentimentFlow services.           |
-| `SENTIMENTFLOW_ENABLED`                                                  | No           | `false` / `true`                                        | Toggle SentimentFlow integration and proxy access; also controls whether the optional Compose services are selected.                                                |
-| `SENTIMENTFLOW_BASE_URL`                                                 | No           | empty                                                   | Optional external SentimentFlow URL override; leave empty to derive host-dev access from `SENTIMENTFLOW_HOST_PORT`.                                                 |
-| `SENTIMENTFLOW_TIMEOUT_MS`                                               | No           | `10000`                                                 | Upstream proxy timeout in milliseconds.                                                                                                                             |
+| `SENTIMENTFLOW_TIMEOUT_MS` | No | `10000` | Standalone frontend timeout for the SentimentFlow backend, in milliseconds. |
 | `SENTIMENTFLOW_IMAGE`                                                    | Docker       | `ghcr.io/cthaat/sentimentflow-backend:latest`           | GHCR image pulled by `docker-compose.yml`.                                                                                                                          |
 | `SENTIMENTFLOW_LOCAL_IMAGE`                                              | Docker local | `sentimentflow-backend:local`                           | Local image tag produced by `docker-compose.local.yml`.                                                                                                             |
 | `SENTIMENTFLOW_FRONTEND_IMAGE`                                           | Docker       | `ghcr.io/cthaat/sentimentflow-frontend:latest`          | SentimentFlow frontend GHCR image pulled by `docker-compose.yml`.                                                                                                   |
@@ -634,7 +620,7 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | `SENTIMENTFLOW_CONTAINER_PROJECT_ROOT`                                   | Docker       | `/workspace`                                            | SentimentFlow project root inside the image/container.                                                                                                              |
 | `SENTIMENTFLOW_MODELS_DIR`                                               | Docker       | `/workspace/models`                                     | Persistent model artifact mount target in the SentimentFlow container.                                                                                              |
 | `SENTIMENTFLOW_HOST_PORT`                                                | Docker       | `8846`                                                  | Host/browser port for SentimentFlow; change this for `localhost:<port>` access.                                                                                     |
-| `SENTIMENTFLOW_CONTAINER_PORT`                                           | Docker       | `8846`                                                  | Container/internal port used by Uvicorn, Docker target port, healthcheck, and app-to-SentimentFlow Compose URL.                                                     |
+| `SENTIMENTFLOW_CONTAINER_PORT`                                           | Docker       | `8846`                                                  | Container/internal port used by Uvicorn, Docker target port, healthcheck, and the standalone frontend backend URL.                                                     |
 | `SENTIMENTFLOW_FRONTEND_HOST_PORT`                                       | Docker       | `30008`                                                 | Host/browser port for the SentimentFlow frontend UI.                                                                                                                |
 | `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`                                  | Docker       | `3000`                                                  | Container/internal port used by the Next.js frontend server, Docker target port, and frontend healthcheck.                                                          |
 
@@ -645,10 +631,10 @@ Copy `.env.example` to `.env`. For non-local environments, replace all example s
 | Oracle 19c                       | Primary DB for users, posts, groups, notifications, auth sessions, media metadata.                                          | Included in `docker compose up -d`; `db-init` applies the v2 baseline before app startup.                        | `ORACLE_*` in `.env`.                                                                                                                                                                             |
 | Redis 7                          | Oracle SELECT query cache, v2 API response cache, v1 OTP storage, rate-limit state, WebSocket pub/sub, realtime broadcasts. | `docker compose up -d redis`.                                                                                    | `REDIS_*` in `.env`.                                                                                                                                                                              |
 | SMTP                             | Send OTP, password reset, and account emails.                                                                               | Any SMTP-compatible provider.                                                                                    | `SMTP_*` in `.env`.                                                                                                                                                                               |
-| Nginx                            | Serve `/upload/` files and reverse proxy in Docker mode.                                                                    | Included in `docker compose up -d`.                                                                              | `nginx/nginx.compose.conf` for Docker; `nginx/nginx.conf` for host dev proxy.                                                                                                                     |
+| Nginx | Proxies application requests, including `/storage/`, to Nuxt. | Included in `docker compose up -d`. | `nginx/nginx.compose.conf` for Docker and `nginx/nginx.conf` for the host dev proxy. |
 | File Upload Storage              | Store user avatars and media files.                                                                                         | Create under `upload/` as needed; git-ignored.                                                                   | Mount to `/usr/share/nginx/upload` in Nginx.                                                                                                                                                      |
 | Media Toolchain                  | Validate images/video/audio and generate legacy thumbnails.                                                                 | Docker image includes `ffmpeg`; host legacy flow needs system `ffmpeg`.                                          | `sharp`, `file-type`, `ffprobe-static`, optional system `ffmpeg`.                                                                                                                                 |
-| SentimentFlow backend + frontend | External sentiment analysis API and UI for predict, training, models, and admin operations.                                 | GHCR mode: `docker compose up -d`; local build mode: `docker compose -f docker-compose.local.yml up -d --build`. | `SENTIMENTFLOW_*`; backend ports use `SENTIMENTFLOW_HOST_PORT` / `SENTIMENTFLOW_CONTAINER_PORT`, frontend ports use `SENTIMENTFLOW_FRONTEND_HOST_PORT` / `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`. |
+| SentimentFlow backend + frontend | External sentiment analysis API and UI for predict, training, models, and admin operations.                                 | Use `--profile sentimentflow-legacy` with the image or local-build Compose file. | `SENTIMENTFLOW_*`; backend ports use `SENTIMENTFLOW_HOST_PORT` / `SENTIMENTFLOW_CONTAINER_PORT`, frontend ports use `SENTIMENTFLOW_FRONTEND_HOST_PORT` / `SENTIMENTFLOW_FRONTEND_CONTAINER_PORT`. |
 
 Note: `doc/neko_tribe-oracle-v2.sql` is the current v2 dev baseline and is mounted into the `db-init` service. Files under `data/oracle-init/` are kept as historical group-module scripts because these scripts are not a full DB baseline.
 

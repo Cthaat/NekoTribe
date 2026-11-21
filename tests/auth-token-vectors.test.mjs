@@ -9,13 +9,13 @@ import { Socket } from 'node:net';
 import { test } from 'node:test';
 import { createEvent } from 'h3';
 import { build } from 'esbuild';
-import jwt from 'jsonwebtoken';
 
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('../', import.meta.url));
 const vectors = JSON.parse(readFileSync(new URL('../specifications/scenarios/auth-tokens.json', import.meta.url)));
 const compiled = await build({
-  entryPoints: [fileURLToPath(new URL('../server/middleware/auth.ts', import.meta.url))],
+  stdin: { contents: `export {default as middleware} from './server/middleware/auth';
+    export {verifyV2SessionToken} from './server/utils/auth-session-token';`, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
   plugins: [{ name: 'token-vector-clock', setup(builder) {
     builder.onResolve({ filter: /.*/ }, args => {
@@ -27,19 +27,27 @@ const compiled = await build({
       contents: args.path === '#imports'
         ? `export const useRuntimeConfig = () => ({accessSecret:${JSON.stringify(vectors.keys.access)}});`
         : `import jwt from ${JSON.stringify(pathToFileURL(require.resolve('jsonwebtoken')).href)};
-           export default {verify(token, key){return jwt.verify(token,key,{clockTimestamp:${vectors.now}});}};`,
+           export default {verify(token, key, options){return jwt.verify(token,key,{...options,clockTimestamp:${vectors.now}});}};`,
       loader: 'js'
     }));
   } }]
 });
-const { default: middleware } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const { middleware, verifyV2SessionToken } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 
-assert.equal(vectors.cases.length, 25);
+assert.equal(vectors.cases.length, 35);
 for (const vector of vectors.cases) {
   test(`Nuxt token reference: ${vector.id}`, async () => {
     if (vector.type === 'refresh') {
-      const payload = jwt.verify(vector.token, vectors.keys.refresh, { clockTimestamp: vectors.now });
-      assert.equal(payload.type, 'refresh'); assert.equal(payload.userId, vector.expectedUserId);
+      for (const allowLegacyRefresh of [false,true]) {
+        const payload = verifyV2SessionToken(vector.token, vectors.keys.refresh, 'refresh', {allowLegacyRefresh});
+        const valid = allowLegacyRefresh ? vector.expectedValidForRotation ?? vector.expectedValid : vector.expectedValid;
+        assert.equal(payload !== null,valid);
+        if (payload) {
+          assert.equal(payload.type,'refresh');
+          assert.equal(payload.userId,vector.expectedUserId);
+          assert.equal(payload.sessionId,'fixture-session-42');
+        }
+      }
       return;
     }
     const socket = new Socket();

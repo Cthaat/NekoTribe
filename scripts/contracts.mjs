@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Offline checks use only this checkout and Node built-ins. Git is needed only for sync provenance.
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { resolve, relative, sep } from 'node:path';
+import { dirname, resolve, relative, sep } from 'node:path';
 
 const methods = new Set(['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace']);
 const sources = ['doc/v2.openapi.json', 'doc/runtime-addresses.md'];
@@ -12,6 +12,14 @@ const manifestPath = 'doc/contracts.manifest.json';
 const copies = [
   ['rust', 'manifest.json'], ['flutter', 'source.json'], ['go', 'manifest.json']
 ];
+const nativeLaunchFiles = [
+  'scripts/start-native.mjs',
+  'scripts/package-native.mjs',
+  'scripts/release/native/start.cmd',
+  'scripts/release/native/start.sh',
+];
+const endpointCheck = 'scripts/check-deployment-endpoints.mjs';
+const sourceLaunchFiles = ['start.cmd', 'start.sh'].map(name => [`scripts/source/native/${name}`, name]);
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const blob = (bytes) => createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 const fail = (message) => { throw new Error(message); };
@@ -120,10 +128,8 @@ function validateRoutes(projectRoot, inventory) {
   }
   for (const [key, { path, operation }] of inventory.operations) {
     const source = operation['x-implementation-source'];
-    if (operation['x-implementation-kind'] === 'dynamic-proxy') {
-      requireThat(path.startsWith('/api/v2/integrations/sentiment-flow/') && source === 'server/api/v2/integrations/sentiment-flow/[...path].ts', `Unknown proxy source: ${key}`);
-      requireThat(readFileSync(resolve(projectRoot, source), 'utf8').includes('fetchSentimentFlowUpstream'), `Proxy implementation missing: ${source}`);
-    } else if (path.startsWith('/api/v2/')) {
+    requireThat(operation['x-implementation-kind'] !== 'dynamic-proxy', `Shared operation must have a native implementation: ${key}`);
+    if (path.startsWith('/api/v2/')) {
       requireThat(routes.has(key), `Documented operation has no explicit source route: ${key}`);
       if (source) requireThat(source === routes.get(key), `Wrong implementation source: ${key}`);
     }
@@ -178,11 +184,11 @@ function run() {
   let workspaceRoot;
   if (args.length) {
     requireThat(args.length === 2 && args[0] === '--workspace-root' && args[1], 'Expected --workspace-root PATH');
-    workspaceRoot = resolve(args[1]);
+    workspaceRoot = realpathSync.native(args[1]);
   }
   requireThat(command !== 'sync' || workspaceRoot, 'sync requires explicit --workspace-root PATH');
-  const projectRoot = resolve(process.cwd());
-  if (workspaceRoot) requireThat(resolve(workspaceRoot, 'nuxt') === projectRoot, '--workspace-root must contain this Nuxt checkout at nuxt/');
+  const projectRoot = realpathSync.native(process.cwd());
+  if (workspaceRoot) requireThat(realpathSync.native(resolve(workspaceRoot, 'nuxt')) === projectRoot, '--workspace-root must contain this Nuxt checkout at nuxt/');
   const bytes = sources.map((path) => read(resolve(projectRoot, path), command === 'sync'));
   const spec = JSON.parse(bytes[0]);
   const inventory = validateSpec(spec);
@@ -192,6 +198,11 @@ function run() {
   const manifest = command === 'sync' ? makeManifest(projectRoot, spec, bytes) : JSON.parse(read(resolve(projectRoot, manifestPath)));
   validateManifest(manifest, spec, bytes);
   const manifestBytes = json(manifest);
+  const launchFiles = workspaceRoot
+    ? [...nativeLaunchFiles, endpointCheck].map(path => [path, read(resolve(projectRoot, path), true)]).concat(
+        sourceLaunchFiles.map(([source, target]) => [target, read(resolve(projectRoot, source), true)])
+      )
+    : [];
   if (command === 'sync') {
     sources.forEach((path, i) => writeFileSync(resolve(projectRoot, path), bytes[i]));
     writeFileSync(resolve(projectRoot, manifestPath), manifestBytes);
@@ -203,6 +214,16 @@ function run() {
       const destination = resolve(directory, path);
       if (command === 'sync') writeFileSync(destination, content);
       else requireThat(read(destination).equals(content), `${project}/contracts/${path}: bytes/hash drift from Nuxt source`);
+    }
+    for (const [path, content] of launchFiles) {
+      if (project === 'flutter' && path !== endpointCheck) continue;
+      const destination = resolve(workspaceRoot, project, path);
+      if (command === 'sync') {
+        mkdirSync(dirname(destination), { recursive: true });
+        writeFileSync(destination, content);
+      } else {
+        requireThat(read(destination, true).equals(content), `${project}/${path}: launcher script drift from Nuxt source`);
+      }
     }
   }
   console.log(JSON.stringify({ command, scope: workspaceRoot ? 'workspace' : 'Nuxt-only offline', contractVersion: spec.info.version, sha256: hash(bytes[0]), operations: inventory.operations.size, ...routes, proxyOperations: inventory.proxyOperations, schemaGaps: inventory.schemaGaps, schemasChecked: inventory.schemasChecked }));

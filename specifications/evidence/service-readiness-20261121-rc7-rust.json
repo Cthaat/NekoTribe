@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "featureId": "SERVICE-READINESS",
+  "revision": 3,
+  "backend": "rust",
+  "result": "passed",
+  "mode": "native",
+  "nuxtDependency": "blocked",
+  "requirementsSha256": "fc28550ed19366807e43e931247ffd50228782ccc6e4e4a76a5f0271b41bb297",
+  "scenarios": [
+    {
+      "id": "SERVICE-READINESS",
+      "sha256": "bf6491f32bab769dd2ea8fb56a698845fd99254f34977d5fed31bd865eb5468a"
+    }
+  ],
+  "sources": [
+    {
+      "path": "compose.native.yaml",
+      "sha256": "3c6600976b8c11d131a80b7bb7cfc6f495cee612da466f5dccb8b91378981ffc"
+    },
+    {
+      "path": "src/app/readiness.rs",
+      "sha256": "5ad4127400c758f445428dbf171daae0907448d4a3dd62ee4bedd05ad8201560"
+    },
+    {
+      "path": "src/app/routes.rs",
+      "sha256": "9947ab5d8381182268dfdb2933a61146dcdcbd22d73300dbd0b6b33982830da2"
+    }
+  ],
+  "execution": {
+    "release": "20261121-rc7",
+    "cases": [
+      "oracle-unavailable",
+      "ready",
+      "recovers",
+      "redis-unavailable",
+      "rust-compat",
+      "timeout"
+    ],
+    "readinessTargets": [
+      "Windows x64",
+      "Ubuntu 22.04 WSL",
+      "Docker Linux x64"
+    ],
+    "isolatedOracleAndRedis": true,
+    "commands": [
+      "python phase_a_readiness.py rust compat",
+      "python stage_e.py linux rust",
+      "python stage_e.py docker rust"
+    ],
+    "packageManifests": [
+      {
+        "path": "native-rust-windows-x64-20261121-rc7/native-package.json",
+        "sha256": "e326673b17392a6c30bd92eb42ef45fbb71f94932baacdb8c8a718a71eed73b7"
+      },
+      {
+        "path": "native-rust-linux-x64-20261121-rc7/native-package.json",
+        "sha256": "d3c1c56e8cb855083e74fce2c7c245ff47bdd9dd529c0937456c871123a73741"
+      }
+    ],
+    "proof": [
+      {
+        "path": "docs/deployment/evidence/20261121/readiness-windows-rc7.jsonl",
+        "sha256": "d0e9bce7fdb09ad185ed8724731340e4fa1d940ef9f445a9eb8f8e21e8a5a424"
+      },
+      {
+        "path": "docs/deployment/evidence/20261121/ubuntu-wsl-rc7.jsonl",
+        "sha256": "6a2f8c49e2112db849b0a808ea9acc5db0fecb298d2e7b9bd55303a26b2d0064"
+      },
+      {
+        "path": "docs/deployment/evidence/20261121/docker-linux-rc7.jsonl",
+        "sha256": "84df3027aff8dfa34d4cc9402e29f14263d884beafa3bc121fcb76ad337a6f9c"
+      }
+    ]
+  }
+}

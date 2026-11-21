@@ -115,7 +115,7 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
   throw 'Docker CLI was not found in PATH.'
 }
 
-$configJson = docker compose -f $ComposePath config --format json
+$configJson = docker compose -f $ComposePath --profile sentimentflow-legacy config --format json
 if ($LASTEXITCODE -ne 0) {
   throw "docker compose config failed for $ComposeFile"
 }
@@ -153,12 +153,12 @@ Write-Host 'Starting pull with plain progress.'
 Write-Host 'If another terminal is already running docker compose up/pull for the same backend image, stop it first; Docker may wait on the existing pull without printing layer progress.'
 
 $env:COMPOSE_PROGRESS = 'plain'
-$pullArgs = @('compose', '--progress', 'plain', '-f', $ComposePath, 'pull', '--policy', 'always') + $Services
+$pullArgs = @('compose', '--progress', 'plain', '-f', $ComposePath, '--profile', 'sentimentflow-legacy', 'pull', '--policy', 'always') + $Services
 Invoke-Docker -DockerArgs $pullArgs
 
 if ($Up) {
   Write-Host ""
   Write-Host 'Starting stack without pulling again.'
-  $upArgs = @('compose', '-f', $ComposePath, 'up', '-d', '--pull', 'never', '--no-build')
+  $upArgs = @('compose', '-f', $ComposePath, '--profile', 'sentimentflow-legacy', 'up', '-d', '--pull', 'never', '--no-build')
   Invoke-Docker -DockerArgs $upArgs
 }

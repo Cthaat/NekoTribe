@@ -13,8 +13,10 @@ const sign = (payload = claims, algorithm = 'HS256', secret = keys.access) =>
   jwt.sign(Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined)), secret, { algorithm });
 const valid = sign();
 const cases = [];
-function add(id, token, expectedValid, type = 'access') {
-  cases.push({ id, type, token, expectedValid, ...(expectedValid ? { expectedUserId: 42 } : {}) });
+function add(id, token, expectedValid, type = 'access', expectedValidForRotation) {
+  cases.push({ id, type, token, expectedValid,
+    ...(expectedValidForRotation === undefined ? {} : { expectedValidForRotation }),
+    ...(expectedValid || expectedValidForRotation ? { expectedUserId: 42 } : {}) });
 }
 add('access-hs256', valid, true);
 add('access-hs384', sign(claims, 'HS384'), true);
@@ -36,19 +38,29 @@ add('fractional-user-id', sign({ ...claims, userId: 42.5 }), false);
 add('unsafe-user-id', sign({ ...claims, userId: Number.MAX_SAFE_INTEGER + 1 }), false);
 add('numeric-string-user-id', sign({ ...claims, userId: '42' }), true);
 add('padded-numeric-string-user-id', sign({ ...claims, userId: ' 42 ' }), true);
+add('decimal-exponent-user-id', sign({ ...claims, userId: ' 4.2e1 ' }), true);
+add('boolean-user-id', sign({ ...claims, userId: true }), false);
+add('array-user-id', sign({ ...claims, userId: [42] }), false);
+add('hexadecimal-user-id', sign({ ...claims, userId: '0x2a' }), false);
+add('hexadecimal-floating-user-id', sign({ ...claims, userId: '0x2ap0' }), false);
+add('underscored-user-id', sign({ ...claims, userId: '4_2' }), false);
+add('unicode-whitespace-user-id', sign({ ...claims, userId: '\u00a042' }), false);
+add('refresh-wrong-token-type', sign(claims, 'HS256', keys.refresh), false, 'refresh');
+add('refresh-missing-jti', sign({ ...claims, type: 'refresh', jti: undefined }, 'HS256', keys.refresh), false, 'refresh', true);
+add('refresh-numeric-session-id', sign({ ...claims, type: 'refresh', sessionId: 42 }, 'HS256', keys.refresh), false, 'refresh');
 add('missing-expiration', sign({ ...claims, exp: undefined }), true);
 add('future-issued-at', sign({ ...claims, iat: now + 60, exp: now + 900 }), true);
 add('algorithm-none', jwt.sign(claims, null, { algorithm: 'none' }), false);
 add('malformed-token', 'not.a.jwt', false);
 add('empty-token', '', false);
 
-const output = { id: 'AUTH-TOKEN-CODEC', revision: 2, scope: 'unit-vectors-not-session-or-business-acceptance',
+const output = { id: 'AUTH-TOKEN-CODEC', revision: 3, scope: 'unit-vectors-not-session-or-business-acceptance',
   generatedWith: 'Nuxt jsonwebtoken 9.0.2; signing follows v2SignAccessToken/v2SignRefreshToken', now, keys, cases,
   notes: [
     'Only public synthetic keys and identities. No application env, DB, Redis or real credentials.',
-    'Signed token format and HMAC allowlist follow current Nuxt; explicit expected token kind is required by native codec.',
+    'All three V2 backends require the expected token kind and use the same HMAC allowlist.',
     'Missing exp and future iat reflect current JWT library behavior; database session expiration/revocation is still mandatory.',
-    'Wrong token kind rejection is the desired typed codec boundary, not proof that the existing Nuxt refresh service checks type strictly.',
+    'The refresh route and logout accept a legacy refresh JWT without jti and still require a matching database token hash.',
     'This does not settle AUTH-901..907 or prove complete authentication, cookies, login, refresh rotation or native endpoints.'
   ] };
 mkdirSync(new URL('../specifications/scenarios/', import.meta.url), { recursive: true });

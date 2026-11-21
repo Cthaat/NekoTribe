@@ -20,8 +20,10 @@ const compiled = await build({
 });
 const { readApiResponseCache } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 
-test('AI conversation reads bypass response cache even in single-backend mode', async () => {
-  for (const path of ['/api/v2/ai/conversations', '/api/v2/ai/conversations/a/messages']) {
+test('AI conversations and private message history bypass cache in single-backend mode', async () => {
+  for (const path of ['/api/v2/ai/conversations', '/api/v2/ai/conversations/a/messages',
+    '/api/v2/chat/direct-conversations/7/messages?page=1',
+    '/api/v2/chat/direct-conversations/7/messages?page=2']) {
     const socket = new Socket(), request = new IncomingMessage(socket);
     request.url = path; request.method = 'GET';
     const response = new ServerResponse(request), event = createEvent(request, response);

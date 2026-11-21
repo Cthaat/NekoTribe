@@ -1,5 +1,4 @@
-# Optional public entry for UI + selectable HTTP backend + Nuxt WebSocket.
-# Does not start an app, Rust, a database or Redis.
+# Optional public entry for the Nuxt UI and selectable API, WebSocket and media backends.
 services:
   gateway:
     image: nginx:1.27-alpine
@@ -7,8 +6,10 @@ services:
       - '${GATEWAY_BIND_ADDRESS:-127.0.0.1}:${GATEWAY_PORT:-30005}:80'
     environment:
       UI_NUXT_UPSTREAM: ${UI_NUXT_UPSTREAM:-http://host.docker.internal:3000}
-      API_BACKEND_UPSTREAM: ${API_BACKEND_UPSTREAM:-http://host.docker.internal:3000}
-      NGINX_ENVSUBST_FILTER: '^(UI_NUXT_UPSTREAM|API_BACKEND_UPSTREAM)$$'
+      API_BACKEND_UPSTREAM: ${API_BACKEND_UPSTREAM:-${UI_NUXT_UPSTREAM:-http://host.docker.internal:3000}}
+      WS_BACKEND_UPSTREAM: ${WS_BACKEND_UPSTREAM:-${API_BACKEND_UPSTREAM:-${UI_NUXT_UPSTREAM:-http://host.docker.internal:3000}}}
+      MEDIA_BACKEND_UPSTREAM: ${MEDIA_BACKEND_UPSTREAM:-${API_BACKEND_UPSTREAM:-${UI_NUXT_UPSTREAM:-http://host.docker.internal:3000}}}
+      NGINX_ENVSUBST_FILTER: '^(UI_NUXT_UPSTREAM|API_BACKEND_UPSTREAM|WS_BACKEND_UPSTREAM|MEDIA_BACKEND_UPSTREAM)$$'
     volumes:
       - ./nginx/gateway.conf.template:/etc/nginx/templates/default.conf.template:ro
     extra_hosts:

@@ -86,6 +86,7 @@ test('feature migration is an explicit one-off command and never starts app depe
   assert(dockerfile.includes('RUN node scripts/build-ai-public-terms.mjs'));
   assert(dockerfile.includes('ENV NEKO_TERMS_PACKAGED=1'));
   assert(dockerfile.includes('COPY scripts/ai-public-terms-maintenance.mjs ./scripts/'));
+  assert(dockerfile.includes('COPY scripts/ai-skill-config-maintenance.mjs ./scripts/'));
   assert(dockerfile.includes('COPY specifications/requirements/ai-public-terms-catalog.json ./specifications/requirements/'));
   assert(dockerfile.includes('COPY server/database/schema.mjs server/database/schema-definition.mjs ./server/database/'));
 }));

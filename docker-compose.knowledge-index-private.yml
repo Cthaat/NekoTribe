@@ -1,0 +1,11 @@
+services:
+  knowledge-index:
+    ports: !reset []
+    networks:
+      neko-knowledge:
+        aliases: [knowledge-index]
+
+networks:
+  neko-knowledge:
+    external: true
+    name: ${NEKO_KNOWLEDGE_NETWORK:-nekotribe-knowledge}

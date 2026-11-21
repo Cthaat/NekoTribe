@@ -265,7 +265,7 @@ spring:
   datasource:
     url: jdbc:oracle:thin:@//${ORACLE_HOST:localhost}:${ORACLE_PORT:5501}/${ORACLE_SERVICE_NAME:ORCLPDB1}
     username: ${ORACLE_USER:neko_app}
-    password: ${ORACLE_PASSWORD:NekoApp2026#}
+    password: ${ORACLE_PASSWORD:replace-with-oracle-password}
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
       minimum-idle: ${ORACLE_POOL_MIN:2}

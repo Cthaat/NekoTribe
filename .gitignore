@@ -54,6 +54,7 @@ storage/*
 storage/temp/*
 !storage/temp/.gitkeep
 upload
+!/server/routes/upload/
 
 temp/*
 temp
@@ -72,3 +73,4 @@ sentimentflow-models/
 outputs/
 pptx-build/
 .test-data/
+.knowledge-index/

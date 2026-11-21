@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmdirSync, rmSync, symlinkSync, u
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { checkParity } from '../scripts/lib/parity.mjs';
+import { checkParity, syncSharedFiles } from '../scripts/lib/parity.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 function fixture(run) {
@@ -19,11 +19,12 @@ function fixture(run) {
   write('doc/api.json', spec);
   write('server/source.ts', 'export const example = true;');
   const ledger = {
-    schemaVersion: 1,
+    schemaVersion: 1, clientTrackingVersion: 1,
     baseline: { sourceRoots: ['server'], openapi: { path: 'doc/api.json', sha256: sha(readFileSync(join(root, 'doc/api.json'))) },
       sources: [{ path: 'server/source.ts', sha256: sha(readFileSync(join(root, 'server/source.ts'))) }] },
     features: [{ id: 'EXAMPLE', revision: 1, review: 'unreviewed', definition: null, sourceFiles: ['server/source.ts'],
       operations: ['GET /api/v2/example'], scenarios: [],
+      clientScope: { state: 'not-required', reason: 'Synthetic backend-only fixture for checker tests.' },
       implementations: Object.fromEntries(['nuxt', 'rust', 'go'].map(backend => [backend,
         { state: backend === 'rust' ? 'proxy' : 'not-started', targetRevision: 1,
           tasks: ['Implement the example behavior'], evidence: [] }])) }]
@@ -327,6 +328,13 @@ test('workspace checks verify versioned shared requirement and scenario copies',
   const report = checkParity({ projectRoot: context.root, workspaceRoot: context.workspace });
   assert.equal(report.sharedFiles, 1);
 }));
+test('parity checks and sync accept alternate Windows path casing', {skip:process.platform !== 'win32'}, () => fixture(context => {
+  sharedFiles(context);
+  const options = { projectRoot: context.root, workspaceRoot: context.workspace.toUpperCase() };
+  assert.equal(checkParity(options).sharedFiles, 1);
+  const paths = ['specifications/scenarios/shared.json'];
+  assert.deepEqual(syncSharedFiles({...options, paths}), { selectedFiles: 1, copiedFiles: 0, changedHashes: 0 });
+}));
 test('Go cannot keep an old scenario while Nuxt changes its requirement baseline', () => fixture(context => {
   sharedFiles(context);
   writeFileSync(join(context.workspace, 'go/contracts/scenarios/shared.json'), '{"case":"old"}\n');
@@ -336,6 +344,37 @@ test('shared source changes require an explicit reviewed hash update', () => fix
   sharedFiles(context);
   context.write('specifications/scenarios/shared.json', '{"case":"changed"}\n');
   assert.throws(() => checkParity({ projectRoot: context.root }), /shared.*source/i);
+}));
+test('explicit sync updates registered copies and is safe to repeat', () => fixture(context => {
+  sharedFiles(context);
+  const path = 'specifications/scenarios/shared.json';
+  const copy = 'contracts/scenarios/shared.json';
+  context.ledger.sharedFiles[0].copies.flutter = copy;
+  mkdirSync(join(context.workspace, 'flutter/contracts/scenarios'), { recursive: true });
+  context.save();
+  context.write(path, '{"case":"changed"}\r\n');
+  // Simulate a retry after one copy was previously replaced.
+  writeFileSync(join(context.workspace, 'rust', copy), '{"case":"changed"}\n');
+  const sync = () => syncSharedFiles({ projectRoot: context.root, workspaceRoot: context.workspace, paths: [path] });
+  assert.deepEqual(sync(), { selectedFiles: 1, copiedFiles: 2, changedHashes: 1 });
+  for (const stack of ['rust', 'go', 'flutter']) {
+    assert.equal(readFileSync(join(context.workspace, stack, copy), 'utf8'), '{"case":"changed"}\n');
+  }
+  assert.deepEqual(sync(), { selectedFiles: 1, copiedFiles: 0, changedHashes: 0 });
+  assert.equal(checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }).sharedFiles, 1);
+}));
+test('explicit sync preserves conflicting local copies and the registry', () => fixture(context => {
+  sharedFiles(context);
+  const path = 'specifications/scenarios/shared.json';
+  const copy = 'contracts/scenarios/shared.json';
+  const registry = join(context.root, 'specifications/parity.json');
+  const original = readFileSync(registry);
+  context.write(path, '{"case":"changed"}\n');
+  writeFileSync(join(context.workspace, 'go', copy), '{"case":"local draft"}\n');
+  assert.throws(() => syncSharedFiles({ projectRoot: context.root, workspaceRoot: context.workspace, paths: [path] }), /Local edits in go/);
+  assert.equal(readFileSync(join(context.workspace, 'rust', copy), 'utf8'), '{"case":"current"}\n');
+  assert.equal(readFileSync(join(context.workspace, 'go', copy), 'utf8'), '{"case":"local draft"}\n');
+  assert.deepEqual(readFileSync(registry), original);
 }));
 test('shared file mapping cannot read outside component contracts', () => fixture(context => {
   sharedFiles(context);
@@ -351,6 +390,11 @@ test('shared copies cannot follow a contracts link into private component files'
   unlinkSync(join(directory, 'shared.json')); rmdirSync(directory);
   symlinkSync(privateDirectory, directory, process.platform === 'win32' ? 'junction' : 'dir');
   assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /escapes|symlink/i);
+  assert.throws(() => syncSharedFiles({
+    projectRoot: context.root,
+    workspaceRoot: context.workspace,
+    paths: ['specifications/scenarios/shared.json']
+  }), /escapes|symlink/i);
 }));
 test('shared sources cannot redirect a public requirement directory into private files', () => fixture(context => {
   sharedFiles(context);
@@ -361,4 +405,178 @@ test('shared sources cannot redirect a public requirement directory into private
   unlinkSync(join(directory, 'shared.json')); rmdirSync(directory);
   symlinkSync(privateDirectory, directory, process.platform === 'win32' ? 'junction' : 'dir');
   assert.throws(() => checkParity({ projectRoot: context.root, workspaceRoot: context.workspace }), /escapes|symlink/i);
+}));
+
+function clientTasks(context) {
+  const feature = context.ledger.features[0];
+  feature.clientScope = { state: 'required', reason: 'Both clients expose this synthetic feature.' };
+  feature.clients = {};
+  for (const client of ['nuxtWeb', 'flutter']) {
+    const component = client === 'nuxtWeb' ? context.root : join(context.workspace, 'flutter');
+    const source = client === 'nuxtWeb' ? 'app/example.ts' : 'lib/example.dart';
+    const testFile = client === 'nuxtWeb' ? 'tests/example.test.mjs' : 'test/example_test.dart';
+    for (const path of [source, testFile]) {
+      mkdirSync(join(component, path, '..'), { recursive: true });
+      writeFileSync(join(component, path), `// synthetic ${client} ${path}\n`);
+    }
+    feature.clients[client] = { state: 'implemented', targetRevision: feature.revision,
+      tasks: ['Implement and verify this feature against each native backend.'],
+      sourceFiles: [source], testFiles: [testFile], evidence: [] };
+  }
+  context.save();
+}
+
+function acceptClients(context) {
+  accept(context); clientTasks(context);
+  const feature = context.ledger.features[0];
+  for (const [client, implementation] of Object.entries(feature.clients)) {
+    const component = client === 'nuxtWeb' ? context.root : join(context.workspace, 'flutter');
+    const receipt = { schemaVersion: 1, featureId: feature.id, revision: feature.revision, client, result: 'passed',
+      requirementsSha256: sha(readFileSync(join(context.root, feature.definition))),
+      scenarios: feature.scenarios.map(item => ({ id: item.id, sha256: sha(readFileSync(join(context.root, item.file))) })),
+      dependencies: [],
+      sources: [...implementation.sourceFiles, ...implementation.testFiles].map(path => ({ path, sha256: sha(readFileSync(join(component, path))) })),
+      backends: ['nuxt', 'rust', 'go'].map(backend => ({backend, result: 'passed', command: `synthetic-runner --backend ${backend}`, backendReceipt: feature.implementations[backend].evidence[0]})) };
+    const path = `specifications/evidence/${client}.json`;
+    context.write(path, receipt);
+    implementation.state = 'accepted'; implementation.evidence = [path];
+  }
+  context.save();
+}
+
+test('client tracking version and scope cannot be omitted', () => fixture(context => {
+  delete context.ledger.clientTrackingVersion; context.save();
+  assert.throws(() => checkParity({projectRoot: context.root}), /client.*tracking/i);
+  context.ledger.clientTrackingVersion = 1;
+  delete context.ledger.features[0].clientScope; context.save();
+  assert.throws(() => checkParity({projectRoot: context.root}), /client.*scope/i);
+}));
+
+test('unreviewed client scope blocks release even with accepted backends', () => fixture(context => {
+  accept(context);
+  context.ledger.features[0].clientScope = {state: 'unreviewed', reason: 'Review pending.', tasks: ['Map the feature to both clients.']};
+  context.save();
+  const report = checkParity({projectRoot: context.root, workspaceRoot: context.workspace});
+  assert.equal(report.accepted, 0); assert.equal(report.clientTracking.unreviewed, 1);
+  assert.deepEqual(report.clientPending, ['EXAMPLE:scope']);
+  assert.throws(() => checkParity({projectRoot: context.root, workspaceRoot: context.workspace, release: true}), /not ready.*EXAMPLE/i);
+}));
+
+test('scope needs a reason and unreviewed scope needs a review task', () => fixture(context => {
+  context.ledger.features[0].clientScope.reason = ''; context.save();
+  assert.throws(() => checkParity({projectRoot: context.root}), /client.*reason/i);
+  context.ledger.features[0].clientScope = {state:'unreviewed',reason:'Pending',tasks:[]}; context.save();
+  assert.throws(() => checkParity({projectRoot: context.root}), /client.*review task/i);
+}));
+
+test('required clients are pending until both have complete receipts', () => fixture(context => {
+  accept(context); clientTasks(context);
+  const report = checkParity({projectRoot: context.root, workspaceRoot: context.workspace});
+  assert.equal(report.accepted, 0);
+  assert.deepEqual(report.clientPending, ['EXAMPLE:nuxtWeb', 'EXAMPLE:flutter']);
+  delete context.ledger.features[0].clients.flutter; context.save();
+  assert.throws(() => checkParity({projectRoot: context.root,workspaceRoot:context.workspace}), /both.*nuxtWeb.*flutter/i);
+}));
+
+test('backend revision updates cannot leave a client task stale', () => fixture(context => {
+  clientTasks(context); const feature = context.ledger.features[0];
+  feature.revision++;
+  for (const impl of Object.values(feature.implementations)) impl.targetRevision = feature.revision;
+  feature.clients.nuxtWeb.targetRevision = feature.revision;
+  context.save();
+  assert.throws(() => checkParity({projectRoot:context.root}), /flutter.*target revision/i);
+}));
+
+for (const [name, change, error] of [
+  ['empty task', impl => {impl.tasks=[];}, /client.*task/i],
+  ['proxy state', impl => {impl.state='proxy';}, /client.*state/i],
+  ['missing test', impl => {impl.testFiles=[];}, /client.*source.*test/i],
+  ['backend source', impl => {impl.sourceFiles=['server/source.ts'];}, /client.*source path/i],
+  ['traversal', impl => {impl.sourceFiles=['app/../../private.env'];}, /relative path/i],
+  ['duplicate source', impl => {impl.sourceFiles.push(impl.sourceFiles[0]);}, /duplicate/i],
+  ['missing file', impl => {impl.sourceFiles=['app/missing.ts'];}, /missing.ts/i],
+  ['accepted without evidence', impl => {impl.state='accepted';}, /client.*evidence/i],
+]) test(`client ledger rejects ${name}`, () => fixture(context => {
+  clientTasks(context); change(context.ledger.features[0].clients.nuxtWeb); context.save();
+  assert.throws(() => checkParity({projectRoot:context.root,workspaceRoot:context.workspace}), error);
+}));
+
+test('not-required scope cannot hide client implementations', () => fixture(context => {
+  clientTasks(context); context.ledger.features[0].clientScope.state='not-required'; context.save();
+  assert.throws(() => checkParity({projectRoot:context.root}), /client.*scope.*implementations/i);
+}));
+
+test('release needs two client receipts covering all three native backends', () => fixture(context => {
+  acceptClients(context);
+  const report = checkParity({projectRoot:context.root,workspaceRoot:context.workspace,release:true});
+  assert.equal(report.accepted,1); assert.equal(report.ready,true); assert.deepEqual(report.clientPending,[]);
+}));
+
+for (const [name, change, error] of [
+  ['missing backend', r => {r.backends.pop();}, /client.*backend matrix/i],
+  ['duplicate backend', r => {r.backends[2]=r.backends[1];}, /duplicate/i],
+  ['unbound backend receipt', r => {r.backends[0].backendReceipt='specifications/evidence/unlisted.json';}, /client.*backend receipt/i],
+  ['missing command', r => {r.backends[0].command='';}, /client.*backend.*result/i],
+  ['failed backend execution', r => {r.backends[0].result='failed';}, /client.*backend.*result/i],
+  ['stale revision', r => {r.revision=2;}, /client.*identity.*revision/i],
+  ['stale requirement', r => {r.requirementsSha256='0'.repeat(64);}, /requirement.*checksum/i],
+  ['missing scenario', r => {r.scenarios=[];}, /scenario/i],
+  ['stale scenario hash', r => {r.scenarios[0].sha256='0'.repeat(64);}, /scenario checksum/i],
+  ['missing test source', r => {r.sources.pop();}, /client.*source coverage/i],
+  ['wrong client', r => {r.client='nuxtWeb';}, /client.*identity.*revision/i],
+]) test(`client receipt rejects ${name}`, () => fixture(context => {
+  acceptClients(context); const path='specifications/evidence/flutter.json';
+  const receipt=JSON.parse(readFileSync(join(context.root,path),'utf8')); change(receipt); context.write(path,receipt);
+  assert.throws(() => checkParity({projectRoot:context.root,workspaceRoot:context.workspace}), error);
+}));
+
+test('client source and test changes invalidate previously accepted evidence', () => fixture(context => {
+  acceptClients(context);
+  writeFileSync(join(context.workspace,'flutter/test/example_test.dart'),'// changed');
+  assert.throws(() => checkParity({projectRoot:context.root,workspaceRoot:context.workspace}), /client.*source.*checksum/i);
+}));
+
+test('standalone checks cannot accept Flutter without its actual worktree', () => fixture(context => {
+  acceptClients(context);
+  // Keep backend fixtures locally verifiable so the client check is the failing boundary.
+  for(const backend of ['rust','go']) {context.ledger.features[0].implementations[backend].state='implemented';context.ledger.features[0].implementations[backend].evidence=[];}
+  context.save();
+  assert.throws(() => checkParity({projectRoot:context.root}), /workspace-root|client.*native backend/i);
+}));
+
+test('client receipts bind every shared dependency', () => fixture(context => {
+  acceptClients(context);
+  const feature=context.ledger.features[0], path='specifications/requirements/client-policy.md';
+  const content='Synthetic client policy'; context.write(path,content);
+  const copy='contracts/requirements/client-policy.md';
+  for(const backend of ['rust','go'])writeFileSync(join(context.workspace,backend,copy),content);
+  context.ledger.sharedFiles.push({source:{path,sha256:sha(content)},copies:{rust:copy,go:copy}});
+  feature.sharedDependencies=[path];
+  for(const backend of ['nuxt','rust','go']){
+    const receiptPath=feature.implementations[backend].evidence[0];
+    const receipt=JSON.parse(readFileSync(join(context.root,receiptPath),'utf8'));
+    receipt.dependencies=[{path,sha256:sha(content)}];context.write(receiptPath,receipt);
+  }
+  for(const client of ['nuxtWeb','flutter']){
+    const receiptPath=feature.clients[client].evidence[0];
+    const receipt=JSON.parse(readFileSync(join(context.root,receiptPath),'utf8'));
+    receipt.dependencies=[{path,sha256:sha(content)}];context.write(receiptPath,receipt);
+  }
+  context.save();
+  assert.equal(checkParity({projectRoot:context.root,workspaceRoot:context.workspace,release:true}).ready,true);
+  const receiptPath=feature.clients.flutter.evidence[0];
+  const receipt=JSON.parse(readFileSync(join(context.root,receiptPath),'utf8'));
+  receipt.dependencies=[];context.write(receiptPath,receipt);
+  assert.throws(() => checkParity({projectRoot:context.root,workspaceRoot:context.workspace}), /client.*dependency.*evidence/i);
+  receipt.dependencies=[{path,sha256:'0'.repeat(64)}];context.write(receiptPath,receipt);
+  assert.throws(() => checkParity({projectRoot:context.root,workspaceRoot:context.workspace}), /client.*dependency.*checksum/i);
+}));
+
+test('client source directories cannot redirect into backend or external files', () => fixture(context => {
+  clientTasks(context);
+  const directory=join(context.root,'app');
+  unlinkSync(join(directory,'example.ts'));rmdirSync(directory);
+  symlinkSync(join(context.root,'server'),directory,process.platform==='win32'?'junction':'dir');
+  context.ledger.features[0].clients.nuxtWeb.sourceFiles=['app/source.ts'];context.save();
+  assert.throws(() => checkParity({projectRoot:context.root,workspaceRoot:context.workspace}), /client.*source path.*scope/i);
 }));

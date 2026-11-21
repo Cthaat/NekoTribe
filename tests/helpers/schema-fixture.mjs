@@ -8,13 +8,22 @@ function columnRow(column) {
   const v = column.type.match(/^VARCHAR2\((\d+)\)$/);
   return { COLUMN_NAME: column.name, DATA_TYPE: n ? 'NUMBER' : v ? 'VARCHAR2' : column.type === 'TIMESTAMP' ? 'TIMESTAMP(6)' : column.type,
     DATA_PRECISION: n?.[1] ? Number(n[1]) : null, DATA_SCALE: n?.[1] ? Number(n[2] ?? 0) : null,
-    CHAR_LENGTH: v ? Number(v[1]) : 0, NULLABLE: column.nullable ? 'Y' : 'N', DATA_DEFAULT: column.default };
+    CHAR_LENGTH: v ? Number(v[1]) : 0, NULLABLE: column.nullable ? 'Y' : 'N', DATA_DEFAULT: column.default,
+    ...(column.charUsed ? { CHAR_USED: column.charUsed } : {}) };
 }
 function tableState(description) {
-  return { columns: description.columns.map(columnRow), constraints: description.constraints.map(c => ({ CONSTRAINT_NAME: c.name,
+  const columns = description.columns.map(columnRow);
+  if (description.table === 'N_AI_CONVERSATIONS') columns.find(c => c.COLUMN_NAME === 'TITLE').CHAR_USED = 'B';
+  return { columns, constraints: description.constraints.map(c => ({ CONSTRAINT_NAME: c.name,
     CONSTRAINT_TYPE: c.type, SEARCH_CONDITION_VC: c.expression, STATUS: 'ENABLED', VALIDATED: 'VALIDATED',
     DELETE_RULE: c.deleteRule, REFERENCED_TABLE: c.referencedTable, REFERENCED_OWNER: c.type === 'R' ? 'NEKO_APP' : null,
     columns: c.columns ?? [], referencedColumns: c.referencedColumns ?? [] })) };
+}
+function updateColumn(state, step) {
+  const columns = state.tables.get(step.table).columns;
+  const [column] = step.columns;
+  const existing = columns.find(row => row.COLUMN_NAME === column.name);
+  Object.assign(existing, columnRow(column));
 }
 function baselineTable(source, name) {
   const start = source.toUpperCase().indexOf(`CREATE TABLE ${name} (`);
@@ -37,9 +46,14 @@ export function schemaFixture({ baseline = false } = {}) {
   const sqlBaseline = baseline ? readFileSync(new URL('../../data/neko_tribe-oracle-v2.sql', import.meta.url), 'utf8') : '';
   const all = schemaFeatures.flatMap(f => f.steps);
   for (const raw of all) {
+    if (baseline && ['N_RECOMMENDATION_FEEDBACK', 'N_AI_MODERATION_FEEDBACK'].includes(raw.name)) continue;
     const step = describeStep(raw);
+    if (step.previousCharUsed || step.previousType) {
+      if (!baseline) updateColumn(state, step);
+      continue;
+    }
     if (['table', 'column'].includes(step.kind)) {
-      if (baseline && !state.tables.has(step.table)) state.tables.set(step.table, tableState(step.id.startsWith('t14-ai-conversations-') || step.id.startsWith('t15-ai-terms-') ? step : describeStep({ kind: 'table', sql: baselineTable(sqlBaseline, step.table) })));
+      if (baseline && !state.tables.has(step.table)) state.tables.set(step.table, tableState(step.id.startsWith('t14-ai-conversations-') || step.id.startsWith('t15-ai-terms-') || step.id.startsWith('t16-ai-skills-') ? step : describeStep({ kind: 'table', sql: baselineTable(sqlBaseline, step.table) })));
       else if (!baseline && step.kind === 'table') state.tables.set(step.table, tableState(step));
       else if (!baseline) {
         const table = state.tables.get(step.table) ?? { columns: [], constraints: [] };
@@ -88,6 +102,9 @@ export function schemaFixture({ baseline = false } = {}) {
       if (/^ALTER TABLE \w+ ADD \(/.test(sql)) {
         const description = describeStep({ kind: 'column', sql }); const table = state.tables.get(description.table);
         table.columns.push(...description.columns.map(columnRow)); table.constraints.push(...tableState(description).constraints); return {};
+      }
+      if (/^ALTER TABLE \w+ MODIFY \(/.test(sql)) {
+        updateColumn(state, describeStep({ kind: 'column', sql })); return {};
       }
       let m = sql.match(/^ALTER TABLE (\w+) ADD CONSTRAINT (\w+) CHECK \(([\s\S]+)\) ENABLE VALIDATE$/);
       if (m) { state.tables.get(m[1]).constraints.push({ CONSTRAINT_NAME: m[2], CONSTRAINT_TYPE: 'C', SEARCH_CONDITION_VC: m[3], STATUS: 'ENABLED', VALIDATED: 'VALIDATED', columns: m[3].includes('target_type') ? ['TARGET_TYPE'] : [], referencedColumns: [] }); return {}; }

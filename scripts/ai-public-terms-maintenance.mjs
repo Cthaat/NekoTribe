@@ -10,7 +10,7 @@ const catalogPath=resolve(root,'specifications/requirements/ai-public-terms-cata
 const knownErrors=new Set(['TERMS_AUTHORITY_CONFLICT','TERMS_AUTHORITY_COMMIT_UNCERTAIN','TERMS_AUTHORITY_WRITE_FAILED','TERMS_AUTHORITY_INVALID_INPUT']);
 
 // Source checkouts build in memory; release images load their build-time bundle.
-async function loadMaintenanceRuntime() {
+export async function loadMaintenanceRuntime() {
   if(process.env.NEKO_TERMS_PACKAGED==='1') {
     const bundle=resolve(root,'.output/server/ai-terms-maintenance.cjs');
     return createRequire(bundle)(bundle);

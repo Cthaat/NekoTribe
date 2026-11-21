@@ -41,7 +41,7 @@ const compiled = await build({
         contents: args.path === 'vue'
           ? 'export const getCurrentInstance = () => null; export const watch = () => {};'
           : args.path === '#app'
-            ? 'export const useFetch = (path, options) => ({path, options});'
+            ? 'export const useNuxtApp = () => ({$config: {public: {apiBase: ""}}, runWithContext: fn => fn()}); export const useFetch = (path, options) => options.$fetch ? options.$fetch(path, options) : ({path, options});'
             : 'export const usePreferenceStore = () => { throw new Error("Unexpected auth refresh"); };'
       }));
     }
@@ -50,6 +50,16 @@ const compiled = await build({
 const composables = await import(
   `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`
 );
+
+test('web sends the same device fingerprint across both login steps without local storage', async t => {
+  globalThis.window = {get localStorage() { throw new Error('storage blocked'); }};
+  t.after(() => { delete globalThis.window; });
+  const first = await composables.apiFetch('/api/v2/auth/tokens', {method:'POST'});
+  const second = await composables.apiFetch('/api/v2/auth/two-factor/challenges/fixture', {method:'POST'});
+  const fingerprint = new Headers(first.options.headers).get('x-device-fingerprint');
+  assert.match(fingerprint, /^fp_/);
+  assert.equal(new Headers(second.options.headers).get('x-device-fingerprint'), fingerprint);
+});
 
 for (const entry of ['apiFetch', 'useApiFetch']) {
   test(`${entry} defaults to JSON and preserves credentials/auth headers`, async () => {

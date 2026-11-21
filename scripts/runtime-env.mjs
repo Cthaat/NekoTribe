@@ -23,11 +23,35 @@ export const runtimeAliases = {
   SMTP_PORT: 'NUXT_SMTP_PORT',
   SMTP_USER: 'NUXT_SMTP_USER',
   SMTP_PASS: 'NUXT_SMTP_PASS',
-  SENTIMENTFLOW_ENABLED: 'NUXT_SENTIMENT_FLOW_ENABLED',
-  SENTIMENTFLOW_BASE_URL: 'NUXT_SENTIMENT_FLOW_BASE_URL',
-  SENTIMENTFLOW_TIMEOUT_MS: 'NUXT_SENTIMENT_FLOW_TIMEOUT_MS',
   NLS_LANG: 'NUXT_NLS_LANG'
 };
+
+/** @param {NodeJS.ProcessEnv} env
+ * @param {{ accessExpiresIn?: unknown, refreshExpiresIn?: unknown }} [runtime]
+ */
+export function sessionLifetimes(env, runtime = {}) {
+  const maxSeconds = 2147483647;
+  const read = (/** @type {unknown} */ value) => {
+    const raw = typeof value === 'string'
+      ? value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, '')
+      : value;
+    const seconds = typeof raw === 'string' && /^\+?[0-9]+$/.test(raw)
+      ? Number(raw)
+      : raw;
+    if (typeof seconds !== 'number' || !Number.isInteger(seconds) || seconds < 1 || seconds > maxSeconds) {
+      throw Error('Invalid token lifetime. Use positive integer seconds up to 2147483647.');
+    }
+    return seconds;
+  };
+  const accessSeconds = read(env.NITRO_ACCESS_EXPIRES_IN ?? env.NUXT_ACCESS_EXPIRES_IN ??
+    env.ACCESS_EXPIRES_IN ?? runtime.accessExpiresIn ?? 900);
+  const refreshSeconds = read(env.NITRO_REFRESH_EXPIRES_IN ?? env.NUXT_REFRESH_EXPIRES_IN ??
+    env.REFRESH_EXPIRES_IN ?? runtime.refreshExpiresIn ?? 2592000);
+  if (refreshSeconds <= accessSeconds) {
+    throw Error('Invalid token lifetime. Refresh must outlast access.');
+  }
+  return {accessSeconds,refreshSeconds};
+}
 
 export function resolveRuntimeEnvironment(input, mode) {
   const env = { ...input };
@@ -38,7 +62,5 @@ export function resolveRuntimeEnvironment(input, mode) {
   }
   env.NODE_ENV = mode === 'dev' ? 'development' : 'production';
   env.NUXT_NODE_ENV = env.NODE_ENV;
-  env.NUXT_PUBLIC_SENTIMENT_FLOW_ENABLED ??=
-    env.NUXT_SENTIMENT_FLOW_ENABLED ?? 'false';
   return env;
 }

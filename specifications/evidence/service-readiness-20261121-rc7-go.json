@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "featureId": "SERVICE-READINESS",
+  "revision": 3,
+  "backend": "go",
+  "result": "passed",
+  "mode": "native",
+  "nuxtDependency": "blocked",
+  "requirementsSha256": "fc28550ed19366807e43e931247ffd50228782ccc6e4e4a76a5f0271b41bb297",
+  "scenarios": [
+    {
+      "id": "SERVICE-READINESS",
+      "sha256": "bf6491f32bab769dd2ea8fb56a698845fd99254f34977d5fed31bd865eb5468a"
+    }
+  ],
+  "sources": [
+    {
+      "path": "cmd/server/main.go",
+      "sha256": "b4aa9ebfff6309eae0931dd67b5c98dcce61904cf6d9b2a971a1ec15546e7e8f"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "12f359fe37547e89d0b0ac0f230f84c658c9a957839d751ef30fd9908fed8a5b"
+    },
+    {
+      "path": "internal/server/notification_source.go",
+      "sha256": "f4cdaff6cab0bcfdec56d5b52b068fd419a7d507549fad9a798fe4f5b2d506cc"
+    },
+    {
+      "path": "internal/server/readiness.go",
+      "sha256": "0884050024c1920ec48920f53c148238811db18da1ac74ba918e7c08f912585e"
+    },
+    {
+      "path": "internal/server/readiness_test.go",
+      "sha256": "2c349104b3fd52447f2fec4eaf75080a2497d9e2bd543d78ce1265a8630c1e92"
+    }
+  ],
+  "execution": {
+    "release": "20261121-rc7",
+    "cases": [
+      "oracle-unavailable",
+      "ready",
+      "recovers",
+      "redis-unavailable",
+      "timeout"
+    ],
+    "readinessTargets": [
+      "Windows x64",
+      "Ubuntu 22.04 WSL",
+      "Docker Linux x64"
+    ],
+    "isolatedOracleAndRedis": true,
+    "commands": [
+      "python phase_a_readiness.py go",
+      "python stage_e.py linux go",
+      "python stage_e.py docker go"
+    ],
+    "packageManifests": [
+      {
+        "path": "native-go-windows-x64-20261121-rc7/native-package.json",
+        "sha256": "0d98fe534f2c302fa838293172b192c3a399fa6daf54aae54976fc9b4533b7cd"
+      },
+      {
+        "path": "native-go-linux-x64-20261121-rc7/native-package.json",
+        "sha256": "03c04119709729eec9d7af7bc898907057713d02f6870a253642538e7cf63e22"
+      }
+    ],
+    "proof": [
+      {
+        "path": "docs/deployment/evidence/20261121/readiness-windows-rc7.jsonl",
+        "sha256": "d0e9bce7fdb09ad185ed8724731340e4fa1d940ef9f445a9eb8f8e21e8a5a424"
+      },
+      {
+        "path": "docs/deployment/evidence/20261121/ubuntu-wsl-rc7.jsonl",
+        "sha256": "6a2f8c49e2112db849b0a808ea9acc5db0fecb298d2e7b9bd55303a26b2d0064"
+      },
+      {
+        "path": "docs/deployment/evidence/20261121/docker-linux-rc7.jsonl",
+        "sha256": "84df3027aff8dfa34d4cc9402e29f14263d884beafa3bc121fcb76ad337a6f9c"
+      }
+    ]
+  }
+}

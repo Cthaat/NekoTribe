@@ -1,5 +1,6 @@
 // Real route identity, payload parser and update service; no sockets or application startup.
 // Only Oracle storage, final post reload, cache/logging and notifications are isolated.
+import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -8,6 +9,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { build } from 'esbuild';
 import { createEvent } from 'h3';
+
+const publishPolicy = JSON.parse(readFileSync(new URL('../specifications/requirements/moderation-publish-policy.json', import.meta.url), 'utf8'));
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -56,6 +59,8 @@ function database(overrides = {}) {
     snapshot: () => structuredClone(state),
     async execute(raw, binds = {}, options = {}) {
       const sql = raw.replace(/\s+/g, ' ').trim();
+      if (sql === publishPolicy.sql.lock) return {rows: [{USER_ID: binds.user_id}]};
+      if (sql === publishPolicy.sql.allowed) return {rows: [{ALLOWED: 1}]};
       if (sql.startsWith('SELECT') && sql.includes('FROM n_posts')) return { rows: [{ AUTHOR_ID: state.author_id, IS_DELETED: 0, POST_TYPE: 'original', CONTENT: state.content }] };
       if (sql.startsWith('SELECT COUNT') && sql.includes('FROM n_post_media')) return { rows: [{ TOTAL: state.media_ids.length }] };
       if (sql.startsWith('UPDATE n_posts')) {
