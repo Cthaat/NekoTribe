@@ -78,12 +78,10 @@ jobs:
   web:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    defaults:
-      run:
-        shell: bash
+    needs: [check, contracts]
+    if: github.event_name == 'push'
     env:
-      TARGET: flutter-web
-      VERSION: latest
+      PACKAGE_DIR: .ci-package/flutter-web-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -97,68 +95,31 @@ jobs:
           channel: stable
           flutter-version: 3.41.9
           cache: true
-      - name: Name target package
-        id: package
-        run: |
-          case "$RUNNER_OS" in
-            Linux) os=linux ;;
-            Windows) os=windows ;;
-            *) exit 1 ;;
-          esac
-          case "$TARGET" in
-            nuxt) stem="nuxt-node-$os-x64" ;;
-            go|rust) stem="native-$TARGET-$os-x64" ;;
-            flutter-web) stem=flutter-web ;;
-            flutter-windows) stem=flutter-windows-x64 ;;
-            *) echo "::error::Unsupported package target"; exit 1 ;;
-          esac
-          if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then exit 1; fi
-          echo "name=$stem-$VERSION" >> "$GITHUB_OUTPUT"
-          echo "PACKAGE_DIR=.ci-package/$stem-$VERSION" >> "$GITHUB_ENV"
-          mkdir .ci-package dist
       - name: Build and verify Flutter Web
         run: |
           flutter pub get
-          flutter build web --release
+          flutter build web --no-pub --no-web-resources-cdn --pwa-strategy=none
+          mkdir .ci-package
           node scripts/package-web.mjs build/web --out "$PACKAGE_DIR"
           node "$PACKAGE_DIR/configure-web.mjs" "$PACKAGE_DIR/site" --check
+          test -s "$PACKAGE_DIR/nginx.conf.example"
       - name: Archive package and compute SHA-256
-        env:
-          PACKAGE_NAME: ${{ steps.package.outputs.name }}
-        run: |
-          python - <<'PY'
-          import hashlib
-          import os
-          from pathlib import Path
-          from shutil import make_archive
-          from zipfile import ZipFile
-
-          name = os.environ["PACKAGE_NAME"]
-          archive = Path(make_archive(f"dist/{name}", "zip", root_dir=".ci-package", base_dir=name))
-          with ZipFile(archive) as zipped:
-              damaged = zipped.testzip()
-              if damaged:
-                  raise RuntimeError(f"Invalid ZIP member: {damaged}")
-          with archive.open("rb") as contents:
-              digest = hashlib.file_digest(contents, "sha256").hexdigest()
-          archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii", newline="\n")
-          PY
+        run: python scripts/release/archive-package.py "$PACKAGE_DIR" dist
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.package.outputs.name }}
+          name: flutter-web-latest
           path: dist/
           if-no-files-found: error
-    needs: contracts
-    if: github.event_name == 'push'
   windows:
     runs-on: windows-latest
     timeout-minutes: 60
+    needs: [check, contracts]
+    if: github.event_name == 'push'
     defaults:
       run:
         shell: bash
     env:
-      TARGET: flutter-windows
-      VERSION: latest
+      PACKAGE_DIR: .ci-package/flutter-windows-x64-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -172,131 +133,95 @@ jobs:
           channel: stable
           flutter-version: 3.41.9
           cache: true
-      - name: Name target package
-        id: package
-        run: |
-          case "$RUNNER_OS" in
-            Linux) os=linux ;;
-            Windows) os=windows ;;
-            *) exit 1 ;;
-          esac
-          case "$TARGET" in
-            nuxt) stem="nuxt-node-$os-x64" ;;
-            go|rust) stem="native-$TARGET-$os-x64" ;;
-            flutter-web) stem=flutter-web ;;
-            flutter-windows) stem=flutter-windows-x64 ;;
-            *) echo "::error::Unsupported package target"; exit 1 ;;
-          esac
-          if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then exit 1; fi
-          echo "name=$stem-$VERSION" >> "$GITHUB_OUTPUT"
-          echo "PACKAGE_DIR=.ci-package/$stem-$VERSION" >> "$GITHUB_ENV"
-          mkdir .ci-package dist
-      - name: Build Flutter Windows
+      - name: Build Flutter Windows and compile the installer
         run: |
           flutter config --enable-windows-desktop
           flutter pub get
-          flutter build windows --release
-          bundle=build/windows/x64/runner/Release
-          test -f "$bundle/nekotribe.exe"
-          test -f "$bundle/flutter_windows.dll"
-          test -f "$bundle/data/flutter_assets/AssetManifest.bin"
-          mv "$bundle" "$PACKAGE_DIR"
-      - name: Archive package and compute SHA-256
-        env:
-          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+          flutter build windows --release --no-pub
+          mkdir .ci-package
+          node scripts/package-windows.mjs --version latest --out "$PACKAGE_DIR" --require-installer
+      - name: Smoke-test the Windows installer
+        shell: pwsh
         run: |
-          python - <<'PY'
-          import hashlib
-          import os
-          from pathlib import Path
-          from shutil import make_archive
-          from zipfile import ZipFile
-
-          name = os.environ["PACKAGE_NAME"]
-          archive = Path(make_archive(f"dist/{name}", "zip", root_dir=".ci-package", base_dir=name))
-          with ZipFile(archive) as zipped:
-              damaged = zipped.testzip()
-              if damaged:
-                  raise RuntimeError(f"Invalid ZIP member: {damaged}")
-          with archive.open("rb") as contents:
-              digest = hashlib.file_digest(contents, "sha256").hexdigest()
-          archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii", newline="\n")
-          PY
+          $setup = Join-Path $env:PACKAGE_DIR 'NekoTribe-latest-windows-x64-setup.exe'
+          $installed = Join-Path $env:RUNNER_TEMP 'nekotribe-install-smoke'
+          $result = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$installed`"") -Wait -PassThru -WindowStyle Hidden
+          if ($result.ExitCode -ne 0 -or !(Test-Path -LiteralPath (Join-Path $installed 'nekotribe.exe') -PathType Leaf)) {
+            throw "The Windows installer smoke test failed (exit code $($result.ExitCode))."
+          }
+      - name: Archive package and compute SHA-256
+        run: python scripts/release/archive-package.py "$PACKAGE_DIR" dist
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.package.outputs.name }}
+          name: flutter-windows-x64-latest
           path: dist/
           if-no-files-found: error
-    needs: contracts
-    if: github.event_name == 'push'
-  rolling:
+  android:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 60
+    needs: [check, contracts]
+    if: github.event_name == 'push'
+    env:
+      PACKAGE_DIR: .ci-package/flutter-android-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          pattern: flutter-*-latest
-          merge-multiple: true
-          path: dist
-      - name: Verify download and record checksums
-        working-directory: dist
-        env:
-          PREFIX: flutter
-        run: |
-          shopt -s nullglob
-          archives=("$PREFIX"-*-latest.zip)
-          expected=2
-          # Publish the web archive even if Windows was unavailable.
-          if [[ "$PREFIX" == flutter ]]; then
-            expected=1
-            test -f flutter-web-latest.zip
-          fi
-          test "${#archives[@]}" -ge "$expected"
-          {
-            echo '### 持续构建产物'
-            echo
-            echo '| 文件 | 大小（字节） | SHA-256 |'
-            echo '| --- | ---: | --- |'
-            for archive in "${archives[@]}"; do
-              read -r digest filename < "$archive.sha256"
-              filename="${filename%$'\r'}"
-              test "$filename" = "$archive"
-              printf '%s  %s\n' "$digest" "$archive" | sha256sum --check --status --strict -
-              printf '| %s | %s | %s |\n' "$archive" "$(stat -c %s "$archive")" "$digest"
-            done
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Initialize rolling prerelease
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tag=rolling-latest
-          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            if ! gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target master \
-              --title 'NekoTribe rolling-latest' --prerelease --latest=false \
-              --notes '由四个分支的 GitHub Actions 更新。每个包均附 SHA-256。' --draft=false; then
-              # Another branch can create the shared release at the same time.
-              gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
-            fi
-          fi
-      - uses: softprops/action-gh-release@v2
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
         with:
-          tag_name: rolling-latest
-          name: NekoTribe rolling-latest
-          prerelease: true
-          make_latest: false
-          target_commitish: master
-          fail_on_unmatched_files: true
-          files: |
-            dist/*.zip
-            dist/*.zip.sha256
-    defaults:
-      run:
-        shell: bash
+          node-version: "22"
+      - name: Install the NDK required by Flutter
+        run: |
+          if [[ ! -f "$ANDROID_HOME/ndk/28.2.13676358/source.properties" ]]; then
+            JAVA_HOME="$JAVA_HOME_21_X64" "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'ndk;28.2.13676358'
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.9
+          cache: true
+      - name: Build the signed Flutter Android APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
+            umask 077
+            export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/nekotribe-release.jks"
+            trap 'rm -f -- "$ANDROID_KEYSTORE_PATH"' EXIT
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+            unset ANDROID_KEYSTORE_BASE64
+          fi
+          flutter config --jdk-dir "$JAVA_HOME"
+          flutter pub get
+          flutter build apk --release --no-pub
+      - name: Verify APK signature and package the artifact
+        run: |
+          apksigner="$(find "$ANDROID_HOME/build-tools" -mindepth 2 -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$apksigner"
+          "$apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          mkdir .ci-package
+          node scripts/package-android.mjs --version latest --out "$PACKAGE_DIR"
+      - name: Archive package and compute SHA-256
+        run: python scripts/release/archive-package.py "$PACKAGE_DIR" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flutter-android-latest
+          path: dist/
+          if-no-files-found: error
+  rolling:
+    needs: [web, windows, android]
+    if: github.event_name == 'push'
     permissions:
-      contents: write
       actions: read
-    needs:
-      - check
-      - web
-      - windows
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.check.result == 'success' && needs.web.result == 'success' }}
+      contents: write
+    uses: Cthaat/NekoTribe/.github/workflows/publish-rolling.yml@master
+    with:
+      stack: flutter

@@ -5,6 +5,19 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")?.takeIf { it.isNotEmpty() }
+val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")?.takeIf { it.isNotEmpty() }
+val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")?.takeIf { it.isNotEmpty() }
+val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")?.takeIf { it.isNotEmpty() }
+val releaseSigningValues = listOf(
+    releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword,
+)
+val useReleaseKeystore = releaseSigningValues.any { it != null }
+require(!useReleaseKeystore || releaseSigningValues.all { it != null }) {
+    "Android release signing requires ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, " +
+        "ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD together."
+}
+
 android {
     namespace = "com.nekotribe.nekotribe"
     compileSdk = flutter.compileSdkVersion
@@ -30,11 +43,23 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (useReleaseKeystore) {
+            create("release") {
+                val keystore = file(requireNotNull(releaseKeystorePath))
+                require(keystore.isFile) { "The Android release keystore file does not exist." }
+                storeFile = keystore
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            val signing = if (useReleaseKeystore) "release" else "debug"
+            signingConfig = signingConfigs.getByName(signing)
         }
     }
 }

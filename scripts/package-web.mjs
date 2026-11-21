@@ -15,6 +15,7 @@ const instructions = `# NekoTribe Flutter Web
 Publish only the site directory as the document root of IIS, Nginx, or your static server.
 Use HTTPS for sign-in from other machines. If hosted below a URL prefix, use the prefix
 selected when building Flutter. Allow the site origin on the backend when using a different origin.
+The nginx.conf.example illustrates a root-path static deployment with SPA routing.
 
 From this directory, configure the browser-accessible API and verify the resulting addresses:
 
@@ -82,6 +83,7 @@ export async function packageWeb(build, destination) {
   await copyFile(join(scripts, 'configure-web.mjs'), join(target, 'configure-web.mjs'));
   await copyFile(join(scripts, 'serve-web.mjs'), join(target, 'serve-web.mjs'));
   await copyFile(join(scripts, 'check-deployment-endpoints.mjs'), join(target, 'check-deployment-endpoints.mjs'));
+  await copyFile(join(scripts, '..', 'packaging', 'web', 'nginx.conf.example'), join(target, 'nginx.conf.example'));
   for (const extension of ['cmd', 'sh']) {
     await copyFile(join(scripts, 'release', `start-web.${extension}`), join(target, `start.${extension}`));
   }

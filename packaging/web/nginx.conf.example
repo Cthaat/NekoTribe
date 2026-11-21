@@ -1,0 +1,20 @@
+# Place inside nginx's http context, for example in /etc/nginx/conf.d/nekotribe.conf.
+server {
+    listen 80;
+    server_name _;
+    root /var/www/nekotribe/site;
+
+    location = /assets/assets/config/app_config.json {
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
+
+    location ~ \.wasm$ {
+        types { application/wasm wasm; }
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
