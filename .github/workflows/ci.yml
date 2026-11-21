@@ -1,0 +1,70 @@
+name: Flutter CI
+on:
+  push:
+    branches: [Flutter]
+  pull_request:
+    branches: [Flutter]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: write
+  packages: write
+  actions: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.41.9'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+  contracts:
+    permissions:
+      contents: read
+    uses: Cthaat/NekoTribe/.github/workflows/contracts.yml@master
+    with:
+      nuxt-ref: refs/heads/master
+      go-ref: refs/heads/codex/go
+      rust-ref: refs/heads/Rust
+      flutter-ref: ${{ github.sha }}
+      allow-missing: true
+  web:
+    if: github.event_name == 'push'
+    needs: [check, contracts]
+    permissions:
+      contents: read
+    uses: Cthaat/NekoTribe/.github/workflows/package.yml@master
+    with:
+      target: flutter-web
+      runner: ubuntu-latest
+      ref: ${{ github.sha }}
+  windows:
+    if: github.event_name == 'push'
+    needs: [check, contracts]
+    permissions:
+      contents: read
+    uses: Cthaat/NekoTribe/.github/workflows/package.yml@master
+    with:
+      target: flutter-windows
+      runner: windows-latest
+      ref: ${{ github.sha }}
+  rolling:
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.web.result == 'success' }}
+    needs: [web, windows]
+    permissions:
+      contents: write
+      actions: read
+    uses: Cthaat/NekoTribe/.github/workflows/rolling.yml@master
+    with:
+      prefix: flutter
