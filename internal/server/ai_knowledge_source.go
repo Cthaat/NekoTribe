@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/Cthaat/NekoTribe/backend-go/contracts"
@@ -28,8 +30,11 @@ type knowledgeSource struct {
 	Kind    string `json:"kind"`
 	ID      int64  `json:"id"`
 	PostID  int64  `json:"post_id,omitempty"`
+	GroupID int64  `json:"group_id,omitempty"`
 	Content string `json:"content"`
 	Version string `json:"version"`
+	Chunk   *int   `json:"-"`
+	indexed bool
 }
 type knowledgeReader interface {
 	get(context.Context, int64, knowledgeCandidate) (knowledgeSource, bool, error)
@@ -42,13 +47,38 @@ func knowledgeSourceVersion(kind string, id, postID int64, content string) strin
 	return hex.EncodeToString(h.Sum(nil))
 }
 func validKnowledgeID(id int64) bool { return id > 0 && id <= knowledgeMaxID }
+func isGroupKnowledgeKind(kind string) bool {
+	return kind == "group_post" || kind == "group_comment"
+}
+
+func validKnowledgeLocation(kind string, id, postID, groupID int64) bool {
+	if kind == "terms" {
+		return postID == 0 && groupID == 0
+	}
+	if !validKnowledgeID(postID) || ((kind == "post" || kind == "group_post") && id != postID) {
+		return false
+	}
+	if isGroupKnowledgeKind(kind) {
+		return validKnowledgeID(groupID)
+	}
+	return groupID == 0
+}
+
+var groupKnowledgeQueries = sync.OnceValue(func() map[string]string {
+	var queries map[string]string
+	if json.Unmarshal([]byte(contracts.AIGroupKnowledgeSource), &queries) != nil {
+		return nil
+	}
+	return queries
+})
+
 func validateKnowledgeCandidates(viewer int64, candidates []knowledgeCandidate) error {
 	if viewer <= 0 || viewer > 9007199254740991 || len(candidates) > 20 {
 		return errKnowledgeInvalid
 	}
 	seen := make(map[string]bool, len(candidates))
 	for _, c := range candidates {
-		if (c.Kind != "post" && c.Kind != "comment" && c.Kind != "terms") || !validKnowledgeID(c.ID) || (c.Kind == "terms" && c.ID > 8) || !knowledgeVersion.MatchString(c.Version) {
+		if (c.Kind != "post" && c.Kind != "comment" && c.Kind != "terms" && !isGroupKnowledgeKind(c.Kind)) || !validKnowledgeID(c.ID) || (c.Kind == "terms" && c.ID > 8) || !knowledgeVersion.MatchString(c.Version) {
 			return errKnowledgeInvalid
 		}
 		key := fmt.Sprintf("%s:%d", c.Kind, c.ID)
@@ -72,7 +102,7 @@ func hydrateKnowledge(ctx context.Context, reader knowledgeReader, viewer int64,
 		if !found {
 			continue
 		}
-		if row.Kind != c.Kind || row.ID != c.ID || (c.Kind == "terms" && row.PostID != 0) || (c.Kind != "terms" && !validKnowledgeID(row.PostID)) || (c.Kind == "post" && row.PostID != row.ID) || !utf8.ValidString(row.Content) {
+		if row.Kind != c.Kind || row.ID != c.ID || !validKnowledgeLocation(row.Kind, row.ID, row.PostID, row.GroupID) || !utf8.ValidString(row.Content) {
 			return nil, errSessionStore
 		}
 		if row.Content == "" || len(row.Content) > 65536 {
@@ -90,8 +120,8 @@ func hydrateKnowledge(ctx context.Context, reader knowledgeReader, viewer int64,
 	return result, nil
 }
 
-const knowledgePostSQL = `SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p WHERE p.post_id=:source_id AND p.visibility='public' AND p.is_deleted=0 AND DBMS_LOB.GETLENGTH(p.content) BETWEEN 1 AND 65536 AND fn_can_view_post(:viewer_id,p.post_id)=1`
-const knowledgeCommentSQL = `SELECT c.comment_id AS source_id,p.post_id AS post_id,c.content AS content FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id WHERE c.comment_id=:source_id AND c.is_deleted=0 AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1`
+const knowledgePostSQL = `SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 WHERE p.post_id=:source_id AND p.post_id BETWEEN 1 AND :max_id AND p.visibility='public' AND p.is_deleted=0 AND DBMS_LOB.GETLENGTH(p.content) BETWEEN 1 AND 65536 AND fn_can_view_post(:viewer_id,p.post_id)=1`
+const knowledgeCommentSQL = `SELECT c.comment_id AS source_id,p.post_id AS post_id,c.content AS content FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 JOIN n_users comment_author ON comment_author.user_id=c.user_id AND comment_author.is_active=1 WHERE c.comment_id=:source_id AND p.post_id BETWEEN 1 AND :max_id AND c.is_deleted=0 AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 AND NOT EXISTS (SELECT 1 FROM n_user_blocks b WHERE (b.user_id=:viewer_id AND b.target_user_id=c.user_id) OR (b.target_user_id=:viewer_id AND b.user_id=c.user_id))`
 
 type knowledgeQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
@@ -128,14 +158,21 @@ func (r oracleKnowledgeReader) getMode(ctx context.Context, viewer int64, c know
 		content := strings.Join(append([]string{rows[0].Title}, rows[0].Blocks...), "\n")
 		return knowledgeSource{Kind: "terms", ID: rows[0].ID, Version: rows[0].Version, Content: content}, true, nil
 	}
-	if c.Kind != "post" && c.Kind != "comment" {
+	var query string
+	switch c.Kind {
+	case "post":
+		query = knowledgePostSQL
+	case "comment":
+		query = knowledgeCommentSQL
+	case "group_post", "group_comment":
+		query = groupKnowledgeQueries()[c.Kind]
+		if query == "" {
+			return knowledgeSource{}, false, errSessionStore
+		}
+	default:
 		return knowledgeSource{}, false, errKnowledgeInvalid
 	}
-	query := knowledgePostSQL
-	if c.Kind == "comment" {
-		query = knowledgeCommentSQL
-	}
-	rows, err := r.conn.QueryContext(ctx, query, sql.Named("source_id", c.ID), sql.Named("viewer_id", viewer))
+	rows, err := r.conn.QueryContext(ctx, query, sql.Named("source_id", c.ID), sql.Named("viewer_id", viewer), sql.Named("max_id", knowledgeMaxID))
 	if err != nil {
 		return knowledgeSource{}, false, errSessionStore
 	}
@@ -150,7 +187,13 @@ func (r oracleKnowledgeReader) getMode(ctx context.Context, viewer int64, c know
 		return knowledgeSource{}, false, nil
 	}
 	result := knowledgeSource{Kind: c.Kind}
-	if rows.Scan(&result.ID, &result.PostID, &result.Content) != nil {
+	var scanErr error
+	if isGroupKnowledgeKind(c.Kind) {
+		scanErr = rows.Scan(&result.ID, &result.PostID, &result.Content, &result.GroupID)
+	} else {
+		scanErr = rows.Scan(&result.ID, &result.PostID, &result.Content)
+	}
+	if scanErr != nil {
 		return knowledgeSource{}, false, errSessionStore
 	}
 	if rows.Next() || rows.Err() != nil || rows.Close() != nil {

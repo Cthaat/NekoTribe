@@ -12,13 +12,28 @@ type conversationPage struct {
 	NextCursor *string              `json:"next_cursor"`
 }
 type conversationListTx interface {
-	fetch(context.Context, int64, string, int, bool) ([]conversationRecord, error)
+	fetch(context.Context, int64, string, int, bool, string, *int64, string) ([]conversationRecord, error)
 	authorize(context.Context, int64, conversationInput, moderationPolicy) error
 }
 
-func listConversationPage(ctx context.Context, tx conversationListTx, user int64, after string, limit int, policy moderationPolicy) (conversationPage, error) {
+func validListPurpose(purpose string) bool {
+	switch purpose {
+	case "", "knowledge", "writing", "group", "moderation":
+		return true
+	default:
+		return false
+	}
+}
+
+func listConversationPage(ctx context.Context, tx conversationListTx, user int64, after string, limit int, purpose string, groupID *int64, targetTitle string, policy moderationPolicy) (conversationPage, error) {
 	empty := conversationPage{Items: []conversationRecord{}}
-	if user <= 0 || user > 9007199254740991 || (after != "" && !conversationUUID.MatchString(after)) || limit < 1 || limit > 50 {
+	if user <= 0 || user > 9007199254740991 || (after != "" && !conversationUUID.MatchString(after)) || limit < 1 || limit > 50 || !validListPurpose(purpose) {
+		return empty, errConversationInvalid
+	}
+	if groupID != nil && (purpose != "group" || *groupID < 1 || *groupID > 9007199254740991) {
+		return empty, errConversationInvalid
+	}
+	if targetTitle != "" && purpose != "moderation" {
 		return empty, errConversationInvalid
 	}
 	moderationAllowed := true
@@ -31,12 +46,14 @@ func listConversationPage(ctx context.Context, tx conversationListTx, user int64
 	scanAfter := strings.ToLower(after)
 	page := conversationPage{Items: []conversationRecord{}}
 	for batch := 0; batch < 10; batch++ {
-		rows, err := tx.fetch(ctx, user, scanAfter, limit+1, moderationAllowed)
+		rows, err := tx.fetch(ctx, user, scanAfter, limit+1, moderationAllowed, purpose, groupID, targetTitle)
 		if err != nil {
 			return empty, errSessionStore
 		}
 		for _, record := range rows {
-			if !conversationUUID.MatchString(record.ID) || record.ID <= scanAfter {
+			if !conversationUUID.MatchString(record.ID) || record.ID <= scanAfter || (purpose != "" && record.Purpose != purpose) ||
+				(groupID != nil && (record.GroupID == nil || *record.GroupID != *groupID)) ||
+				(targetTitle != "" && (record.Title == nil || *record.Title != targetTitle || record.GroupID != nil)) {
 				return empty, errSessionStore
 			}
 			scanAfter = record.ID
@@ -74,7 +91,7 @@ type oracleConversationList struct{ tx *sql.Tx }
 func (o oracleConversationList) authorize(ctx context.Context, user int64, input conversationInput, policy moderationPolicy) error {
 	return authorizeConversation(ctx, o.tx, user, input, policy)
 }
-func (o oracleConversationList) fetch(ctx context.Context, user int64, after string, limit int, moderationAllowed bool) ([]conversationRecord, error) {
+func (o oracleConversationList) fetch(ctx context.Context, user int64, after string, limit int, moderationAllowed bool, purpose string, groupID *int64, targetTitle string) ([]conversationRecord, error) {
 	var cursor any
 	if after != "" {
 		cursor = after
@@ -83,11 +100,22 @@ func (o oracleConversationList) fetch(ctx context.Context, user int64, after str
 	if moderationAllowed {
 		allowed = 1
 	}
+	var scope any
+	if purpose != "" {
+		scope = purpose
+	}
+	var title any
+	if targetTitle != "" {
+		title = targetTitle
+	}
 	rows, err := o.tx.QueryContext(ctx, `SELECT c.conversation_id,c.owner_user_id,c.purpose,c.group_id,c.title,c.created_at,c.updated_at
 FROM n_ai_conversations c WHERE c.owner_user_id=:owner_user_id
 AND (:after_id IS NULL OR c.conversation_id>:after_id)
+AND (:purpose IS NULL OR c.purpose=:purpose)
+AND (:group_id IS NULL OR c.group_id=:group_id)
+AND (:target_title IS NULL OR (c.title=:target_title AND c.group_id IS NULL))
 AND (c.purpose IN ('knowledge','writing') OR (c.purpose='group' AND fn_has_group_permission(:owner_user_id,c.group_id,'admin')=1) OR (c.purpose='moderation' AND :moderation_allowed=1))
-ORDER BY c.conversation_id ASC FETCH FIRST :row_limit ROWS ONLY`, sql.Named("owner_user_id", user), sql.Named("after_id", cursor), sql.Named("moderation_allowed", allowed), sql.Named("row_limit", limit))
+ORDER BY c.conversation_id ASC FETCH FIRST :row_limit ROWS ONLY`, sql.Named("owner_user_id", user), sql.Named("after_id", cursor), sql.Named("purpose", scope), sql.Named("group_id", groupID), sql.Named("target_title", title), sql.Named("moderation_allowed", allowed), sql.Named("row_limit", limit))
 	if err != nil {
 		return nil, errSessionStore
 	}
@@ -121,10 +149,10 @@ ORDER BY c.conversation_id ASC FETCH FIRST :row_limit ROWS ONLY`, sql.Named("own
 	return result, nil
 }
 
-func (s OracleSessions) listAIConversations(ctx context.Context, user int64, after string, limit int, policy moderationPolicy) (conversationPage, error) {
-	return s.listAIConversationsOperation(ctx, user, after, limit, policy, verifyConversationSchema)
+func (s OracleSessions) listAIConversations(ctx context.Context, user int64, after string, limit int, purpose string, groupID *int64, targetTitle string, policy moderationPolicy) (conversationPage, error) {
+	return s.listAIConversationsOperation(ctx, user, after, limit, purpose, groupID, targetTitle, policy, verifyConversationSchema)
 }
-func (s OracleSessions) listAIConversationsOperation(ctx context.Context, user int64, after string, limit int, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result conversationPage, err error) {
+func (s OracleSessions) listAIConversationsOperation(ctx context.Context, user int64, after string, limit int, purpose string, groupID *int64, targetTitle string, policy moderationPolicy, verify func(context.Context, *sql.Conn) error) (result conversationPage, err error) {
 	if user <= 0 || user > 9007199254740991 || (after != "" && !conversationUUID.MatchString(after)) || limit < 1 || limit > 50 {
 		return result, errConversationInvalid
 	}
@@ -152,7 +180,7 @@ func (s OracleSessions) listAIConversationsOperation(ctx context.Context, user i
 			err = errSessionStore
 		}
 	}()
-	result, e = listConversationPage(ctx, oracleConversationList{tx}, user, after, limit, policy)
+	result, e = listConversationPage(ctx, oracleConversationList{tx}, user, after, limit, purpose, groupID, targetTitle, policy)
 	if e != nil {
 		return conversationPage{}, e
 	}

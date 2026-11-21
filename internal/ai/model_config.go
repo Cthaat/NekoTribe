@@ -1,8 +1,10 @@
 package ai
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"math"
 	"net"
 	"net/url"
@@ -24,6 +26,7 @@ type Selection struct {
 	Adapter               string   `json:"adapter"`
 	BaseURL               string   `json:"baseUrl"`
 	Model                 string   `json:"model"`
+	ModelVersion          string   `json:"modelVersion,omitempty"`
 	APIKeyEnv             *string  `json:"apiKeyEnv"`
 	Capabilities          []string `json:"capabilities"`
 	ContextWindowTokens   int64    `json:"contextWindowTokens"`
@@ -60,6 +63,7 @@ type model struct {
 	ID                  string   `json:"id"`
 	ProviderID          string   `json:"providerId"`
 	Model               string   `json:"model"`
+	ModelVersion        *string  `json:"modelVersion"`
 	Capabilities        []string `json:"capabilities"`
 	ContextWindowTokens integer  `json:"contextWindowTokens"`
 	MaxOutputTokens     integer  `json:"maxOutputTokens"`
@@ -67,6 +71,8 @@ type model struct {
 
 // integer accepts the integral JSON number forms shared with JavaScript.
 type integer int64
+
+const maxStoredModelRevision = 999999999999999
 
 func (n *integer) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 || (data[0] != '-' && (data[0] < '0' || data[0] > '9')) {
@@ -81,6 +87,10 @@ func (n *integer) UnmarshalJSON(data []byte) error {
 }
 
 var identifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+var modelVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$`)
+
+func ValidModelVersion(value string) bool { return modelVersionPattern.MatchString(value) }
+
 var envReference = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 var hostLabel = regexp.MustCompile(`^[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?$`)
 var numericHostLabel = regexp.MustCompile(`^(?:[0-9]+|0[xX][0-9A-Fa-f]+)$`)
@@ -146,8 +156,30 @@ func cloneSelection(s Selection) Selection {
 
 // object enforces exact, case-sensitive fields and required non-null values.
 func object(data json.RawMessage, required []string, optional ...string) (map[string]json.RawMessage, error) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil || fields == nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	if first, err := decoder.Token(); err != nil || first != json.Delim('{') {
+		return nil, ErrInvalidConfiguration
+	}
+	fields := make(map[string]json.RawMessage)
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		if err != nil || !ok || (!contains(required, key) && !contains(optional, key)) {
+			return nil, ErrInvalidConfiguration
+		}
+		if _, exists := fields[key]; exists {
+			return nil, ErrInvalidConfiguration
+		}
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return nil, ErrInvalidConfiguration
+		}
+		fields[key] = value
+	}
+	if last, err := decoder.Token(); err != nil || last != json.Delim('}') {
+		return nil, ErrInvalidConfiguration
+	}
+	if _, err := decoder.Token(); err != io.EOF {
 		return nil, ErrInvalidConfiguration
 	}
 	for _, key := range required {
@@ -156,22 +188,21 @@ func object(data json.RawMessage, required []string, optional ...string) (map[st
 			return nil, ErrInvalidConfiguration
 		}
 	}
-	for key := range fields {
-		if !contains(required, key) && !contains(optional, key) {
-			return nil, ErrInvalidConfiguration
-		}
-	}
 	return fields, nil
 }
 
 func parseConfiguration(data []byte) (configuration, error) {
 	invalid := func() (configuration, error) { return configuration{}, ErrInvalidConfiguration }
+	if len(data) > 65536 || !utf8.Valid(data) || !scalarJSONEscapes(data) {
+		return invalid()
+	}
 	fields, err := object(data, []string{"schemaVersion", "revision", "providers", "models", "bindings"})
 	if err != nil {
 		return invalid()
 	}
 	var schemaVersion, revision integer
-	if json.Unmarshal(fields["schemaVersion"], &schemaVersion) != nil || schemaVersion != 1 || json.Unmarshal(fields["revision"], &revision) != nil {
+	if json.Unmarshal(fields["schemaVersion"], &schemaVersion) != nil || schemaVersion != 1 ||
+		json.Unmarshal(fields["revision"], &revision) != nil || revision > maxStoredModelRevision {
 		return invalid()
 	}
 	var rawProviders, rawModels []json.RawMessage
@@ -184,7 +215,7 @@ func parseConfiguration(data []byte) (configuration, error) {
 			return invalid()
 		}
 		var p provider
-		if json.Unmarshal(raw, &p) != nil || !identifier.MatchString(p.ID) || (p.Adapter != "ollama" && p.Adapter != "openai-compatible") || !validBaseURL(p.BaseURL) {
+		if json.Unmarshal(raw, &p) != nil || !identifier.MatchString(p.ID) || (p.Adapter != "ollama" && p.Adapter != "openai-compatible") || !ValidHTTPBaseURL(p.BaseURL) {
 			return invalid()
 		}
 		if _, exists := providers[p.ID]; exists {
@@ -202,11 +233,14 @@ func parseConfiguration(data []byte) (configuration, error) {
 	}
 	models := make(map[string]model, len(rawModels))
 	for _, raw := range rawModels {
-		if _, err := object(raw, []string{"id", "providerId", "model", "capabilities", "contextWindowTokens", "maxOutputTokens"}); err != nil {
+		if _, err := object(raw, []string{"id", "providerId", "model", "capabilities", "contextWindowTokens", "maxOutputTokens"}, "modelVersion"); err != nil {
 			return invalid()
 		}
 		var m model
 		if json.Unmarshal(raw, &m) != nil || !identifier.MatchString(m.ID) || !identifier.MatchString(m.ProviderID) || m.Model == "" || strings.TrimFunc(m.Model, configurationWhitespace) != m.Model || !utf8.ValidString(m.Model) || utf8.RuneCountInString(m.Model) > 256 || !validCapabilities(m.Capabilities) || m.ContextWindowTokens > 2147483647 || m.MaxOutputTokens > 2147483647 || m.MaxOutputTokens >= m.ContextWindowTokens {
+			return invalid()
+		}
+		if m.ModelVersion != nil && !ValidModelVersion(*m.ModelVersion) {
 			return invalid()
 		}
 		if _, exists := models[m.ID]; exists {
@@ -233,12 +267,17 @@ func parseConfiguration(data []byte) (configuration, error) {
 			return invalid()
 		}
 		p := providers[m.ProviderID]
-		c.selections[role] = cloneSelection(Selection{ConfigurationRevision: int64(revision), Role: role, ProfileID: m.ID, ProviderID: p.ID, Adapter: p.Adapter, BaseURL: p.BaseURL, Model: m.Model, APIKeyEnv: p.APIKeyEnv, Capabilities: m.Capabilities, ContextWindowTokens: int64(m.ContextWindowTokens), MaxOutputTokens: int64(m.MaxOutputTokens)})
+		version := ""
+		if m.ModelVersion != nil {
+			version = *m.ModelVersion
+		}
+		c.selections[role] = cloneSelection(Selection{ConfigurationRevision: int64(revision), Role: role, ProfileID: m.ID, ProviderID: p.ID, Adapter: p.Adapter, BaseURL: p.BaseURL, Model: m.Model, ModelVersion: version, APIKeyEnv: p.APIKeyEnv, Capabilities: m.Capabilities, ContextWindowTokens: int64(m.ContextWindowTokens), MaxOutputTokens: int64(m.MaxOutputTokens)})
 	}
 	return c, nil
 }
 
-func validBaseURL(value string) bool {
+// ValidHTTPBaseURL validates a configured AI service address before transport.
+func ValidHTTPBaseURL(value string) bool {
 	if (!strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://")) || strings.ContainsAny(value, "?#\\") || strings.ContainsFunc(value, func(r rune) bool { return configurationWhitespace(r) || r < 32 || r == 127 }) {
 		return false
 	}

@@ -15,17 +15,54 @@ const writingSystem = "你是写作助手。根据用户提供的内容提供可
 type aiWritingStore interface {
 	readAIConversation(context.Context, int64, string, moderationPolicy) (conversationRecord, error)
 	listAIRecentConversationMessages(context.Context, int64, string, moderationPolicy) ([]conversationHistoryMessage, error)
+	selectAIWritingSkill(context.Context, int64, string, moderationPolicy, *string) (int64, error)
 	appendAIAssistantMessage(context.Context, int64, string, assistantMessageInput, moderationPolicy) (conversationMessage, error)
 }
 
-func generateAIWriting(ctx context.Context, store aiWritingStore, user int64, id string, policy moderationPolicy, config RefreshConfig) (conversationMessage, error) {
+type writingRequest struct {
+	SkillID          *string
+	ExpectedSequence int64
+}
+
+func parseWritingRequest(raw []byte) (writingRequest, error) {
+	var input writingRequest
+	if len(raw) == 0 {
+		return input, nil
+	}
+	if len(raw) > 4096 {
+		return input, errConversationInvalid
+	}
+	data, valid := ai.DecodeScalarJSON(raw, 8)
+	body, object := data.(map[string]interface{})
+	if !valid || !object || len(body) > 2 || hasTooManyJSONMembers(raw, len(body)) {
+		return input, errConversationInvalid
+	}
+	for key, value := range body {
+		switch key {
+		case "skill_id":
+			skill, ok := value.(string)
+			if !ok || skill != "writing-draft" {
+				return writingRequest{}, errConversationInvalid
+			}
+			input.SkillID = &skill
+		case "expected_sequence":
+			sequence, ok := expectedAISequence(value)
+			if !ok {
+				return writingRequest{}, errConversationInvalid
+			}
+			input.ExpectedSequence = sequence
+		default:
+			return writingRequest{}, errConversationInvalid
+		}
+	}
+	return input, nil
+}
+
+func generateAIWriting(ctx context.Context, store aiWritingStore, user int64, id string, policy moderationPolicy, config RefreshConfig, input writingRequest) (saved conversationMessage, runErr error) {
 	if err := ctx.Err(); err != nil {
 		return conversationMessage{}, errWritingUnavailable
 	}
-	if config.AIModelConfig == "" || len(config.AIModelConfig) > 65536 {
-		return conversationMessage{}, errWritingUnavailable
-	}
-	router, err := ai.NewModelRouter([]byte(config.AIModelConfig))
+	router, err := config.modelRouter()
 	if err != nil {
 		return conversationMessage{}, errWritingUnavailable
 	}
@@ -44,7 +81,13 @@ func generateAIWriting(ctx context.Context, store aiWritingStore, user int64, id
 	if err != nil {
 		return conversationMessage{}, err
 	}
-	if conversation.Purpose != "writing" || len(messages) == 0 || len(messages) > 50 {
+	if conversation.Purpose != "writing" || len(messages) > 50 {
+		return conversationMessage{}, errWritingContext
+	}
+	if input.ExpectedSequence != 0 && (len(messages) == 0 || messages[len(messages)-1].SequenceNo != input.ExpectedSequence || messages[len(messages)-1].Role != "user") {
+		return conversationMessage{}, errConversationConflict
+	}
+	if len(messages) == 0 {
 		return conversationMessage{}, errWritingContext
 	}
 	var previous int64
@@ -58,6 +101,22 @@ func generateAIWriting(ctx context.Context, store aiWritingStore, user int64, id
 	if last.Role != "user" {
 		return conversationMessage{}, errWritingContext
 	}
+	skillGeneration, err := store.selectAIWritingSkill(ctx, user, id, policy, input.SkillID)
+	if err != nil {
+		return conversationMessage{}, err
+	}
+	audit := newAIRunAudit("writing_draft", skillGeneration)
+	audit.configRevision = selection.ConfigurationRevision
+	if input.SkillID != nil {
+		audit.skillSelection = "explicit"
+	}
+	defer func() {
+		if runErr != nil {
+			audit.finish(ctx, nil, runErr)
+		} else {
+			audit.finish(ctx, &saved, nil)
+		}
+	}()
 	budget := selection.ContextWindowTokens - selection.MaxOutputTokens - 512
 	if budget > 16384 {
 		budget = 16384
@@ -89,9 +148,15 @@ func generateAIWriting(ctx context.Context, store aiWritingStore, user int64, id
 		return conversationMessage{}, errWritingUnavailable
 	}
 	defer transport.CloseIdleConnections()
+	audit.stage = "quota"
+	if err := requireAIModelQuota(ctx, config.AIModelQuotaLimiter, user, 1); err != nil {
+		return conversationMessage{}, err
+	}
+	audit.stage = "inference"
 	answer, err := transport.Infer(ctx, selection, encoded)
 	if err != nil || ctx.Err() != nil || answer.FinishReason != "stop" || len(answer.ToolCalls) != 0 || answer.Text == "" || len(answer.Text) > 65536 {
 		return conversationMessage{}, errWritingUnavailable
 	}
-	return store.appendAIAssistantMessage(ctx, user, id, assistantMessageInput{Content: answer.Text, ExpectedSequence: last.SequenceNo, ModelID: selection.ProfileID, ConfigRevision: selection.ConfigurationRevision}, policy)
+	audit.stage = "persist"
+	return store.appendAIAssistantMessage(ctx, user, id, assistantMessageInput{Content: answer.Text, ExpectedSequence: last.SequenceNo, ModelID: selection.ProfileID, ModelVersion: selection.ModelVersion, ConfigRevision: selection.ConfigurationRevision, SkillGeneration: skillGeneration}, policy)
 }

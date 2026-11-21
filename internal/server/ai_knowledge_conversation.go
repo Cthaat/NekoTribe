@@ -14,11 +14,12 @@ type knowledgeConversationStore interface {
 	knowledgeServiceStore
 	readAIConversation(context.Context, int64, string, moderationPolicy) (conversationRecord, error)
 	listAIRecentConversationMessages(context.Context, int64, string, moderationPolicy) ([]conversationHistoryMessage, error)
+	selectAIKnowledgeSkill(context.Context, int64, string, moderationPolicy, *string) (int64, error)
 	appendAIKnowledgeAssistantMessage(context.Context, int64, string, assistantMessageInput, []knowledgeCandidate, moderationPolicy) (conversationMessage, error)
 }
 
 // Store calls finish before inference; no database transaction spans the model request.
-func generateKnowledgeConversationWithTransport(ctx context.Context, store knowledgeConversationStore, user int64, id string, policy moderationPolicy, selection ai.Selection, transport knowledgeTransport, searchPhrase ...string) (*conversationMessage, error) {
+func generateKnowledgeConversationWithTransport(ctx context.Context, store knowledgeConversationStore, user int64, id string, policy moderationPolicy, selection ai.Selection, transport knowledgeTransport, input knowledgeSearchBody) (saved *conversationMessage, runErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -33,7 +34,13 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 	if err != nil {
 		return nil, err
 	}
-	if conversation.Purpose != "knowledge" || len(messages) == 0 || len(messages) > 50 {
+	if conversation.Purpose != "knowledge" || len(messages) > 50 {
+		return nil, errKnowledgeConversationContext
+	}
+	if input.ExpectedSequence != 0 && (len(messages) == 0 || messages[len(messages)-1].SequenceNo != input.ExpectedSequence || messages[len(messages)-1].Role != "user") {
+		return nil, errConversationConflict
+	}
+	if len(messages) == 0 {
 		return nil, errKnowledgeConversationContext
 	}
 	var previous int64
@@ -47,10 +54,25 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 	if last.Role != "user" {
 		return nil, errKnowledgeConversationContext
 	}
+	skillGeneration, err := store.selectAIKnowledgeSkill(ctx, user, id, policy, input.SkillID)
+	if err != nil {
+		return nil, err
+	}
+	audit := newAIRunAudit("knowledge_answer", skillGeneration)
+	audit.configRevision = selection.ConfigurationRevision
+	if input.SkillID != nil {
+		audit.skillSelection = "explicit"
+	}
+	defer func() { audit.finish(ctx, saved, runErr) }()
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	result, selected, err := generateKnowledgeWithHistory(ctx, store, user, last.Content, selection, transport, messages, searchPhrase...)
+	var phrases []string
+	if input.Phrase != nil {
+		phrases = []string{*input.Phrase}
+	}
+	audit.stage = "evidence"
+	result, selected, err := generateKnowledgeWithHistory(ctx, store, user, last.Content, selection, transport, messages, phrases...)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +82,8 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 	if result.Answer == nil {
 		return nil, nil
 	}
-	message, err := store.appendAIKnowledgeAssistantMessage(ctx, user, id, assistantMessageInput{Content: *result.Answer, ExpectedSequence: last.SequenceNo, ModelID: selection.ProfileID, ConfigRevision: selection.ConfigurationRevision, ContextSnapshot: selected.Snapshot}, result.Sources, policy)
+	audit.stage = "persist"
+	message, err := store.appendAIKnowledgeAssistantMessage(ctx, user, id, assistantMessageInput{Content: *result.Answer, ExpectedSequence: last.SequenceNo, ModelID: selection.ProfileID, ModelVersion: selection.ModelVersion, ConfigRevision: selection.ConfigurationRevision, SkillGeneration: skillGeneration, ContextSnapshot: selected.Snapshot}, result.Sources, policy)
 	if err != nil {
 		return nil, err
 	}
@@ -68,11 +91,8 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 }
 
 // The caller authenticates the user and obtains configuration from the server environment.
-func generateKnowledgeConversation(ctx context.Context, store knowledgeConversationStore, user int64, id string, policy moderationPolicy, config RefreshConfig, searchPhrase ...string) (*conversationMessage, error) {
-	if config.AIModelConfig == "" || len(config.AIModelConfig) > 65536 {
-		return nil, errKnowledgeProvider
-	}
-	router, err := ai.NewModelRouter([]byte(config.AIModelConfig))
+func generateKnowledgeConversation(ctx context.Context, store knowledgeConversationStore, user int64, id string, policy moderationPolicy, config RefreshConfig, input knowledgeSearchBody) (*conversationMessage, error) {
+	router, err := config.modelRouter()
 	if err != nil {
 		return nil, errKnowledgeProvider
 	}
@@ -85,5 +105,7 @@ func generateKnowledgeConversation(ctx context.Context, store knowledgeConversat
 		return nil, errKnowledgeProvider
 	}
 	defer transport.CloseIdleConnections()
-	return generateKnowledgeConversationWithTransport(ctx, store, user, id, policy, selection, transport, searchPhrase...)
+	return generateKnowledgeConversationWithTransport(ctx, store, user, id, policy, selection, quotaKnowledgeTransport{
+		knowledgeTransport: transport, limiter: config.AIModelQuotaLimiter, actor: user,
+	}, input)
 }

@@ -11,7 +11,7 @@ import (
 var errKnowledgeSearchBody = errors.New("invalid knowledge search body")
 
 // Count top-level JSON members after syntax validation, without interpreting quoted punctuation.
-func hasMultipleJSONMembers(raw []byte) bool {
+func hasTooManyJSONMembers(raw []byte, max int) bool {
 	depth, fields := 0, 0
 	inString, escaped := false, false
 	for _, c := range raw {
@@ -31,7 +31,7 @@ func hasMultipleJSONMembers(raw []byte) bool {
 			depth--
 		} else if c == ':' && depth == 1 {
 			fields++
-			if fields > 1 {
+			if fields > max {
 				return true
 			}
 		}
@@ -88,31 +88,64 @@ func validJSONSurrogates(raw []byte) bool {
 	return true
 }
 
-func parseKnowledgeSearchBody(raw []byte) (*string, error) {
+type knowledgeSearchBody struct {
+	Phrase           *string
+	SkillID          *string
+	ExpectedSequence int64
+}
+
+func expectedAISequence(value any) (int64, bool) {
+	number, ok := value.(float64)
+	if !ok || number < 1 || number > 9999999999 || float64(int64(number)) != number {
+		return 0, false
+	}
+	return int64(number), true
+}
+
+func parseKnowledgeSearchBody(raw []byte) (knowledgeSearchBody, error) {
+	var input knowledgeSearchBody
 	if len(raw) == 0 {
-		return nil, nil
+		return input, nil
 	}
 	if len(raw) > 4096 || !utf8.Valid(raw) || !validJSONSurrogates(raw) {
-		return nil, errKnowledgeSearchBody
+		return input, errKnowledgeSearchBody
 	}
 	var value interface{}
-	if json.Unmarshal(raw, &value) != nil || hasMultipleJSONMembers(raw) {
-		return nil, errKnowledgeSearchBody
+	if json.Unmarshal(raw, &value) != nil {
+		return input, errKnowledgeSearchBody
 	}
 	body, ok := value.(map[string]interface{})
-	if !ok {
-		return nil, errKnowledgeSearchBody
+	if !ok || len(body) > 3 || hasTooManyJSONMembers(raw, len(body)) {
+		return input, errKnowledgeSearchBody
 	}
-	if len(body) == 0 {
-		return nil, nil
+	for key, value := range body {
+		if key == "expected_sequence" {
+			sequence, valid := expectedAISequence(value)
+			if !valid {
+				return knowledgeSearchBody{}, errKnowledgeSearchBody
+			}
+			input.ExpectedSequence = sequence
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			return knowledgeSearchBody{}, errKnowledgeSearchBody
+		}
+		switch key {
+		case "skill_id":
+			if text != "knowledge-answer" {
+				return knowledgeSearchBody{}, errKnowledgeSearchBody
+			}
+			input.SkillID = &text
+		case "search_phrase":
+			term := strings.TrimFunc(text, jsTrimSpace)
+			if term == "" || len(term) > 256 || strings.IndexFunc(term, func(r rune) bool { return r <= 0x1f || r == 0x7f }) >= 0 {
+				return knowledgeSearchBody{}, errKnowledgeSearchBody
+			}
+			input.Phrase = &term
+		default:
+			return knowledgeSearchBody{}, errKnowledgeSearchBody
+		}
 	}
-	phrase, ok := body["search_phrase"].(string)
-	if !ok || len(body) != 1 {
-		return nil, errKnowledgeSearchBody
-	}
-	term := strings.TrimFunc(phrase, jsTrimSpace)
-	if term == "" || len(term) > 256 || strings.IndexFunc(term, func(r rune) bool { return r <= 0x1f || r == 0x7f }) >= 0 {
-		return nil, errKnowledgeSearchBody
-	}
-	return &term, nil
+	return input, nil
 }

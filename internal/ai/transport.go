@@ -342,6 +342,7 @@ func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool,
 		body["n"] = 1
 		body["max_tokens"] = selection.MaxOutputTokens
 	case "ollama":
+		body["think"] = false
 		body["options"] = map[string]any{"num_predict": selection.MaxOutputTokens, "num_ctx": selection.ContextWindowTokens}
 	default:
 		return nil, nil, false, ErrInvalidRequest
@@ -557,7 +558,7 @@ func (t *Transport) Infer(ctx context.Context, snapshot Selection, request []byt
 	if err != nil {
 		return InferenceResult{}, err
 	}
-	if !validBaseURL(selection.BaseURL) {
+	if !ValidHTTPBaseURL(selection.BaseURL) {
 		return InferenceResult{}, ErrInvalidRequest
 	}
 	credential := ""

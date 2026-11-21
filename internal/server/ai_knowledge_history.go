@@ -42,6 +42,7 @@ type knowledgeCitation struct {
 	ID      int64  `json:"id"`
 	Version string `json:"version"`
 	PostID  int64  `json:"post_id,omitempty"`
+	GroupID int64  `json:"group_id,omitempty"`
 }
 type knowledgeRestored struct {
 	knowledgeTurnResult
@@ -103,7 +104,7 @@ func restoreKnowledgeMessage(ctx context.Context, encoded string, hydrate func(c
 	}
 	byKey := make(map[string]knowledgeSource, len(rows))
 	for _, row := range rows {
-		if (row.Kind == "terms" && row.PostID != 0) || (row.Kind != "terms" && (!validKnowledgeID(row.PostID) || (row.Kind == "post" && row.PostID != row.ID))) {
+		if !validKnowledgeLocation(row.Kind, row.ID, row.PostID, row.GroupID) {
 			return knowledgeRestored{}, errKnowledgeSourceChanged
 		}
 		byKey[knowledgeKey(row.Kind, row.ID)] = row
@@ -111,7 +112,7 @@ func restoreKnowledgeMessage(ctx context.Context, encoded string, hydrate func(c
 	citations := make([]knowledgeCitation, 0, len(message.Sources))
 	for _, ref := range message.Sources {
 		row := byKey[knowledgeKey(ref.Kind, ref.ID)]
-		citations = append(citations, knowledgeCitation{Kind: ref.Kind, ID: ref.ID, Version: ref.Version, PostID: row.PostID})
+		citations = append(citations, knowledgeCitation{Kind: ref.Kind, ID: ref.ID, Version: ref.Version, PostID: row.PostID, GroupID: row.GroupID})
 	}
 	return knowledgeRestored{knowledgeTurnResult: message, Citations: citations}, nil
 }

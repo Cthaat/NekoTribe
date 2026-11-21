@@ -46,7 +46,7 @@ func selectKnowledgeContext(messages []conversationHistoryMessage, maxBytes, max
 			}
 			refs := make([]knowledgeCandidate, 0, len(message.Citations))
 			for _, c := range message.Citations {
-				if (c.Kind == "terms" && c.PostID != 0) || (c.Kind != "terms" && (!validKnowledgeID(c.PostID) || (c.Kind == "post" && c.ID != c.PostID))) {
+				if !validKnowledgeLocation(c.Kind, c.ID, c.PostID, c.GroupID) {
 					return knowledgeContext{}, errKnowledgeConversationContext
 				}
 				refs = append(refs, knowledgeCandidate{Kind: c.Kind, ID: c.ID, Version: c.Version})
