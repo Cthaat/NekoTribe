@@ -35,6 +35,7 @@ interface FeatureCard {
   description: string;
   icon: LucideIcon;
   tone: Tone;
+  links?: { label: string; to: string }[];
 }
 
 interface RelatedLink {
@@ -92,6 +93,16 @@ const features = computed<FeatureCard[]>(() => [
     description: t('about.features.safety.description'),
     icon: ShieldCheck,
     tone: 'amber'
+  },
+  {
+    title: t('about.features.ai.title'),
+    description: t('about.features.ai.description'),
+    icon: Bot,
+    tone: 'violet',
+    links: [
+      { label: t('aiKnowledge.title'), to: localePath('/ai/knowledge') },
+      { label: t('aiWriting.title'), to: localePath('/ai/writing') }
+    ]
   }
 ]);
 
@@ -222,6 +233,7 @@ function handleRelatedLinkClick(
           v-for="feature in features"
           :key="feature.title"
           class="grid gap-3 rounded-xl border border-border/60 bg-card p-5 shadow-none transition-shadow hover:shadow-md"
+          :class="{ 'sm:col-span-2 xl:col-span-4': feature.links }"
         >
           <div class="flex items-center gap-3">
             <span
@@ -237,6 +249,11 @@ function handleRelatedLinkClick(
           <p class="text-xs leading-6 text-muted-foreground">
             {{ feature.description }}
           </p>
+          <div v-if="feature.links" class="flex flex-wrap items-center gap-2">
+            <Button v-for="link in feature.links" :key="link.to" as-child size="sm" variant="outline">
+              <NuxtLink :to="link.to">{{ link.label }}</NuxtLink>
+            </Button>
+          </div>
         </div>
       </section>
 

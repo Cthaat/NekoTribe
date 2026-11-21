@@ -53,6 +53,8 @@ export interface PostMediaVM {
   thumbnailUrl: string;
   altText: string | null;
   description: string | null;
+  fileName?: string;
+  privateFileName?: string;
 }
 
 export interface PostCountsVM {

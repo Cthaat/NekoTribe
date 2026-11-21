@@ -27,6 +27,26 @@ const props = defineProps({
   enableDelete: {
     type: Boolean,
     default: false
+  },
+  pendingLikeIds: {
+    type: Object as PropType<ReadonlySet<number>>,
+    default: undefined
+  },
+  submitReply: {
+    type: Function as PropType<(parentCommentId: number, content: string) => Promise<boolean>>,
+    default: undefined
+  },
+  submitComment: {
+    type: Function as PropType<(content: string) => Promise<boolean>>,
+    default: undefined
+  },
+  allowComment: {
+    type: Boolean,
+    default: true
+  },
+  commentByteLimit: {
+    type: Number,
+    default: undefined
   }
 });
 
@@ -42,6 +62,10 @@ const isSubmitting = ref(false);
 const isCommentInputFocused = ref(false);
 
 const MAX_LENGTH = 500;
+const commentLength = computed(() => props.commentByteLimit === undefined
+  ? newCommentContent.value.length
+  : new TextEncoder().encode(newCommentContent.value.trim()).length);
+const commentLimit = computed(() => props.commentByteLimit ?? MAX_LENGTH);
 
 function flatToTree(list: CommentVM[]): NestedCommentVM[] {
   const map: Record<number, NestedCommentVM> = {};
@@ -80,14 +104,16 @@ async function handleLikeComment({
   commentId: string | number;
   action: 'likeComment' | 'unlikeComment';
 }) {
-  toast.success(
-    t(
-      action === 'likeComment'
-        ? 'comment.feedback.liked'
-        : 'comment.feedback.unliked',
-      { id: Number(commentId) }
-    )
-  );
+  if (!props.pendingLikeIds) {
+    toast.success(
+      t(
+        action === 'likeComment'
+          ? 'comment.feedback.liked'
+          : 'comment.feedback.unliked',
+        { id: Number(commentId) }
+      )
+    );
+  }
   emit('like-comment', commentId, action);
 }
 
@@ -114,12 +140,17 @@ function handleDeleteComment(commentId: string | number) {
 }
 
 async function handleSubmitTweetReply() {
-  if (!newCommentContent.value.trim()) return;
+  if (!props.allowComment || isSubmitting.value || !newCommentContent.value.trim() ||
+      commentLength.value > commentLimit.value) return;
 
   isSubmitting.value = true;
   try {
-    toast.success(t('comment.feedback.submitted'));
-    emit('send-reply', newCommentContent.value);
+    if (props.submitComment) {
+      if (!(await props.submitComment(newCommentContent.value))) return;
+    } else {
+      toast.success(t('comment.feedback.submitted'));
+      emit('send-reply', newCommentContent.value);
+    }
     newCommentContent.value = '';
   } catch (err) {
     toast.error(t('comment.feedback.replyFailed'));
@@ -149,6 +180,7 @@ function handleCommentInputBlur() {
     </div>
 
     <Card
+      v-if="allowComment"
       class="mb-6 gap-0 overflow-hidden border-border/60 py-0 shadow-none transition-colors"
       :class="{ 'border-ring/60 ring-2 ring-ring/20': isCommentInputFocused }"
     >
@@ -156,7 +188,8 @@ function handleCommentInputBlur() {
         <Textarea
           v-model="newCommentContent"
           :placeholder="t('comment.placeholder')"
-          :maxlength="MAX_LENGTH"
+          :maxlength="commentByteLimit === undefined ? MAX_LENGTH : undefined"
+          :disabled="isSubmitting"
           class="min-h-[80px] resize-none border-none bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
           @focus="isCommentInputFocused = true"
           @blur="handleCommentInputBlur"
@@ -165,7 +198,7 @@ function handleCommentInputBlur() {
           class="mt-3 flex items-center justify-between gap-2 border-t border-border/40 pt-2"
         >
           <span class="text-xs tabular-nums text-muted-foreground">
-            {{ newCommentContent.length }} / {{ MAX_LENGTH }}
+            {{ commentLength }} / {{ commentLimit }}
           </span>
           <div class="flex items-center gap-2">
             <Button
@@ -173,6 +206,7 @@ function handleCommentInputBlur() {
               variant="ghost"
               size="sm"
               class="h-8"
+              :disabled="isSubmitting"
               @click="newCommentContent = ''"
             >
               {{ t('common.cancel') }}
@@ -180,7 +214,7 @@ function handleCommentInputBlur() {
             <AppSendButton
               size="sm"
               class="h-8"
-              :disabled="isSubmitting || !newCommentContent.trim()"
+              :disabled="isSubmitting || !newCommentContent.trim() || commentLength > commentLimit"
               @click="handleSubmitTweetReply"
             >
               {{ isSubmitting ? t('comment.submitting') : t('comment.submit') }}
@@ -197,6 +231,9 @@ function handleCommentInputBlur() {
         :comment="comment"
         :level="0"
         :enable-delete="enableDelete"
+        :allow-reply="allowComment"
+        :pending-like-ids="pendingLikeIds"
+        :submit-reply="submitReply"
         @like-comment="handleLikeComment"
         @submit-reply="handleSubmitReply"
         @delete-comment="handleDeleteComment"

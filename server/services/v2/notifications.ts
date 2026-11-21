@@ -14,7 +14,6 @@ import {
   v2BadRequest,
   v2Body,
   v2Boolean,
-  v2Count,
   v2DateString,
   v2Execute,
   v2JsonValue,
@@ -179,6 +178,35 @@ export async function v2CreateNotification(
   connection: oracledb.Connection,
   input: V2CreateNotificationInput
 ): Promise<V2Notification | null> {
+  const stored = await v2StoreNotification(connection, input, true);
+  if (!stored) return null;
+  await v2DeliverStoredNotification(connection, stored);
+  return stored.notification;
+}
+
+interface StoredNotification {
+  userId: number;
+  notificationType: string;
+  notification: V2Notification | null;
+  canPush: boolean;
+}
+
+export async function v2DeliverStoredNotification(
+  connection: oracledb.Connection,
+  stored: StoredNotification
+): Promise<void> {
+  if (!stored.notification || !stored.canPush) return;
+  await v2PublishNotificationEvent(connection, stored.userId, 'notification_created', {
+    notification: stored.notification,
+    notification_type: stored.notificationType
+  });
+}
+
+export async function v2StoreNotification(
+  connection: oracledb.Connection,
+  input: V2CreateNotificationInput,
+  autoCommit: boolean
+): Promise<StoredNotification | null> {
   if (input.userId <= 0) return null;
   if (input.actorId && input.actorId === input.userId) {
     return null;
@@ -235,7 +263,8 @@ export async function v2CreateNotification(
       metadata_json: input.metadata
         ? JSON.stringify(input.metadata)
         : null
-    }
+    },
+    autoCommit
   );
 
   const notification = await v2MapNotificationById(
@@ -243,19 +272,7 @@ export async function v2CreateNotification(
     input.userId,
     notificationId
   );
-  if (notification && delivery.canPush) {
-    await v2PublishNotificationEvent(
-      connection,
-      input.userId,
-      'notification_created',
-      {
-        notification,
-        notification_type: input.type
-      }
-    );
-  }
-
-  return notification;
+  return {userId: input.userId, notificationType: input.type, notification, canPush: delivery.canPush};
 }
 
 export async function v2ListNotifications(
@@ -287,39 +304,22 @@ export async function v2ListNotifications(
     filters.push('is_read = 0');
   }
   const whereClause = filters.join('\n      AND ');
-  const total = await v2Count(
-    connection,
-    `
-    SELECT COUNT(*) AS total
-    FROM n_notifications
-    WHERE ${whereClause}
-    `,
-    binds
-  );
   const rows = await v2Rows(
     connection,
     `
-    SELECT *
-    FROM (
-      SELECT
-        notification_id,
-        actor_id,
-        type,
-        title,
-        message,
-        resource_type,
-        resource_id,
-        priority,
-        is_read,
-        read_at,
-        deleted_at,
-        DBMS_LOB.SUBSTR(metadata_json, 4000, 1) AS metadata_json,
-        created_at,
-        ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
+    WITH ranked AS (
+      SELECT notification_id,
+        ROW_NUMBER() OVER (ORDER BY created_at DESC, notification_id DESC) AS rn
       FROM n_notifications
       WHERE ${whereClause}
     )
-    WHERE rn BETWEEN :start_row AND :end_row
+    SELECT n.notification_id, n.actor_id, n.type, n.title, n.message,
+      n.resource_type, n.resource_id, n.priority, n.is_read, n.read_at, n.deleted_at,
+      DBMS_LOB.SUBSTR(n.metadata_json, 4000, 1) AS metadata_json, n.created_at, totals.total
+    FROM (SELECT COUNT(*) AS total FROM ranked) totals
+    LEFT JOIN ranked page_rows ON page_rows.rn BETWEEN :start_row AND :end_row
+    LEFT JOIN n_notifications n ON n.notification_id = page_rows.notification_id
+    ORDER BY page_rows.rn
     `,
     {
       ...binds,
@@ -327,8 +327,9 @@ export async function v2ListNotifications(
       end_row: page.end
     }
   );
+  const total = v2Number(rows[0]?.TOTAL);
   const notifications = await Promise.all(
-    rows.map(async row =>
+    rows.filter(row => row.NOTIFICATION_ID != null).map(async row =>
       v2MapNotification(
         row,
         row.ACTOR_ID

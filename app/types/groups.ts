@@ -18,11 +18,13 @@ export interface GroupOwner {
 
 export interface Group {
   id: number;
+  slug?: string;
   name: string;
   description: string;
   avatar: string;
   coverImage?: string;
   privacy: GroupPrivacy;
+  isActive?: boolean;
   joinApproval: boolean;
   postPermission: V2GroupPostPermission;
   memberCount: number;
@@ -64,7 +66,9 @@ export interface GroupPostGroup {
   name: string;
   avatar: string;
   privacy: GroupPrivacy;
+  isActive?: boolean;
   isMember?: boolean;
+  canComment?: boolean;
   canManage?: boolean;
 }
 

@@ -30,7 +30,6 @@ import {
   useSidebar
 } from '@/components/ui/sidebar';
 import { usePreferenceStore } from '~/stores/user';
-import { v2LogoutCurrent } from '@/services';
 import { toast } from 'vue-sonner';
 
 const localePath = useLocalePath();
@@ -58,8 +57,9 @@ async function handleLogout() {
 
   isLoading.value = true;
   try {
-    preferenceStore.resetToDefaults();
-    await v2LogoutCurrent();
+    const result = await preferenceStore.logoutCurrentSession();
+    if (!result || !preferenceStore.isAuthCurrent(result.revision)) return;
+    if (!result.ok) throw result.error;
     toast(t('nav.user.logoutSuccess'));
     navigateTo(localePath('/auth/login'));
   } catch (error) {

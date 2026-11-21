@@ -87,8 +87,8 @@ function waitForRedisReady(
     const onUnavailable = () => {
       settle(false);
     };
-    const onError = (error: Error) => {
-      console.error(`${label} 连接失败:`, error.message);
+    const onError = () => {
+      console.error(`${label} 连接失败`);
       settle(false);
     };
 
@@ -221,13 +221,18 @@ export function getRedisPublisher(): Redis | null {
   if (!redisPublisher) {
     try {
       // 获取 Redis 连接配置
-      const config = createRedisConfig();
+      const config = {
+        ...createRedisConfig(),
+        commandTimeout: 1500,
+        maxRetriesPerRequest: 0,
+        autoResendUnfulfilledCommands: false
+      };
 
       redisPublisher = new Redis(config);
 
       // 设置发布者的事件监听器
-      redisPublisher.on('error', error => {
-        console.error('Redis 发布者错误:', error.message);
+      redisPublisher.on('error', () => {
+        console.error('Redis 发布者错误');
         redisAvailable = false;
       });
 
@@ -243,7 +248,7 @@ export function getRedisPublisher(): Redis | null {
       });
     } catch (error) {
       // 创建发布者失败时的错误处理
-      console.error('创建 Redis 发布者失败:', error);
+      console.error('创建 Redis 发布者失败');
       redisAvailable = false;
       return null;
     }
@@ -292,6 +297,7 @@ export interface WSMessage {
     | 'chat_reaction_updated'
     | 'chat_channel_updated'
     | 'direct_message'
+    | 'direct_message_deleted'
     | 'notification_created'
     | 'notification_read_status_updated'
     | 'notifications_read_status_updated'
@@ -327,8 +333,7 @@ export async function publishMessage(
   // 如果 Redis 不可用，记录日志并直接返回（降级处理）
   if (!redisAvailable) {
     console.log(
-      `Redis 不可用，跳过发布消息到频道 ${channel}:`,
-      message
+      `Redis 不可用，跳过发布消息到频道 ${channel}`
     );
     return;
   }
@@ -359,10 +364,10 @@ export async function publishMessage(
       channel,
       JSON.stringify(message)
     );
-    console.log(`消息已发布到频道 ${channel}:`, message);
+    console.log(`消息已发布到频道 ${channel}`);
   } catch (error) {
     // 发布失败时记录错误，但不影响程序继续运行
-    console.error(`发布消息到频道 ${channel} 失败:`, error);
+    console.error(`发布消息到频道 ${channel} 失败`);
   }
 }
 

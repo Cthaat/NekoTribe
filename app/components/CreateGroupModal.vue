@@ -217,7 +217,7 @@ async function uploadGroupImage(
   body.append('file', file);
   body.append('alt_text', altText || file.name);
   const media = await v2UploadMedia(body);
-  return normalizeAssetUrl(media.public_url);
+  return media.public_url;
 }
 
 function revokeObjectUrl(url: string | null): void {
@@ -352,7 +352,7 @@ onBeforeUnmount(() => {
             <Avatar class="h-20 w-20 rounded-xl ring-1 ring-border">
               <AvatarImage
                 v-if="formData.avatar"
-                :src="formData.avatar"
+                :src="normalizeAssetUrl(formData.avatar)"
                 class="rounded-xl"
               />
               <AvatarFallback class="rounded-xl bg-muted text-2xl font-semibold">
@@ -447,7 +447,7 @@ onBeforeUnmount(() => {
           >
             <img
               v-if="formData.coverImage"
-              :src="formData.coverImage"
+              :src="normalizeAssetUrl(formData.coverImage)"
               :alt="formData.name || t('groups.create.cover')"
               class="h-full w-full object-cover"
             >

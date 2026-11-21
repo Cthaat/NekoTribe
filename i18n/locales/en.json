@@ -1,6 +1,30 @@
 {
+  "visibility": {
+    "title": "Blocked and muted accounts",
+    "actions": "Relationship actions",
+    "blocks": "Blocked",
+    "mutes": "Muted",
+    "block": "Block",
+    "mute": "Mute indefinitely",
+    "muteDay": "Mute for 24 hours",
+    "unblock": "Unblock",
+    "unmute": "Unmute",
+    "permanent": "Muted indefinitely",
+    "until": "Muted until {date}",
+    "loading": "Loading accounts…",
+    "loadFailed": "Could not load accounts.",
+    "retry": "Retry",
+    "emptyBlocks": "No blocked accounts.",
+    "emptyMutes": "No muted accounts.",
+    "previous": "Previous",
+    "next": "Next",
+    "confirmBlock": "Blocking {name} will remove follows in both directions.",
+    "saved": "Relationship updated",
+    "sessionChanged": "Your account changed. Go back and reopen this page."
+  },
   "common": {
     "refresh": "Refresh",
+    "retry": "Retry",
     "empty": "No data",
     "prev": "Previous",
     "next": "Next",
@@ -29,6 +53,9 @@
     "pagination": "Page {page} / {totalPages} · Total {total}"
   },
   "globalSearch": {
+    "recommended": "Recommended",
+    "noRecommendations": "No recommended users right now.",
+    "signIn": "Sign in to search for users.",
     "placeholder": "Search posts or users",
     "usersTitle": "Users",
     "postsAction": "Posts",
@@ -112,7 +139,7 @@
   "about": {
     "badge": "NekoTribe Project",
     "title": "About NekoTribe",
-    "description": "NekoTribe is a full-stack social interaction project built around posts, groups, chat, notifications, moderation, and AI sentiment analysis. It is suitable for coursework demos, feature showcases, and continued product development.",
+    "description": "NekoTribe is a social publishing and community platform with posts, groups, real-time chat, notifications, and content moderation.",
     "actions": {
       "repository": "Repository",
       "backHome": "Back Home"
@@ -131,8 +158,12 @@
         "description": "WebSocket support powers direct chat, group chat, presence, and notification delivery."
       },
       "safety": {
-        "title": "Moderation & Analysis",
-        "description": "Includes reports, moderation workflows, account safety, and SentimentFlow integration."
+        "title": "Moderation & Safety",
+        "description": "Report content, resolve cases and appeals, and manage account security."
+      },
+      "ai": {
+        "title": "AI assistants",
+        "description": "Sign in to ask about public content and platform rules or draft and edit posts. Group administrators can draft community updates, and moderators can review recommendations with supporting evidence."
       }
     },
     "links": {
@@ -167,9 +198,19 @@
     }
   },
   "post": {
+    "likers": {
+      "title": "View likes",
+      "loading": "Loading likes…",
+      "empty": "No visible likes on this page",
+      "failed": "Could not load likes",
+      "retry": "Retry",
+      "previous": "Previous page",
+      "next": "Next page"
+    },
     "actions": {
       "addBookmark": "Add bookmark",
       "removeBookmark": "Remove bookmark",
+      "edit": "Edit post",
       "delete": "Delete post",
       "report": "Report post"
     },
@@ -181,12 +222,27 @@
       "deleteFailed": "Failed to delete post",
       "retweeted": "Reposted",
       "retweetFailed": "Failed to repost",
+      "retweetUnconfirmed": "Could not confirm the repost. Refresh to check before trying again.",
+      "postUnconfirmed": "Could not confirm publication. Your draft is still open. Check whether it was published before trying again.",
       "replied": "Reply posted",
       "replyFailed": "Failed to post reply",
       "likeFailed": "Failed to update like",
       "bookmarkFailed": "Failed to update bookmark",
       "reported": "Report submitted",
-      "reportFailed": "Failed to submit report"
+      "reportFailed": "Failed to submit report",
+      "notInterested": "Not interested",
+      "showLess": "See less from this author",
+      "recommendationSaved": "Feedback saved. It will apply when you refresh your feed.",
+      "recommendationFailed": "Could not save recommendation feedback"
+    },
+    "tagAnalytics": {
+      "title": "Topic statistics",
+      "posts": "Posts",
+      "authors": "Authors",
+      "views": "Views",
+      "likes": "Likes",
+      "engagement": "Average engagement",
+      "retry": "Retry loading topic statistics"
     },
     "feed": {
       "loadFailed": "Failed to load posts",
@@ -205,6 +261,7 @@
       "emptyGoHome": "Go Home",
       "emptyExplore": "Explore Home",
       "searchEmptyTitle": "No matching posts found.",
+      "matchingTags": "Matching tags",
       "searchEmptyDescription": "Try another keyword or search again later.",
       "unavailable": "This post does not exist or has been deleted."
     },
@@ -218,6 +275,8 @@
       "mediaTypeTitle": "Unsupported file type",
       "mediaTypeDescription": "Post media currently supports images and videos.",
       "removeMedia": "Remove media",
+      "mediaInUse": "This attachment is still in use.",
+      "mediaDeleteFailed": "Could not delete the attachment. Its preview was retained.",
       "dropHint": "Drop to upload images or videos",
       "altTextPlaceholder": "Add media description (optional)",
       "mediaDescriptionPlaceholder": "Add media description (optional)",
@@ -303,6 +362,13 @@
       "composeTitle": "Reply to this post",
       "composeDescription": "Your reply will appear as a post in the reply list."
     },
+    "reposts": {
+      "title": "Reposts",
+      "total": "{count} reposts",
+      "empty": "This post has no reposts yet.",
+      "loadFailed": "Failed to load reposts",
+      "loadMore": "Load more reposts"
+    },
     "media": {
       "thumbnailAlt": "Post media thumbnail"
     },
@@ -330,6 +396,8 @@
     "replyPlaceholder": "Write a reply...",
     "submitReply": "Submit reply",
     "delete": "Delete",
+    "deleteConfirmTitle": "Delete this comment?",
+    "deleteConfirmBody": "This cannot be undone. Other people's replies will remain.",
     "characterCount": "{count} / {max} characters",
     "submit": "Post comment",
     "submitting": "Posting...",
@@ -474,10 +542,22 @@
     }
   },
   "groups": {
+    "invitePreview": {
+      "title": "Group invitation",
+      "loading": "Loading invitation…",
+      "invalid": "This invitation link is invalid.",
+      "from": "Invited by {name}",
+      "pending": "Your request is awaiting approval.",
+      "unavailable": "You can’t join this group.",
+      "joined": "You’re a member of this group.",
+      "join": "Join group",
+      "retry": "Try again"
+    },
     "title": "Groups",
     "description": "Discover and manage your groups",
     "tabs": {
       "discover": "Discover Groups",
+      "popular": "Popular Groups",
       "my": "My Groups",
       "posts": "Group Posts",
       "invites": "Group Invites"
@@ -490,6 +570,7 @@
       "join": "Join group",
       "leave": "Leave group",
       "requestJoin": "Request to join",
+      "cancelRequest": "Cancel pending request",
       "manage": "Manage group",
       "invite": "Invite"
     },
@@ -505,6 +586,7 @@
       "joinRequested": "Join request sent",
       "joinFailed": "Failed to join group",
       "left": "Left group",
+      "requestCanceled": "Group join request canceled",
       "leaveFailed": "Failed to leave group",
       "settingsWip": "Group settings are in development...",
       "refreshFailed": "Refresh failed",
@@ -519,6 +601,7 @@
       "loadInvitesFailed": "Failed to load invites",
       "inviteAccepted": "Invite accepted",
       "inviteAcceptFailed": "Failed to accept invite",
+      "inviteResponseUnknown": "The response could not be confirmed. Reloading your invitations.",
       "inviteRejected": "Invite rejected",
       "inviteRejectFailed": "Failed to reject invite"
     },
@@ -563,6 +646,21 @@
       "emptyPosts": "No posts yet",
       "emptyMembers": "No members yet"
     },
+    "audit": {
+      "title": "Audit log",
+      "loading": "Loading audit log…",
+      "empty": "No audit entries on this page",
+      "failed": "Could not load the audit log",
+      "expired": "Your session changed. Reopen group management.",
+      "actor": "Actor #{id}",
+      "user": "Target user #{id}",
+      "post": "Target post #{id}",
+      "comment": "Target comment #{id}",
+      "details": "Change details",
+      "retry": "Retry",
+      "previous": "Previous page",
+      "next": "Next page"
+    },
     "manage": {
       "title": "Manage {name}",
       "description": "Update group details, member permissions, invite links, and danger actions.",
@@ -570,7 +668,7 @@
       "saving": "Saving...",
       "never": "None",
       "defaultMuteReason": "Group moderation mute",
-      "memberSearch": "Search members",
+      "memberSearch": "Search loaded members",
       "pendingTitle": "Pending members ({count})",
       "emptyMembers": "No matching members",
       "tabs": {
@@ -687,6 +785,26 @@
       "total": "{count} posts",
       "allGroups": "All groups",
       "groupPlaceholder": "Select group",
+      "replyTooLong": "Shorten the reply to at most 1,000 bytes.",
+      "replyUnconfirmed": "Could not confirm the reply. Refresh the comments before retrying.",
+      "summaryUnavailable": "Could not read this public discussion. Refresh and try again.",
+      "commentOrder": {
+        "label": "Sort comments",
+        "newest": "Newest",
+        "oldest": "Oldest",
+        "popular": "Popular"
+      },
+      "manualPublish": "Publish a group post",
+      "manualContent": "Post content",
+      "manualAnnouncement": "Publish as an announcement",
+      "manualTooLong": "Shorten the content to at most 4,000 bytes.",
+      "manualPublished": "Published to the group.",
+      "manualPublishFailed": "Could not confirm publication. Refresh the group feed before retrying.",
+      "manualAttachment": "Add image",
+      "manualUploading": "Uploading image",
+      "manualRemoveAttachment": "Remove image",
+      "manualAttachmentLimit": "The combined image URLs are too long.",
+      "manualAttachmentFailed": "Could not upload the image. Try again.",
       "typePlaceholder": "Post type",
       "groupContext": "From group",
       "manageable": "Manageable",
@@ -713,9 +831,12 @@
     },
     "invites": {
       "pendingCount": "{count} pending invites",
+      "viewAll": "View all invitations",
+      "unavailable": "This invitation is no longer available.",
       "emptyTitle": "No pending invites",
       "emptyDescription": "Invites will appear here when someone invites you to a group.",
       "invitedYou": "invited you to join",
+      "openGroup": "Open group",
       "reject": "Reject",
       "accept": "Accept",
       "expired": "Expired",
@@ -842,20 +963,22 @@
       "description": "Invite users to join {group}, or create a shareable invite link.",
       "searchLabel": "Search users",
       "searchPlaceholder": "Enter username or display name",
-      "searchHint": "Selecting a user creates a targeted invite; leaving it blank creates a general invite link.",
+      "searchHint": "Select a recipient to send an invitation. Clear the search to create a link.",
       "searching": "Searching users...",
       "noResults": "No users available to invite",
       "emptySearch": "Enter at least 2 characters to search.",
       "selected": "Selected",
       "clearSelection": "Clear",
       "linkTitle": "Invite link",
-      "linkDescription": "When no specific user is selected, a shareable invite link is created.",
+      "linkDescription": "With the search field empty, you can create a link to share.",
       "maxUses": "Max uses",
       "expireHours": "Valid hours",
       "messageLabel": "Invite message",
       "messagePlaceholder": "Add an optional invite note",
       "createdTitle": "Invite created",
       "targetedCreated": "A targeted invite was sent to this user.",
+      "messageTooLong": "The invitation message must fit within 200 UTF-8 bytes.",
+      "resultUnknown": "The result could not be confirmed. Check the group's invite history before trying again.",
       "sendInvite": "Send invite",
       "createLink": "Create invite link"
     },
@@ -866,6 +989,7 @@
       "videoDescription": "Video rooms and realtime call signaling are not connected to the backend yet."
     },
     "directMessage": {
+      "loadOlder": "Load older messages",
       "title": "Direct message",
       "placeholder": "Message {user}...",
       "loading": "Loading direct messages...",
@@ -876,6 +1000,8 @@
       "title": "Direct messages",
       "description": "See every one-on-one conversation",
       "empty": "No direct conversations yet",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
       "noMessages": "No messages yet"
     },
     "message": {
@@ -890,6 +1016,9 @@
     },
     "composer": {
       "searchMembers": "Search members",
+      "attachmentCount": "Each message can have up to 32 attachments.",
+      "attachmentSize": "Each attachment must be 500 MiB or smaller.",
+      "attachmentEmpty": "Choose a non-empty attachment.",
       "noMembers": "No matching members",
       "searchChannels": "Search channels",
       "noChannels": "No matching channels",
@@ -918,6 +1047,7 @@
       "notificationSettings": "Notification settings",
       "chatSettings": "Chat settings",
       "createChannel": "Create channel",
+      "loadMoreGroups": "Load more groups",
       "muteChannel": "Mute channel",
       "unmuteChannel": "Unmute channel",
       "editChannel": "Edit channel",
@@ -943,13 +1073,18 @@
     "prompts": {
       "channelName": "Enter a channel name",
       "messageContent": "Edit message content",
-      "deleteChannel": "Delete this channel? Messages stay in the database but will no longer be shown."
+      "deleteChannel": "Delete this channel? Messages stay in the database but will no longer be shown.",
+      "deleteDirectMessage": "Delete this message from the conversation for both participants?"
     },
     "dialogs": {
       "createChannel": {
         "title": "Create channel",
         "description": "Category: {category}",
-        "nameLabel": "Channel name"
+        "nameLabel": "Channel name",
+        "categoryLabel": "Channel category",
+        "privateLabel": "Private channel",
+        "editDescription": "Update the channel name, category, and visibility.",
+        "byteLimit": "Enter at most {max} UTF-8 bytes."
       }
     },
     "feedback": {
@@ -958,6 +1093,7 @@
       "sendFailed": "Failed to send message",
       "loadFailed": "Failed to load chat",
       "loadMessagesFailed": "Failed to load messages",
+      "loadChannelsFailed": "Failed to load channels",
       "deleted": "Message deleted",
       "deleteFailed": "Failed to delete message",
       "messageUpdated": "Message updated",
@@ -979,6 +1115,7 @@
       "videoCallUnavailable": "Video call backend is not connected yet",
       "loadDirectConversationsFailed": "Failed to load direct conversations",
       "loadDirectMessagesFailed": "Failed to load direct messages",
+      "openDirectConversationFailed": "Could not open this conversation.",
       "directMessageSent": "Direct message sent",
       "directMessageFailed": "Failed to send direct message",
       "cannotMessageSelf": "You cannot send a direct message to yourself",
@@ -997,7 +1134,14 @@
     }
   },
   "media": {
-    "lightboxAlt": "High resolution media"
+    "lightboxAlt": "High resolution media",
+    "privateDownload": "Download private attachment",
+    "cancelPrivateDownload": "Cancel download",
+    "privateDownloadFailed": "Could not download this attachment. Check your access and try again.",
+    "attachmentScopeChanged": "Remove the uploaded attachments before switching between public and restricted visibility.",
+    "removePrivateToPublish": "Remove private attachments and make this post public",
+    "keepAttachments": "Attachments to keep",
+    "attachmentNumber": "Attachment {number}"
   },
   "errorPage": {
     "notFound": {
@@ -1011,6 +1155,7 @@
     }
   },
   "notifications": {
+    "realtimeUnavailable": "Live notifications are temporarily unavailable.",
     "mail": {
       "deleteSuccess": "Mail moved to trash",
       "deleteFailed": "Failed to move mail to trash",
@@ -1020,6 +1165,7 @@
       "markReadSuccess": "Notification marked as read",
       "markUnreadSuccess": "Notification marked as unread",
       "markAllReadSuccess": "All notifications marked as read",
+      "markListedRead": "Mark listed notifications as read",
       "markAllReadFailed": "Failed to mark all as read",
       "systemName": "System",
       "systemEmail": "system"
@@ -1050,6 +1196,7 @@
       "viewComment": "View comment",
       "viewProfile": "View profile",
       "viewSession": "View login session",
+      "viewConversation": "View conversation",
       "viewInvite": "View invite"
     },
     "types": {
@@ -1059,6 +1206,7 @@
       "follow": "Follow",
       "mention": "Mention",
       "login_alert": "Login alert",
+      "direct_message": "Direct message",
       "system": "System",
       "group_invite": "Group invite"
     },
@@ -1095,6 +1243,29 @@
     }
   },
   "moderation": {
+    "assignment": {
+      "owner": "Assigned to {name}",
+      "unassigned": "Unassigned",
+      "claim": "Claim case",
+      "release": "Release case",
+      "claimDone": "Case claimed",
+      "releaseDone": "Case released"
+    },
+    "bulk": {
+      "title": "Moderate selected posts",
+      "selected": "Moderate {count} selected posts",
+      "selectPost": "Select post {id}",
+      "confirm": "This action applies to {count} posts.",
+      "action": "Moderation action",
+      "note": "Note",
+      "noteTooLong": "Use at most 1,000 UTF-8 bytes.",
+      "approve": "Approve reports and take posts down",
+      "reject": "Reject reports and restore posts",
+      "flag": "Flag for review",
+      "remove": "Take posts down",
+      "restore": "Restore posts",
+      "processed": "Processed {count} posts"
+    },
     "title": "Content Moderation",
     "description": "Review platform content and keep the community healthy",
     "tabs": {
@@ -1161,6 +1332,7 @@
     "filters": {
       "searchPlaceholder": "Search post content or users...",
       "statusPlaceholder": "Status",
+      "priorityAll": "All priorities",
       "reportReasonPlaceholder": "Report reason",
       "dateRangePlaceholder": "Date range",
       "sortPlaceholder": "Sort",
@@ -1244,6 +1416,16 @@
       "evidence": "View evidence"
     },
     "appeals": {
+      "status": {
+        "all": "All appeals",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "handled": "This appeal has already been handled. The list was refreshed.",
+      "reply": "Moderator reply",
+      "replyOptional": "You can add an optional reply.",
+      "replyTooLong": "Replies must be at most 2,000 bytes.",
       "title": "Appeal Review",
       "empty": "No appeals found",
       "approve": "Approve appeal",
@@ -1257,8 +1439,8 @@
       "saveFailed": "Failed to save moderation settings",
       "definitions": {
         "auto_hide_report_threshold": {
-          "label": "Auto-hide threshold",
-          "description": "Content is automatically marked high priority when report count reaches this value."
+          "label": "Report escalation threshold",
+          "description": "Raise content review priority when this many distinct people have open reports. Set to 0 to disable."
         },
         "require_note_on_reject": {
           "label": "Require rejection note",
@@ -1555,6 +1737,7 @@
       "title": "Terms of Service",
       "description": "Please read the following terms of service and privacy policy carefully.",
       "lastUpdated": "Last updated",
+      "citationUnavailable": "This version of the cited terms is unavailable.",
       "toc": {
         "title": "Table of Contents",
         "acceptance": "Acceptance of Terms",
@@ -1675,6 +1858,7 @@
       "profile": "Profile",
       "posts": "Post Management",
       "likes": "My Likes",
+      "bookmarks": "My Bookmarks",
       "appearance": "Appearance",
       "security": "Security",
       "active": "Active",
@@ -1830,14 +2014,21 @@
       "feedback": {
         "loadFailed": "Failed to load settings",
         "saved": "Settings saved",
-        "saveFailed": "Save failed"
-      }
+        "saveFailed": "Save failed",
+        "loading": "Loading current settings…",
+        "saveUncertain": "The save result could not be confirmed. Refresh settings before saving again."
+      },
+      "sessionChanged": "Your session changed. Reopen settings to continue.",
+      "reopen": "Reopen settings"
     },
     "active": {
       "title": "Active Sessions",
       "description": "Manage devices and sessions currently signed in.",
       "revoke": "Revoke",
       "revokeOthers": "Sign out other devices",
+      "confirmRevokeOthers": "Sign out other devices? This device stays signed in.",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
       "thisDevice": "This device",
       "otherDevice": "Other device",
       "contentPlaceholder": "Active sessions list coming soon.",
@@ -1855,6 +2046,13 @@
       "summary": "{count} liked posts",
       "emptyTitle": "No liked posts yet",
       "emptyDescription": "Posts you like will appear here for quick review."
+    },
+    "bookmarks": {
+      "title": "My Bookmarks",
+      "description": "View the posts you saved.",
+      "summary": "{count} bookmarked posts",
+      "emptyTitle": "No bookmarks yet",
+      "emptyDescription": "Bookmark a post to find it here later."
     },
     "statements": {
       "title": "Account Status",
@@ -1888,7 +2086,8 @@
       },
       "appealTitle": "Submit an Appeal",
       "appealPlaceholder": "Describe why you believe this is a mistake (at least 10 characters).",
-      "appealTooShort": "Please provide at least 10 characters.",
+      "appealTooLong": "Appeal text must be at most 2,000 bytes",
+      "appealPending": "An appeal is already pending.",
       "appealSubmitted": "Appeal submitted.",
       "appealFailed": "Failed to submit appeal.",
       "appealStatus": "Appeal status",
@@ -1956,7 +2155,8 @@
         "loadFailed": "Failed to load post management data",
         "analyticsFailed": "Failed to load post metrics",
         "saved": "Post settings saved",
-        "saveFailed": "Failed to save post settings"
+        "saveFailed": "Failed to save post settings",
+        "saveUnconfirmed": "Could not confirm the edit was saved. Your edits are still open. Check the post before trying again."
       }
     },
     "overview": {
@@ -1981,7 +2181,10 @@
         "likesGiven": "Likes Given",
         "commentsMade": "Comments Made",
         "dailyTrend": "Daily Trend",
-        "dailyTrendDescription": "Posts, received likes, comments, and overall engagement over the last 14 days.",
+        "dailyTrendDescription": "Posts, received likes, comments, and overall engagement for the selected period.",
+        "dailyRange": "Date range",
+        "rangeDays": "Last {days} days",
+        "dailyFailed": "Could not load daily analytics.",
         "chartPosts": "Posts",
         "chartLikes": "Likes",
         "chartComments": "Comments",
@@ -2072,6 +2275,7 @@
         "phoneRequired": "Phone Number is required.",
         "updateProfile": "Update Profile",
         "updateProfileSuccess": "Profile updated successfully.",
+        "saveFailed": "Could not save your profile. Review the form and try again.",
         "resetForm": "Reset Form"
       }
     },
@@ -2169,7 +2373,10 @@
           "disableFailed": "Failed to disable 2FA",
           "disabled": "Two-factor authentication disabled",
           "copied": "Secret copied"
-        }
+        },
+        "statusUnknown": "Unknown",
+        "reloadStatus": "Reload status",
+        "statusLoading": "Loading..."
       },
       "danger": {
         "title": "Delete Account",
@@ -2182,35 +2389,186 @@
           "deleted": "Account deleted",
           "deleteFailed": "Failed to delete account"
         }
-      }
+      },
+      "sessionChanged": "Your session changed. Reopen security settings to continue.",
+      "reopen": "Reopen security settings",
+      "sessionActionFailed": "Session cleanup failed. Verify your session before continuing."
     }
   },
+  "moderationAdvice": {
+    "title": "AI review assistant",
+    "hide": "Hide AI assistant",
+    "description": "Uses the target’s public text and published rules. Review the recommendation before deciding what action to take.",
+    "generate": "Generate advice",
+    "refresh": "Refresh history",
+    "generating": "Generating advice…",
+    "stopGeneration": "Stop generating",
+    "generationStopped": "Stopped waiting for advice. Refresh history to check whether it was saved.",
+    "generationSaved": "The advice was saved. Refresh history to view it.",
+    "loading": "Loading history…",
+    "empty": "No saved advice for this target.",
+    "expired": "This advice is no longer available because its evidence or rules changed.",
+    "insufficient": "There is not enough eligible public text to generate advice. Review the target manually.",
+    "unavailable": "The review assistant is temporarily unavailable.",
+    "conflict": "The target, rules, or history changed. Refresh history before trying again.",
+    "failed": "Could not load or generate advice. Refresh history before trying again.",
+    "forbidden": "You don’t have access to this advice.",
+    "sessionChanged": "Your session changed. Reopen the review queue.",
+    "rule": "Rule #{id} · version {version}",
+    "openSource": "Open reviewed content",
+    "feedbackLabel": "Rate this review advice",
+    "feedbackSaving": "Saving rating…",
+    "deleteConversation": "Delete current AI conversation",
+    "deleteHistoricalConversation": "Delete this advice’s conversation",
+    "deleteHistoricalPrompt": "Delete all advice and ratings in the selected conversation?",
+    "deletePrompt": "Delete the advice and ratings in this AI conversation? Other conversations and the moderation case will be kept.",
+    "confirmDelete": "Confirm conversation deletion",
+    "deleting": "Deleting AI conversation…",
+    "deleted": "AI conversation deleted.",
+    "deleteUnknown": "Could not confirm deletion. Refresh history to check.",
+    "feedbackSaved": "Rating saved.",
+    "feedbackUnavailable": "Ratings are temporarily unavailable. Refresh history to view the advice.",
+    "feedbackFailed": "Could not confirm the rating. Refresh history before trying again.",
+    "feedback": {
+      "helpful": "Helpful",
+      "incorrect": "Incorrect",
+      "insufficient": "Insufficient evidence"
+    },
+    "risk": {
+      "none": "No risk identified",
+      "spam": "Spam",
+      "harassment": "Harassment",
+      "hate": "Hate",
+      "violence": "Violence",
+      "adult": "Adult content",
+      "misinformation": "Misinformation",
+      "copyright": "Copyright",
+      "other": "Other risk"
+    },
+    "recommendation": {
+      "no_action": "No action suggested",
+      "human_review": "Manual review suggested",
+      "consider_removal": "Consider removal"
+    }
+  },
+  "aiGroupDraft": {
+    "usedTools": "Tools used: {tools}",
+    "public_search": "Search public content",
+    "public_statistics": "Count public activity",
+    "title": "Group drafts",
+    "history": "Conversation history",
+    "new": "New conversation",
+    "delete": "Delete conversation",
+    "deleteQuestion": "Delete this conversation and its drafts?",
+    "confirmDelete": "Confirm delete",
+    "deleted": "Conversation deleted.",
+    "deleteFailed": "Could not confirm deletion. Refresh history.",
+    "untitled": "Group conversation",
+    "noHistory": "No draft conversations for this group yet.",
+    "more": "Load more",
+    "kind": "Draft type",
+    "searchTerm": "Search phrase (optional)",
+    "searchInvalid": "Use at most 256 UTF-8 bytes and omit control characters.",
+    "weekly_report": "Weekly report",
+    "activity_plan": "Activity plan",
+    "skill": "Skill",
+    "automaticSkill": "Automatic skill",
+    "groupBriefSkill": "Group operations",
+    "faq": "FAQ",
+    "announcement": "Announcement",
+    "generate": "Generate draft",
+    "generating": "Generating draft…",
+    "working": "Working…",
+    "sessionChanged": "Your session changed. Reopen group management.",
+    "forbidden": "This feature is available to active owners and admins of public groups.",
+    "conflict": "The conversation or its sources changed. Refresh to continue.",
+    "unavailable": "Group drafts are temporarily unavailable. Refresh to try again.",
+    "quota": "AI request quota reached. Try again later.",
+    "quotaRetry": "AI request quota reached. Try again in {seconds} seconds.",
+    "requestFailed": "Could not complete the request. Refresh history before retrying.",
+    "conversationMissing": "This conversation is no longer available.",
+    "generationSaved": "The draft was saved. Refresh history to view it.",
+    "insufficient": "No public sources are available for this time window.",
+    "cancelled": "Stopped waiting. Refresh history to see whether a draft was saved.",
+    "review": "Review and edit",
+    "reviewTitle": "Review before posting to this group",
+    "draftText": "Post text",
+    "draftBytes": "{bytes} / 4,000 bytes",
+    "publishAsAnnouncement": "Post as a group announcement",
+    "confirmPublish": "Confirm post",
+    "published": "Posted to this group.",
+    "publishFailed": "Could not confirm publication. Check group posts before retrying.",
+    "checkGroupPostsNewTab": "Open group posts in a new tab",
+    "confirmPublicationRetry": "I checked the group feed and want to post again",
+    "reviewRestored": "Your edits were kept. If the last result was uncertain, check group posts before posting again.",
+    "tooLong": "Shorten the post to 4,000 bytes or less.",
+    "openPost": "View published post",
+    "post": "Post",
+    "comment": "Comment",
+    "sources": "Sources",
+    "sourceUnavailable": "This source is no longer available.",
+    "staleDraft": "The sources changed. This draft is unavailable."
+  },
   "aiWriting": {
+    "messageBytes": "{bytes} / {limit} bytes",
+    "replyCopied": "Reply copied",
+    "copyFailed": "Could not copy. Select the text to copy it manually.",
+    "copyReply": "Copy reply",
+    "useAsPost": "Use as post",
+    "applyToComposer": "Use in current post",
+    "composerSource": "Review the text before sending. Using a reply replaces only the text in your post editor.",
+    "postTooLong": "This reply is longer than 280 characters. Copy it to edit.",
+    "composerFailed": "Could not open the post composer",
     "eyebrow": "AI writing",
     "title": "Writing assistant",
     "description": "Drafts are for review and are never published automatically.",
     "new": "New conversation",
     "history": "Conversation history",
     "historyEmpty": "No writing conversations yet",
+    "conversationTitle": "Conversation title (optional)",
+    "conversationTitleTooLong": "Shorten the conversation title and try again.",
     "untitled": "Untitled conversation",
     "empty": "Describe what you would like to write.",
     "you": "You",
     "assistant": "Writing assistant",
     "placeholder": "Describe your writing request",
+    "modeLabel": "Writing mode",
+    "sourcePlaceholder": "Paste the source text",
+    "summarizePost": "Summarize discussion with AI",
+    "summaryUnavailable": "Could not read this public discussion. Refresh and try again.",
+    "discussionPrefilled": "The public post and some loaded comments are ready to review. You can edit them before sending.",
+    "modes": {
+      "draft": "Draft",
+      "polish": "Polish",
+      "tags": "Suggest tags",
+      "summary": "Summarize discussion"
+    },
+    "instructions": {
+      "polish": "Polish the following text for clarity while preserving its meaning and facts.",
+      "tags": "Suggest up to five relevant tags for the following text and briefly explain your choices.",
+      "summary": "Summarize the following discussion. List the main viewpoints, confirmed conclusions, and open questions."
+    },
     "send": "Send",
     "refreshState": "Refresh conversation",
     "retry": "Retry response",
+    "stopGeneration": "Stop generating",
     "deleteTitle": "Delete this conversation?",
     "deleteDescription": "The conversation and its messages will be deleted.",
     "errors": {
       "generation": "Generation or loading failed. Refresh and try again.",
+      "generation-stopped": "Stopped waiting for the response. Refresh the conversation to check whether it was saved.",
+      "reply-saved": "The reply was saved. Refresh the conversation to view it.",
       "append-unknown": "The message submission result is unknown. Refresh before continuing.",
       "history": "Could not load conversation history. Please retry.",
       "delete-unknown": "Deletion was not confirmed. Refresh or try again later.",
+      "conversation-missing": "This conversation is unavailable. You can start a new one.",
+      "sequence-conflict": "This conversation has changed. Review the latest messages before generating again.",
       "too-long": "The message exceeds 65536 bytes. Please shorten it."
     }
   },
   "aiKnowledge": {
+    "allComments": "View all comments",
+    "citedCommentMissing": "The cited comment is unavailable.",
     "eyebrow": "Community knowledge",
     "title": "Knowledge assistant",
     "description": "Answers your question using public posts and comments matching your search phrase. Review the sources.",
@@ -2228,13 +2586,18 @@
     "send": "Send",
     "refreshState": "Refresh conversation",
     "retry": "Retry response",
+    "stopGeneration": "Stop generating",
     "deleteTitle": "Delete this conversation?",
     "deleteDescription": "The conversation and its messages will be deleted.",
     "errors": {
       "generation": "Generation or loading failed. Refresh and try again.",
+      "generation-stopped": "Stopped waiting for the response. Refresh the conversation to check whether it was saved.",
+      "reply-saved": "The reply was saved. Refresh the conversation to view it.",
       "append-unknown": "The message submission result is unknown. Refresh before continuing.",
       "history": "Could not load conversation history. Please retry.",
       "delete-unknown": "Deletion was not confirmed. Refresh or try again later.",
+      "conversation-missing": "This conversation is unavailable. You can start a new one.",
+      "sequence-conflict": "This conversation has changed. Review the latest messages before generating again.",
       "too-long": "The message exceeds 65536 bytes. Please shorten it.",
       "search-invalid": "Enter a search phrase of at most 256 UTF-8 bytes without control characters."
     },
@@ -2242,6 +2605,28 @@
     "sources": "Sources",
     "post": "Post",
     "comment": "Comment",
-    "terms": "Platform terms"
+    "group_post": "Group post",
+    "group_comment": "Group comment",
+    "terms": "Platform terms",
+    "recheckSources": "Recheck sources"
+  },
+  "aiModelVersion": "Model version",
+  "aiReplyConfigRevision": "Generated with configuration {revision}",
+  "aiAvailability": {
+    "modelConfigRevision": "Current model configuration revision {revision}",
+    "selectExplicitly": "Explicitly use this skill",
+    "loading": "Checking feature status…",
+    "enabled": "Generation is enabled.",
+    "disabled": "Generation is disabled. You can still view or delete conversation history.",
+    "unconfigured": "Model configuration is unavailable. You can still view or delete conversation history.",
+    "unknown": "Feature status could not be loaded. Refresh to try again.",
+    "refresh": "Refresh feature status",
+    "skillVersion": "{name} · v{version}",
+    "skillNames": {
+      "knowledge-answer": "Knowledge answers",
+      "writing-draft": "Writing drafts",
+      "group-brief": "Group management drafts",
+      "moderation-advice": "Moderation advice"
+    }
   }
 }

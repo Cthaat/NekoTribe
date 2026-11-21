@@ -1,29 +1,54 @@
-function readApiBase(): string {
+interface PublicEndpointConfig {
+  apiBase?: unknown;
+  wsUrl?: unknown;
+  storageBase?: unknown;
+}
+
+function readEndpointConfig(): PublicEndpointConfig {
   try {
-    return String(useRuntimeConfig().public.apiBase ?? '').trim();
+    return useRuntimeConfig().public;
   } catch {
-    return '';
+    return {};
   }
 }
 
-function readWsUrl(): string {
-  try {
-    return String(useRuntimeConfig().public.wsUrl ?? '').trim();
-  } catch {
-    return '';
+export function resolveApiBaseUrl(config = readEndpointConfig()): string {
+  return String(config.apiBase ?? '').trim().replace(/\/+$/, '');
+}
+
+export function resolveApiRequestBase(
+  config: { public: PublicEndpointConfig; apiServerBase?: string } | undefined,
+  isServer: boolean
+): string {
+  const address = isServer ? config?.apiServerBase?.trim() : undefined;
+  if (!address) return resolveApiBaseUrl(config?.public);
+
+  const authority = /^https?:\/\/([^/]+)(?:\/|$)/i.exec(address)?.[1];
+  const url = URL.canParse(address) ? new URL(address) : undefined;
+  if (!authority || authority.includes('@') || /[?#\\\s]/.test(address) ||
+      !url || url.port === '0') {
+    throw new Error('NUXT_API_SERVER_BASE must be an absolute HTTP(S) base URL without credentials, query or fragment.');
   }
+  return url.origin + url.pathname.replace(/\/+$/, '');
 }
 
-export function resolveApiBaseUrl(): string {
-  return readApiBase();
-}
-
-export function joinApiBaseUrl(path: string): string {
-  const base = readApiBase();
+export function joinStorageBaseUrl(path: string, config = readEndpointConfig()): string {
+  const override = String(config.storageBase ?? '').trim();
+  let base = resolveApiBaseUrl(config);
+  if (override) {
+    try {
+      const url = new URL(override);
+      if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password &&
+          !url.search && !url.hash) {
+        base = url.origin + url.pathname.replace(/\/+$/, '');
+      }
+    } catch {
+      // Keep the API base for an invalid storage override.
+    }
+  }
   if (!base) return path;
-  const trimmedBase = base.replace(/\/+$/, '');
   const trimmedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${trimmedBase}${trimmedPath}`;
+  return `${base}${trimmedPath}`;
 }
 
 function browserOrigin(): string {
@@ -61,6 +86,7 @@ function isLocalOnlyHostname(hostname: string): boolean {
 }
 
 export interface ResolveRealtimeUrlOptions {
+  config?: PublicEndpointConfig;
   // Browser hostname when called from client; used to detect a local-only
   // configured URL that would not be reachable from a remote browser.
   browserHostname?: string;
@@ -73,12 +99,11 @@ function normalizeRealtimeFromExplicit(
   configured: string,
   options: ResolveRealtimeUrlOptions
 ): string | null {
-  if (!configured || configured.includes('localhost:3000')) {
-    return null;
-  }
+  if (!configured) return null;
 
   const url = parseAbsoluteUrl(configured);
-  if (!url) return null;
+  if (!url || !['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) ||
+      url.username || url.password || url.hash) return null;
 
   if (url.protocol === 'http:') url.protocol = 'ws:';
   else if (url.protocol === 'https:') url.protocol = 'wss:';
@@ -114,7 +139,8 @@ function normalizeRealtimeFromApiBase(
   if (!apiBase) return null;
 
   const url = parseAbsoluteUrl(apiBase);
-  if (!url) return null;
+  if (!url || !['http:', 'https:'].includes(url.protocol) ||
+      url.username || url.password || url.search || url.hash) return null;
 
   url.protocol = toWsProtocol(url.protocol);
 
@@ -169,10 +195,11 @@ export function resolveRealtimeUrl(
     browserProtocol
   };
 
-  const explicit = normalizeRealtimeFromExplicit(readWsUrl(), ctx);
+  const config = options.config ?? readEndpointConfig();
+  const explicit = normalizeRealtimeFromExplicit(String(config.wsUrl ?? '').trim(), ctx);
   if (explicit) return explicit;
 
-  const derived = normalizeRealtimeFromApiBase(readApiBase(), ctx);
+  const derived = normalizeRealtimeFromApiBase(resolveApiBaseUrl(config), ctx);
   if (derived) return derived;
 
   return sameOriginRealtimeUrl(ctx) ?? '/_ws';

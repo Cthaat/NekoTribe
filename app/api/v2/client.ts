@@ -25,6 +25,8 @@ export interface V2RequestOptions<
   body?: TBody;
   query?: TQuery;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
+  redirect?: RequestRedirect;
 }
 
 export async function v2Request<
@@ -39,7 +41,9 @@ export async function v2Request<
     method: options.method,
     body: options.body,
     query: options.query,
-    headers: options.headers
+    headers: options.headers,
+    signal: options.signal,
+    redirect: options.redirect
   });
 }
 

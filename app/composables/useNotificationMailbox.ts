@@ -2,6 +2,8 @@ import type { NotificationVM } from '@/types/notifications';
 import { v2ListNotifications } from '@/services/notifications';
 import { useRealtimeSocket } from '@/composables/useRealtimeSocket';
 import { usePreferenceStore } from '@/stores/user';
+import { useNuxtApp } from '#app';
+import { authQueueFor } from '@/services/auth-request-queue';
 
 interface NotificationMailboxFilters {
   type: Ref<string>;
@@ -14,6 +16,9 @@ export function useNotificationMailbox(
   filters: NotificationMailboxFilters
 ) {
   const preferenceStore = usePreferenceStore();
+  const app = useNuxtApp();
+  const queue = authQueueFor(app);
+  const realtime = useRealtimeSocket();
   const page = ref(1);
   const pageSize = ref(filters.pageSize ?? 10);
   const notifications = shallowRef<NotificationVM[]>([]);
@@ -30,6 +35,9 @@ export function useNotificationMailbox(
     'notification_restored'
   ]);
   let unsubscribeRealtime: (() => void) | null = null;
+  let stopRecovery: (() => void) | null = null;
+  let requestVersion = 0;
+  let disposed = false;
 
   function isUnauthorizedError(error: unknown): boolean {
     const candidate = error as {
@@ -45,7 +53,13 @@ export function useNotificationMailbox(
   }
 
   function canRequestNotifications(): boolean {
-    return import.meta.client && preferenceStore.isLoggedIn;
+    return import.meta.client && !disposed && preferenceStore.isLoggedIn && !queue.isIdentityChanging;
+  }
+
+  function captureOwner(): () => boolean {
+    const authRevision = queue.revision;
+    const owner = realtime.ownerRevision.value;
+    return () => authRevision === queue.revision && owner === realtime.ownerRevision.value && canRequestNotifications();
   }
 
   function makeQueryKey(): string {
@@ -53,6 +67,7 @@ export function useNotificationMailbox(
   }
 
   async function refresh(): Promise<void> {
+    const version = ++requestVersion;
     if (!canRequestNotifications()) {
       loading.value = false;
       error.value = import.meta.client ? '请先登录' : null;
@@ -61,34 +76,36 @@ export function useNotificationMailbox(
 
     loading.value = true;
     error.value = null;
+    const sameOwner = captureOwner();
+    const isCurrent = () => version === requestVersion && sameOwner();
 
     try {
       const currentKey = makeQueryKey();
       const isReset =
         currentKey !== lastQueryKey.value || page.value === 1;
-      const result = await v2ListNotifications({
+      const result = await app.runWithContext(() => v2ListNotifications({
         type: filters.type.value,
         page: page.value,
         pageSize: pageSize.value,
         unreadOnly: filters.unreadOnly.value,
         showDeleted: filters.showDeleted.value
-      });
+      }));
+      if (!isCurrent()) return;
 
-      if (isReset) {
-        notifications.value = [];
-        seenIds.value = new Set();
-        lastQueryKey.value = currentKey;
-      }
-
+      const items = isReset ? [] : [...notifications.value];
+      const seen = isReset ? new Set<number>() : new Set(seenIds.value);
       for (const item of result.items) {
-        if (!seenIds.value.has(item.id)) {
-          seenIds.value.add(item.id);
-          notifications.value.push(item);
-        }
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        items.push(item);
       }
+      lastQueryKey.value = currentKey;
+      seenIds.value = seen;
+      notifications.value = items;
 
       hasNext.value = result.hasNext;
     } catch (caught) {
+      if (!isCurrent()) return;
       if (isUnauthorizedError(caught)) {
         error.value = '请先登录';
         preferenceStore.clearAuthState();
@@ -104,7 +121,7 @@ export function useNotificationMailbox(
         seenIds.value = new Set();
       }
     } finally {
-      loading.value = false;
+      if (version === requestVersion) loading.value = false;
     }
   }
 
@@ -114,23 +131,40 @@ export function useNotificationMailbox(
   }
 
   function resetAndRefresh(): void {
-    page.value = 1;
-    if (!canRequestNotifications()) return;
-    refresh();
+    if (page.value !== 1) {
+      requestVersion++;
+      page.value = 1;
+    }
+    else if (canRequestNotifications()) void refresh();
   }
 
   if (import.meta.client) {
     onMounted(() => {
-      const realtime = useRealtimeSocket();
       unsubscribeRealtime = realtime.subscribe(message => {
         if (!canRequestNotifications()) return;
         if (realtimeEventTypes.has(message.type)) {
           resetAndRefresh();
         }
       });
+      stopRecovery = watch(realtime.recoveryRevision, resetAndRefresh);
     });
 
+    watch(realtime.ownerRevision, () => {
+      requestVersion++;
+      loading.value = false;
+      notifications.value = [];
+      seenIds.value = new Set();
+      lastQueryKey.value = '';
+      error.value = null;
+      hasNext.value = false;
+      page.value = 1;
+    }, {flush: 'sync'});
+    watch(realtime.ownerRevision, resetAndRefresh, {flush: 'post'});
+
     onBeforeUnmount(() => {
+      disposed = true;
+      requestVersion++;
+      stopRecovery?.();
       unsubscribeRealtime?.();
       unsubscribeRealtime = null;
     });
@@ -143,6 +177,7 @@ export function useNotificationMailbox(
     loading,
     error,
     hasNext,
+    captureOwner,
     refresh,
     loadNextPage,
     resetAndRefresh

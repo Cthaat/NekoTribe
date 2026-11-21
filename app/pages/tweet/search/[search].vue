@@ -1,13 +1,19 @@
 <script lang="ts" setup>
-import { onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { PostVM } from '@/types/posts';
+import type { V2TagAnalytics, V2TagItem } from '@/types/v2';
+import { v2GetTagAnalytics, v2SearchTags } from '@/api/v2/posts';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { usePreferenceStore } from '@/stores/user';
 import { AlertTriangle } from 'lucide-vue-next';
 import {
   v2BookmarkPost,
   v2CreateRetweet,
+  UnconfirmedRetweetError,
   v2DeletePost,
   v2LikePost,
   v2ListPosts,
+  v2ListTagPosts,
   v2UnlikePost,
   v2UnbookmarkPost
 } from '@/services/posts';
@@ -27,12 +33,29 @@ import { useRoute } from 'vue-router';
 
 const route = useRoute();
 const localePath = useLocalePath();
-const { t } = useAppLocale();
+const { t, locale } = useAppLocale();
+const app = useNuxtApp();
+const auth = authQueueFor(app);
+const preferences = usePreferenceStore();
 
 const isRetweetModalOpen = ref(false);
 const selectedTweetForRetweet = ref<PostVM | null>(null);
 const isSubmittingRetweet = ref(false);
 const hasMounted = ref(false);
+const authChange = ref(0);
+const tagStats = ref<V2TagAnalytics | null>(null);
+const matchingTags = ref<V2TagItem[]>([]);
+const tagStatsRetry = ref(0);
+const tagStatsFailed = ref(false);
+let stopAuth: (() => void) | undefined;
+let viewRevision = 0;
+
+function invalidatePostActions(): void {
+  viewRevision++;
+  isRetweetModalOpen.value = false;
+  selectedTweetForRetweet.value = null;
+  isSubmittingRetweet.value = false;
+}
 
 function currentSearchQuery(): string {
   const value = route.params.search;
@@ -40,48 +63,113 @@ function currentSearchQuery(): string {
   return typeof value === 'string' ? value : '';
 }
 
+const tagName = computed(() => {
+  const keyword = currentSearchQuery();
+  return keyword.startsWith('#') ? keyword.slice(1).trim() : '';
+});
+
+watch([hasMounted, currentSearchQuery, () => preferences.isLoggedIn, authChange],
+  async ([mounted, query, loggedIn], _, onCleanup) => {
+    matchingTags.value = [];
+    const q = query.trim();
+    if (!mounted || !loggedIn || !q || tagName.value || auth.isIdentityChanging) return;
+    const request = new AbortController();
+    onCleanup(() => request.abort());
+    try {
+      const items = await app.runWithContext(() => v2SearchTags(q, request.signal));
+      if (!request.signal.aborted) matchingTags.value = items;
+    } catch {
+      // Posts remain available if tag search fails.
+    }
+  }, { flush: 'sync' }
+);
+
+const tagMetrics = computed(() => {
+  const stats = tagStats.value;
+  if (!stats) return [];
+  const format = new Intl.NumberFormat(locale.value, { maximumFractionDigits: 2 });
+  return Object.entries({
+    posts: stats.total_posts,
+    authors: stats.total_authors,
+    views: stats.total_views,
+    likes: stats.total_likes,
+    engagement: stats.engagement_score
+  }).map(([key, value]) => ({ key, value: format.format(value) }));
+});
+
+watch([hasMounted, tagName, () => preferences.isLoggedIn, authChange, tagStatsRetry],
+  async ([mounted, name, loggedIn], _, onCleanup) => {
+    tagStats.value = null;
+    tagStatsFailed.value = false;
+    if (!mounted || !name || !loggedIn || auth.isIdentityChanging) return;
+    let current = true;
+    onCleanup(() => { current = false; });
+    try {
+      const stats = await app.runWithContext(() => v2GetTagAnalytics(name));
+      if (current) tagStats.value = stats;
+    } catch (error) {
+      if (!current) return;
+      const response = error as { statusCode?: number; response?: { status?: number } };
+      tagStatsFailed.value = (response?.statusCode ?? response?.response?.status) !== 404;
+    }
+  }, { flush: 'sync' }
+);
+
 const feed = usePostFeed({
   debugName: 'tweet-search',
   pageSize: 15,
   loadPage: async (page, pageSize) =>
-    await v2ListPosts({
-      page,
-      pageSize,
-      sort: 'newest',
-      q: currentSearchQuery()
+    await app.runWithContext(() => {
+      const name = tagName.value;
+      if (name && preferences.isLoggedIn) return v2ListTagPosts(name, page, pageSize);
+      return v2ListPosts({ page, pageSize, sort: 'newest', q: currentSearchQuery() });
     })
 });
 
 onMounted(() => {
+  stopAuth = auth.subscribe(() => { authChange.value++; });
   hasMounted.value = true;
   void feed.refresh();
+});
+onBeforeUnmount(() => {
+  stopAuth?.();
+  invalidatePostActions();
+  feed.invalidate();
 });
 
 watch(
   () => feed.page,
   () => {
-    if (hasMounted.value) void feed.refresh();
-  }
+    invalidatePostActions();
+    if (hasMounted.value && currentSearchQuery() && !auth.isIdentityChanging) void feed.refresh();
+  },
+  { flush: 'sync' }
 );
 
 watch(
-  () => route.params.search,
+  [() => route.params.search, authChange, () => preferences.isLoggedIn],
   () => {
     if (!hasMounted.value) return;
+    invalidatePostActions();
+    feed.invalidate();
     if (feed.page !== 1) {
       feed.page = 1;
       return;
     }
-    void feed.refresh();
-  }
+    if (currentSearchQuery() && !auth.isIdentityChanging) void feed.refresh();
+  },
+  { flush: 'sync' }
 );
 
 async function handleDeleteTweet(tweetId: number) {
+  const revision = viewRevision;
   try {
     await v2DeletePost(tweetId);
+    if (revision !== viewRevision) return;
     toast.success(t('post.feedback.deleted'));
     feed.removePost(tweetId);
   } catch (error) {
+    if (revision !== viewRevision) return;
     const message =
       error instanceof Error ? error.message : t('common.unknownError');
     toast.error(t('post.feedback.deleteFailed'), {
@@ -107,23 +195,30 @@ async function handleSubmitRetweet({
   content: string;
   originalTweetId: number;
 }) {
+  const revision = viewRevision;
   isSubmittingRetweet.value = true;
   try {
     await v2CreateRetweet(originalTweetId, {
       content,
       visibility: 'public'
     });
+    if (revision !== viewRevision) return;
     toast.success(t('post.feedback.retweeted'));
     await feed.refresh();
   } catch (error) {
+    if (revision !== viewRevision) return;
     const message =
-      error instanceof Error
+      error instanceof UnconfirmedRetweetError
+        ? t('post.feedback.retweetUnconfirmed')
+        : error instanceof Error
         ? error.message
         : t('post.feedback.retweetFailed');
     toast.error(message);
   } finally {
-    isSubmittingRetweet.value = false;
-    isRetweetModalOpen.value = false;
+    if (revision === viewRevision) {
+      isSubmittingRetweet.value = false;
+      isRetweetModalOpen.value = false;
+    }
   }
 }
 
@@ -131,11 +226,13 @@ async function handleLikeTweet(
   tweet: PostVM,
   action: 'like' | 'unlike'
 ) {
+  const revision = viewRevision;
   try {
     const result =
       action === 'like'
         ? await v2LikePost(tweet.id)
         : await v2UnlikePost(tweet.id);
+    if (revision !== viewRevision) return;
     feed.patchPost(tweet.id, current => ({
       ...current,
       viewer: {
@@ -148,7 +245,7 @@ async function handleLikeTweet(
       }
     }));
   } catch {
-    toast.error(t('common.operationFailed'));
+    if (revision === viewRevision) toast.error(t('common.operationFailed'));
   }
 }
 
@@ -156,11 +253,13 @@ async function handleBookmarkTweet(
   tweet: PostVM,
   action: 'mark' | 'unmark'
 ) {
+  const revision = viewRevision;
   try {
     const result =
       action === 'mark'
         ? await v2BookmarkPost(tweet.id)
         : await v2UnbookmarkPost(tweet.id);
+    if (revision !== viewRevision) return;
     feed.patchPost(tweet.id, current => ({
       ...current,
       viewer: {
@@ -169,7 +268,7 @@ async function handleBookmarkTweet(
       }
     }));
   } catch {
-    toast.error(t('common.operationFailed'));
+    if (revision === viewRevision) toast.error(t('common.operationFailed'));
   }
 }
 </script>
@@ -177,6 +276,28 @@ async function handleBookmarkTweet(
 <template>
   <div class="pt-2">
     <div class="bg-background p-4 sm:p-10">
+      <section v-if="matchingTags.length" class="mb-4" aria-labelledby="matching-tags-title">
+        <h2 id="matching-tags-title" class="mb-2 text-sm font-medium">{{ t('post.feed.matchingTags') }}</h2>
+        <ul class="flex flex-wrap gap-2">
+          <li v-for="tag in matchingTags" :key="tag.tag_id">
+            <NuxtLink class="inline-block max-w-60 truncate rounded-full border px-3 py-1 text-sm hover:bg-muted" :to="localePath('/tweet/search/' + encodeURIComponent('#' + tag.name))">
+              #{{ tag.name }}
+            </NuxtLink>
+          </li>
+        </ul>
+      </section>
+      <section v-if="tagStats" class="mb-4 rounded-lg border p-4" aria-labelledby="tag-analytics-title">
+        <h2 id="tag-analytics-title" class="mb-3 text-sm font-medium">{{ t('post.tagAnalytics.title') }}</h2>
+        <dl class="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+          <div v-for="metric in tagMetrics" :key="metric.key">
+            <dt class="text-muted-foreground">{{ t(`post.tagAnalytics.${metric.key}`) }}</dt>
+            <dd class="font-medium tabular-nums">{{ metric.value }}</dd>
+          </div>
+        </dl>
+      </section>
+      <button v-else-if="tagStatsFailed" type="button" class="mb-4 text-sm text-muted-foreground underline" @click="tagStatsRetry++">
+        {{ t('post.tagAnalytics.retry') }}
+      </button>
       <div v-if="!hasMounted || feed.loading" class="space-y-4">
         <TweetCardSkeleton
           v-for="i in 5"

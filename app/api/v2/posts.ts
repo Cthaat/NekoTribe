@@ -3,6 +3,7 @@ import {
   v2Request,
   v2RequestData
 } from './client';
+import { isPrivateMediaContent, usesMediaContentRoute } from '../../utils/private-media';
 import type {
   V2BookmarkPostData,
   V2Comment,
@@ -19,11 +20,21 @@ import type {
   V2ListTrendingPostsRequest,
   V2ListUserPostsRequest,
   V2PagedResult,
+  V2PageQuery,
   V2Post,
   V2PostAnalytics,
+  V2PublicUser,
   V2RetweetPayload,
+  V2TagAnalytics,
+  V2TagItem,
   V2UpdatePostPayload
 } from '@/types/v2';
+
+export async function v2ListPostLikers(postId: number, page: number, signal: AbortSignal) {
+  return toV2PagedResult(await v2Request<V2PublicUser[], undefined, V2PageQuery>(
+    `/api/v2/posts/${postId}/likes`, { method: 'GET', query: { page, page_size: 20 }, signal }
+  ));
+}
 
 type PostListQuery =
   | V2ListPostsRequest
@@ -32,6 +43,22 @@ type PostListQuery =
   | V2ListMyPostsRequest
   | V2ListMyBookmarkedPostsRequest
   | V2ListMyLikedPostsRequest;
+
+export function v2GetTagAnalytics(name: string): Promise<V2TagAnalytics> {
+  return v2RequestData<V2TagAnalytics>(`/api/v2/tags/${encodeURIComponent(name)}/analytics`);
+}
+
+export function v2SearchTags(q: string, signal: AbortSignal): Promise<V2TagItem[]> {
+  return v2RequestData<V2TagItem[], undefined, V2PageQuery & { q: string }>(
+    '/api/v2/tags', { query: { q, page_size: 6 }, signal }
+  );
+}
+
+export async function v2ListTagPosts(name: string, query: V2PageQuery) {
+  return toV2PagedResult(await v2Request<V2Post[], undefined, V2PageQuery>(
+    `/api/v2/tags/${encodeURIComponent(name)}/posts`, { query }
+  ));
+}
 
 function logPostListResponse(
   source: string,
@@ -157,17 +184,32 @@ export async function v2ListPostReplies(
   postId: number,
   query: V2ListPostsRequest = {}
 ): Promise<V2PagedResult<V2Post>> {
+  return await listPostReferences(postId, 'replies', query);
+}
+
+export async function v2ListPostRetweets(
+  postId: number,
+  query: V2ListPostsRequest = {}
+): Promise<V2PagedResult<V2Post>> {
+  return await listPostReferences(postId, 'retweets', query);
+}
+
+async function listPostReferences(
+  postId: number,
+  kind: 'replies' | 'retweets',
+  query: V2ListPostsRequest
+): Promise<V2PagedResult<V2Post>> {
   const normalizedQuery = normalizePostQuery(query);
   const response = await v2Request<
     V2Post[],
     undefined,
     ReturnType<typeof normalizePostQuery>
-  >(`/api/v2/posts/${postId}/replies`, {
+  >(`/api/v2/posts/${postId}/${kind}`, {
     method: 'GET',
     query: normalizedQuery
   });
   logPostListResponse(
-    'post-replies',
+    `post-${kind}`,
     normalizedQuery,
     response
   );
@@ -175,11 +217,14 @@ export async function v2ListPostReplies(
 }
 
 export async function v2GetPost(
-  postId: number
+  postId: number,
+  signal?: AbortSignal
 ): Promise<V2Post> {
-  return await v2RequestData<V2Post>(`/api/v2/posts/${postId}`, {
-    method: 'GET'
+  const post = await v2RequestData<V2Post>(`/api/v2/posts/${postId}`, {
+    method: 'GET', signal
   });
+  if (!post || post.post_id !== postId) throw new Error('Invalid post detail response');
+  return post;
 }
 
 export async function v2GetPostAnalytics(
@@ -196,98 +241,148 @@ export async function v2GetPostAnalytics(
 export async function v2DeletePost(
   postId: number
 ): Promise<void> {
-  await v2RequestData<null>(`/api/v2/posts/${postId}`, {
+  const response = await v2Request<null>(`/api/v2/posts/${postId}`, {
     method: 'DELETE'
   });
+  if (!response || response.code !== 200 || response.message !== 'post deleted' ||
+      response.data !== null || response.meta !== null) {
+    throw new Error('Invalid post delete response');
+  }
+}
+
+export class UnconfirmedPostError extends Error {
+  override name = 'UnconfirmedPostError';
+
+  constructor() {
+    super('Post receipt did not confirm the created post');
+  }
 }
 
 export async function v2CreatePost(
   payload: V2CreatePostPayload
 ): Promise<V2Post> {
-  return await v2RequestData<V2Post, V2CreatePostPayload>(
+  const result = await v2RequestData<V2Post, V2CreatePostPayload>(
     '/api/v2/posts',
     {
       method: 'POST',
       body: payload
     }
   );
+  const reply = payload.reply_to_post_id ?? null;
+  const repost = payload.repost_of_post_id ?? null;
+  const quote = payload.quoted_post_id ?? null;
+  if (!result || !Number.isSafeInteger(result.post_id) || result.post_id < 1 ||
+      [reply, repost, quote].includes(result.post_id) ||
+      (result.reply_to_post_id ?? null) !== reply ||
+      (result.repost_of_post_id ?? null) !== repost ||
+      (result.quoted_post_id ?? null) !== quote) {
+    throw new UnconfirmedPostError();
+  }
+  return result;
+}
+
+export class UnconfirmedPostUpdateError extends Error {
+  override name = 'UnconfirmedPostUpdateError';
+
+  constructor() {
+    super('Post update receipt did not confirm the saved post');
+  }
 }
 
 export async function v2UpdatePost(
   postId: number,
-  payload: V2UpdatePostPayload
+  payload: V2UpdatePostPayload,
+  signal?: AbortSignal
 ): Promise<V2Post> {
-  return await v2RequestData<V2Post, V2UpdatePostPayload>(
+  const response = await v2Request<V2Post, V2UpdatePostPayload>(
     `/api/v2/posts/${postId}`,
     {
       method: 'PATCH',
-      body: payload
+      body: payload,
+      signal
     }
   );
+  const post = response?.data;
+  if (response?.code !== 200 || response.message !== 'post updated' ||
+      response.meta !== null || post?.post_id !== postId ||
+      !Number.isSafeInteger(post.author?.user_id) || post.author.user_id < 1 ||
+      post.viewer_state?.can_delete !== true) {
+    throw new UnconfirmedPostUpdateError();
+  }
+  return post;
+}
+
+export class UnconfirmedRetweetError extends Error {
+  override name = 'UnconfirmedRetweetError';
+
+  constructor() {
+    super('Retweet receipt did not confirm the created post');
+  }
 }
 
 export async function v2CreateRetweet(
   postId: number,
   payload: V2RetweetPayload
 ): Promise<V2Post> {
-  return await v2RequestData<V2Post, V2RetweetPayload>(
+  const result = await v2RequestData<V2Post, V2RetweetPayload>(
     `/api/v2/posts/${postId}/retweets`,
     {
       method: 'POST',
       body: payload
     }
   );
+  if (!result || result.repost_of_post_id !== postId ||
+      !Number.isSafeInteger(result.post_id) || result.post_id < 1 || result.post_id === postId) {
+    throw new UnconfirmedRetweetError();
+  }
+  return result;
 }
 
-export async function v2LikePost(
-  postId: number
-): Promise<V2LikePostData> {
-  return await v2RequestData<V2LikePostData>(
+export type RecommendationAction = 'not_interested' | 'show_less';
+
+export async function v2SendRecommendationFeedback(postId: number, action: RecommendationAction): Promise<boolean> {
+  const body = { resource_type: 'post', resource_id: postId, action };
+  const result = await v2RequestData<{ accepted: boolean }, typeof body>('/api/v2/recommendations/feedback', {
+    method: 'POST', body
+  });
+  return result.accepted === true;
+}
+
+async function setPostLike(postId: number, method: 'POST' | 'DELETE'): Promise<V2LikePostData> {
+  const result = await v2RequestData<V2LikePostData>(
     `/api/v2/posts/${postId}/likes`,
-    {
-      method: 'POST'
-    }
+    { method }
   );
+  if (!result || result.post_id !== postId || typeof result.is_liked !== 'boolean' ||
+      !Number.isSafeInteger(result.likes_count) || result.likes_count < 0) {
+    throw new Error('Invalid post like response');
+  }
+  return result;
 }
 
-export async function v2UnlikePost(
-  postId: number
-): Promise<V2LikePostData> {
-  return await v2RequestData<V2LikePostData>(
-    `/api/v2/posts/${postId}/likes`,
-    {
-      method: 'DELETE'
-    }
-  );
-}
+export const v2LikePost = (postId: number) => setPostLike(postId, 'POST');
+export const v2UnlikePost = (postId: number) => setPostLike(postId, 'DELETE');
 
-export async function v2BookmarkPost(
-  postId: number
-): Promise<V2BookmarkPostData> {
-  return await v2RequestData<V2BookmarkPostData>(
+async function setPostBookmark(postId: number, method: 'POST' | 'DELETE'): Promise<V2BookmarkPostData> {
+  const result = await v2RequestData<V2BookmarkPostData>(
     `/api/v2/posts/${postId}/bookmarks`,
-    {
-      method: 'POST'
-    }
+    { method }
   );
+  if (!result || result.post_id !== postId || typeof result.is_bookmarked !== 'boolean') {
+    throw new Error('Invalid post bookmark response');
+  }
+  return result;
 }
 
-export async function v2UnbookmarkPost(
-  postId: number
-): Promise<V2BookmarkPostData> {
-  return await v2RequestData<V2BookmarkPostData>(
-    `/api/v2/posts/${postId}/bookmarks`,
-    {
-      method: 'DELETE'
-    }
-  );
-}
+export const v2BookmarkPost = (postId: number) => setPostBookmark(postId, 'POST');
+export const v2UnbookmarkPost = (postId: number) => setPostBookmark(postId, 'DELETE');
 
 export async function v2ListComments(
   postId: number,
   query: {
     page?: number;
     page_size?: number;
+    comment_id?: number;
     sort?: 'newest' | 'oldest' | 'popular';
   } = {}
 ): Promise<V2PagedResult<V2Comment>> {
@@ -360,14 +455,34 @@ export async function v2UploadMedia(
     alt_text?: string | null;
     description?: string | null;
     status?: string;
-  }
+  },
+  signal?: AbortSignal
 ): Promise<V2MediaAsset> {
-  return await v2RequestData<V2MediaAsset, typeof body>(
-    '/api/v2/media',
+  const scope = body instanceof FormData ? body.get('access_scope') : null;
+  const privateUpload = scope !== null && scope !== 'public';
+  const response = await v2Request<V2MediaAsset, typeof body>(
+    privateUpload ? '/api/v2/media/private' : '/api/v2/media',
     {
       method: 'POST',
-      body
+      body,
+      signal,
+      ...(privateUpload ? { redirect: 'error' } : {})
     }
   );
+  const asset = response?.data;
+  if (response?.code !== 200 || response.message !== 'media uploaded' ||
+      response.meta !== null || !asset || !Number.isSafeInteger(asset.media_id) ||
+      asset.media_id <= 0 || asset.status !== 'ready' ||
+      typeof asset.public_url !== 'string' || !asset.public_url.trim() ||
+      (privateUpload
+        ? !isPrivateMediaContent(asset.media_id, asset.public_url) || asset.thumbnail_url !== null
+        : usesMediaContentRoute(asset.public_url))) {
+    throw new Error('Invalid uploaded attachment');
+  }
+  return asset;
+}
+
+export async function v2DeleteMedia(mediaId: number): Promise<void> {
+  await v2RequestData<null>(`/api/v2/media/${mediaId}`, { method: 'DELETE' });
 }
 

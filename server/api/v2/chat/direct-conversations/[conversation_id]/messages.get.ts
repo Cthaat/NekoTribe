@@ -1,13 +1,17 @@
+import { setResponseHeader } from 'h3';
 import { v2ListDirectMessages } from '~/server/services/v2/chat';
 import {
   defineV2Handler,
-  v2RouterNumber
+  v2BadRequest,
+  v2RouterParam
 } from '~/server/utils/v2';
 
-export default defineV2Handler((event, connection) =>
-  v2ListDirectMessages(
-    event,
-    connection,
-    v2RouterNumber(event, 'conversation_id')
-  )
-);
+export default defineV2Handler((event, connection) => {
+  setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  const raw = v2RouterParam(event, 'conversation_id');
+  const id = Number(raw);
+  if (!/^[1-9][0-9]*$/.test(raw) || !Number.isSafeInteger(id)) {
+    v2BadRequest('conversation_id 参数错误');
+  }
+  return v2ListDirectMessages(event, connection, id);
+});

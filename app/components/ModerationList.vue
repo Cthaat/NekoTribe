@@ -11,6 +11,9 @@ const props = defineProps<{
   tweets: ModerationTweet[];
   loading?: boolean;
   hasNext?: boolean;
+  selectedIds?: ReadonlySet<number>;
+  selectionDisabled?: boolean;
+  reviewerId?: number;
 }>();
 
 const emit = defineEmits<{
@@ -20,6 +23,8 @@ const emit = defineEmits<{
   (e: 'view-detail', tweet: ModerationTweet): void;
   (e: 'refresh'): void;
   (e: 'load-more'): void;
+  (e: 'toggle-selection', id: number): void;
+  (e: 'assignment', id: number, action: 'claim' | 'release'): void;
 }>();
 
 const isRefreshing = ref(false);
@@ -57,6 +62,7 @@ const handleViewDetail = (tweet: ModerationTweet) =>
           }}
         </p>
       </div>
+      <slot name="selection-actions" />
       <Button
         variant="outline"
         size="sm"
@@ -113,15 +119,26 @@ const handleViewDetail = (tweet: ModerationTweet) =>
       class="h-[max(420px,calc(100dvh-24rem))] max-h-[46rem] w-full max-sm:h-[calc(100dvh-18rem)] max-sm:min-h-[360px]"
     >
       <div class="space-y-3 p-4">
-        <ModerationCard
-          v-for="tweet in tweets"
-          :key="tweet.id"
-          :tweet="tweet"
-          @approve="handleApprove"
-          @reject="handleReject"
-          @flag="handleFlag"
-          @view-detail="handleViewDetail"
-        />
+        <div v-for="tweet in tweets" :key="tweet.id" class="grid gap-1">
+          <label v-if="selectedIds" class="flex items-center gap-2 text-sm">
+            <input type="checkbox" :checked="selectedIds.has(tweet.id)"
+              :disabled="selectionDisabled || (selectedIds.size >= 100 && !selectedIds.has(tweet.id))"
+              @change="emit('toggle-selection', tweet.id)" />
+            {{ t('moderation.bulk.selectPost', { id: tweet.id }) }}
+          </label>
+          <ModerationCard :tweet="tweet" @approve="handleApprove" @reject="handleReject" @flag="handleFlag" @view-detail="handleViewDetail" />
+          <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>{{ tweet.assignedTo ? t('moderation.assignment.owner', { name: tweet.assignedTo.name }) : t('moderation.assignment.unassigned') }}</span>
+            <template v-if="reviewerId && (tweet.status === 'pending' || tweet.status === 'flagged')">
+              <Button v-if="!tweet.assignedTo" size="sm" variant="outline" :disabled="selectionDisabled" @click="emit('assignment', tweet.id, 'claim')">
+                {{ t('moderation.assignment.claim') }}
+              </Button>
+              <Button v-else-if="tweet.assignedTo.id === reviewerId" size="sm" variant="outline" :disabled="selectionDisabled" @click="emit('assignment', tweet.id, 'release')">
+                {{ t('moderation.assignment.release') }}
+              </Button>
+            </template>
+          </div>
+        </div>
 
         <div v-if="hasNext" class="flex justify-center pt-2">
           <Button

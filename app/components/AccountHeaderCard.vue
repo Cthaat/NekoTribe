@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import {
   computed,
+  onUnmounted,
   ref,
   watch
 } from 'vue';
 import AvatarUploader from '@/components/AvatarUploader.vue';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { useNuxtApp } from '#app';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -66,6 +69,7 @@ import type {
 } from '@/types/users';
 
 const preferenceStore = usePreferenceStore();
+const queue = authQueueFor(useNuxtApp());
 const { t, locale } = useAppLocale();
 const localePath = useLocalePath();
 
@@ -103,7 +107,12 @@ const props = defineProps({
   accountTabs: {
     type: Array as PropType<TabItem[]>,
     required: true
-  }
+  },
+  interactionBlocked: Boolean,
+  relationshipBusy: Boolean,
+  visibilityActions: Boolean,
+  blockedByViewer: Boolean,
+  analyticsAvailable: { type: Boolean, default: true }
 });
 
 const emit = defineEmits<{
@@ -114,6 +123,7 @@ const emit = defineEmits<{
     action: 'follow' | 'unfollow'
   ): void;
   (e: 'refresh'): void;
+  (e: 'visibility', action: 'block' | 'mute' | 'muteDay'): void;
 }>();
 
 type StatsDialogType = 'followers' | 'following' | 'likes';
@@ -176,6 +186,22 @@ const isSelfProfile = computed(() => {
   return props.user.id > 0 && props.user.id === currentUserId.value;
 });
 
+let likesLoad = 0;
+function clearLikesAnalytics() {
+  likesLoad++;
+  likesAnalytics.value = null;
+  likesError.value = null;
+  likesLoading.value = false;
+  if (activeStatsType.value === 'likes') statsDialogOpen.value = false;
+}
+watch(() => [props.user.id, currentUserId.value, props.interactionBlocked, props.analyticsAvailable], clearLikesAnalytics, { flush: 'sync' });
+let likesRevision = queue.revision;
+const unsubscribeLikes = queue.subscribe(() => {
+  if (queue.revision !== likesRevision || queue.isIdentityChanging) clearLikesAnalytics();
+  likesRevision = queue.revision;
+});
+onUnmounted(() => { likesLoad++; unsubscribeLikes(); });
+
 const statsDialogTitle = computed(() => {
   if (activeStatsType.value === 'followers') {
     return t('account.stats.followersTitle');
@@ -211,14 +237,10 @@ const likesStatItems = computed(() => {
       label: t('account.stats.avgLikesPerPost'),
       value: formatDecimal(analytics?.avgLikesPerPost ?? 0)
     },
-    {
-      label: t('account.stats.totalLikesGiven'),
-      value: formatNumber(analytics?.totalLikesGiven ?? 0)
-    },
-    {
-      label: t('account.stats.totalCommentsMade'),
-      value: formatNumber(analytics?.totalCommentsMade ?? 0)
-    },
+    ...(isSelfProfile.value ? [
+      { label: t('account.stats.totalLikesGiven'), value: formatNumber(analytics?.totalLikesGiven ?? 0) },
+      { label: t('account.stats.totalCommentsMade'), value: formatNumber(analytics?.totalCommentsMade ?? 0) }
+    ] : []),
     {
       label: t('account.stats.postsCount'),
       value: formatNumber(analytics?.totalPosts ?? 0)
@@ -328,7 +350,7 @@ function goToAccountSecurity(): void {
 }
 
 function openDirectMessage(): void {
-  if (props.user.id <= 0 || isSelfProfile.value) return;
+  if (props.user.id <= 0 || isSelfProfile.value || props.interactionBlocked || props.relationshipBusy) return;
   void navigateTo(localePath(`/chat?dm=${props.user.id}`));
 }
 
@@ -369,17 +391,20 @@ async function loadRelationshipUsers(
 }
 
 async function loadLikesAnalytics(): Promise<void> {
-  if (props.user.id <= 0 || likesLoading.value) return;
+  const id = props.user.id;
+  if (id <= 0 || !props.analyticsAvailable || likesLoading.value || queue.isIdentityChanging) return;
+  const load = ++likesLoad;
 
   likesLoading.value = true;
   likesError.value = null;
 
   try {
-    likesAnalytics.value = await v2GetUserAnalytics(props.user.id);
+    const analytics = await v2GetUserAnalytics(id);
+    if (load === likesLoad) likesAnalytics.value = analytics;
   } catch {
-    likesError.value = t('account.stats.loadFailed');
+    if (load === likesLoad) likesError.value = t('account.stats.loadFailed');
   } finally {
-    likesLoading.value = false;
+    if (load === likesLoad) likesLoading.value = false;
   }
 }
 
@@ -428,17 +453,10 @@ function handleTabChange(value: string | number): void {
   void navigateTo(selectedTab.to);
 }
 
-const isFollowing = ref(props.user.follow === 'follow');
+const isFollowing = computed(() => props.user.follow === 'follow');
 const showFollowAction = computed(() => {
-  return props.user.id > 0 && props.user.id !== currentUserId.value;
+  return props.user.id > 0 && props.user.id !== currentUserId.value && !props.interactionBlocked;
 });
-
-watch(
-  () => props.user.follow,
-  newValue => {
-    isFollowing.value = newValue === 'follow';
-  }
-);
 
 watch(
   () => [route.path, props.accountTabs] as const,
@@ -447,6 +465,7 @@ watch(
 );
 
 function followUser() {
+  if (props.interactionBlocked || props.relationshipBusy) return;
   if (
     props.user.id ===
     preferenceStore.preferences.user.id
@@ -455,10 +474,8 @@ function followUser() {
     return;
   }
   if (isFollowing.value) {
-    isFollowing.value = false;
     emit('follow', props.user, 'unfollow');
   } else {
-    isFollowing.value = true;
     emit('follow', props.user, 'follow');
   }
 }
@@ -534,6 +551,7 @@ function followUser() {
                 variant="secondary"
                 size="sm"
                 class="w-full sm:w-auto"
+                :disabled="relationshipBusy"
                 @click="openDirectMessage"
               >
                 <MessageCircle class="h-4 w-4" />
@@ -544,6 +562,7 @@ function followUser() {
                 variant="default"
                 size="sm"
                 class="w-full sm:w-auto"
+                :disabled="relationshipBusy"
                 @click="followUser"
               >
                 {{ t('account.header.follow') }}
@@ -553,6 +572,7 @@ function followUser() {
                 variant="outline"
                 size="sm"
                 class="w-full sm:w-auto"
+                :disabled="relationshipBusy"
                 @click="followUser"
               >
                 {{ t('account.header.unfollow') }}
@@ -581,11 +601,24 @@ function followUser() {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     v-if="showFollowAction"
+                    :disabled="relationshipBusy"
                     @click="openDirectMessage"
                   >
                     <MessageCircle class="h-4 w-4" />
                     {{ t('account.actions.directMessage') }}
                   </DropdownMenuItem>
+                  <template v-if="visibilityActions">
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem :disabled="relationshipBusy" @select="emit('visibility', 'muteDay')">
+                      {{ t('visibility.muteDay') }}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem :disabled="relationshipBusy" @select="emit('visibility', 'mute')">
+                      {{ t('visibility.mute') }}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem v-if="!blockedByViewer" :disabled="relationshipBusy" @select="emit('visibility', 'block')">
+                      {{ t('visibility.block') }}
+                    </DropdownMenuItem>
+                  </template>
                   <DropdownMenuItem @click="refreshProfile">
                     <RefreshCw class="h-4 w-4" />
                     {{ t('account.actions.refreshProfile') }}
@@ -639,6 +672,7 @@ function followUser() {
                 </span>
               </button>
               <button
+                v-if="analyticsAvailable"
                 type="button"
                 class="flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
                 @click="openStatsDialog('likes')"

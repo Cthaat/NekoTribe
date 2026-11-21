@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
-import { ref } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
+import { otpRetryDelay } from '~/utils/otpRetryAfter';
 import * as z from 'zod/v3';
 import { Eye, EyeOff } from 'lucide-vue-next';
 import {
@@ -22,17 +23,22 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'vue-sonner';
 import {
   v2CreateOtp,
-  v2LogoutCurrent,
   v2PasswordReset
 } from '@/services';
 import { usePreferenceStore } from '~/stores/user';
 
 const preferenceStore = usePreferenceStore();
+const props = defineProps<{onSessionCleared?: (result: {revision: number; ok: boolean}) => void}>();
+const ownerRevision = preferenceStore.authRevision();
 const { t } = useAppLocale();
 const localePath = useLocalePath();
 
 const value = ref<string[]>([]);
 const verificationId = ref('');
+const verificationAccount = ref('');
+const verificationAuthRevision = ref<number | null>(null);
+let otpRequestVersion = 0;
+let otpDisposed = false;
 
 const isConfirmPasswordVisible = ref(false);
 const isPasswordVisible = ref(false);
@@ -42,19 +48,65 @@ const isCaptchaSending = ref(false);
 const countdown = ref(60);
 let timer: ReturnType<typeof setInterval> | null = null;
 
-async function sendCaptcha(): Promise<void> {
-  const email = preferenceStore.preferences.user.email;
+function resetVerification(): void {
+  otpRequestVersion++;
+  verificationId.value = '';
+  verificationAccount.value = '';
+  verificationAuthRevision.value = null;
+  value.value = [];
+  isCaptchaSending.value = false;
+  if (timer) clearInterval(timer);
+  timer = null;
+}
 
+function isOtpCurrent(version: number, account: string, authRevision: number): boolean {
+  return !otpDisposed && preferenceStore.isAuthCurrent(ownerRevision) && version === otpRequestVersion &&
+    preferenceStore.preferences.user.email.trim() === account && preferenceStore.isAuthCurrent(authRevision);
+}
+
+watch(() => preferenceStore.preferences.user.email, resetVerification, { flush: 'sync' });
+onUnmounted(() => { otpDisposed = true; resetVerification(); resetForm({values: {newPassword: '', confirmPassword: '', captcha: ''}}); });
+
+function beginOtpCooldown(seconds: number, version: number, account: string, authRevision: number): void {
+  const endsAt = Date.now() + seconds * 1000;
+  countdown.value = seconds;
+  timer = setInterval(() => {
+    if (!isOtpCurrent(version, account, authRevision)) {
+      if (version === otpRequestVersion) resetVerification();
+      return;
+    }
+    countdown.value = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    if (countdown.value === 0) {
+      isCaptchaSending.value = false;
+      if (timer) clearInterval(timer);
+      timer = null;
+    }
+  }, 1000);
+}
+
+async function sendCaptcha(): Promise<void> {
+  if (isCaptchaSending.value || isLoading.value || otpDisposed || !preferenceStore.isAuthCurrent(ownerRevision)) return;
+  const account = preferenceStore.preferences.user.email.trim();
+  if (!account) return;
+  const previous = { id: verificationId.value, account: verificationAccount.value, code: [...value.value], revision: verificationAuthRevision.value };
+  resetVerification();
+  const version = otpRequestVersion, authRevision = preferenceStore.authRevision();
   isCaptchaSending.value = true;
   countdown.value = 60;
 
   try {
     const response = await v2CreateOtp({
-      account: email,
+      account,
       type: 'password_reset',
       channel: 'email'
     });
+    if (!isOtpCurrent(version, account, authRevision)) return;
+    if (response.account !== account || !response.verificationId?.trim()) {
+      throw new Error(t('account.security.securityPage.password.captchaSendError'));
+    }
     verificationId.value = response.verificationId;
+    verificationAccount.value = account;
+    verificationAuthRevision.value = authRevision;
 
     toast.success(
       t('account.security.securityPage.password.captchaSent'),
@@ -65,18 +117,19 @@ async function sendCaptcha(): Promise<void> {
       }
     );
 
-    timer = setInterval(() => {
-      if (countdown.value > 0) {
-        countdown.value--;
-      } else {
-        isCaptchaSending.value = false;
-        if (timer) {
-          clearInterval(timer);
-          timer = null;
-        }
-      }
-    }, 1000);
+    beginOtpCooldown(60, version, account, authRevision);
   } catch (error) {
+    if (!isOtpCurrent(version, account, authRevision)) return;
+    const retry = otpRetryDelay(error);
+    if (retry !== null) {
+      if (previous.id && previous.account === account && previous.revision === authRevision) {
+        verificationId.value = previous.id;
+        verificationAccount.value = previous.account;
+        value.value = previous.code;
+        verificationAuthRevision.value = authRevision;
+      }
+      beginOtpCooldown(retry, version, account, authRevision);
+    }
     const message =
       error instanceof Error
         ? error.message
@@ -85,17 +138,19 @@ async function sendCaptcha(): Promise<void> {
       t('account.security.securityPage.password.captchaSendError'),
       { description: message }
     );
+  } finally {
+    if (version === otpRequestVersion && !timer) isCaptchaSending.value = false;
   }
 }
 
 const passwordChangeFormSchema = z
   .object({
-    newPassword: z.string().min(6, {
+    newPassword: z.string().trim().min(6, {
       message: t(
         'account.security.securityPage.password.passwordTooShort'
       )
     }),
-    confirmPassword: z.string().min(6, {
+    confirmPassword: z.string().trim().min(6, {
       message: t(
         'account.security.securityPage.password.passwordTooShort'
       )
@@ -112,7 +167,7 @@ type PasswordChangeFormValues = z.infer<
   typeof passwordChangeFormSchema
 >;
 
-const { handleSubmit } = useForm<PasswordChangeFormValues>({
+const { handleSubmit, resetForm } = useForm<PasswordChangeFormValues>({
   validationSchema: toTypedSchema(passwordChangeFormSchema),
   initialValues: {
     newPassword: '',
@@ -123,9 +178,14 @@ const { handleSubmit } = useForm<PasswordChangeFormValues>({
 
 const onSubmit = handleSubmit(
   async (values: PasswordChangeFormValues): Promise<void> => {
+    if (isLoading.value || otpDisposed || !preferenceStore.isAuthCurrent(ownerRevision)) return;
+    const authRevision = preferenceStore.authRevision();
+    const otpVersion = otpRequestVersion, account = preferenceStore.preferences.user.email.trim();
     isLoading.value = true;
+    let mutationSucceeded = false;
     try {
-      if (!verificationId.value) {
+      if (!isOtpCurrent(otpVersion, account, authRevision) || !verificationId.value ||
+          verificationAccount.value !== account || verificationAuthRevision.value !== authRevision) {
         throw new Error(
           t(
             'account.security.securityPage.password.captchaSendError'
@@ -133,11 +193,13 @@ const onSubmit = handleSubmit(
         );
       }
       await v2PasswordReset({
-        email: preferenceStore.preferences.user.email,
+        email: account,
         verificationId: verificationId.value,
         code: value.value.join(''),
         newPassword: values.newPassword
       });
+      mutationSucceeded = true;
+      if (!isOtpCurrent(otpVersion, account, authRevision)) return;
       toast.success(
         t(
           'account.security.securityPage.password.resetPasswordSuccess'
@@ -149,6 +211,7 @@ const onSubmit = handleSubmit(
         }
       );
     } catch (error) {
+      if (!isOtpCurrent(otpVersion, account, authRevision)) return;
       const message =
         error instanceof Error
           ? error.message
@@ -163,12 +226,19 @@ const onSubmit = handleSubmit(
       );
     } finally {
       try {
-        preferenceStore.resetToDefaults();
-        await v2LogoutCurrent();
+        if (!mutationSucceeded || !isOtpCurrent(otpVersion, account, authRevision)) return;
+        const finish = props.onSessionCleared;
+        const result = await preferenceStore.logoutCurrentSession(authRevision);
+        if (finish && result) { finish(result); return; }
+        if (otpDisposed || !result || !preferenceStore.isAuthCurrent(result.revision)) return;
+        if (!result.ok) throw result.error;
         setTimeout(() => {
-          navigateTo(localePath('auth-login'));
+          if (!otpDisposed && preferenceStore.isAuthCurrent(result.revision)) {
+            navigateTo(localePath('auth-login'));
+          }
         }, 2000);
       } catch {
+        if (otpDisposed) return;
         toast.error(
           t('account.security.securityPage.password.logoutError')
         );

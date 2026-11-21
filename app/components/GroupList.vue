@@ -10,6 +10,7 @@ defineProps<{
   groups: Group[];
   loading?: boolean;
   showCreateButton?: boolean;
+  hasNext?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -133,7 +134,7 @@ const handleSettings = (id: number) => emit('settings', id);
     </div>
 
     <div
-      v-if="groups.length > 0"
+      v-if="groups.length > 0 && hasNext !== false"
       class="flex justify-center pt-2"
     >
       <Button variant="outline" size="sm" @click="emit('load-more')">

@@ -6,6 +6,7 @@ import {
   type PostVM
 } from '@/services';
 import { v2CreateReport } from '@/api/v2/moderation';
+import { v2SendRecommendationFeedback, type RecommendationAction } from '@/api/v2/posts';
 import type { V2ModerationReportReason } from '@/types/v2';
 import {
   Card,
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/card';
 import AppButton from '@/components/app/AppButton.vue';
 import Lightbox from '@/components/Lightbox.vue';
+import PrivateMediaDownload from '@/components/PrivateMediaDownload.vue';
 import {
   Avatar,
   AvatarFallback,
@@ -58,13 +60,15 @@ import {
   MessageSquareQuote,
   PlayCircle,
   Flag,
+  EyeOff,
+  ListFilter,
   Loader2,
   BrainCircuit,
   Hash,
-  MapPin
+  MapPin,
+  Pencil
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
-import AiSentimentPredictionDialog from '@/components/AiSentimentPredictionDialog.vue';
 import TweetContent from '@/components/TweetContent.vue';
 
 const preferenceStore = usePreferenceStore();
@@ -81,10 +85,6 @@ const emit = defineEmits([
   'bookmark-tweet'
 ]);
 
-// 假设这是从你的状态管理或认证 context 中获取的当前登录用户ID
-const currentUserId =
-  preferenceStore.preferences.user.id;
-
 const props = withDefaults(
   defineProps<{
     tweet: PostVM;
@@ -97,11 +97,11 @@ const props = withDefaults(
 
 // 计算属性，判断这条推文是否属于当前登录用户
 const isOwnTweet = computed(
-  () => props.tweet.author.id === currentUserId
+  () => preferenceStore.isLoggedIn && props.tweet.author.id === preferenceStore.preferences.user.id
 );
 
 const mediaItems = computed(() => {
-  return props.tweet.media.map(media => {
+  return props.tweet.media.filter(media => media.privateFileName === undefined).map(media => {
     return {
       type: media.type,
       originalUrl: media.originalUrl,
@@ -111,6 +111,7 @@ const mediaItems = computed(() => {
     };
   });
 });
+const privateAttachments = computed(() => props.tweet.media.filter(media => media.privateFileName !== undefined));
 
 const visibleTags = computed(() =>
   props.tweet.tags
@@ -162,7 +163,6 @@ const localIsBookmarked = ref(
 );
 const isDeleteDialogOpen = ref(false);
 const isReportDialogOpen = ref(false);
-const isAiPredictionOpen = ref(false);
 const isSubmittingReport = ref(false);
 const reportReason = ref<V2ModerationReportReason>('spam');
 const reportDescription = ref('');
@@ -222,10 +222,6 @@ function handleReport() {
   isReportDialogOpen.value = true;
 }
 
-function handleAiPrediction() {
-  isAiPredictionOpen.value = true;
-}
-
 function confirmDelete() {
   isDeleteDialogOpen.value = false;
   emit('delete-tweet', props.tweet.id);
@@ -270,6 +266,23 @@ async function submitReport() {
     );
   } finally {
     isSubmittingReport.value = false;
+  }
+}
+
+const feedbackBusy = ref(false);
+async function sendRecommendationFeedback(action: RecommendationAction) {
+  if (feedbackBusy.value) return;
+  feedbackBusy.value = true;
+  try {
+    if (await v2SendRecommendationFeedback(props.tweet.id, action)) {
+      toast.success(t('post.feedback.recommendationSaved'));
+    } else {
+      toast.error(t('post.feedback.recommendationFailed'));
+    }
+  } catch {
+    toast.error(t('post.feedback.recommendationFailed'));
+  } finally {
+    feedbackBusy.value = false;
   }
 }
 
@@ -473,11 +486,17 @@ const relatedExcerpt = computed(() => {
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem
-            @click.stop="handleAiPrediction"
-          >
+          <DropdownMenuItem @select="navigateTo(localePath('/ai/knowledge'))">
             <BrainCircuit class="mr-2 h-4 w-4" />
-            <span>{{ t('sentiment.actions.predict') }}</span>
+            <span>{{ t('aiKnowledge.title') }}</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            v-if="isOwnTweet"
+            @select="navigateTo(localePath({ path: '/account/posts', query: { edit: String(tweet.id) } }))"
+          >
+            <Pencil class="mr-2 h-4 w-4" />
+            <span>{{ t('post.actions.edit') }}</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -490,6 +509,17 @@ const relatedExcerpt = computed(() => {
           </DropdownMenuItem>
 
           <DropdownMenuSeparator v-if="!isOwnTweet" />
+
+          <DropdownMenuItem v-if="!isOwnTweet && preferenceStore.preferences.user.id > 0" :disabled="feedbackBusy"
+            @select="sendRecommendationFeedback('not_interested')">
+            <EyeOff class="mr-2 h-4 w-4" />
+            <span>{{ t('post.feedback.notInterested') }}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem v-if="!isOwnTweet && preferenceStore.preferences.user.id > 0" :disabled="feedbackBusy"
+            @select="sendRecommendationFeedback('show_less')">
+            <ListFilter class="mr-2 h-4 w-4" />
+            <span>{{ t('post.feedback.showLess') }}</span>
+          </DropdownMenuItem>
 
           <DropdownMenuItem
             v-if="!isOwnTweet"
@@ -654,6 +684,14 @@ const relatedExcerpt = computed(() => {
       </div>
 
       <!-- 媒体展示区 -->
+      <div v-if="privateAttachments.length" class="flex flex-wrap gap-2">
+        <PrivateMediaDownload
+          v-for="item in privateAttachments"
+          :key="item.id"
+          :media-id="item.id"
+          :file-name="item.privateFileName ?? ''"
+        />
+      </div>
       <div
         v-if="mediaItems.length > 0"
         class="overflow-hidden rounded-xl border border-border/60"
@@ -742,11 +780,6 @@ const relatedExcerpt = computed(() => {
     v-model:open="isLightboxOpen"
     :items="mediaItems"
     :start-index="lightboxStartIndex"
-  />
-  <AiSentimentPredictionDialog
-    v-model:open="isAiPredictionOpen"
-    :text="tweet.content"
-    :post-id="tweet.id"
   />
 
   <Dialog v-model:open="isDeleteDialogOpen">

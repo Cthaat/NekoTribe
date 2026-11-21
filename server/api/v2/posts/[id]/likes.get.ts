@@ -1,6 +1,5 @@
-import { v2PostLikesUsers } from '~/server/services/v2/posts';
-import { defineV2Handler, v2RouterNumber } from '~/server/utils/v2';
+import { v2PostLikesUsers } from '~/server/services/v2/post-likers';
+import { safeAuthEntry } from '~/server/utils/auth-entry-errors';
+import { defineV2Handler } from '~/server/utils/v2';
 
-export default defineV2Handler((event, connection) =>
-  v2PostLikesUsers(event, connection, v2RouterNumber(event, 'id'))
-);
+export default defineV2Handler(safeAuthEntry(v2PostLikesUsers));

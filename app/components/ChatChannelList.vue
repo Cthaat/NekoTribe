@@ -71,15 +71,19 @@ const props = defineProps<{
   groupName?: string;
   groupAvatar?: string;
   canManage?: boolean;
+  isMutePending?: (channelId: number) => boolean;
   currentUserName?: string;
   groups?: ChannelListGroup[];
+  hasMoreGroups?: boolean;
+  loadingMoreGroups?: boolean;
   activeGroupId?: number;
 }>();
 
 const emit = defineEmits<{
   (e: 'select', channel: Channel): void;
   (e: 'select-group', groupId: number): void;
-  (e: 'create-channel', categoryId: number): void;
+  (e: 'load-more-groups'): void;
+  (e: 'create-channel', categoryId: number | null): void;
   (e: 'edit-channel', channel: Channel): void;
   (e: 'delete-channel', channelId: number): void;
   (e: 'toggle-mute', channelId: number): void;
@@ -154,7 +158,7 @@ const currentUserInitials = computed(() => {
             <ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent class="w-60" align="start">
+        <DropdownMenuContent class="max-h-[min(70dvh,32rem)] w-60 overflow-y-auto" align="start">
           <template v-if="groups?.length">
             <DropdownMenuItem
               v-for="group in groups"
@@ -180,9 +184,20 @@ const currentUserInitials = computed(() => {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </template>
+          <DropdownMenuItem
+            v-if="hasMoreGroups"
+            :disabled="loadingMoreGroups"
+            @select.prevent="emit('load-more-groups')"
+          >
+            {{ t('chat.actions.loadMoreGroups') }}
+          </DropdownMenuItem>
           <DropdownMenuItem @click="emit('invite-members')">
             <Users class="h-4 w-4" />
             {{ t('chat.actions.inviteMembers') }}
+          </DropdownMenuItem>
+          <DropdownMenuItem v-if="canManage" @click="emit('create-channel', null)">
+            <Plus class="h-4 w-4" />
+            {{ t('chat.actions.createChannel') }}
           </DropdownMenuItem>
           <DropdownMenuItem
             v-if="canManage"
@@ -303,6 +318,7 @@ const currentUserInitials = computed(() => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" class="w-44">
                       <DropdownMenuItem
+                        :disabled="isMutePending?.(channel.id)"
                         @click.stop="emit('toggle-mute', channel.id)"
                       >
                         <component

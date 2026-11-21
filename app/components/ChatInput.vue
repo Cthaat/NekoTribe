@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, onBeforeUnmount, watch } from 'vue';
 import {
   Smile,
   Paperclip,
@@ -48,10 +48,10 @@ const props = defineProps<{
   disabledReason?: string;
   members?: ChatMember[];
   channels?: Channel[];
+  sendMessage: (content: string, attachments?: File[]) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string, attachments?: File[]): void;
   (e: 'cancel-reply'): void;
   (e: 'typing'): void;
 }>();
@@ -61,12 +61,18 @@ const textareaRef = ref<TextareaRef | null>(null);
 const attachmentInputRef = ref<HTMLInputElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const attachments = ref<File[]>([]);
+const attachmentError = ref('');
+const attachmentPreviews = new Map<File, string>();
+const isSubmitting = ref(false);
 const isEmojiPickerOpen = ref(false);
 const isMentionPickerOpen = ref(false);
 const isChannelPickerOpen = ref(false);
 const isStickerPickerOpen = ref(false);
 const mentionSearch = ref('');
 const channelSearch = ref('');
+
+const MAX_ATTACHMENTS = 32;
+const MAX_ATTACHMENT_BYTES = 500 * 1024 * 1024;
 
 const ATTACHMENT_ACCEPT = [
   'image/*',
@@ -121,7 +127,7 @@ const stickers = [
 // 计算是否可发送
 const canSend = computed(() => {
   return (
-    props.disabled !== true &&
+    props.disabled !== true && !isSubmitting.value &&
     (message.value.trim().length > 0 ||
       attachments.value.length > 0)
   );
@@ -198,18 +204,20 @@ const insertText = (text: string) => {
 };
 
 // 发送消息
-const handleSend = () => {
-  if (!canSend.value || props.disabled) return;
-
-  emit(
-    'send',
-    message.value.trim(),
-    attachments.value.length > 0
-      ? [...attachments.value]
-      : undefined
-  );
-  message.value = '';
-  attachments.value = [];
+const handleSend = async () => {
+  if (!canSend.value) return;
+  isSubmitting.value = true;
+  try {
+    const sent = await props.sendMessage(message.value.trim(), [...attachments.value]);
+    if (sent) {
+      message.value = '';
+      attachments.value = [];
+      attachmentError.value = '';
+      releaseAttachmentPreviews();
+    }
+  } finally {
+    isSubmitting.value = false;
+  }
 
   nextTick(() => {
     focusTextarea();
@@ -249,7 +257,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   if (props.disabled) return;
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    handleSend();
+    void handleSend();
   }
 };
 
@@ -270,51 +278,54 @@ const openImagePicker = () => {
   imageInputRef.value?.click();
 };
 
-const handleFileSelect = (e: Event) => {
+function selectAttachments(e: Event, imagesOnly = false) {
   const input = e.target as HTMLInputElement;
-  if (props.disabled) {
-    input.value = '';
-    return;
-  }
-  if (input.files) {
-    attachments.value = [
-      ...attachments.value,
-      ...Array.from(input.files)
-    ];
-  }
+  const selected = Array.from(input.files ?? []);
   input.value = '';
-};
+  if (props.disabled || isSubmitting.value) return;
 
-// 处理图片选择
-const handleImageSelect = (e: Event) => {
-  const input = e.target as HTMLInputElement;
-  if (props.disabled) {
-    input.value = '';
-    return;
+  const files = imagesOnly ? selected.filter(file => file.type.startsWith('image/')) : selected;
+  if (attachments.value.length + files.length > MAX_ATTACHMENTS) {
+    attachmentError.value = 'chat.composer.attachmentCount';
+  } else if (files.some(file => file.size > MAX_ATTACHMENT_BYTES)) {
+    attachmentError.value = 'chat.composer.attachmentSize';
+  } else if (files.some(file => file.size === 0)) {
+    attachmentError.value = 'chat.composer.attachmentEmpty';
+  } else {
+    attachmentError.value = '';
+    attachments.value = [...attachments.value, ...files];
   }
-  if (input.files) {
-    const imageFiles = Array.from(input.files).filter(f =>
-      f.type.startsWith('image/')
-    );
-    attachments.value = [
-      ...attachments.value,
-      ...imageFiles
-    ];
-  }
-  input.value = '';
-};
+}
+
+const handleFileSelect = (event: Event) => selectAttachments(event);
+const handleImageSelect = (event: Event) => selectAttachments(event, true);
 
 // 移除附件
 const removeAttachment = (index: number) => {
-  attachments.value.splice(index, 1);
+  if (props.disabled || isSubmitting.value) return;
+  const [file] = attachments.value.splice(index, 1);
+  if (file) {
+    const preview = attachmentPreviews.get(file);
+    if (preview) URL.revokeObjectURL(preview);
+    attachmentPreviews.delete(file);
+  }
 };
+
+function releaseAttachmentPreviews() {
+  for (const preview of attachmentPreviews.values()) URL.revokeObjectURL(preview);
+  attachmentPreviews.clear();
+}
+
+onBeforeUnmount(releaseAttachmentPreviews);
 
 // 获取文件预览
 const getFilePreview = (file: File): string | undefined => {
-  if (file.type.startsWith('image/')) {
-    return URL.createObjectURL(file);
-  }
-  return undefined;
+  if (!file.type.startsWith('image/')) return undefined;
+  const existing = attachmentPreviews.get(file);
+  if (existing) return existing;
+  const preview = URL.createObjectURL(file);
+  attachmentPreviews.set(file, preview);
+  return preview;
 };
 
 const formatFileSize = (size: number) => {
@@ -334,6 +345,8 @@ watch(
     if (!disabled) return;
     message.value = '';
     attachments.value = [];
+    attachmentError.value = '';
+    releaseAttachmentPreviews();
     mentionSearch.value = '';
     channelSearch.value = '';
     isEmojiPickerOpen.value = false;
@@ -346,6 +359,9 @@ watch(
 
 <template>
   <div class="shrink-0 border-t border-border/60 bg-background/60 p-3 backdrop-blur sm:p-4">
+    <p v-if="attachmentError" role="alert" class="mb-2 text-xs text-destructive">
+      {{ t(attachmentError) }}
+    </p>
     <!-- 回复预览 -->
     <div
       v-if="replyTo"
@@ -397,6 +413,7 @@ watch(
             type="button"
             class="absolute -right-1.5 -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-all hover:bg-destructive hover:text-destructive-foreground"
             :aria-label="t('common.cancel')"
+            :disabled="disabled || isSubmitting"
             @click="removeAttachment(index)"
           >
             <X class="h-3 w-3" />
@@ -422,6 +439,7 @@ watch(
             type="button"
             class="absolute -right-1.5 -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-all hover:bg-destructive hover:text-destructive-foreground"
             :aria-label="t('common.cancel')"
+            :disabled="disabled || isSubmitting"
             @click="removeAttachment(index)"
           >
             <X class="h-3 w-3" />

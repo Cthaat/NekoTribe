@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { AlertTriangle, Trash2 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
@@ -15,8 +15,13 @@ const preferenceStore = usePreferenceStore();
 const password = ref('');
 const confirmation = ref('');
 const pending = ref(false);
+const ownerRevision = preferenceStore.authRevision();
+let disposed = false;
+function isCurrent(): boolean { return !disposed && preferenceStore.isAuthCurrent(ownerRevision); }
+onUnmounted(() => { disposed = true; password.value = ''; confirmation.value = ''; });
 
 async function deleteAccount(): Promise<void> {
+  if (pending.value || !isCurrent()) return;
   if (!password.value.trim() || !confirmation.value.trim()) {
     toast.error(t('account.security.danger.feedback.required'));
     return;
@@ -24,19 +29,22 @@ async function deleteAccount(): Promise<void> {
 
   pending.value = true;
   try {
-    await v2DeleteMe({
-      password: password.value,
-      confirmation: confirmation.value
+    const result = await v2DeleteMe({
+      password: password.value.trim(),
+      confirmation: confirmation.value.trim()
     });
+    if (!isCurrent()) return;
+    if (result.deleted !== true || !Number.isSafeInteger(result.userId) || result.userId <= 0) throw new Error('Invalid account deletion response');
     preferenceStore.resetToDefaults();
     toast.success(t('account.security.danger.feedback.deleted'));
     await navigateTo(localePath('/auth/login'));
   } catch (error) {
+    if (!isCurrent()) return;
     toast.error(t('account.security.danger.feedback.deleteFailed'), {
       description: error instanceof Error ? error.message : undefined
     });
   } finally {
-    pending.value = false;
+    if (!disposed) pending.value = false;
   }
 }
 </script>

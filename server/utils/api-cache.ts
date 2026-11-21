@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import type { H3Event } from 'h3';
 import { getRequestURL } from 'h3';
 import { cacheProcessEpoch, singleBackendCacheEnabled } from './cache-mode';
+import { readCacheTagVersions, rotateCacheTags } from './cache-tags';
 import {
   getRequestLogContext,
   logInfo,
@@ -13,8 +14,7 @@ import {
 const CACHE_SCHEMA_VERSION = '1';
 const CACHE_KEY_PREFIX = 'nt:api-cache';
 const HIT_KEY_PREFIX = 'nt:api-cache-hits';
-const TAG_VERSION_KEY_PREFIX = 'nt:api-cache-tag';
-const TAG_VERSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+const TAG_VERSION_KEY_PREFIX = 'nt:api-cache-tag:v2';
 
 interface CacheAuthPayload {
   userId?: number;
@@ -366,8 +366,8 @@ async function tagVersions(
   const keys = tags.map(
     tag => `${TAG_VERSION_KEY_PREFIX}:${namespace}:${tag}`
   );
-  const values = keys.length > 0 ? await redis.mget(...keys) : [];
-  return tags.map((tag, index) => [tag, values[index] ?? '0']);
+  const values = await readCacheTagVersions(redis, keys);
+  return tags.map((tag, index) => [tag, values[index]!]);
 }
 
 function cacheLabel(pathname: string): string {
@@ -400,14 +400,32 @@ async function buildCacheContext(
   if (!url.pathname.startsWith('/api/v2/')) return null;
   // AI conversations contain private text and permissions can change in any backend.
   if (url.pathname === '/api/v2/ai' || url.pathname.startsWith('/api/v2/ai/')) return null;
+  if (/^\/api\/v2\/(?:moderation\/(?:appeals|reports|stats|settings|users|content)|reports)(?:\/|$)/.test(url.pathname)) return null;
   // Shared session and self-profile data may be changed by other backends
   // without invalidating this Nuxt response cache.
-  if (['/api/v2/auth/sessions', '/api/v2/users/me'].includes(url.pathname.replace(/\/+$/, ''))) return null;
+  if (['/api/v2/auth/sessions', '/api/v2/users', '/api/v2/users/recommendations', '/api/v2/users/me', '/api/v2/users/me/settings'].includes(url.pathname.replace(/\/+$/, ''))) return null;
   const segments = pathSegments(url.pathname);
+  if (segments[0] === 'groups' && (segments.length <= 2 || segments[2] === 'posts' ||
+      segments.length === 3 && (['by-slug', 'invite-codes'].includes(segments[1] ?? '') ||
+        ['members', 'invites', 'notification-preference', 'audit-logs'].includes(segments[2] ?? '')))) return null;
+  if (segments.length === 3 && segments[0] === 'users' && segments[1] === 'me' &&
+      ['groups', 'group-invites', 'blocks', 'mutes', 'account-statements'].includes(segments[2] ?? '')) return null;
+  if (segments[0] === 'chat' && segments[1] === 'groups' &&
+      (segments.length === 2 || (segments.length === 4 && ['channels', 'members'].includes(segments[3] ?? '')))) return null;
+  if (segments[0] === 'chat' && segments[1] === 'channels' &&
+      segments.length === 4 && segments[3] === 'messages') return null;
+  // Private history checks membership and advances the read marker on page one.
+  if (segments[0] === 'chat' && segments[1] === 'direct-conversations' &&
+      (segments.length === 2 || (segments.length === 4 && segments[3] === 'messages'))) return null;
   // Public profiles contain viewer-dependent relationship and presence data.
   if (segments.length === 2 && segments[0] === 'users' && isNumericSegment(segments[1])) return null;
+  if (segments.length === 3 && segments[0] === 'users' &&
+      ['followers', 'following', 'mutual-following'].includes(segments[2] ?? '')) return null;
   // Detail reads update view counts; serving cached results would skip the write.
   if (segments.length === 2 && segments[0] === 'posts' && isNumericSegment(segments[1])) return null;
+  if (segments.length === 3 && segments[0] === 'posts' && segments[2] === 'likes') return null;
+  if ((segments[0] === 'posts' || segments[0] === 'users') && segments[2] === 'analytics') return null;
+  if (segments[0] === 'posts' && (segments.length === 1 || segments[1] === 'trending')) return null;
   // Tag aggregates depend on the authenticated viewer and may change through other backends.
   if (segments.length === 3 && segments[0] === 'tags' && segments[2] === 'analytics') return null;
   if (!singleBackendCacheEnabled) return null;
@@ -613,17 +631,12 @@ export async function invalidateApiResponseCacheTags(
   namespace: string,
   tags: string[]
 ): Promise<void> {
+  if (!singleBackendCacheEnabled) return;
   const redis = redisOf(event);
   if (!redis || tags.length === 0) return;
 
   try {
-    const pipeline = redis.pipeline();
-    for (const tag of tags) {
-      const key = `${TAG_VERSION_KEY_PREFIX}:${namespace}:${tag}`;
-      pipeline.incr(key);
-      pipeline.expire(key, TAG_VERSION_TTL_SECONDS);
-    }
-    await pipeline.exec();
+    await rotateCacheTags(redis, tags.map(tag => `${TAG_VERSION_KEY_PREFIX}:${namespace}:${tag}`));
     logInfo('api-cache', {
       event: 'invalidate',
       ...cacheLogPayload(event),

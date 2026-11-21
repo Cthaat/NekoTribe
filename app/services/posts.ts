@@ -48,7 +48,9 @@ import {
   v2ListMyLikedPosts as apiListMyLikedPosts,
   v2ListMyPosts as apiListMyPosts,
   v2ListPostReplies as apiListPostReplies,
+  v2ListPostRetweets as apiListPostRetweets,
   v2ListPosts as apiListPosts,
+  v2ListTagPosts as apiListTagPosts,
   v2ListTrendingPosts as apiListTrendingPosts,
   v2ListUserPosts as apiListUserPosts,
   v2UnlikeComment as apiUnlikeComment,
@@ -58,9 +60,10 @@ import {
   v2UploadMedia
 } from '@/api/v2/posts';
 import {
-  normalizeAssetUrl,
+  normalizePublicMediaUrl,
   normalizeAvatarUrl
 } from '@/utils/assets';
+import { isPrivateMediaContent } from '@/utils/private-media';
 
 export {
   v2DeleteComment,
@@ -119,15 +122,18 @@ export function mapPublicUserToPostAuthor(
 export function mapMediaToPostMedia(
   media: V2MediaAsset
 ): PostMediaVM {
+  const privateContent = isPrivateMediaContent(media.media_id, media.public_url);
   return {
     id: media.media_id,
     type: mediaTypeOf(media),
-    originalUrl: normalizeAssetUrl(media.public_url),
-    thumbnailUrl: normalizeAssetUrl(
+    originalUrl: privateContent ? media.public_url : normalizePublicMediaUrl(media.public_url),
+    thumbnailUrl: privateContent ? '' : normalizePublicMediaUrl(
       media.thumbnail_url || media.public_url
     ),
     altText: media.alt_text,
-    description: media.description
+    description: media.description,
+    fileName: media.file_name || undefined,
+    ...(privateContent ? { privateFileName: media.file_name || '' } : {})
   };
 }
 
@@ -317,6 +323,10 @@ export async function v2ListPosts(query: {
   }));
 }
 
+export async function v2ListTagPosts(name: string, page: number, pageSize: number): Promise<PostPageVM> {
+  return mapPostPage(await apiListTagPosts(name, { page, page_size: pageSize }));
+}
+
 export async function v2ListPostPreviews(query: {
   page?: number;
   pageSize?: number;
@@ -406,6 +416,21 @@ export async function v2ListPostReplies(
   } = {}
 ): Promise<PostPageVM> {
   return mapPostPage(await apiListPostReplies(postId, {
+    page: query.page,
+    page_size: query.pageSize,
+    sort: query.sort
+  }));
+}
+
+export async function v2ListPostRetweets(
+  postId: number,
+  query: {
+    page?: number;
+    pageSize?: number;
+    sort?: 'newest' | 'oldest' | 'popular';
+  } = {}
+): Promise<PostPageVM> {
+  return mapPostPage(await apiListPostRetweets(postId, {
     page: query.page,
     page_size: query.pageSize,
     sort: query.sort
@@ -514,9 +539,10 @@ export async function v2ListTimelinePosts(
 }
 
 export async function v2GetPost(
-  postId: number
+  postId: number,
+  signal?: AbortSignal
 ): Promise<PostVM> {
-  return mapPost(await apiGetPost(postId));
+  return mapPost(await apiGetPost(postId, signal));
 }
 
 export async function v2GetPostAnalytics(
@@ -533,12 +559,15 @@ export async function v2CreatePost(
 
 export async function v2UpdatePost(
   postId: number,
-  form: UpdatePostFormVM
+  form: UpdatePostFormVM,
+  signal?: AbortSignal
 ): Promise<PostVM> {
   return mapPost(
-    await apiUpdatePost(postId, mapUpdatePostForm(form))
+    await apiUpdatePost(postId, mapUpdatePostForm(form), signal)
   );
 }
+
+export { UnconfirmedPostError, UnconfirmedPostUpdateError, UnconfirmedRetweetError } from '@/api/v2/posts';
 
 export async function v2CreateRetweet(
   postId: number,
@@ -594,12 +623,14 @@ export async function v2ListComments(
   query: {
     page?: number;
     pageSize?: number;
+    commentId?: number;
     sort?: 'newest' | 'oldest' | 'popular';
   } = {}
 ): Promise<CommentPageVM> {
   return mapCommentPage(await apiListComments(postId, {
     page: query.page,
     page_size: query.pageSize,
+    ...(query.commentId === undefined ? {} : {comment_id: query.commentId}),
     sort: query.sort
   }));
 }

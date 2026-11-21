@@ -19,6 +19,7 @@ interface SelectOption {
 export interface ModerationFiltersData {
   search: string;
   status: string;
+  priority: string;
   reportReason: string;
   dateRange: string;
   sortBy: string;
@@ -32,6 +33,7 @@ const props = withDefaults(
     modelValue: () => ({
       search: '',
       status: 'all',
+      priority: 'all',
       reportReason: 'all',
       dateRange: 'all',
       sortBy: 'newest'
@@ -69,6 +71,11 @@ const updateStatus = (value: unknown) => {
   emit('update:modelValue', { ...localFilters.value });
 };
 
+const updatePriority = (value: unknown) => {
+  localFilters.value.priority = value ? String(value) : 'all';
+  emit('update:modelValue', { ...localFilters.value });
+};
+
 const updateReportReason = (value: unknown) => {
   localFilters.value.reportReason = value
     ? String(value)
@@ -94,6 +101,7 @@ const resetFilters = () => {
   localFilters.value = {
     search: '',
     status: 'all',
+    priority: 'all',
     reportReason: 'all',
     dateRange: 'all',
     sortBy: 'newest'
@@ -106,6 +114,7 @@ const hasActiveFilters = computed(
   () =>
     localFilters.value.search !== '' ||
     localFilters.value.status !== 'all' ||
+    localFilters.value.priority !== 'all' ||
     localFilters.value.reportReason !== 'all' ||
     localFilters.value.dateRange !== 'all'
 );
@@ -216,6 +225,18 @@ const getOptionLabel = (
             :value="option.value"
           >
             {{ t(option.labelKey) }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Select :model-value="localFilters.priority" @update:model-value="updatePriority">
+        <SelectTrigger class="h-9 w-full shadow-xs sm:w-[150px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{{ t('moderation.filters.priorityAll') }}</SelectItem>
+          <SelectItem v-for="priority in ['low', 'normal', 'high', 'urgent']" :key="priority" :value="priority">
+            {{ t(`moderation.priority.${priority}`) }}
           </SelectItem>
         </SelectContent>
       </Select>

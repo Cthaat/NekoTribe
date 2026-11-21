@@ -12,6 +12,7 @@
 
 // 导入 crossws 库的 Peer 类型
 import type { Peer } from 'crossws';
+import { createHash } from 'node:crypto';
 
 export const WS_SERVER_ID = `ws_server_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
@@ -42,9 +43,16 @@ export interface WSSession {
   joinedRooms: Set<string>; // 用户已加入的房间集合（使用 Set 避免重复）
   lastActivity: number; // 最后活动时间戳，用于清理不活跃的连接
   authorize: () => Promise<boolean>;
+  chatAccess?: {
+    authorize: (channel: number) => Promise<boolean>;
+    leave: (channel: number) => void;
+    authorizeDirect?: (conversation: number, message: number, deleted: boolean) => Promise<boolean>;
+  };
   notificationTail: Promise<void>;
   pendingNotifications: number;
   closing: boolean;
+  dispose: () => void;
+  localEchoes: Map<string, number>;
 }
 
 // =====================================
@@ -62,6 +70,10 @@ class WSSessionManager {
   // key: sessionId（会话ID）, value: WSSession（会话对象）
   private sessions = new Map<string, WSSession>();
 
+  hasCapacity(): boolean {
+    return this.sessions.size < 1024;
+  }
+
   /**
    * 添加新的 WebSocket 会话
    * @param sessionId 唯一的会话标识符
@@ -73,8 +85,12 @@ class WSSessionManager {
     sessionId: string,
     peer: Peer,
     auth: WSSessionAuthPayload,
-    authorize: () => Promise<boolean>
-  ): void {
+    authorize: () => Promise<boolean>,
+    dispose: () => void = () => {},
+    chatAccess?: WSSession['chatAccess']
+  ): boolean {
+    if (!this.hasCapacity() || this.sessions.has(sessionId) ||
+        !Number.isSafeInteger(auth.userId) || auth.userId <= 0 || auth.type !== 'access') return false;
     // 创建新的会话对象
     const session: WSSession = {
       id: sessionId,
@@ -83,14 +99,18 @@ class WSSessionManager {
       joinedRooms: new Set(), // 初始化空的房间集合
       lastActivity: Date.now(), // 记录当前时间为最后活动时间
       authorize,
+      chatAccess,
       notificationTail: Promise.resolve(),
       pendingNotifications: 0,
-      closing: false
+      closing: false,
+      dispose,
+      localEchoes: new Map()
     };
 
     // 将会话添加到会话管理器中
     this.sessions.set(sessionId, session);
     console.log(`会话 ${sessionId} 已添加`);
+    return true;
   }
 
   /**
@@ -107,6 +127,9 @@ class WSSessionManager {
 
     // 从会话管理器中删除该会话
     this.sessions.delete(sessionId);
+    session.closing = true;
+    session.localEchoes.clear();
+    try { session.dispose(); } catch { /* Disposing one source must not retain the slot. */ }
     console.log(`会话 ${sessionId} 已移除`);
     return session;
   }
@@ -133,6 +156,8 @@ class WSSessionManager {
     // 获取指定的会话
     const session = this.sessions.get(sessionId);
     if (!session) return false; // 如果会话不存在，返回失败
+
+    if (!session.joinedRooms.has(roomId) && session.joinedRooms.size >= 64) return false;
 
     // 将房间ID添加到用户的已加入房间集合中
     // Set.add() 方法会自动去重，所以重复加入同一房间不会有问题
@@ -282,44 +307,41 @@ export const sessionManager = new WSSessionManager();
 export function sendWsToRoom(
   roomId: string,
   message: unknown
-): void {
-  const roomSessions = sessionManager.getRoomSessions(roomId);
-
-  roomSessions.forEach(session => {
-    if (session.closing) return;
-    try {
-      session.peer.send(JSON.stringify(message));
-    } catch (error) {
-      console.error(`向房间 ${roomId} 发送消息失败:`, error);
-    }
-  });
+): Promise<void> {
+  return sendWsToTargets(sessionManager.getRoomSessions(roomId), message);
 }
 
 export function sendWsToUser(
   userId: number,
   message: unknown
-): void {
-  sessionManager.getUserSessions(userId).forEach(session => {
-    if (session.closing) return;
-    try {
-      session.peer.send(JSON.stringify(message));
-    } catch (error) {
-      console.error(`向用户 ${userId} 发送消息失败:`, error);
-    }
-  });
+): Promise<void> {
+  return sendWsToTargets(sessionManager.getUserSessions(userId), message);
 }
 
-function closeWsSession(session: WSSession): void {
+function closeWsSession(session: WSSession, hard = false): void {
   if (session.closing) return;
   session.closing = true;
-  try { session.peer.close(); } catch { /* The peer may already be closed. */ }
+  if (sessionManager.getSession(session.id) === session) sessionManager.removeSession(session.id);
+  try {
+    if (hard && typeof session.peer.terminate === 'function') session.peer.terminate();
+    else session.peer.close();
+  } catch { /* The peer may already be closed. */ }
+}
+
+export function disconnectWsSession(sessionId: string): void {
+  const session = sessionManager.getSession(sessionId);
+  if (session) closeWsSession(session);
 }
 
 async function authorizeNotification(session: WSSession): Promise<boolean> {
+  return authorizeWithTimeout(session.authorize);
+}
+
+async function authorizeWithTimeout(authorize: () => Promise<boolean>): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      session.authorize(),
+      authorize(),
       new Promise<boolean>(resolve => {
         timer = setTimeout(() => resolve(false), 1_500);
       })
@@ -361,41 +383,135 @@ export async function sendWsNotificationToUser(
   userId: number,
   message: unknown
 ): Promise<void> {
-  const targets = sessionManager.getUserSessions(userId);
-  await Promise.all(targets.map(session => {
-    if (session.closing) return Promise.resolve();
-    if (session.pendingNotifications >= 16) {
-      closeWsSession(session);
-      return Promise.resolve();
-    }
-    session.pendingNotifications++;
-    const delivery = session.notificationTail.then(async () => {
-      const stillConnected = () => !session.closing &&
-        sessionManager.getUserSessions(userId).includes(session);
-      if (!stillConnected()) return;
-      const authorized = await authorizeNotification(session);
-      if (!authorized) {
-        closeWsSession(session);
-        return;
-      }
-      if (!stillConnected()) return;
-      try { session.peer.send(JSON.stringify(message)); }
-      catch { closeWsSession(session); }
-    }).finally(() => { session.pendingNotifications--; });
-    session.notificationTail = delivery;
-    return delivery;
-  }));
+  await sendWsToTargets(sessionManager.getUserSessions(userId), message);
 }
 
-export function sendWsToAll(message: unknown): void {
-  sessionManager.getAllSessions().forEach(session => {
-    if (session.closing) return;
-    try {
-      session.peer.send(JSON.stringify(message));
-    } catch (error) {
-      console.error('发送广播消息失败:', error);
+export function sendWsToAll(message: unknown): Promise<void> {
+  return sendWsToTargets(sessionManager.getAllSessions(), message);
+}
+
+const MAX_WS_FRAME_BYTES = 262144;
+const MAX_WS_BUFFERED_BYTES = 16 * MAX_WS_FRAME_BYTES;
+
+function validWire(raw: string): boolean {
+  return raw.length <= MAX_WS_FRAME_BYTES && new TextEncoder().encode(raw).byteLength <= MAX_WS_FRAME_BYTES;
+}
+
+type ChatDelivery = {channel: number} | {conversation: number; message: number; deleted: boolean};
+
+function chatDelivery(raw: string): ChatDelivery | null | undefined {
+  let frame: { type?: string; room?: string; data?: {
+    channel_id?: number; conversation_id?: number; message_id?: number; server_id?: string; direct_message?: {conversation_id?: number; message_id?: number};
+  } };
+  try { frame = JSON.parse(raw); } catch { return undefined; }
+  if (frame?.type === 'direct_message' || frame?.type === 'direct_message_deleted') {
+    const deleted = frame.type === 'direct_message_deleted';
+    const conversation = frame.data?.conversation_id;
+    const message = deleted ? frame.data?.message_id : frame.data?.direct_message?.message_id;
+    if (typeof conversation !== 'number' || !Number.isSafeInteger(conversation) || conversation <= 0 ||
+        (!deleted && frame.data?.direct_message?.conversation_id !== conversation) ||
+        typeof message !== 'number' || !Number.isSafeInteger(message) || message <= 0) return null;
+    const serverId = frame.data?.server_id;
+    if (deleted && (!Object.keys(frame.data ?? {}).every(key => ['conversation_id', 'message_id', 'server_id'].includes(key)) ||
+        serverId !== undefined && (typeof serverId !== 'string' || serverId.length === 0))) return null;
+    return {conversation, message, deleted};
+  }
+  if (!frame || !['chat_message', 'chat_message_updated', 'chat_message_deleted', 'chat_reaction_updated',
+    'chat_channel_updated', 'room_message'].includes(frame.type ?? '')) return undefined;
+  const channel = frame.data?.channel_id;
+  if (typeof channel !== 'number' || !Number.isSafeInteger(channel) || channel <= 0 ||
+      (frame.room != null && frame.room !== `chat:channel:${channel}`)) return null;
+  return {channel};
+}
+
+function echoKey(raw: string): string | null {
+  let event: unknown;
+  try { event = JSON.parse(raw) as unknown; } catch { return null; }
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return null;
+  const frame = event as Record<string, unknown>;
+  if (frame.type === 'presence_update' || !frame.data || typeof frame.data !== 'object' || Array.isArray(frame.data)) return null;
+  if ((frame.data as Record<string, unknown>).server_id !== WS_SERVER_ID) return null;
+  return createHash('sha256').update(raw).digest('hex');
+}
+
+function pruneEchoes(session: WSSession): void {
+  const oldest = Date.now() - 60_000;
+  for (const [key, time] of session.localEchoes) if (time < oldest) session.localEchoes.delete(key);
+}
+
+function enqueueWs(session: WSSession, raw: string, local: boolean): Promise<void> {
+  if (session.closing || sessionManager.getSession(session.id) !== session) return Promise.resolve();
+  if (!validWire(raw)) { closeWsSession(session, true); return Promise.resolve(); }
+  pruneEchoes(session);
+  const fingerprint = echoKey(raw);
+  if (!local && fingerprint && session.localEchoes.has(fingerprint)) return Promise.resolve();
+  if (session.pendingNotifications >= 16) { closeWsSession(session, true); return Promise.resolve(); }
+  if (local && fingerprint) {
+    session.localEchoes.delete(fingerprint);
+    session.localEchoes.set(fingerprint, Date.now());
+    while (session.localEchoes.size > 128) {
+      const key = session.localEchoes.keys().next().value;
+      if (key !== undefined) session.localEchoes.delete(key);
     }
-  });
+  }
+  session.pendingNotifications++;
+  const delivery = session.notificationTail.then(async () => {
+    const active = () => !session.closing && sessionManager.getSession(session.id) === session;
+    if (!active()) return;
+    if (!await authorizeNotification(session)) { closeWsSession(session); return; }
+    if (!active()) return;
+    const chat = chatDelivery(raw);
+    if (chat === null) return;
+    if (chat && 'conversation' in chat) {
+      const authorize = session.chatAccess?.authorizeDirect;
+      if (!authorize || !await authorizeWithTimeout(() => authorize(chat.conversation, chat.message, chat.deleted)) || !active()) return;
+    } else if (chat) {
+      const {channel} = chat;
+      const room = `chat:channel:${channel}`;
+      const access = session.chatAccess;
+      if (!access || !session.joinedRooms.has(room)) return;
+      const allowed = await authorizeWithTimeout(() => access.authorize(channel));
+      if (!active() || !session.joinedRooms.has(room)) return;
+      if (!allowed) {
+        sessionManager.leaveRoom(session.id, room);
+        access.leave(channel);
+        return;
+      }
+    }
+    try {
+      const socket = session.peer.websocket;
+      if ((typeof socket?.readyState === 'number' && socket.readyState !== 1) ||
+          (typeof socket?.bufferedAmount === 'number' && socket.bufferedAmount + new TextEncoder().encode(raw).byteLength > MAX_WS_BUFFERED_BYTES)) {
+        closeWsSession(session, true); return;
+      }
+      session.peer.send(raw);
+    } catch { closeWsSession(session); }
+  }).finally(() => { session.pendingNotifications--; });
+  session.notificationTail = delivery;
+  return delivery;
+}
+
+function encodeMessage(message: unknown): string | undefined {
+  try { return JSON.stringify(message); } catch { return undefined; }
+}
+
+async function sendWsToTargets(targets: WSSession[], message: unknown): Promise<void> {
+  const raw = encodeMessage(message);
+  if (typeof raw !== 'string') { targets.forEach(session => closeWsSession(session)); return; }
+  await Promise.all(targets.map(session => enqueueWs(session, raw, true)));
+}
+
+export async function sendWsEventToSession(sessionId: string, message: unknown): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  if (!session) return;
+  const raw = encodeMessage(message);
+  if (typeof raw !== 'string') { closeWsSession(session); return; }
+  await enqueueWs(session, raw, false);
+}
+
+export async function sendWsRawToSession(sessionId: string, raw: string): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  if (session) await enqueueWs(session, raw, false);
 }
 
 /**

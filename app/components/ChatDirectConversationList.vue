@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import type { V2DirectConversation } from '@/types/v2';
 import { normalizeAvatarUrl } from '@/utils/assets';
 
@@ -15,11 +16,14 @@ const props = defineProps<{
   conversations: V2DirectConversation[];
   activeConversationId?: number | null;
   isLoading?: boolean;
+  page?: number;
+  hasNext?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'select', conversation: V2DirectConversation): void;
   (e: 'view-profile', userId: number): void;
+  (e: 'change-page', page: number): void;
 }>();
 
 const { t, locale } = useAppLocale();
@@ -202,5 +206,9 @@ function formatConversationTime(value: string | undefined): string {
         </template>
       </div>
     </ScrollArea>
+    <div v-if="(page ?? 1) > 1 || hasNext" class="flex shrink-0 flex-wrap justify-center gap-1 border-t px-2 py-1">
+      <Button v-if="(page ?? 1) > 1" size="sm" variant="ghost" :disabled="isLoading" @click="emit('change-page', (page ?? 1) - 1)">{{ t('chat.directConversations.previousPage') }}</Button>
+      <Button v-if="hasNext" size="sm" variant="ghost" :disabled="isLoading" @click="emit('change-page', (page ?? 1) + 1)">{{ t('chat.directConversations.nextPage') }}</Button>
+    </div>
   </div>
 </template>

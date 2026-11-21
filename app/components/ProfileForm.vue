@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { toTypedSchema } from '@vee-validate/zod';
 import { FieldArray, useForm } from 'vee-validate';
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { useNuxtApp } from '#app';
+import { authQueueFor } from '@/services/auth-request-queue';
 import * as z from 'zod/v3';
 import { cn } from '@/lib/utils';
 import { CalendarIcon, Globe, Trash2 } from 'lucide-vue-next';
@@ -32,6 +34,14 @@ import {
 const { t, locale } = useAppLocale();
 
 const userInfo = ref<CurrentUserVM | null>(null);
+const saving = ref(false);
+const queue = authQueueFor(useNuxtApp());
+const ownerRevision = queue.revision;
+let disposed = false;
+onUnmounted(() => { disposed = true; });
+function ownsForm() {
+  return !disposed && ownerRevision === queue.revision && !queue.isIdentityChanging;
+}
 
 interface ProfileUrlItem {
   value: string;
@@ -86,14 +96,12 @@ function buildInitialProfileValues(
 onMounted(async () => {
   try {
     const me = await v2GetMe();
+    if (!ownsForm()) return;
+    if (!Number.isSafeInteger(me.id) || me.id <= 0) throw new Error('Invalid profile');
+    resetForm({ values: buildInitialProfileValues(me) });
     userInfo.value = me;
-
-    if (userInfo.value) {
-      resetForm({
-        values: buildInitialProfileValues(userInfo.value)
-      });
-    }
   } catch {
+    if (!ownsForm()) return;
     toast.error(
       t('account.profile.profilePage.errorFetchingUserInfo'),
       {
@@ -126,7 +134,7 @@ const profileFormSchema = z.object({
     .max(160, {
       message: t('account.profile.profilePage.bioMaxLength')
     })
-    .min(4, {
+    .refine(value => value.length === 0 || value.length >= 4, {
       message: t('account.profile.profilePage.bioMinLength')
     }),
   location: z.string().trim().max(30, {
@@ -151,6 +159,8 @@ const { handleSubmit, resetForm } =
 
 const onSubmit = handleSubmit(
   async (values: ProfileFormValues): Promise<void> => {
+    const owner = userInfo.value;
+    if (!owner || saving.value || !ownsForm()) return;
     const website = values.urls
       .map(urlObject => urlObject.value.trim())
       .filter(url => url.length > 0)
@@ -163,17 +173,19 @@ const onSubmit = handleSubmit(
       birthDate: values.birthDate
         ? values.birthDate.toString()
         : null,
-      phone: values.phone || undefined
+      phone: values.phone
     };
-    toast(t('account.profile.profilePage.successMessage'), {
-      description: t(
-        'account.profile.profilePage.successDescription'
-      ),
-      duration: 3000
-    });
-    await v2PatchMe(payload);
-    if (import.meta.client) {
-      window.location.reload();
+    saving.value = true;
+    try {
+      const updated = await v2PatchMe(payload);
+      if (!ownsForm()) return;
+      if (updated.id !== owner.id) throw new Error('Invalid profile update response');
+      toast.success(t('account.profile.profilePage.successMessage'));
+      if (import.meta.client) window.location.reload();
+    } catch {
+      if (ownsForm()) toast.error(t('account.profile.profilePage.saveFailed'));
+    } finally {
+      if (ownsForm()) saving.value = false;
     }
   }
 );
@@ -327,7 +339,7 @@ const df = new DateFormatter(
     </FieldArray>
 
     <FormField
-      v-slot="{ componentField, value }"
+      v-slot="{ componentField, value, handleChange }"
       name="birthDate"
     >
       <FormItem class="grid gap-2">
@@ -338,6 +350,7 @@ const df = new DateFormatter(
           <PopoverTrigger as-child>
             <FormControl>
               <Button
+                type="button"
                 variant="outline"
                 :class="
                   cn(
@@ -364,6 +377,9 @@ const df = new DateFormatter(
             <Calendar v-bind="componentField" initial-focus />
           </PopoverContent>
         </Popover>
+        <Button v-if="value" type="button" variant="outline" class="w-fit" @click="handleChange(undefined)">
+          {{ t('common.remove') }}
+        </Button>
         <FormMessage class="text-[11px]" />
       </FormItem>
     </FormField>
@@ -398,6 +414,7 @@ const df = new DateFormatter(
     <div class="flex flex-col gap-2 pt-1 sm:flex-row">
       <Button
         type="submit"
+        :disabled="saving || !userInfo"
         class="h-9 w-full rounded-md shadow-xs sm:w-fit"
       >
         {{ t('account.profile.profilePage.updateProfile') }}

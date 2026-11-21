@@ -1,11 +1,6 @@
 import { v2LikeGroupComment } from '~/server/services/v2/groups';
-import { defineV2Handler, v2RouterNumber } from '~/server/utils/v2';
+import { defineV2Handler } from '~/server/utils/v2';
 
 export default defineV2Handler((event, connection) =>
-  v2LikeGroupComment(
-    event,
-    connection,
-    v2RouterNumber(event, 'comment_id'),
-    false
-  )
+  v2LikeGroupComment(event, connection, false)
 );

@@ -30,6 +30,18 @@ const props = defineProps({
   enableDelete: {
     type: Boolean,
     default: false
+  },
+  pendingLikeIds: {
+    type: Object as PropType<ReadonlySet<number>>,
+    default: undefined
+  },
+  submitReply: {
+    type: Function as PropType<(parentCommentId: number, content: string) => Promise<boolean>>,
+    default: undefined
+  },
+  allowReply: {
+    type: Boolean,
+    default: true
   }
 });
 
@@ -42,9 +54,19 @@ const emit = defineEmits([
 const isReplyBoxOpen = ref(false);
 const replyContent = ref('');
 const isReplyInputFocused = ref(false);
+const replyPending = ref(false);
 
 const localIsLiked = ref(props.comment.viewer.hasLiked);
 const localLikesCount = ref(props.comment.counts.likes);
+const isLiked = computed(() =>
+  props.pendingLikeIds ? props.comment.viewer.hasLiked : localIsLiked.value
+);
+const likesCount = computed(() =>
+  props.pendingLikeIds ? props.comment.counts.likes : localLikesCount.value
+);
+const likePending = computed(() =>
+  props.pendingLikeIds?.has(props.comment.id) ?? false
+);
 
 const formattedDate = computed(() => {
   return new Date(props.comment.createdAt).toLocaleString(
@@ -69,26 +91,40 @@ const fallbackInitial = computed(() => {
 });
 
 function toggleReplyBox() {
+  if (replyPending.value) return;
   isReplyBoxOpen.value = !isReplyBoxOpen.value;
   replyContent.value = '';
 }
 
 function handleLike() {
-  localIsLiked.value = !localIsLiked.value;
-  localLikesCount.value += localIsLiked.value ? 1 : -1;
+  if (likePending.value) return;
+  const liked = !isLiked.value;
+  if (!props.pendingLikeIds) {
+    localIsLiked.value = liked;
+    localLikesCount.value += liked ? 1 : -1;
+  }
 
   emit('like-comment', {
     commentId: props.comment.id,
-    action: localIsLiked.value ? 'likeComment' : 'unlikeComment'
+    action: liked ? 'likeComment' : 'unlikeComment'
   });
 }
 
-function handleSubmitReply() {
-  if (!replyContent.value.trim()) return;
-  emit('submit-reply', {
-    parentCommentId: props.comment.id,
-    content: replyContent.value
-  });
+async function handleSubmitReply() {
+  if (!props.allowReply || replyPending.value || !replyContent.value.trim()) return;
+  if (props.submitReply) {
+    replyPending.value = true;
+    try {
+      if (!(await props.submitReply(props.comment.id, replyContent.value))) return;
+    } finally {
+      replyPending.value = false;
+    }
+  } else {
+    emit('submit-reply', {
+      parentCommentId: props.comment.id,
+      content: replyContent.value
+    });
+  }
   isReplyBoxOpen.value = false;
   replyContent.value = '';
 }
@@ -155,20 +191,23 @@ function handleReplyBlur() {
               variant="ghost"
               size="sm"
               class="h-7 gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
+              :disabled="likePending"
+              :aria-pressed="isLiked"
               @click="handleLike"
             >
               <Heart
                 class="h-3.5 w-3.5 transition-transform"
                 :class="{
                   'fill-rose-600 text-rose-600 dark:fill-rose-400 dark:text-rose-400':
-                    localIsLiked
+                    isLiked
                 }"
               />
               <span class="tabular-nums font-medium">
-                {{ localLikesCount }}
+                {{ likesCount }}
               </span>
             </Button>
             <Button
+              v-if="allowReply"
               variant="ghost"
               size="sm"
               class="h-7 gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-sky-500/10 hover:text-sky-600 dark:hover:text-sky-400"
@@ -198,12 +237,13 @@ function handleReplyBlur() {
             leave-to-class="opacity-0 -translate-y-1"
           >
             <div
-              v-if="isReplyBoxOpen"
+              v-if="allowReply && isReplyBoxOpen"
               class="mt-3 rounded-lg border border-border/60 bg-card p-3 transition-colors"
               :class="{ 'border-ring/60 ring-2 ring-ring/20': isReplyInputFocused }"
             >
               <Textarea
                 v-model="replyContent"
+                :disabled="replyPending"
                 :placeholder="t('comment.replyPlaceholder')"
                 class="min-h-[60px] resize-none border-none bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
                 @focus="isReplyInputFocused = true"
@@ -220,6 +260,7 @@ function handleReplyBlur() {
                     variant="ghost"
                     size="sm"
                     class="h-7"
+                    :disabled="replyPending"
                     @click="toggleReplyBox"
                   >
                     {{ t('common.cancel') }}
@@ -227,7 +268,7 @@ function handleReplyBlur() {
                   <AppSendButton
                     size="sm"
                     class="h-7"
-                    :disabled="!replyContent.trim()"
+                    :disabled="replyPending || !replyContent.trim()"
                     @click="handleSubmitReply"
                   >
                     {{ t('comment.submitReply') }}
@@ -250,6 +291,9 @@ function handleReplyBlur() {
         :comment="childComment"
         :level="level + 1"
         :enable-delete="enableDelete"
+        :allow-reply="allowReply"
+        :pending-like-ids="pendingLikeIds"
+        :submit-reply="submitReply"
         @like-comment="$emit('like-comment', $event)"
         @submit-reply="$emit('submit-reply', $event)"
         @delete-comment="$emit('delete-comment', $event)"

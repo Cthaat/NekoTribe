@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import type { Group } from '@/types/groups';
+import { groupMembershipAction } from '@/services/groups';
 
 export type { Group } from '@/types/groups';
 
@@ -40,6 +41,7 @@ const props = defineProps<{
   group: Group;
 }>();
 const { t } = useAppLocale();
+const membershipAction = computed(() => groupMembershipAction(props.group));
 
 const emit = defineEmits<{
   (e: 'join', id: number): void;
@@ -88,9 +90,9 @@ const formatMemberCount = (count: number) => {
 };
 
 const handleJoinLeave = () => {
-  if (props.group.isMember) {
+  if (membershipAction.value?.event === 'leave') {
     emit('leave', props.group.id);
-  } else {
+  } else if (membershipAction.value?.event === 'join') {
     emit('join', props.group.id);
   }
 };
@@ -264,26 +266,20 @@ const handleSettings = () => {
       @click.stop
     >
       <Button
-        v-if="!group.isOwner"
-        :variant="group.isMember ? 'outline' : 'default'"
+        v-if="membershipAction"
+        :variant="membershipAction.event === 'leave' ? 'outline' : 'default'"
         size="sm"
         class="h-9 w-full rounded-md shadow-xs"
         @click="handleJoinLeave"
       >
         <component
-          :is="group.isMember ? LogOut : UserPlus"
+          :is="membershipAction.event === 'leave' ? LogOut : UserPlus"
           class="h-3.5 w-3.5"
         />
-        {{
-          group.isMember
-            ? t('groups.actions.leave')
-            : group.privacy === 'public'
-              ? t('groups.actions.join')
-              : t('groups.actions.requestJoin')
-        }}
+        {{ t(`groups.actions.${membershipAction.label}`) }}
       </Button>
       <Button
-        v-else
+        v-else-if="group.isOwner"
         variant="outline"
         size="sm"
         class="h-9 w-full rounded-md shadow-xs"

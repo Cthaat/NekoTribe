@@ -70,24 +70,27 @@ const props = defineProps<{
   members: ChatMember[];
   pinnedMessages?: ChatMessageType[];
   canManage?: boolean;
+  mutePending?: boolean;
   isLoading?: boolean;
+  messageLoadFailed?: boolean;
   isSending?: boolean;
   currentUserId?: number;
   directMessages?: V2DirectMessage[];
   isLoadingDirectMessages?: boolean;
+  hasOlderDirectMessages?: boolean;
+  loadingOlderDirectMessages?: boolean;
   isSendingDirectMessage?: boolean;
   channels?: Channel[];
   showMobileNavigationToggle?: boolean;
+  composerRevision: number;
+  sendMessage: (content: string, attachments?: File[], replyToMessageId?: number) => Promise<boolean>;
+  sendDirectMessage: (targetUserId: number, content: string) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
-  (
-    e: 'send',
-    content: string,
-    attachments?: File[],
-    replyToMessageId?: number
-  ): void;
   (e: 'load-more'): void;
+  (e: 'retry-history'): void;
+  (e: 'load-older-direct-messages'): void;
   (e: 'react', messageId: number, emoji: string): void;
   (e: 'reply', message: ChatMessageType): void;
   (e: 'edit', message: ChatMessageType): void;
@@ -99,11 +102,7 @@ const emit = defineEmits<{
   (e: 'view-profile', userId: number): void;
   (e: 'open-direct-message', member: ChatMember): void;
   (e: 'open-direct-message-standalone', member: ChatMember): void;
-  (
-    e: 'send-direct-message',
-    targetUserId: number,
-    content: string
-  ): void;
+  (e: 'delete-direct-message', message: V2DirectMessage): void;
 }>();
 
 // 状态
@@ -117,6 +116,7 @@ const callDialogType = ref<'voice' | 'video'>('voice');
 const directMessageOpen = ref(false);
 const directMessageTarget = ref<ChatMember | null>(null);
 const directMessageContent = ref('');
+let directDraftRevision = 0;
 const searchQuery = ref('');
 const replyTo = ref<ChatMessageType | null>(null);
 const messagesScrollAreaRef =
@@ -216,6 +216,7 @@ const openDirectMessage = (member: ChatMember) => {
     return;
   }
   directMessageTarget.value = member;
+  directDraftRevision++;
   directMessageContent.value = '';
   directMessageOpen.value = true;
   emit('open-direct-message', member);
@@ -233,12 +234,17 @@ const handleDirectMessageKeydown = (event: KeyboardEvent) => {
   }
 };
 
-const submitDirectMessage = () => {
+const submitDirectMessage = async () => {
   const target = directMessageTarget.value;
-  const content = directMessageContent.value.trim();
+  const draft = directMessageContent.value;
+  const content = draft.trim();
   if (!target || !content) return;
-  emit('send-direct-message', target.id, content);
-  directMessageContent.value = '';
+  const revision = directDraftRevision;
+  const sent = await props.sendDirectMessage(target.id, content);
+  if (sent && directMessageOpen.value && revision === directDraftRevision &&
+      directMessageContent.value === draft) {
+    directMessageContent.value = '';
+  }
 };
 
 // 滚动到底部
@@ -272,15 +278,27 @@ const handleScroll = () => {
 };
 
 // 处理发送
-const handleSend = (
+const handleSend = async (
   content: string,
   attachments?: File[]
-) => {
-  if (!canSendInChannel.value) return;
-  emit('send', content, attachments, replyTo.value?.id);
-  replyTo.value = null;
+): Promise<boolean> => {
+  if (isComposerDisabled.value) return false;
+  const revision = props.composerRevision;
+  const replyId = replyTo.value?.id;
+  const sent = await props.sendMessage(content, attachments, replyId);
+  if (!sent || revision !== props.composerRevision) return false;
+  if (replyTo.value?.id === replyId) replyTo.value = null;
   scrollToBottom();
+  return true;
 };
+
+watch(() => props.composerRevision, () => {
+  replyTo.value = null;
+  directDraftRevision++;
+  directMessageOpen.value = false;
+  directMessageTarget.value = null;
+  directMessageContent.value = '';
+});
 
 // 处理回复
 const handleReply = (message: ChatMessageType) => {
@@ -508,6 +526,7 @@ onBeforeUnmount(() => {
                     </div>
                     <Switch
                       :model-value="channel.isMuted"
+                      :disabled="mutePending"
                       @update:model-value="emit('toggle-mute')"
                     />
                   </div>
@@ -614,6 +633,10 @@ onBeforeUnmount(() => {
             >
               <div class="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
             </div>
+            <div v-else-if="messageLoadFailed" class="flex items-center justify-center gap-3 px-3 py-3">
+              <p class="text-sm text-destructive" role="alert">{{ t('chat.feedback.loadMessagesFailed') }}</p>
+              <Button size="sm" variant="outline" @click="emit('retry-history')">{{ t('common.retry') }}</Button>
+            </div>
 
             <!-- 消息列表 -->
             <div class="py-3">
@@ -639,7 +662,7 @@ onBeforeUnmount(() => {
 
             <!-- 空状态 -->
             <div
-              v-if="messages.length === 0 && !isLoading"
+              v-if="messages.length === 0 && !isLoading && !messageLoadFailed"
               class="flex min-h-[calc(100vh-14rem)] flex-col items-center justify-center px-6 text-center"
             >
               <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60">
@@ -677,13 +700,14 @@ onBeforeUnmount(() => {
 
       <!-- 输入区域 -->
       <ChatInput
+        :key="composerRevision"
         :channel-name="channel.name"
         :reply-to="replyTo"
         :disabled="isComposerDisabled"
         :disabled-reason="composerDisabledReason"
         :members="members"
         :channels="channels"
-        @send="handleSend"
+        :send-message="handleSend"
         @cancel-reply="cancelReply"
       />
     </div>
@@ -807,6 +831,9 @@ onBeforeUnmount(() => {
         <div v-if="directMessageTarget" class="flex min-h-0 flex-1 flex-col gap-3 p-4">
           <ScrollArea class="flex-1 rounded-xl border border-border/60 bg-muted/20 p-3">
             <div class="flex min-h-full flex-col justify-end gap-3">
+              <Button v-if="hasOlderDirectMessages && !isLoadingDirectMessages" variant="outline" size="sm" :disabled="loadingOlderDirectMessages" @click="emit('load-older-direct-messages')">
+                {{ t('chat.directMessage.loadOlder') }}
+              </Button>
               <div v-if="isLoadingDirectMessages" class="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
                 <div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
                 <span class="ml-2">{{ t('chat.directMessage.loading') }}</span>
@@ -849,6 +876,9 @@ onBeforeUnmount(() => {
                       :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
                     >
                       {{ new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+                      <button v-if="message.can_delete && !message.is_deleted && message.author.user_id === currentUserId" type="button" class="ml-2 underline underline-offset-2" @click="emit('delete-direct-message', message)">
+                        {{ t('chat.actions.deleteMessage') }}
+                      </button>
                     </div>
                   </div>
                 </div>

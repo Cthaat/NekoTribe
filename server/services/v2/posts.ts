@@ -1,5 +1,8 @@
 /// <reference path="../../types/v2.d.ts" />
 
+import { requirePublishAccess } from './moderation-publish-policy';
+import feedbackSql from '../../../specifications/requirements/recommendation-feedback.json';
+import { getQuery, setResponseHeader } from 'h3';
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
 import {
@@ -33,13 +36,14 @@ import {
   v2CommentCount,
   v2MapComment,
   v2MapPost,
-  v2MapPublicUser,
   v2PostCountSql,
   v2PostSelectSql,
   v2RequirePostById,
-  v2SortOrder
+  v2SortOrder,
+  v2VisiblePostCommentScope
 } from '~/server/models/v2';
 import { v2CreateNotification } from './notifications';
+import { canBindMedia, postRetainsPrivateMedia } from './private-media-binding';
 
 type V2PostListMode =
   | 'all'
@@ -482,6 +486,13 @@ export async function v2ListPosts(
     binds.tag_q = `%${tagSearch || q}%`;
   }
 
+  const recommendationFeed = viewerId !== null && ['all', 'trending'].includes(options.mode) &&
+    timeline !== 'following' && timeline !== 'mentions' && !q;
+  if (recommendationFeed) setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  const personalize = recommendationFeed && Boolean(await v2One(connection, feedbackSql.schema));
+  if (personalize) where.push(feedbackSql.feedFilter);
+  const order = options.mode === 'likes' ? v2LikedPostSortOrder(sort) : v2SortOrder(sort);
+
   const extraWhere = where.join('\n');
   const total = await v2Count(
     connection,
@@ -492,9 +503,7 @@ export async function v2ListPosts(
     connection,
     v2PostSelectSql(extraWhere).replace(
       '__ORDER_BY__',
-      options.mode === 'likes'
-        ? v2LikedPostSortOrder(sort)
-        : v2SortOrder(sort)
+      personalize ? order.replace('ORDER BY ', `ORDER BY ${feedbackSql.feedOrder}, `) : order
     ),
     {
       ...binds,
@@ -548,6 +557,7 @@ async function v2CreatePostFromPayload(
   }
   const postId = await v2NextId(connection, 'seq_post_id');
   try {
+    await requirePublishAccess(connection,auth.userId);
     const inserted = await v2Execute(
       connection,
       `
@@ -599,8 +609,7 @@ async function v2CreatePostFromPayload(
       postId,
       auth.userId,
       payload.media_ids ?? [],
-      false,
-      true
+      payload.visibility || 'public'
     );
     if (postType !== 'repost' && !v2String(payload.content).trim() && attachedMedia === 0) {
       v2BadRequest('content 不能为空');
@@ -644,6 +653,7 @@ export async function v2UpdatePost(
   const auth = v2Auth(event);
   const payload = await v2ReadUpdatePostPayload(event);
   try {
+    await requirePublishAccess(connection,auth.userId);
     const row = await v2One(
       connection,
       `
@@ -651,6 +661,7 @@ export async function v2UpdatePost(
         author_id,
         is_deleted,
         post_type,
+        visibility,
         DBMS_LOB.SUBSTR(content, 4000, 1) AS content
       FROM n_posts
       WHERE post_id = :post_id
@@ -662,6 +673,11 @@ export async function v2UpdatePost(
       v2NotFound('帖子不存在');
     if (v2Number(row.AUTHOR_ID) !== auth.userId) {
       v2Unprocessable('只能修改自己的帖子');
+    }
+    const visibility = payload.visibility ?? v2String(row.VISIBILITY);
+    if (payload.visibility === 'public' && payload.media_ids === undefined &&
+        await postRetainsPrivateMedia(connection, postId)) {
+      v2BadRequest('附件不存在或无权使用');
     }
 
     const currentContent = v2String(row.CONTENT);
@@ -733,24 +749,13 @@ export async function v2UpdatePost(
     }
 
     if (payload.media_ids !== undefined) {
-      const mediaIds = [...new Set(payload.media_ids)].slice(0, 4);
-      await v2Execute(
-        connection,
-        `
-        DELETE FROM n_post_media
-        WHERE post_id = :post_id
-        `,
-        { post_id: postId },
-        false
-      );
       await v2AttachPostMedia(
         connection,
         postId,
         auth.userId,
-        mediaIds,
-        false,
-        true,
-        '附件不存在或无权使用'
+        payload.media_ids,
+        visibility,
+        true
       );
     }
 
@@ -811,13 +816,27 @@ async function v2AttachPostMedia(
   postId: number,
   userId: number,
   mediaIds: number[],
-  autoCommit = true,
-  requireUsable = false,
-  unusableMessage = '媒体不存在或不可用'
+  visibility: string,
+  replaceExisting = false
 ): Promise<number> {
-  let sortOrder = 1;
-  let attached = 0;
-  for (const mediaId of [...new Set(mediaIds)].slice(0, 4)) {
+  const unusableMessage = replaceExisting ? '附件不存在或无权使用' : '媒体不存在或不可用';
+  const selected = [...new Set(mediaIds)].slice(0, 4);
+  const target = ['private', 'followers', 'mentioned'].includes(visibility)
+    ? { scope: 'post' as const, postId }
+    : null;
+  for (const mediaId of [...selected].sort((a, b) => a - b)) {
+    const row = await v2One(connection, `
+      SELECT media_id, storage_key FROM n_media_assets
+      WHERE media_id = :media_id AND owner_user_id = :user_id
+        AND status IN ('uploaded', 'processing', 'ready')
+      FOR UPDATE
+    `, { media_id: mediaId, user_id: userId });
+    if (!row || !await canBindMedia(connection, mediaId, row.STORAGE_KEY, target)) v2BadRequest(unusableMessage);
+  }
+  if (replaceExisting) {
+    await v2Execute(connection, 'DELETE FROM n_post_media WHERE post_id = :post_id', { post_id: postId }, false);
+  }
+  for (const [index, mediaId] of selected.entries()) {
     const changed = await v2Execute(
       connection,
       `
@@ -832,15 +851,13 @@ async function v2AttachPostMedia(
         post_id: postId,
         media_id: mediaId,
         user_id: userId,
-        sort_order: sortOrder
+        sort_order: index + 1
       },
-      autoCommit
+      false
     );
-    if (requireUsable && changed !== 1) v2BadRequest(unusableMessage);
-    attached += changed;
-    sortOrder += 1;
+    if (changed !== 1) v2BadRequest(unusableMessage);
   }
-  return attached;
+  return selected.length;
 }
 
 async function v2AttachPostTags(
@@ -1135,20 +1152,40 @@ async function v2NotifyPostLiked(
   });
 }
 
+const v2VisibleCommentScope = `
+  FROM n_comments c
+  JOIN n_posts p ON p.post_id = c.post_id
+  JOIN n_users post_author ON post_author.user_id = p.author_id AND post_author.is_active = 1
+  JOIN n_users comment_author ON comment_author.user_id = c.user_id AND comment_author.is_active = 1
+  WHERE c.is_deleted = 0 AND p.is_deleted = 0
+    AND fn_can_view_post(:viewer_id, c.post_id) = 1
+    AND NOT EXISTS (
+      SELECT 1 FROM n_user_blocks b
+      WHERE (b.user_id = :viewer_id AND b.target_user_id = c.user_id)
+         OR (b.target_user_id = :viewer_id AND b.user_id = c.user_id)
+    )`;
+const v2CommentLikeScope = `${v2VisibleCommentScope} AND c.comment_id = :comment_id`;
+const v2ReplyParentScope = `${v2VisibleCommentScope}
+  AND c.post_id = :post_id AND c.comment_id = :parent_comment_id`;
+
 async function v2NotifyCommentLiked(
   connection: oracledb.Connection,
   actorId: number,
   commentId: number
 ): Promise<void> {
-  const commentContext = await v2CommentNotificationContext(
+  const row = await v2One(
     connection,
-    commentId
+    `SELECT c.user_id, c.post_id, DBMS_LOB.SUBSTR(c.content, 4000, 1) AS content
+     ${v2CommentLikeScope}`,
+    { comment_id: commentId, viewer_id: actorId }
   );
-  if (!commentContext) return;
+  if (!row) return;
+  const postId = v2Number(row.POST_ID);
+  const content = v2String(row.CONTENT);
 
   const actorName = await v2UserDisplayName(connection, actorId);
   await v2CreateNotification(connection, {
-    userId: commentContext.authorId,
+    userId: v2Number(row.USER_ID),
     actorId,
     type: 'like',
     title: `${actorName} 赞了你的评论`,
@@ -1156,13 +1193,13 @@ async function v2NotifyCommentLiked(
     resourceType: 'comment',
     resourceId: commentId,
     metadata: {
-      post_id: commentContext.postId,
-      target_post_id: commentContext.postId,
+      post_id: postId,
+      target_post_id: postId,
       comment_id: commentId,
-      comment_excerpt: commentContext.excerpt,
+      comment_excerpt: content ? v2NotificationExcerpt(content) : null,
       post_excerpt: await v2PostExcerpt(
         connection,
-        commentContext.postId
+        postId
       ),
       event: 'comment_like'
     }
@@ -1243,62 +1280,6 @@ export async function v2CreateRetweet(
     reply_to_post_id: null,
     quoted_post_id: null
   });
-}
-
-export async function v2PostLikesUsers(
-  event: H3Event,
-  connection: oracledb.Connection,
-  postId: number
-): Promise<V2Response<V2PublicUser[]>> {
-  const auth = v2Auth(event);
-  const page = v2Page(event);
-  const total = await v2Count(
-    connection,
-    `
-    SELECT COUNT(*) AS total
-    FROM n_post_likes
-    WHERE post_id = :post_id
-    `,
-    { post_id: postId }
-  );
-  const rows = await v2Rows(
-    connection,
-    `
-    SELECT *
-    FROM (
-      SELECT
-        u.user_id,
-        u.username,
-        u.avatar_url,
-        u.display_name,
-        u.bio,
-        u.location,
-        u.website,
-        u.is_verified,
-        u.followers_count,
-        u.following_count,
-        u.posts_count,
-        u.likes_count,
-        fn_get_user_relationship(:viewer_id, u.user_id) AS relation,
-        ROW_NUMBER() OVER (ORDER BY l.created_at DESC) AS rn
-      FROM n_post_likes l
-      JOIN v_user_profile_public u ON u.user_id = l.user_id
-      WHERE l.post_id = :post_id
-    )
-    WHERE rn BETWEEN :start_row AND :end_row
-    `,
-    {
-      viewer_id: auth.userId,
-      post_id: postId,
-      start_row: page.start,
-      end_row: page.end
-    }
-  );
-  return v2Ok(
-    rows.map(v2MapPublicUser),
-    'success',
-    v2PageMeta(page.page, page.page_size, total)
-  );
 }
 
 async function v2RequireInteractionVisibility(connection: oracledb.Connection, viewerId: number, postId: number): Promise<void> {
@@ -1419,8 +1400,17 @@ export async function v2ListComments(
   postId: number
 ): Promise<V2Response<V2Comment[]>> {
   const auth = v2Auth(event);
+  const rawCommentId = getQuery(event).comment_id;
+  let commentId: number | undefined;
+  if (rawCommentId !== undefined) {
+    if (typeof rawCommentId !== 'string' || !/^[1-9][0-9]{0,15}$/.test(rawCommentId) ||
+        rawCommentId.trim() !== rawCommentId || !Number.isSafeInteger(Number(rawCommentId))) {
+      v2BadRequest('comment_id 参数错误');
+    }
+    commentId = Number(rawCommentId);
+  }
   await v2RequireInteractionVisibility(connection, auth.userId, postId);
-  const page = v2Page(event);
+  const page = commentId === undefined ? v2Page(event) : {page:1,page_size:1,start:1,end:1};
   const sort = v2QueryString(event, 'sort', 'newest');
   const order =
     sort === 'oldest'
@@ -1428,7 +1418,7 @@ export async function v2ListComments(
       : sort === 'popular'
         ? 'ORDER BY c.likes_count DESC, c.created_at DESC'
         : 'ORDER BY c.created_at DESC';
-  const total = await v2CommentCount(connection, postId, auth.userId);
+  const total = commentId === undefined ? await v2CommentCount(connection, postId, auth.userId) : null;
   const rows = await v2Rows(
     connection,
     `
@@ -1452,15 +1442,15 @@ export async function v2ListComments(
             AND cl.user_id = :viewer_id
         ) THEN 1 ELSE 0 END AS is_liked,
         ROW_NUMBER() OVER (${order}) AS rn
-      FROM v_post_comment_list_item c
-      WHERE c.post_id = :post_id
-        AND fn_can_view_post(:viewer_id, c.post_id) = 1
+      ${v2VisiblePostCommentScope}
+        ${commentId === undefined ? '' : 'AND c.comment_id = :comment_id'}
     )
     WHERE rn BETWEEN :start_row AND :end_row
     `,
     {
       viewer_id: auth.userId,
       post_id: postId,
+      ...(commentId === undefined ? {} : {comment_id: commentId}),
       start_row: page.start,
       end_row: page.end
     }
@@ -1473,7 +1463,7 @@ export async function v2ListComments(
   return v2Ok(
     comments,
     'success',
-    v2PageMeta(page.page, page.page_size, total)
+    v2PageMeta(page.page, page.page_size, total ?? comments.length)
   );
 }
 
@@ -1508,59 +1498,62 @@ export async function v2CreateComment(
     const parent = await v2One(
       connection,
       `
-      SELECT NVL(root_comment_id, comment_id) AS root_comment_id
-      FROM n_comments
-      WHERE comment_id = :comment_id
-        AND post_id = :post_id
-        AND is_deleted = 0
+      SELECT NVL(c.root_comment_id, c.comment_id) AS root_comment_id
+      ${v2ReplyParentScope}
       `,
       {
-        comment_id: payload.parent_comment_id,
-        post_id: postId
+        parent_comment_id: payload.parent_comment_id,
+        post_id: postId,
+        viewer_id: auth.userId
       }
     );
     if (!parent) v2NotFound('父评论不存在');
     rootCommentId = v2Number(parent.ROOT_COMMENT_ID);
   }
 
-  const inserted = await v2Execute(
-    connection,
-    `
-    INSERT INTO n_comments (
-      comment_id,
-      post_id,
-      user_id,
-      parent_comment_id,
-      root_comment_id,
-      content
-    ) SELECT
-      :comment_id,
-      :post_id,
-      :user_id,
-      :parent_comment_id,
-      :root_comment_id,
-      :content
-    FROM dual
-    WHERE fn_can_view_post(:user_id, :post_id) = 1
-      AND EXISTS (
-        SELECT 1 FROM n_posts p
-        WHERE p.post_id = :post_id AND p.is_deleted = 0
-      )
-      AND (:parent_comment_id IS NULL OR EXISTS (
-        SELECT 1 FROM n_comments parent
-        WHERE parent.comment_id = :parent_comment_id
-          AND parent.post_id = :post_id AND parent.is_deleted = 0
-      ))
-    `,
-    {
-      comment_id: commentId,
-      post_id: postId,
-      user_id: auth.userId,
-      parent_comment_id: payload.parent_comment_id ?? null,
-      root_comment_id: rootCommentId ?? commentId,
-      content: payload.content
-    }
-  );
+  let inserted: number;
+  try {
+    await requirePublishAccess(connection,auth.userId);
+    inserted = await v2Execute(
+      connection,
+      `
+      INSERT INTO n_comments (
+        comment_id,
+        post_id,
+        user_id,
+        parent_comment_id,
+        root_comment_id,
+        content
+      ) SELECT
+        :comment_id,
+        :post_id,
+        :viewer_id,
+        :parent_comment_id,
+        :root_comment_id,
+        :content
+      FROM dual
+      WHERE fn_can_view_post(:viewer_id, :post_id) = 1
+        AND EXISTS (
+          SELECT 1 FROM n_posts p
+          WHERE p.post_id = :post_id AND p.is_deleted = 0
+        )
+        AND (:parent_comment_id IS NULL OR EXISTS (
+          SELECT 1 ${v2ReplyParentScope}
+        ))
+      `,
+      {
+        comment_id: commentId,
+        post_id: postId,
+        viewer_id: auth.userId,
+        parent_comment_id: payload.parent_comment_id ?? null,
+        root_comment_id: rootCommentId ?? commentId,
+        content: payload.content
+      }
+    );
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
   if (inserted === 0) {
     await v2RequireInteractionVisibility(connection, auth.userId, postId);
     if (parentId !== null) v2NotFound('父评论不存在');
@@ -1647,11 +1640,10 @@ export async function v2LikeComment(
   liked: boolean
 ): Promise<V2Response<V2LikeCommentData>> {
   const auth = v2Auth(event);
-  const visibleComment = async () => v2One(connection, `
-    SELECT c.comment_id FROM n_comments c JOIN n_posts p ON p.post_id = c.post_id
-    WHERE c.comment_id = :comment_id AND c.is_deleted = 0 AND p.is_deleted = 0
-      AND fn_can_view_post(:viewer_id, c.post_id) = 1
-  `, {comment_id: commentId, viewer_id: auth.userId});
+  const binds = { comment_id: commentId, viewer_id: auth.userId };
+  const visibleComment = async () => v2One(
+    connection, `SELECT c.comment_id ${v2CommentLikeScope}`, binds
+  );
   if (!(await visibleComment())) v2NotFound('评论不存在');
   let inserted = 0;
   let changed = 0;
@@ -1660,19 +1652,17 @@ export async function v2LikeComment(
       connection,
       `
       INSERT INTO n_comment_likes (comment_id, user_id)
-      SELECT :comment_id, :user_id
+      SELECT :comment_id, :viewer_id
       FROM dual
-      WHERE EXISTS (SELECT 1 FROM n_comments c JOIN n_posts p ON p.post_id = c.post_id
-        WHERE c.comment_id = :comment_id AND c.is_deleted = 0 AND p.is_deleted = 0
-          AND fn_can_view_post(:user_id, c.post_id) = 1)
+      WHERE EXISTS (SELECT 1 ${v2CommentLikeScope})
       AND NOT EXISTS (
         SELECT 1
         FROM n_comment_likes
         WHERE comment_id = :comment_id
-          AND user_id = :user_id
+          AND user_id = :viewer_id
       )
       `,
-      { comment_id: commentId, user_id: auth.userId }
+      binds
     );
     changed = inserted;
   } else {
@@ -1681,25 +1671,21 @@ export async function v2LikeComment(
       `
       DELETE FROM n_comment_likes
       WHERE comment_id = :comment_id
-        AND user_id = :user_id
-        AND EXISTS (SELECT 1 FROM n_comments c JOIN n_posts p ON p.post_id = c.post_id
-          WHERE c.comment_id = :comment_id AND c.is_deleted = 0 AND p.is_deleted = 0
-            AND fn_can_view_post(:user_id, c.post_id) = 1)
+        AND user_id = :viewer_id
+        AND EXISTS (SELECT 1 ${v2CommentLikeScope})
       `,
-      { comment_id: commentId, user_id: auth.userId }
+      binds
     );
   }
   if (changed === 0 && !(await visibleComment())) v2NotFound('评论不存在');
   const row = await v2One(
     connection,
     `
-    SELECT c.comment_id, NVL(s.likes_count, 0) AS likes_count
-    FROM n_comments c JOIN n_posts p ON p.post_id = c.post_id
-    LEFT JOIN n_comment_stats s ON s.comment_id = c.comment_id
-    WHERE c.comment_id = :comment_id AND c.is_deleted = 0 AND p.is_deleted = 0
-      AND fn_can_view_post(:viewer_id, c.post_id) = 1
+    SELECT c.comment_id,
+      NVL((SELECT s.likes_count FROM n_comment_stats s WHERE s.comment_id = c.comment_id), 0) AS likes_count
+    ${v2CommentLikeScope}
     `,
-    { comment_id: commentId, viewer_id: auth.userId }
+    binds
   );
   if (!row) v2NotFound('评论不存在');
   if (liked && inserted > 0) {
@@ -1713,52 +1699,6 @@ export async function v2LikeComment(
     comment_id: commentId,
     is_liked: liked,
     likes_count: v2Number(row?.LIKES_COUNT)
-  });
-}
-
-export async function v2PostAnalytics(
-  event: H3Event,
-  connection: oracledb.Connection,
-  postId: number
-): Promise<V2Response<V2PostAnalytics>> {
-  const auth = v2Auth(event);
-  const postRow = await v2One(
-    connection,
-    `
-    SELECT author_id, is_deleted
-    FROM n_posts
-    WHERE post_id = :post_id
-    `,
-    { post_id: postId }
-  );
-  if (!postRow || v2Boolean(postRow.IS_DELETED)) {
-    v2NotFound('帖子不存在');
-  }
-  if (v2Number(postRow.AUTHOR_ID) !== auth.userId) {
-    v2Unprocessable('只能查看自己帖子的统计');
-  }
-  const row = await v2One(
-    connection,
-    `
-    SELECT *
-    FROM v_post_analytics
-    WHERE post_id = :post_id
-    `,
-    { post_id: postId }
-  );
-  if (!row) v2NotFound('帖子不存在');
-  const views = v2Number(row.VIEWS_COUNT);
-  const likes = v2Number(row.LIKES_COUNT);
-  return v2Ok({
-    post_id: postId,
-    views_count: views,
-    likes_count: likes,
-    comments_count: v2Number(row.COMMENTS_COUNT),
-    replies_count: v2Number(row.REPLIES_COUNT),
-    retweets_count: v2Number(row.RETWEETS_COUNT),
-    engagement_score: v2Number(row.ENGAGEMENT_SCORE),
-    like_rate:
-      views > 0 ? Number((likes / views).toFixed(4)) : 0
   });
 }
 
@@ -1776,30 +1716,21 @@ export async function v2SearchTags(
   const binds: Record<string, string | null> = trendingOnly
     ? {}
     : { q: q ? `%${q}%` : null };
-  const total = await v2Count(
-    connection,
-    `SELECT COUNT(*) AS total FROM n_tags ${where}`,
-    binds
-  );
   const rows = await v2Rows(
     connection,
     `
-    SELECT *
-    FROM (
-      SELECT
-        tag_id,
-        name,
-        usage_count,
-        trending_score,
-        is_trending,
-        updated_at,
+    WITH ranked_tags AS (
+      SELECT tag_id, name, usage_count, trending_score, is_trending, updated_at,
         ROW_NUMBER() OVER (
-          ORDER BY trending_score DESC, usage_count DESC, updated_at DESC
+          ORDER BY trending_score DESC, usage_count DESC, updated_at DESC, tag_id DESC
         ) AS rn
       FROM n_tags
       ${where}
     )
-    WHERE rn BETWEEN :start_row AND :end_row
+    SELECT p.tag_id, p.name, p.usage_count, p.trending_score, p.is_trending, p.updated_at, totals.total
+    FROM (SELECT COUNT(*) AS total FROM ranked_tags) totals
+    LEFT JOIN ranked_tags p ON p.rn BETWEEN :start_row AND :end_row
+    ORDER BY p.rn
     `,
     {
       ...binds,
@@ -1808,7 +1739,7 @@ export async function v2SearchTags(
     }
   );
   return v2Ok(
-    rows.map(row => ({
+    rows.filter(row => row.TAG_ID != null).map(row => ({
       tag_id: v2Number(row.TAG_ID),
       name: v2String(row.NAME),
       usage_count: v2Number(row.USAGE_COUNT),
@@ -1817,7 +1748,7 @@ export async function v2SearchTags(
       updated_at: v2DateString(row.UPDATED_AT) || ''
     })),
     'success',
-    v2PageMeta(page.page, page.page_size, total)
+    v2PageMeta(page.page, page.page_size, v2Number(rows[0]?.TOTAL))
   );
 }
 
@@ -1855,17 +1786,6 @@ export async function v2TagAnalytics(
     total_likes: v2Number(row.TOTAL_LIKES),
     engagement_score: v2Number(row.AVG_ENGAGEMENT_SCORE)
   });
-}
-
-export async function v2RecommendationFeedback(
-  event: H3Event
-): Promise<V2Response<V2RecommendationFeedbackData>> {
-  v2Auth(event);
-  const body = await v2Body(event);
-  v2RequiredString(body, 'resource_type');
-  v2RequiredNumber(body.resource_id, 'resource_id');
-  v2RequiredString(body, 'action');
-  return v2Ok({ accepted: true });
 }
 
 export function v2NullablePostIdFromPath(

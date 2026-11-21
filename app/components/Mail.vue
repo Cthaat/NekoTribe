@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { refDebounced } from '@vueuse/core';
 import { Icon } from '@iconify/vue';
-import { CheckCheck, RefreshCw, Search } from 'lucide-vue-next';
+import { CheckCheck, ListChecks, RefreshCw, Search } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -60,6 +60,7 @@ interface MailProps {
   loadMore?: () => void;
   isTrashView?: boolean;
   loading?: boolean;
+  markingListed?: boolean;
 }
 
 defineOptions({
@@ -76,6 +77,7 @@ const emit = defineEmits<{
     payload: { mailId: string; read: boolean }
   ): void;
   (e: 'mark-all-read' | 'refresh'): void;
+  (e: 'mark-listed-read', mailIds: string[]): void;
   (e: 'filter-change', filters: MailFilterPayload): void;
 }>();
 
@@ -216,6 +218,12 @@ const filteredMailList = computed(() => {
 const unreadMailList = computed(() =>
   filteredMailList.value.filter(item => !item.read)
 );
+const canMarkListed = computed(() => !props.loading && !props.markingListed &&
+  !isCurrentTrashView.value && unreadMailList.value.length > 0);
+
+function markListedRead() {
+  if (canMarkListed.value) emit('mark-listed-read', unreadMailList.value.map(item => item.id));
+}
 
 const selectedMailData = computed(() =>
   props.mails.find(item => item.id === selectedMail.value)
@@ -361,6 +369,11 @@ watch(
             <CheckCheck class="size-3.5" />
             {{ t('mail.actions.markAllRead') }}
           </Button>
+          <Button variant="outline" size="sm" class="col-span-2 h-8 justify-start shadow-xs"
+            :disabled="!canMarkListed" @click="markListedRead">
+            <ListChecks class="size-3.5" />
+            {{ t('notifications.mail.markListedRead') }}
+          </Button>
         </div>
         <form>
           <div class="relative">
@@ -503,6 +516,16 @@ watch(
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{{ t('mail.actions.markAllRead') }}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button variant="ghost" size="icon" class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+                    :disabled="!canMarkListed" @click="markListedRead">
+                    <ListChecks class="size-4" />
+                    <span class="sr-only">{{ t('notifications.mail.markListedRead') }}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{{ t('notifications.mail.markListedRead') }}</TooltipContent>
               </Tooltip>
             </div>
           </div>

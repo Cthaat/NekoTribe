@@ -7,6 +7,7 @@ import {
   watch
 } from 'vue';
 import { useRoute } from 'vue-router';
+import { useNuxtApp } from '#app';
 import { CheckCircle2, Search, UserRound } from 'lucide-vue-next';
 import {
   Avatar,
@@ -23,7 +24,9 @@ import {
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { v2SearchUsers } from '@/services/users';
+import { v2RecommendedUsers, v2SearchUsers } from '@/services/users';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { usePreferenceStore } from '@/stores/user';
 import type { PublicUserVM } from '@/types/users';
 
 const MIN_QUERY_LENGTH = 2;
@@ -31,6 +34,10 @@ const MIN_QUERY_LENGTH = 2;
 const { t, locale } = useAppLocale();
 const localePath = useLocalePath();
 const route = useRoute();
+const queue = authQueueFor(useNuxtApp());
+const preferences = usePreferenceStore();
+const identityChanging = ref(queue.isIdentityChanging);
+const signedIn = computed(() => !identityChanging.value && preferences.preferences.user.id > 0);
 
 const searchQuery = ref('');
 const users = ref<PublicUserVM[]>([]);
@@ -38,6 +45,8 @@ const isPopoverOpen = ref(false);
 const isSearchingUsers = ref(false);
 const searchError = ref('');
 const isSyncingRouteSearch = ref(false);
+const showingRecommendations = ref(false);
+const resultList = ref<HTMLElement | null>(null);
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let searchRequestId = 0;
@@ -69,34 +78,57 @@ function formatCount(value: number): string {
 }
 
 async function runUserSearch(
-  query: string,
-  requestId: number
+  query: string | null,
+  requestId: number,
+  owner: number
 ): Promise<void> {
+  const current = () => requestId === searchRequestId && queue.revision === owner && !queue.isIdentityChanging && signedIn.value;
+  if (!current()) return;
   try {
-    const result = await v2SearchUsers({
+    const result = query === null ? await v2RecommendedUsers(6) : (await v2SearchUsers({
       q: query,
       page: 1,
       pageSize: 6,
       sort: 'popular'
-    });
-    if (requestId !== searchRequestId) return;
-    users.value = result.items;
+    })).items;
+    if (current()) users.value = result;
   } catch (error) {
-    if (requestId !== searchRequestId) return;
+    if (!current()) return;
     users.value = [];
     searchError.value =
       error instanceof Error
         ? error.message
         : t('globalSearch.failed');
   } finally {
-    if (requestId === searchRequestId) {
-      isSearchingUsers.value = false;
-    }
+    if (current()) isSearchingUsers.value = false;
   }
+}
+
+function resetUserResults(): void {
+  clearSearchTimer();
+  searchRequestId++;
+  showingRecommendations.value = false;
+  isSearchingUsers.value = false;
+  users.value = [];
+  searchError.value = '';
+}
+
+function showRecommendations(): void {
+  if (!signedIn.value || queue.isIdentityChanging || trimmedQuery.value) return;
+  if (isPopoverOpen.value && showingRecommendations.value) {
+    closeSearch();
+    return;
+  }
+  resetUserResults();
+  showingRecommendations.value = true;
+  isPopoverOpen.value = true;
+  isSearchingUsers.value = true;
+  void runUserSearch(null, searchRequestId, queue.revision);
 }
 
 function closeSearch(): void {
   isPopoverOpen.value = false;
+  if (showingRecommendations.value) resetUserResults();
 }
 
 function submitPostSearch(): void {
@@ -109,19 +141,31 @@ function submitPostSearch(): void {
 }
 
 function openUserProfile(user: PublicUserVM): void {
+  if (!signedIn.value || queue.isIdentityChanging || !users.value.includes(user)) return;
   closeSearch();
   searchQuery.value = '';
   void navigateTo(localePath(`/user/${user.id}/profile`));
 }
 
+function focusFirstUser(event: KeyboardEvent): void {
+  const first = resultList.value?.querySelector('button');
+  if (!isPopoverOpen.value || !first) return;
+  event.preventDefault();
+  first.focus();
+}
+
 function handleFocus(): void {
-  if (trimmedQuery.value) {
-    isPopoverOpen.value = true;
+  if (!trimmedQuery.value || isPopoverOpen.value) return;
+  isPopoverOpen.value = true;
+  if (canSearchUsers.value && signedIn.value && !isSearchingUsers.value && users.value.length === 0) {
+    searchError.value = '';
+    isSearchingUsers.value = true;
+    void runUserSearch(trimmedQuery.value, ++searchRequestId, queue.revision);
   }
 }
 
 function handlePopoverOpenChange(open: boolean): void {
-  isPopoverOpen.value = open && !!trimmedQuery.value;
+  if (!open) closeSearch();
 }
 
 function routeSearchQuery(): string {
@@ -134,38 +178,25 @@ function routeSearchQuery(): string {
 watch(
   searchQuery,
   value => {
-    clearSearchTimer();
+    resetUserResults();
     const query = value.trim();
-    const requestId = ++searchRequestId;
-    searchError.value = '';
 
-    if (isSyncingRouteSearch.value) {
+    if (isSyncingRouteSearch.value || !query) {
       isPopoverOpen.value = false;
-      isSearchingUsers.value = false;
-      users.value = [];
-      return;
-    }
-
-    if (!query) {
-      isPopoverOpen.value = false;
-      isSearchingUsers.value = false;
-      users.value = [];
       return;
     }
 
     isPopoverOpen.value = true;
 
-    if (query.length < MIN_QUERY_LENGTH) {
-      isSearchingUsers.value = false;
-      users.value = [];
-      return;
-    }
+    if (query.length < MIN_QUERY_LENGTH || !signedIn.value) return;
 
+    const requestId = searchRequestId;
+    const owner = queue.revision;
     isSearchingUsers.value = true;
     searchTimer = setTimeout(() => {
-      void runUserSearch(query, requestId);
+      void runUserSearch(query, requestId, owner);
     }, 250);
-  }
+  }, { flush: 'sync' }
 );
 
 watch(
@@ -182,8 +213,24 @@ watch(
   { immediate: true }
 );
 
+let observedOwner = queue.revision;
+const stopObserving = queue.subscribe(() => {
+  identityChanging.value = queue.isIdentityChanging;
+  if (observedOwner !== queue.revision || queue.isIdentityChanging) {
+    observedOwner = queue.revision;
+    resetUserResults();
+    closeSearch();
+  }
+});
+watch(signedIn, (ready) => {
+  if (!ready) {
+    resetUserResults();
+    closeSearch();
+  }
+}, { flush: 'sync' });
 onBeforeUnmount(() => {
-  clearSearchTimer();
+  stopObserving();
+  resetUserResults();
 });
 </script>
 
@@ -202,9 +249,10 @@ onBeforeUnmount(() => {
           type="search"
           :placeholder="t('globalSearch.placeholder')"
           autocomplete="off"
-          class="h-9 rounded-md pl-9 pr-3 shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 sm:pr-24"
+          class="h-9 rounded-md pl-9 pr-11 shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 sm:pr-24"
           @focus="handleFocus"
           @keydown.enter.prevent="submitPostSearch"
+          @keydown.down="focusFirstUser"
           @keydown.esc="closeSearch"
         />
         <Button
@@ -217,6 +265,21 @@ onBeforeUnmount(() => {
         >
           {{ t('globalSearch.postsAction') }}
         </Button>
+        <Button
+          v-else-if="signedIn && !trimmedQuery"
+          type="button"
+          variant="ghost"
+          size="sm"
+          :aria-label="t('globalSearch.recommended')"
+          :title="t('globalSearch.recommended')"
+          :aria-expanded="showingRecommendations && isPopoverOpen"
+          class="absolute right-1 top-1/2 h-7 -translate-y-1/2 gap-1 px-2"
+          @click="showRecommendations"
+          @keydown.down="focusFirstUser"
+        >
+          <UserRound class="h-4 w-4" aria-hidden="true" />
+          <span class="hidden text-xs sm:inline">{{ t('globalSearch.recommended') }}</span>
+        </Button>
       </div>
     </PopoverAnchor>
 
@@ -224,13 +287,14 @@ onBeforeUnmount(() => {
       align="start"
       class="w-[min(32rem,calc(100vw-2rem))] overflow-hidden p-0 shadow-lg"
       :side-offset="6"
+      @open-auto-focus.prevent
     >
       <div class="flex items-center justify-between gap-3 border-b px-3 py-2.5">
         <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <UserRound class="h-3.5 w-3.5" />
-          <span>{{ t('globalSearch.usersTitle') }}</span>
+          <span>{{ t(showingRecommendations ? 'globalSearch.recommended' : 'globalSearch.usersTitle') }}</span>
         </div>
-        <kbd
+        <kbd v-if="!showingRecommendations"
           class="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground"
         >
           {{ t('globalSearch.enterHint') }}
@@ -238,7 +302,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div
-        v-if="!canSearchUsers"
+        v-if="!showingRecommendations && !canSearchUsers"
         class="flex flex-col items-center justify-center gap-1.5 px-4 py-10 text-center"
       >
         <div class="rounded-full bg-muted/60 p-2">
@@ -249,7 +313,11 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <div v-else-if="isSearchingUsers" class="space-y-1 p-2">
+      <p v-else-if="!signedIn" class="px-4 py-8 text-center text-sm text-muted-foreground">
+        {{ t('globalSearch.signIn') }}
+      </p>
+
+      <div v-else-if="isSearchingUsers" role="status" :aria-label="t('globalSearch.loading')" class="space-y-1 p-2">
         <div
           v-for="index in 3"
           :key="index"
@@ -278,12 +346,12 @@ onBeforeUnmount(() => {
           <UserRound class="h-4 w-4 text-muted-foreground" />
         </div>
         <p class="text-sm text-muted-foreground">
-          {{ t('globalSearch.empty') }}
+          {{ t(showingRecommendations ? 'globalSearch.noRecommendations' : 'globalSearch.empty') }}
         </p>
       </div>
 
       <ScrollArea v-else class="max-h-80">
-        <div class="p-1.5">
+        <div ref="resultList" class="p-1.5">
           <button
             v-for="user in users"
             :key="user.id"

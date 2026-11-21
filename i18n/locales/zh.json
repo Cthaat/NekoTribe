@@ -1,6 +1,30 @@
 {
+  "visibility": {
+    "title": "账户关系管理",
+    "actions": "关系操作",
+    "blocks": "已拉黑",
+    "mutes": "已静音",
+    "block": "拉黑",
+    "mute": "长期静音",
+    "muteDay": "静音 24 小时",
+    "unblock": "解除拉黑",
+    "unmute": "取消静音",
+    "permanent": "长期静音",
+    "until": "静音至 {date}",
+    "loading": "正在读取列表…",
+    "loadFailed": "无法读取列表。",
+    "retry": "重试",
+    "emptyBlocks": "没有已拉黑的账号。",
+    "emptyMutes": "没有已静音的账号。",
+    "previous": "上一页",
+    "next": "下一页",
+    "confirmBlock": "拉黑 {name} 会取消双方的关注。",
+    "saved": "关系已更新",
+    "sessionChanged": "会话已切换。请返回并重新打开此页。"
+  },
   "common": {
     "refresh": "刷新",
+    "retry": "重试",
     "empty": "暂无数据",
     "prev": "上一页",
     "next": "下一页",
@@ -29,6 +53,9 @@
     "pagination": "第 {page} / {totalPages} 页 · 共 {total} 条"
   },
   "globalSearch": {
+    "recommended": "推荐用户",
+    "noRecommendations": "暂无推荐用户。",
+    "signIn": "登录后可搜索用户。",
     "placeholder": "搜索推文或用户",
     "usersTitle": "用户",
     "postsAction": "搜推文",
@@ -112,7 +139,7 @@
   "about": {
     "badge": "NekoTribe 项目",
     "title": "关于 NekoTribe",
-    "description": "NekoTribe 是一个面向社交互动场景的全栈项目，围绕推文、群组、聊天、通知、内容审核和 AI 情感分析构建，适合用于课程展示、功能演示和继续扩展开发。",
+    "description": "NekoTribe 是一个社交内容发布与社群互动平台，支持发帖、互动、社群管理、实时聊天、通知和内容审核。",
     "actions": {
       "repository": "项目仓库",
       "backHome": "返回首页"
@@ -131,8 +158,12 @@
         "description": "通过 WebSocket 承载私聊、群聊、在线状态和通知投递。"
       },
       "safety": {
-        "title": "审核与分析",
-        "description": "包含内容举报、审核后台、账户安全和 SentimentFlow 情感分析接入。"
+        "title": "审核与安全",
+        "description": "包含内容举报、审核处置、申诉和账户安全管理。"
+      },
+      "ai": {
+        "title": "AI 助手",
+        "description": "登录用户可以针对公开内容和平台规则提问，或生成和润色草稿。群管理员可生成运营草稿，审核人员可查看带依据的审核建议。"
       }
     },
     "links": {
@@ -167,9 +198,19 @@
     }
   },
   "post": {
+    "likers": {
+      "title": "查看点赞用户",
+      "loading": "正在加载点赞名单…",
+      "empty": "本页没有可见的点赞用户",
+      "failed": "无法加载点赞名单",
+      "retry": "重试",
+      "previous": "上一页",
+      "next": "下一页"
+    },
     "actions": {
       "addBookmark": "加入书签",
       "removeBookmark": "删除书签",
+      "edit": "编辑推文",
       "delete": "删除推文",
       "report": "举报文章"
     },
@@ -181,12 +222,27 @@
       "deleteFailed": "删除推文失败",
       "retweeted": "转发成功",
       "retweetFailed": "转发失败",
+      "retweetUnconfirmed": "无法确认转发是否已发布。请先刷新查看，再决定是否重试。",
+      "postUnconfirmed": "无法确认是否已发布，草稿仍保留。请先查看发布结果，再决定是否重试。",
       "replied": "回复已发布",
       "replyFailed": "发布回复失败",
       "likeFailed": "点赞失败",
       "bookmarkFailed": "书签操作失败",
       "reported": "举报已提交",
-      "reportFailed": "提交举报失败"
+      "reportFailed": "提交举报失败",
+      "notInterested": "不感兴趣",
+      "showLess": "少看此作者",
+      "recommendationSaved": "反馈已保存，下次刷新推荐时生效",
+      "recommendationFailed": "未能保存推荐反馈"
+    },
+    "tagAnalytics": {
+      "title": "话题统计",
+      "posts": "帖子",
+      "authors": "作者",
+      "views": "浏览",
+      "likes": "点赞",
+      "engagement": "平均互动分",
+      "retry": "重新加载话题统计"
     },
     "feed": {
       "loadFailed": "加载推文失败",
@@ -205,6 +261,7 @@
       "emptyGoHome": "回到首页",
       "emptyExplore": "去逛逛首页",
       "searchEmptyTitle": "没有找到相关推文。",
+      "matchingTags": "相关标签",
       "searchEmptyDescription": "换个关键词试试，或稍后再搜索。",
       "unavailable": "此推文不存在或已被删除。"
     },
@@ -218,6 +275,8 @@
       "mediaTypeTitle": "文件类型不支持",
       "mediaTypeDescription": "发布推文目前支持图片和视频。",
       "removeMedia": "移除媒体",
+      "mediaInUse": "此附件仍被使用，无法删除。",
+      "mediaDeleteFailed": "附件删除失败，已保留预览。",
       "dropHint": "松开以上传图片或视频",
       "altTextPlaceholder": "添加媒体说明（可选）",
       "mediaDescriptionPlaceholder": "添加媒体描述（可选）",
@@ -303,6 +362,13 @@
       "composeTitle": "回复这条推文",
       "composeDescription": "你的回复会作为推文显示在回复列表中。"
     },
+    "reposts": {
+      "title": "转发帖",
+      "total": "共 {count} 条转发",
+      "empty": "这条推文还没有转发。",
+      "loadFailed": "加载转发帖失败",
+      "loadMore": "加载更多转发"
+    },
     "media": {
       "thumbnailAlt": "推文媒体缩略图"
     },
@@ -330,6 +396,8 @@
     "replyPlaceholder": "写下你的回复...",
     "submitReply": "提交回复",
     "delete": "删除",
+    "deleteConfirmTitle": "删除这条评论？",
+    "deleteConfirmBody": "评论删除后无法恢复，其他人的回复会保留。",
     "characterCount": "{count} / {max} 字符",
     "submit": "发布评论",
     "submitting": "发布中...",
@@ -474,10 +542,22 @@
     }
   },
   "groups": {
+    "invitePreview": {
+      "title": "群组邀请",
+      "loading": "正在加载邀请…",
+      "invalid": "此邀请链接无效。",
+      "from": "邀请人 {name}",
+      "pending": "入群申请等待审批。",
+      "unavailable": "当前无法加入此群组。",
+      "joined": "你已加入此群组。",
+      "join": "加入群组",
+      "retry": "重试"
+    },
     "title": "群组",
     "description": "发现和管理你的群组",
     "tabs": {
       "discover": "发现群组",
+      "popular": "热门群组",
       "my": "我的群组",
       "posts": "群组帖子",
       "invites": "群组邀请"
@@ -490,6 +570,7 @@
       "join": "加入群组",
       "leave": "离开群组",
       "requestJoin": "申请加入",
+      "cancelRequest": "取消待审批申请",
       "manage": "管理群组",
       "invite": "邀请"
     },
@@ -505,6 +586,7 @@
       "joinRequested": "已发送加入申请",
       "joinFailed": "加入群组失败",
       "left": "已离开群组",
+      "requestCanceled": "已取消入群申请",
       "leaveFailed": "离开群组失败",
       "settingsWip": "群组设置功能开发中...",
       "refreshFailed": "刷新失败",
@@ -519,6 +601,7 @@
       "loadInvitesFailed": "加载邀请失败",
       "inviteAccepted": "已接受邀请",
       "inviteAcceptFailed": "接受邀请失败",
+      "inviteResponseUnknown": "无法确认处理结果，正在重新读取邀请。",
       "inviteRejected": "已拒绝邀请",
       "inviteRejectFailed": "拒绝邀请失败"
     },
@@ -563,6 +646,21 @@
       "emptyPosts": "暂无帖子",
       "emptyMembers": "暂无成员"
     },
+    "audit": {
+      "title": "审计日志",
+      "loading": "正在加载审计日志…",
+      "empty": "本页没有审计日志",
+      "failed": "无法加载审计日志",
+      "expired": "会话已变化，请重新打开群组管理",
+      "actor": "操作者 #{id}",
+      "user": "目标用户 #{id}",
+      "post": "目标帖子 #{id}",
+      "comment": "目标评论 #{id}",
+      "details": "变更详情",
+      "retry": "重试",
+      "previous": "上一页",
+      "next": "下一页"
+    },
     "manage": {
       "title": "管理 {name}",
       "description": "更新群组资料、成员权限、邀请链接和危险操作。",
@@ -570,7 +668,7 @@
       "saving": "保存中...",
       "never": "无",
       "defaultMuteReason": "群组管理禁言",
-      "memberSearch": "搜索成员",
+      "memberSearch": "搜索已加载成员",
       "pendingTitle": "待审批成员 ({count})",
       "emptyMembers": "没有匹配的成员",
       "tabs": {
@@ -687,6 +785,26 @@
       "total": "共 {count} 条帖子",
       "allGroups": "全部群组",
       "groupPlaceholder": "选择群组",
+      "replyTooLong": "回复正文不得超过 1000 字节。",
+      "replyUnconfirmed": "未能确认回复结果，请先刷新评论核对。",
+      "summaryUnavailable": "无法读取可总结的公开群讨论，请刷新后重试。",
+      "commentOrder": {
+        "label": "评论排序",
+        "newest": "最新",
+        "oldest": "最早",
+        "popular": "热门"
+      },
+      "manualPublish": "发布群组动态",
+      "manualContent": "动态正文",
+      "manualAnnouncement": "发布为群公告",
+      "manualTooLong": "正文超过 4000 字节，请缩短后再发布。",
+      "manualPublished": "已发布到该群组。",
+      "manualPublishFailed": "未能确认发布结果，请先刷新群动态核对。",
+      "manualAttachment": "添加图片",
+      "manualUploading": "正在上传图片",
+      "manualRemoveAttachment": "移除图片",
+      "manualAttachmentLimit": "图片地址总长度超出限制。",
+      "manualAttachmentFailed": "图片上传失败，请重试。",
       "typePlaceholder": "帖子类型",
       "groupContext": "来自群组",
       "manageable": "可管理",
@@ -713,9 +831,12 @@
     },
     "invites": {
       "pendingCount": "共 {count} 条待处理邀请",
+      "viewAll": "查看全部邀请",
+      "unavailable": "这条邀请已不可用。",
       "emptyTitle": "没有待处理的邀请",
       "emptyDescription": "当有人邀请你加入群组时，邀请会显示在这里",
       "invitedYou": "邀请你加入",
+      "openGroup": "打开群组",
       "reject": "拒绝",
       "accept": "接受",
       "expired": "已过期",
@@ -842,20 +963,22 @@
       "description": "邀请用户加入 {group}，或创建可分享的邀请链接。",
       "searchLabel": "搜索用户",
       "searchPlaceholder": "输入用户名或昵称",
-      "searchHint": "选择用户会创建定向邀请；不选择用户则创建通用邀请链接。",
+      "searchHint": "选中接收人后可发送定向邀请。清空搜索框可创建邀请链接。",
       "searching": "正在搜索用户...",
       "noResults": "没有找到可邀请的用户",
       "emptySearch": "输入至少 2 个字符开始搜索。",
       "selected": "已选择",
       "clearSelection": "清除",
       "linkTitle": "邀请链接",
-      "linkDescription": "未选择具体用户时，会创建一个可复制分享的邀请链接。",
+      "linkDescription": "搜索框为空时可创建链接并分享。",
       "maxUses": "最大使用次数",
       "expireHours": "有效小时数",
       "messageLabel": "邀请留言",
       "messagePlaceholder": "写一句邀请说明（可选）",
       "createdTitle": "邀请已创建",
       "targetedCreated": "定向邀请已发送给该用户。",
+      "messageTooLong": "邀请留言不能超过 200 个 UTF-8 字节。",
+      "resultUnknown": "无法确认邀请是否已创建，请先到群管理查看邀请历史。",
       "sendInvite": "发送邀请",
       "createLink": "创建邀请链接"
     },
@@ -866,6 +989,7 @@
       "videoDescription": "视频房间和实时通话信令尚未接入后端。"
     },
     "directMessage": {
+      "loadOlder": "加载更早的消息",
       "title": "私聊",
       "placeholder": "给 {user} 发送私信...",
       "loading": "正在加载私聊记录...",
@@ -876,6 +1000,8 @@
       "title": "私聊列表",
       "description": "查看所有一对一会话",
       "empty": "还没有私聊会话",
+      "previousPage": "上一页",
+      "nextPage": "下一页",
       "noMessages": "还没有消息"
     },
     "message": {
@@ -890,6 +1016,9 @@
     },
     "composer": {
       "searchMembers": "搜索成员",
+      "attachmentCount": "每条消息最多发送 32 个附件。",
+      "attachmentSize": "单个附件大小不能超过 500 MiB。",
+      "attachmentEmpty": "请选择非空附件。",
       "noMembers": "没有匹配的成员",
       "searchChannels": "搜索频道",
       "noChannels": "没有匹配的频道",
@@ -918,6 +1047,7 @@
       "notificationSettings": "通知设置",
       "chatSettings": "聊天设置",
       "createChannel": "创建频道",
+      "loadMoreGroups": "加载更多群组",
       "muteChannel": "静音频道",
       "unmuteChannel": "取消静音",
       "editChannel": "编辑频道",
@@ -943,13 +1073,18 @@
     "prompts": {
       "channelName": "请输入频道名称",
       "messageContent": "编辑消息内容",
-      "deleteChannel": "确认删除该频道？频道消息会保留在数据库中但不再展示。"
+      "deleteChannel": "确认删除该频道？频道消息会保留在数据库中但不再展示。",
+      "deleteDirectMessage": "删除后，双方都无法在会话中查看这条私信。"
     },
     "dialogs": {
       "createChannel": {
         "title": "创建频道",
         "description": "频道分类：{category}",
-        "nameLabel": "频道名称"
+        "nameLabel": "频道名称",
+        "categoryLabel": "频道分类",
+        "privateLabel": "私密频道",
+        "editDescription": "更新频道名称、分类和可见性。",
+        "byteLimit": "最多允许 {max} 个 UTF-8 字节。"
       }
     },
     "feedback": {
@@ -958,6 +1093,7 @@
       "sendFailed": "消息发送失败",
       "loadFailed": "聊天加载失败",
       "loadMessagesFailed": "消息加载失败",
+      "loadChannelsFailed": "频道列表加载失败",
       "deleted": "消息已删除",
       "deleteFailed": "消息删除失败",
       "messageUpdated": "消息已更新",
@@ -979,6 +1115,7 @@
       "videoCallUnavailable": "视频通话后端尚未接入",
       "loadDirectConversationsFailed": "私聊列表加载失败",
       "loadDirectMessagesFailed": "私聊记录加载失败",
+      "openDirectConversationFailed": "无法打开指定的私信会话。",
       "directMessageSent": "私信已发送",
       "directMessageFailed": "私信发送失败",
       "cannotMessageSelf": "不能给自己发送私信",
@@ -997,7 +1134,14 @@
     }
   },
   "media": {
-    "lightboxAlt": "高清媒体"
+    "lightboxAlt": "高清媒体",
+    "privateDownload": "下载私密附件",
+    "cancelPrivateDownload": "取消下载",
+    "privateDownloadFailed": "无法下载此附件，请检查权限后重试。",
+    "attachmentScopeChanged": "请先移除已上传的附件，再切换公开或私密范围。",
+    "removePrivateToPublish": "移除私密附件并将帖子改为公开",
+    "keepAttachments": "保留的附件",
+    "attachmentNumber": "附件 {number}"
   },
   "errorPage": {
     "notFound": {
@@ -1011,6 +1155,7 @@
     }
   },
   "notifications": {
+    "realtimeUnavailable": "实时通知暂不可用。",
     "mail": {
       "deleteSuccess": "邮件已移至垃圾桶",
       "deleteFailed": "移至垃圾桶失败",
@@ -1020,6 +1165,7 @@
       "markReadSuccess": "通知已标记为已读",
       "markUnreadSuccess": "通知已标记为未读",
       "markAllReadSuccess": "所有通知已标记为已读",
+      "markListedRead": "将列表中的通知标为已读",
       "markAllReadFailed": "全部标记已读失败",
       "systemName": "系统",
       "systemEmail": "system"
@@ -1050,6 +1196,7 @@
       "viewComment": "查看评论",
       "viewProfile": "查看主页",
       "viewSession": "查看登录设备",
+      "viewConversation": "查看私信",
       "viewInvite": "查看邀请"
     },
     "types": {
@@ -1059,6 +1206,7 @@
       "follow": "关注",
       "mention": "提及",
       "login_alert": "登录提醒",
+      "direct_message": "私信",
       "system": "系统",
       "group_invite": "群组邀请"
     },
@@ -1095,6 +1243,29 @@
     }
   },
   "moderation": {
+    "assignment": {
+      "owner": "领取人：{name}",
+      "unassigned": "未领取",
+      "claim": "领取审核",
+      "release": "释放审核",
+      "claimDone": "已领取审核",
+      "releaseDone": "已释放审核"
+    },
+    "bulk": {
+      "title": "批量审核",
+      "selected": "批量审核（已选 {count} 条）",
+      "selectPost": "选择帖子 {id}",
+      "confirm": "本次操作将处理 {count} 条帖子。",
+      "action": "审核动作",
+      "note": "备注",
+      "noteTooLong": "备注最多 1000 个 UTF-8 字节。",
+      "approve": "通过举报并下架",
+      "reject": "驳回举报并恢复展示",
+      "flag": "标记待审",
+      "remove": "下架帖子",
+      "restore": "恢复帖子",
+      "processed": "已处理 {count} 条帖子"
+    },
     "title": "内容审核",
     "description": "管理和审核平台内容，维护社区健康",
     "tabs": {
@@ -1161,6 +1332,7 @@
     "filters": {
       "searchPlaceholder": "搜索推文内容或用户...",
       "statusPlaceholder": "选择状态",
+      "priorityAll": "全部优先级",
       "reportReasonPlaceholder": "举报原因",
       "dateRangePlaceholder": "时间范围",
       "sortPlaceholder": "排序方式",
@@ -1244,6 +1416,16 @@
       "evidence": "查看证据"
     },
     "appeals": {
+      "status": {
+        "all": "全部申诉",
+        "pending": "待处理",
+        "approved": "已通过",
+        "rejected": "已驳回"
+      },
+      "handled": "该申诉已处理，列表已刷新。",
+      "reply": "审核回复",
+      "replyOptional": "可以附上回复。",
+      "replyTooLong": "回复不得超过 2000 字节。",
       "title": "申诉审核",
       "empty": "暂无申诉记录",
       "approve": "通过申诉",
@@ -1257,8 +1439,8 @@
       "saveFailed": "保存审核设置失败",
       "definitions": {
         "auto_hide_report_threshold": {
-          "label": "自动隐藏阈值",
-          "description": "当举报数达到该值时，内容会被自动标记为高优先级。"
+          "label": "举报提级阈值",
+          "description": "未结案举报达到该人数时，提高内容案件的审核优先级。同一举报人只计一次，设为 0 可关闭。"
         },
         "require_note_on_reject": {
           "label": "拒绝时要求备注",
@@ -1555,6 +1737,7 @@
       "title": "服务条款",
       "description": "请仔细阅读以下服务条款和隐私政策。",
       "lastUpdated": "最后更新日期",
+      "citationUnavailable": "此处引用的条款版本暂不可查看。",
       "toc": {
         "title": "目录",
         "acceptance": "接受条款",
@@ -1675,6 +1858,7 @@
       "profile": "个人资料",
       "posts": "推文管理",
       "likes": "我的点赞",
+      "bookmarks": "我的收藏",
       "appearance": "外观",
       "security": "安全",
       "active": "活跃设备",
@@ -1830,14 +2014,21 @@
       "feedback": {
         "loadFailed": "加载设置失败",
         "saved": "设置已保存",
-        "saveFailed": "保存失败"
-      }
+        "saveFailed": "保存失败",
+        "loading": "正在读取当前设置…",
+        "saveUncertain": "无法确认保存结果，请刷新设置后再保存。"
+      },
+      "sessionChanged": "会话已变化，请重新打开设置。",
+      "reopen": "重新打开设置"
     },
     "active": {
       "title": "活跃设备",
       "description": "管理当前登录的设备与会话。",
       "revoke": "注销会话",
       "revokeOthers": "一键下线其他设备",
+      "confirmRevokeOthers": "确定下线其他设备？本设备会继续保持登录。",
+      "previousPage": "上一页",
+      "nextPage": "下一页",
       "thisDevice": "本设备",
       "otherDevice": "其它设备",
       "contentPlaceholder": "活跃会话列表即将上线。",
@@ -1855,6 +2046,13 @@
       "summary": "共 {count} 条已点赞推文",
       "emptyTitle": "还没有点过赞",
       "emptyDescription": "当你给推文点赞后，它们会集中显示在这里。"
+    },
+    "bookmarks": {
+      "title": "我的收藏",
+      "description": "查看你收藏的帖子。",
+      "summary": "共 {count} 条收藏",
+      "emptyTitle": "还没有收藏",
+      "emptyDescription": "收藏帖子后，可以在这里再次查看。"
     },
     "statements": {
       "title": "账户状态",
@@ -1888,7 +2086,8 @@
       },
       "appealTitle": "提交申诉",
       "appealPlaceholder": "请描述您的理由（至少10个字符）。",
-      "appealTooShort": "申诉内容需至少10个字符。",
+      "appealTooLong": "申诉内容不得超过 2000 字节",
+      "appealPending": "已有待处理的申诉。",
       "appealSubmitted": "申诉已提交。",
       "appealFailed": "申诉提交失败。",
       "appealStatus": "申诉状态",
@@ -1956,7 +2155,8 @@
         "loadFailed": "加载推文管理数据失败",
         "analyticsFailed": "加载推文详细数据失败",
         "saved": "推文设置已保存",
-        "saveFailed": "保存推文设置失败"
+        "saveFailed": "保存推文设置失败",
+        "saveUnconfirmed": "无法确认编辑是否已保存。当前改动仍保留，请先查看帖子，再决定是否重试。"
       }
     },
     "overview": {
@@ -1981,7 +2181,10 @@
         "likesGiven": "送出赞",
         "commentsMade": "发表评论",
         "dailyTrend": "每日变化趋势",
-        "dailyTrendDescription": "近 14 天的发帖、获赞、评论和综合互动变化。",
+        "dailyTrendDescription": "所选日期范围内的发帖、获赞、评论和综合互动变化。",
+        "dailyRange": "统计范围",
+        "rangeDays": "近 {days} 天",
+        "dailyFailed": "无法加载每日统计。",
         "chartPosts": "发帖",
         "chartLikes": "获赞",
         "chartComments": "评论",
@@ -2072,6 +2275,7 @@
         "phoneRequired": "手机号不能为空",
         "updateProfile": "更新个人资料",
         "updateProfileSuccess": "个人资料更新成功",
+        "saveFailed": "个人资料保存失败，请核对后重试。",
         "resetForm": "重置表单"
       }
     },
@@ -2169,7 +2373,10 @@
           "disableFailed": "关闭两步验证失败",
           "disabled": "两步验证已关闭",
           "copied": "密钥已复制"
-        }
+        },
+        "statusUnknown": "未知",
+        "reloadStatus": "重新读取状态",
+        "statusLoading": "加载中..."
       },
       "danger": {
         "title": "注销账号",
@@ -2182,35 +2389,186 @@
           "deleted": "账号已注销",
           "deleteFailed": "注销账号失败"
         }
-      }
+      },
+      "sessionChanged": "会话已变化，请重新打开安全设置。",
+      "reopen": "重新打开安全设置",
+      "sessionActionFailed": "会话清理失败，请核实会话状态后再继续。"
     }
   },
+  "moderationAdvice": {
+    "title": "AI 审核助手",
+    "hide": "收起 AI 审核助手",
+    "description": "根据目标的公开正文和已发布规则生成建议。请复核建议后，再决定是否处置。",
+    "generate": "生成建议",
+    "refresh": "刷新历史",
+    "generating": "正在生成建议…",
+    "stopGeneration": "停止生成",
+    "generationStopped": "已停止等待建议。请刷新历史，查看建议是否已保存。",
+    "generationSaved": "建议已保存，暂时无法读取。请刷新历史查看。",
+    "loading": "正在加载历史…",
+    "empty": "该目标暂无已保存的建议。",
+    "expired": "依据或规则已变化，这条建议已失效。",
+    "insufficient": "公开正文不足以生成建议，请人工核查。",
+    "unavailable": "审核助手暂时不可用。",
+    "conflict": "目标、规则或历史已变化，请刷新历史后重试。",
+    "failed": "无法读取或生成建议，请刷新历史后重试。",
+    "forbidden": "你没有权限查看此建议。",
+    "sessionChanged": "会话已变更，请重新打开审核队列。",
+    "rule": "规则 #{id} · 版本 {version}",
+    "openSource": "查看审核原文",
+    "feedbackLabel": "给这条审核建议评分",
+    "feedbackSaving": "正在保存评分…",
+    "deleteConversation": "删除当前 AI 会话",
+    "deleteHistoricalConversation": "删除这条建议所在会话",
+    "deleteHistoricalPrompt": "删除所选历史会话中的全部建议和评分？",
+    "deletePrompt": "删除当前 AI 会话中的建议与评分？其他会话和审核案件会保留。",
+    "confirmDelete": "确认删除会话",
+    "deleting": "正在删除 AI 会话…",
+    "deleted": "已删除 AI 会话。",
+    "deleteUnknown": "无法确认删除结果，请刷新历史核对。",
+    "feedbackSaved": "评分已保存。",
+    "feedbackUnavailable": "评分服务暂时不可用，你可以刷新历史继续查看建议。",
+    "feedbackFailed": "无法确认评分是否保存，请刷新历史后再试。",
+    "feedback": {
+      "helpful": "有帮助",
+      "incorrect": "有误",
+      "insufficient": "依据不足"
+    },
+    "risk": {
+      "none": "未发现风险",
+      "spam": "垃圾信息",
+      "harassment": "骚扰",
+      "hate": "仇恨",
+      "violence": "暴力",
+      "adult": "成人内容",
+      "misinformation": "虚假信息",
+      "copyright": "版权",
+      "other": "其他风险"
+    },
+    "recommendation": {
+      "no_action": "建议无需处置",
+      "human_review": "建议人工复核",
+      "consider_removal": "建议考虑移除"
+    }
+  },
+  "aiGroupDraft": {
+    "usedTools": "已使用工具：{tools}",
+    "public_search": "搜索公开内容",
+    "public_statistics": "统计公开活动",
+    "title": "群运营草稿",
+    "history": "会话历史",
+    "new": "新会话",
+    "delete": "删除会话",
+    "deleteQuestion": "删除此会话和其中的草稿？",
+    "confirmDelete": "确认删除",
+    "deleted": "会话已删除。",
+    "deleteFailed": "未能确认删除，请刷新历史。",
+    "untitled": "群运营会话",
+    "noHistory": "当前群还没有草稿会话。",
+    "more": "加载更多",
+    "kind": "草稿类型",
+    "searchTerm": "检索词（可选）",
+    "searchInvalid": "检索词最多 256 UTF-8 字节，且不能含控制字符。",
+    "weekly_report": "周报",
+    "activity_plan": "活动策划",
+    "skill": "技能",
+    "automaticSkill": "自动选择技能",
+    "groupBriefSkill": "群运营",
+    "faq": "常见问答",
+    "announcement": "公告草稿",
+    "generate": "生成草稿",
+    "generating": "正在生成草稿…",
+    "working": "处理中…",
+    "sessionChanged": "登录会话已变更，请重新打开群管理。",
+    "forbidden": "此功能仅限公开群的群主和活跃管理员。",
+    "conflict": "会话或素材已变更，请刷新。",
+    "unavailable": "群运营暂不可用，请稍后刷新。",
+    "quota": "AI 请求额度已用完，请稍后重试。",
+    "quotaRetry": "AI 请求额度已用完，请在 {seconds} 秒后重试。",
+    "requestFailed": "操作未完成，请刷新历史后重试。",
+    "conversationMissing": "此会话已不可用。",
+    "generationSaved": "草稿已保存，暂时无法读取。请刷新历史查看。",
+    "insufficient": "当前时间范围内没有可用的公开素材。",
+    "cancelled": "已取消等待。可以刷新历史确认草稿是否已保存。",
+    "review": "审阅并编辑",
+    "reviewTitle": "审阅后发布到本群",
+    "draftText": "发帖正文",
+    "draftBytes": "{bytes} / 4000 字节",
+    "publishAsAnnouncement": "发布为群公告",
+    "confirmPublish": "确认发布",
+    "published": "已发布到本群。",
+    "publishFailed": "未能确认发布结果，请先到群动态核对。",
+    "checkGroupPostsNewTab": "在新标签页打开群动态",
+    "confirmPublicationRetry": "我已核对群动态，确认需要重新发布",
+    "reviewRestored": "编辑内容已保留。若上次发布结果未知，请先到群动态核对，再决定是否重新发布。",
+    "tooLong": "正文超过 4000 字节，请缩短后再发布。",
+    "openPost": "查看已发布的帖子",
+    "post": "帖子",
+    "comment": "评论",
+    "sources": "资料来源",
+    "sourceUnavailable": "这条来源已无法查看。",
+    "staleDraft": "资料已变更，历史草稿不可用。"
+  },
   "aiWriting": {
+    "messageBytes": "{bytes} / {limit} 字节",
+    "replyCopied": "已复制回复",
+    "copyFailed": "无法复制回复，请手动选择文字",
+    "copyReply": "复制回复",
+    "useAsPost": "用作帖子",
+    "applyToComposer": "用到当前帖子",
+    "composerSource": "发送前可检查或编辑正文。采用回复时只替换当前编辑器里的正文。",
+    "postTooLong": "回复超过 280 字，可复制后编辑。",
+    "composerFailed": "无法打开发帖编辑器",
     "eyebrow": "AI 写作",
     "title": "写作助手",
     "description": "生成的内容仅供审阅，不会自动发布。",
     "new": "新建会话",
     "history": "历史会话",
     "historyEmpty": "暂无写作会话",
+    "conversationTitle": "会话标题（可选）",
+    "conversationTitleTooLong": "会话标题太长，请缩短后重试。",
     "untitled": "未命名会话",
     "empty": "输入写作需求，开始生成草稿。",
     "you": "你",
     "assistant": "写作助手",
     "placeholder": "描述你想写的内容",
+    "modeLabel": "写作模式",
+    "sourcePlaceholder": "粘贴要处理的原文",
+    "summarizePost": "用 AI 总结讨论",
+    "summaryUnavailable": "无法读取可总结的公开讨论，请刷新后重试。",
+    "discussionPrefilled": "已带入公开帖子和部分已加载的评论。可以先编辑，再发送给写作助手。",
+    "modes": {
+      "draft": "起草",
+      "polish": "润色",
+      "tags": "推荐标签",
+      "summary": "总结讨论"
+    },
+    "instructions": {
+      "polish": "润色以下原文，使表达清楚顺畅，保留原意和事实。",
+      "tags": "根据以下原文建议最多五个相关标签，并简要说明选择理由。",
+      "summary": "总结以下讨论，列出主要观点、已确认的结论和未解决的问题。"
+    },
     "send": "发送",
     "refreshState": "刷新会话状态",
     "retry": "重新生成回复",
+    "stopGeneration": "停止生成",
     "deleteTitle": "删除此会话？",
     "deleteDescription": "会话及其消息将被删除。",
     "errors": {
       "generation": "生成或读取失败，请刷新会话后重试。",
+      "generation-stopped": "已停止等待回复。请刷新会话，查看回复是否已保存。",
+      "reply-saved": "回复已保存，暂时无法读取。请刷新会话查看。",
       "append-unknown": "消息提交结果未知，请先刷新会话确认。",
       "history": "历史会话读取失败，请重试。",
       "delete-unknown": "删除未确认，请刷新会话状态或稍后重试。",
+      "conversation-missing": "此会话已不存在或无法访问，可以开始新会话。",
+      "sequence-conflict": "会话已有更新。请核对最新消息，再决定是否继续生成。",
       "too-long": "消息超过 65536 字节，请缩短后重试。"
     }
   },
   "aiKnowledge": {
+    "allComments": "查看全部评论",
+    "citedCommentMissing": "引用的评论已不存在或无法查看。",
     "eyebrow": "社区知识",
     "title": "知识助手",
     "description": "根据检索词匹配公开帖子和评论并回答问题，请结合来源核对。",
@@ -2228,20 +2586,47 @@
     "send": "发送",
     "refreshState": "刷新会话状态",
     "retry": "重新生成回复",
+    "stopGeneration": "停止生成",
     "deleteTitle": "删除此会话？",
     "deleteDescription": "会话及其消息将被删除。",
     "errors": {
       "generation": "生成或读取失败，请刷新会话后重试。",
+      "generation-stopped": "已停止等待回复。请刷新会话，查看回复是否已保存。",
+      "reply-saved": "回复已保存，暂时无法读取。请刷新会话查看。",
       "append-unknown": "消息提交结果未知，请先刷新会话确认。",
       "history": "历史会话读取失败，请重试。",
       "delete-unknown": "删除未确认，请刷新会话状态或稍后重试。",
+      "conversation-missing": "此会话已不存在或无法访问，可以开始新会话。",
+      "sequence-conflict": "会话已有更新。请核对最新消息，再决定是否继续生成。",
       "too-long": "消息超过 65536 字节，请缩短后重试。",
       "search-invalid": "请输入不含控制字符、最多 256 UTF-8 字节的检索词。"
     },
     "insufficientEvidence": "没有找到匹配的公开资料，请尝试其他文字。",
     "sources": "参考来源",
+    "recheckSources": "重新核对引用",
     "post": "帖子",
     "comment": "评论",
+    "group_post": "群帖子",
+    "group_comment": "群评论",
     "terms": "平台条款"
+  },
+  "aiModelVersion": "模型版本",
+  "aiReplyConfigRevision": "生成时的模型配置版本 {revision}",
+  "aiAvailability": {
+    "modelConfigRevision": "当前模型配置版本 {revision}",
+    "selectExplicitly": "明确使用此技能",
+    "loading": "正在读取功能状态…",
+    "enabled": "生成功能已启用。",
+    "disabled": "生成功能暂未启用，你仍可查看或删除历史会话。",
+    "unconfigured": "生成所需的模型配置暂不可用，你仍可查看或删除历史会话。",
+    "unknown": "暂时无法读取功能状态，请刷新后重试。",
+    "refresh": "刷新功能状态",
+    "skillVersion": "{name} · v{version}",
+    "skillNames": {
+      "knowledge-answer": "知识问答",
+      "writing-draft": "写作草稿",
+      "group-brief": "群运营草稿",
+      "moderation-advice": "审核建议"
+    }
   }
 }

@@ -1,10 +1,12 @@
 import { getCurrentInstance } from 'vue';
-import type { $Fetch, FetchError, FetchOptions } from 'ofetch';
+import type { $Fetch, FetchError, FetchOptions, MappedResponseType } from 'ofetch';
 import { withJsonAccept } from '~/utils/apiHeaders';
+import { authQueueFor } from '../services/auth-request-queue';
+import { resolveApiRequestBase } from '../utils/apiBase';
 
 // This transport also targets external Rust/Nuxt deployments. Its options should
 // not recursively depend on every locally generated Nitro route return type.
-export type ApiFetchOptions = FetchOptions<'json'>;
+export type ApiFetchOptions<R extends 'json' | 'blob' | 'stream' = 'json'> = FetchOptions<R>;
 export type ApiFetchBody =
   ApiFetchOptions extends { body?: infer TBody }
     ? TBody | undefined
@@ -337,7 +339,7 @@ function createClientRequestId(): string {
 }
 
 function queryPayload(
-  options: ApiFetchOptions
+  options: Pick<ApiFetchOptions, 'query'>
 ): unknown {
   const candidate = options as { query?: unknown };
   return sanitizeLogPayload(candidate.query);
@@ -396,18 +398,6 @@ function logApiError(
   payload: Record<string, unknown>
 ): void {
   console.error('[api:error]', payload);
-}
-
-function getApiBase(nuxtApp: NuxtAppContext): string {
-  if (nuxtApp) {
-    return String(nuxtApp.$config.public.apiBase ?? '');
-  }
-
-  try {
-    return String(useRuntimeConfig().public.apiBase ?? '');
-  } catch {
-    return '';
-  }
 }
 
 async function runWithNuxtContext<T>(
@@ -521,6 +511,8 @@ function createClientDeviceFingerprint(): string {
     .slice(2)}`;
 }
 
+let fallbackDeviceFingerprint = '';
+
 function getClientDeviceHeaders(
   isServer: boolean
 ): Record<string, string> {
@@ -528,19 +520,19 @@ function getClientDeviceHeaders(
     return {};
   }
 
-  let fingerprint = '';
-  try {
-    fingerprint =
-      window.localStorage.getItem(DEVICE_FINGERPRINT_KEY) || '';
-    if (!fingerprint) {
-      fingerprint = createClientDeviceFingerprint();
-      window.localStorage.setItem(
-        DEVICE_FINGERPRINT_KEY,
-        fingerprint
-      );
+  let fingerprint = fallbackDeviceFingerprint;
+  if (!fingerprint) {
+    try {
+      fingerprint =
+        window.localStorage.getItem(DEVICE_FINGERPRINT_KEY) || '';
+      if (!fingerprint) {
+        fingerprint = createClientDeviceFingerprint();
+        window.localStorage.setItem(DEVICE_FINGERPRINT_KEY, fingerprint);
+      }
+    } catch {
+      fingerprint ||= createClientDeviceFingerprint();
+      fallbackDeviceFingerprint = fingerprint;
     }
-  } catch {
-    fingerprint = createClientDeviceFingerprint();
   }
 
   const platform =
@@ -594,11 +586,45 @@ function isAuthEntryPath(path: string): boolean {
   );
 }
 
-export const apiFetch = async <T>(
+function isUnauthorized(error: unknown): boolean {
+  const candidate = error as FetchError | null | undefined;
+  return candidate?.response?.status === 401 || candidate?.statusCode === 401;
+}
+
+function cancelledRequest(message: string): Error {
+  const error = new Error(message);
+  error.name = 'AbortError';
+  return error;
+}
+
+async function runGuardedHooks<TContext>(
+  hooks: ((context: TContext) => unknown) | ReadonlyArray<(context: TContext) => unknown> | undefined,
+  context: TContext,
+  assertActive: () => void
+): Promise<void> {
+  assertActive();
+  for (const hook of Array.isArray(hooks) ? hooks : hooks ? [hooks] : []) {
+    assertActive();
+    await hook(context);
+    assertActive();
+  }
+}
+
+export const apiFetch = async <T, R extends 'json' | 'blob' | 'stream' = 'json'>(
   path: string,
-  options: ApiFetchOptions = {}
-): Promise<T> => {
+  options: ApiFetchOptions<R> = {}
+): Promise<MappedResponseType<R, T>> => {
   const nuxtApp = tryUseNuxtApp();
+  const authQueue = nuxtApp ? authQueueFor(nuxtApp) : null;
+  const authRevision = authQueue?.revision;
+  const assertActiveRequest = (): void => {
+    if (authQueue && authQueue.revision !== authRevision) {
+      throw cancelledRequest('Authentication action superseded');
+    }
+    if (options.signal?.aborted) {
+      throw cancelledRequest('Request aborted');
+    }
+  };
   const isServer = typeof window === 'undefined';
   const requestId = createClientRequestId();
   const startAt = Date.now();
@@ -638,16 +664,22 @@ export const apiFetch = async <T>(
     : 'client';
   traceHeaders['x-request-id'] = requestId;
 
-  const mergedOptions: ApiFetchOptions = {
-    baseURL: getApiBase(nuxtApp),
+  const mergedOptions: ApiFetchOptions<R> = {
+    baseURL: resolveApiRequestBase(nuxtApp?.$config, isServer),
     credentials: 'include',
     ...options,
+    // Authentication recovery below owns the only replay of this request.
+    retry: 0,
     headers: withJsonAccept({
       ...getForwardedRequestHeaders(isServer),
       ...traceHeaders,
       ...getClientDeviceHeaders(isServer),
       ...headersToRecord(options.headers)
-    })
+    }),
+    onRequest: context => runGuardedHooks(options.onRequest, context, assertActiveRequest),
+    onRequestError: context => runGuardedHooks(options.onRequestError, context, assertActiveRequest),
+    onResponse: context => runGuardedHooks(options.onResponse, context, assertActiveRequest),
+    onResponseError: context => runGuardedHooks(options.onResponseError, context, assertActiveRequest)
   };
 
   const requestLogPayload = {
@@ -663,7 +695,9 @@ export const apiFetch = async <T>(
   logApiRequest(requestLogPayload);
 
   try {
-    const response = await ($fetch as $Fetch)<T>(path, mergedOptions);
+    assertActiveRequest();
+    const response = await ($fetch as $Fetch)<T, R>(path, mergedOptions);
+    assertActiveRequest();
     logApiResponse({
       ...requestLogPayload,
       durationMs: Date.now() - startAt,
@@ -671,28 +705,38 @@ export const apiFetch = async <T>(
     });
     return response;
   } catch (error) {
-    const maybeError = error as FetchError;
+    assertActiveRequest();
     if (
-      (maybeError.response?.status === 401 ||
-        maybeError.statusCode === 401) &&
+      // Only the browser can receive the rotated session cookies from this fetch.
+      !isServer && nuxtApp && isUnauthorized(error) &&
       !isRefreshPath(path) &&
-      !isAuthEntryPath(path)
+      !isAuthEntryPath(path) &&
+      // An incorrect OTP is also 401; never refresh/replay this mutation.
+      !(normalizeApiPath(path) === '/api/v2/users/me/email' ||
+        ['/api/v2/users/me/two-factor','/api/v2/users/me/two-factor/setup','/api/v2/users/me/two-factor/confirm'].includes(normalizeApiPath(path)) ||
+        (normalizeApiPath(path) === '/api/v2/users/me' && String(options.method ?? 'GET').toUpperCase() === 'DELETE'))
     ) {
+      let preferenceStore: ReturnType<typeof import('~/stores/user')['usePreferenceStore']> | undefined;
+      let retried = false;
       try {
+        // Import before entering the captured context: an await can leave it.
+        const { usePreferenceStore } = await import('~/stores/user');
         await runWithNuxtContext(
           nuxtApp,
           async (): Promise<void> => {
-            const { usePreferenceStore } = await import(
-              '~/stores/user'
-            );
-            const preferenceStore = usePreferenceStore();
+            assertActiveRequest();
+            preferenceStore = usePreferenceStore();
             await preferenceStore.refreshAccessToken();
           }
         );
-        await new Promise(resolve =>
-          setTimeout(resolve, 100)
-        );
-        const response = await ($fetch as $Fetch)<T>(path, mergedOptions);
+        assertActiveRequest();
+        if (String(options.method ?? 'GET').toUpperCase() === 'POST' &&
+            ['/api/v2/media', '/api/v2/media/private'].includes(normalizeApiPath(path))) {
+          throw error;
+        }
+        retried = true;
+        const response = await ($fetch as $Fetch)<T, R>(path, mergedOptions);
+        assertActiveRequest();
         logApiResponse({
           ...requestLogPayload,
           durationMs: Date.now() - startAt,
@@ -700,6 +744,10 @@ export const apiFetch = async <T>(
         });
         return response;
       } catch (retryError) {
+        assertActiveRequest();
+        if (retried && isUnauthorized(retryError)) {
+          nuxtApp.runWithContext(() => preferenceStore?.clearAuthState());
+        }
         logApiError({
           ...requestLogPayload,
           durationMs: Date.now() - startAt,

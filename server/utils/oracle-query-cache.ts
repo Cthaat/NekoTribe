@@ -5,6 +5,7 @@ import type oracledb from 'oracledb';
 import { getRequestURL } from 'h3';
 import { invalidateApiResponseCacheTags } from './api-cache';
 import { cacheProcessEpoch, singleBackendCacheEnabled } from './cache-mode';
+import { readCacheTagVersions, rotateCacheTags } from './cache-tags';
 import {
   getRequestLogContext,
   logInfo,
@@ -25,8 +26,7 @@ const ORACLE_QUERY_CACHE_SOURCE: unique symbol = Symbol(
 const QUERY_CACHE_SCHEMA_VERSION = '2';
 const QUERY_CACHE_KEY_PREFIX = 'nt:oracle-query-cache';
 const QUERY_HIT_KEY_PREFIX = 'nt:oracle-query-cache-hits';
-const QUERY_TAG_VERSION_KEY_PREFIX = 'nt:oracle-query-cache-tag';
-const QUERY_TAG_VERSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+const QUERY_TAG_VERSION_KEY_PREFIX = 'nt:oracle-query-cache-tag:v2';
 
 interface OracleQueryCacheAuth {
   userId?: number;
@@ -153,6 +153,12 @@ function isSensitiveSql(normalizedSql: string): boolean {
     'verification_code',
     'n_auth_sessions',
     'n_user_sessions',
+    'n_user_settings',
+    'n_user_blocks',
+    'n_user_mutes',
+    'n_moderation_user_restrictions',
+    'n_user_follows',
+    'fn_get_user_relationship',
     'n_ai_conversations',
     'n_ai_messages',
     'fn_has_group_permission'
@@ -173,7 +179,7 @@ function isCacheNeutralMutationSql(sql: string): boolean {
 
 function isMutatingSql(sql: string): boolean {
   const normalized = normalizedSqlForMatch(sql);
-  return /^(insert|update|delete|merge|begin)\b/.test(normalized);
+  return /^(insert|update|delete|merge|begin|declare)\b/.test(normalized);
 }
 
 function normalizeKeyPart(input: string): string {
@@ -416,8 +422,8 @@ async function queryTagVersions(
   const keys = tags.map(
     tag => `${QUERY_TAG_VERSION_KEY_PREFIX}:oracle:${tag}`
   );
-  const values = keys.length > 0 ? await redis.mget(...keys) : [];
-  return tags.map((tag, index) => [tag, values[index] ?? '0']);
+  const values = await readCacheTagVersions(redis, keys);
+  return tags.map((tag, index) => [tag, values[index]!]);
 }
 
 async function buildQueryCacheContext(
@@ -588,13 +594,7 @@ async function invalidateOracleQueryCacheTags(
   if (tags.length === 0) return;
 
   try {
-    const pipeline = redis.pipeline();
-    for (const tag of tags) {
-      const key = `${QUERY_TAG_VERSION_KEY_PREFIX}:oracle:${tag}`;
-      pipeline.incr(key);
-      pipeline.expire(key, QUERY_TAG_VERSION_TTL_SECONDS);
-    }
-    await pipeline.exec();
+    await rotateCacheTags(redis, tags.map(tag => `${QUERY_TAG_VERSION_KEY_PREFIX}:oracle:${tag}`));
     if (source.event) {
       await invalidateApiResponseCacheTags(source.event, 'v2', tags);
     }
@@ -617,33 +617,11 @@ async function invalidateOracleQueryCacheTags(
   }
 }
 
-async function invalidateAfterMutation(
-  source: OracleQueryCacheSource,
-  sql: string,
-  result: oracledb.Result<unknown>
-): Promise<void> {
-  const redis = redisOf(source);
-  if (!redis) return;
-  if (!isMutatingSql(sql)) return;
-  if (isCacheNeutralMutationSql(sql)) return;
-
-  const rowsAffected = result.rowsAffected;
-  if (typeof rowsAffected === 'number' && rowsAffected <= 0) {
-    return;
-  }
-
-  await invalidateOracleQueryCacheTags(
-    source,
-    redis,
-    tagsForSql(sql, source),
-    sql
-  );
-}
-
 export function attachOracleQueryCacheWithSource(
   source: OracleQueryCacheSource,
   connection: oracledb.Connection
 ): oracledb.Connection {
+  if (!singleBackendCacheEnabled) return connection;
   const cachedConnection = connection as CachedOracleConnection;
   cachedConnection[ORACLE_QUERY_CACHE_SOURCE] = source;
 
@@ -654,11 +632,47 @@ export function attachOracleQueryCacheWithSource(
   cachedConnection[ORACLE_QUERY_CACHE_ORIGINAL_EXECUTE] =
     connection.execute.bind(connection) as RawOracleExecute;
 
-  cachedConnection.execute = (async (
+  const pendingTags = new Set<string>();
+  let operations = Promise.resolve();
+  function inConnectionOrder<T>(action: () => Promise<T>): Promise<T> {
+    const result = operations.then(action);
+    operations = result.then(() => undefined, () => undefined);
+    return result;
+  }
+  const currentSource = () => cachedConnection[ORACLE_QUERY_CACHE_SOURCE] ?? source;
+  async function invalidatePending(current: OracleQueryCacheSource, sql: string) {
+    const redis = redisOf(current);
+    if (redis && pendingTags.size) {
+      await invalidateOracleQueryCacheTags(current, redis, [...pendingTags], sql);
+    }
+  }
+  if (typeof connection.commit === 'function') {
+    const commit = connection.commit.bind(connection);
+    cachedConnection.commit = (() => inConnectionOrder(async () => {
+      const current = currentSource();
+      try {
+        await commit();
+      } catch (error) {
+        // The server may have committed before a connection error was reported.
+        await invalidatePending(current, 'commit');
+        throw error;
+      }
+      await invalidatePending(current, 'commit');
+      pendingTags.clear();
+    })) as oracledb.Connection['commit'];
+  }
+  if (typeof connection.rollback === 'function') {
+    const rollback = connection.rollback.bind(connection);
+    cachedConnection.rollback = (() => inConnectionOrder(async () => {
+      await rollback();
+      pendingTags.clear();
+    })) as oracledb.Connection['rollback'];
+  }
+
+  cachedConnection.execute = ((
     ...args: unknown[]
-  ): Promise<oracledb.Result<unknown>> => {
-    const currentSource =
-      cachedConnection[ORACLE_QUERY_CACHE_SOURCE] ?? source;
+  ): Promise<oracledb.Result<unknown>> => inConnectionOrder(async () => {
+    const activeSource = currentSource();
     const originalExecute =
       cachedConnection[ORACLE_QUERY_CACHE_ORIGINAL_EXECUTE];
     if (!originalExecute) {
@@ -670,43 +684,46 @@ export function attachOracleQueryCacheWithSource(
       return await originalExecute(...args);
     }
 
-    const redis = redisOf(currentSource);
+    const redis = redisOf(activeSource);
     const binds = args.length >= 2 ? args[1] : undefined;
     const options = executeOptionsFromArgs(args);
 
-    const sourcePath = (currentSource.path ?? '').split('?')[0] ?? '';
+    const sourcePath = (activeSource.path ?? '').split('?')[0] ?? '';
     const isAiPath = sourcePath === '/api/v2/ai' || sourcePath.startsWith('/api/v2/ai/');
-    if (singleBackendCacheEnabled && redis && !isAiPath && isCacheableSelectSql(sql)) {
+    const isSettingsPath = sourcePath.replace(/\/+$/, '') === '/api/v2/users/me/settings';
+    const isStatementPath = /^\/api\/v2\/(?:users\/me\/account-statements|(?:moderation\/(?:appeals|reports|stats|settings|users|content)|reports))(?:\/|$)/.test(sourcePath);
+    const isRelationshipPath = /^\/api\/v2\/users(?:\/(?:recommendations|me\/avatar|me\/(?:blocks|mutes)(?:\/[^/]+)?|[^/]+\/(?:followers|following|mutual-following)))?\/*$/.test(sourcePath);
+    const isRegistrationPath = sourcePath.replace(/\/+$/, '') === '/api/v2/auth/registration';
+    const isDirectMessagePath = /^\/api\/v2\/chat\/direct-conversations(?:\/[^/]+\/messages(?:\/[^/]+)?)?\/*$/.test(sourcePath);
+    const isChatChannelPath = /^\/api\/v2\/chat\/(?:groups(?:\/[^/]+\/(?:channels|members))?|channels\/[^/]+(?:\/(?:read-status|mute-status|messages))?|messages\/[^/]+(?:\/(?:pin-status|reactions))?)\/*$/.test(sourcePath);
+    const isGroupReadPath = /^\/api\/v2\/(?:groups(?:\/(?:by-slug\/)?[^/]+)?|users\/me\/groups)\/*$/.test(sourcePath);
+    const isGroupMembershipPath = /^\/api\/v2\/(?:groups\/(?:invite-codes\/|invites\/[^/]+\/responses(?:\/|$)|[^/]+\/(?:members|ownership|invites|posts|notification-preference|audit-logs)(?:\/|$))|users\/me\/group-invites\/*$)/.test(sourcePath);
+    const isPostLikersPath = /^\/api\/v2\/posts\/[^/]+\/likes\/*$/.test(sourcePath);
+    const isAnalyticsPath = /^\/api\/v2\/(?:posts|users)\/[^/]+\/analytics(?:\/|$)/.test(sourcePath);
+    const isFeedbackPath = /^\/api\/v2\/(?:posts(?:\/trending)?|recommendations\/feedback)\/*$/.test(sourcePath);
+    let cacheContext: OracleQueryCacheContext | undefined;
+    if (pendingTags.size === 0 && !connection.transactionInProgress && redis && !isAiPath && !isSettingsPath && !isStatementPath && !isRelationshipPath && !isRegistrationPath && !isDirectMessagePath && !isChatChannelPath && !isGroupReadPath && !isGroupMembershipPath && !isPostLikersPath && !isAnalyticsPath && !isFeedbackPath && isCacheableSelectSql(sql)) {
       try {
         const context = await buildQueryCacheContext(
-          currentSource,
+          activeSource,
           sql,
           binds,
           options,
           redis
         );
         const cached = await readOracleQueryCache(
-          currentSource,
+          activeSource,
           redis,
           context,
           sql
         );
         if (cached) return cached;
-
-        const result = await originalExecute(...args);
-        await writeOracleQueryCache(
-          currentSource,
-          redis,
-          context,
-          sql,
-          result
-        );
-        return result;
+        cacheContext = context;
       } catch (error) {
         logWarn('oracle-query-cache', {
           event: 'bypass:error',
-          requestId: currentSource.requestId ?? 'unknown',
-          path: currentSource.path ?? 'oracle',
+          requestId: activeSource.requestId ?? 'unknown',
+          path: activeSource.path ?? 'oracle',
           sqlHash: hash(normalizeSql(sql)),
           error: serializeLogError(error)
         });
@@ -714,9 +731,18 @@ export function attachOracleQueryCacheWithSource(
     }
 
     const result = await originalExecute(...args);
-    await invalidateAfterMutation(currentSource, sql, result);
+    if (isMutatingSql(sql) && !isCacheNeutralMutationSql(sql) && result.rowsAffected !== 0) {
+      for (const tag of tagsForSql(sql, activeSource)) pendingTags.add(tag);
+    }
+    if (pendingTags.size && connection.transactionInProgress === false) {
+      await invalidatePending(activeSource, sql);
+      pendingTags.clear();
+    }
+    if (cacheContext && redis && !connection.transactionInProgress) {
+      await writeOracleQueryCache(activeSource, redis, cacheContext, sql, result);
+    }
     return result;
-  }) as oracledb.Connection['execute'];
+  })) as oracledb.Connection['execute'];
 
   cachedConnection[ORACLE_QUERY_CACHE_ATTACHED] = true;
   return connection;

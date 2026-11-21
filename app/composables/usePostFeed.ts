@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import type { PostPageVM, PostVM } from '@/types/posts';
 
 interface UsePostFeedOptions {
@@ -18,6 +19,7 @@ interface PostFeedState {
   total: number;
   totalPages: number;
   refresh: () => Promise<void>;
+  invalidate: () => void;
   removePost: (postId: number) => void;
   patchPost: (
     postId: number,
@@ -104,6 +106,7 @@ export function usePostFeed(
   options: UsePostFeedOptions
 ): PostFeedState {
   const debugName = options.debugName ?? 'default';
+  let request = 0;
 
   const state = reactive<PostFeedState>({
     page: 1,
@@ -113,7 +116,16 @@ export function usePostFeed(
     error: null,
     total: 0,
     totalPages: 1,
+    invalidate(this: PostFeedState): void {
+      request++;
+      this.posts = [];
+      this.total = 0;
+      this.totalPages = 1;
+      this.loading = false;
+      this.error = null;
+    },
     async refresh(this: PostFeedState): Promise<void> {
+      const current = ++request;
       this.loading = true;
       this.error = null;
 
@@ -127,6 +139,7 @@ export function usePostFeed(
           this.page,
           this.pageSize
         );
+        if (current !== request) return;
         this.posts = result.items;
         this.total = result.total;
         this.totalPages = Math.max(
@@ -145,6 +158,7 @@ export function usePostFeed(
             .map(post => post.id)
         });
       } catch (caught) {
+        if (current !== request) return;
         const errorDetails = serializeFeedError(caught);
         const message =
           errorDetails.message || '加载推文失败';
@@ -158,7 +172,7 @@ export function usePostFeed(
           errorDetails
         );
       } finally {
-        this.loading = false;
+        if (current === request) this.loading = false;
       }
     },
     removePost(this: PostFeedState, postId: number): void {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import GroupStats from '@/components/GroupStats.vue';
 import GroupFilters from '@/components/GroupFilters.vue';
@@ -7,12 +7,22 @@ import GroupList from '@/components/GroupList.vue';
 import GroupDetailModal from '@/components/GroupDetailModal.vue';
 import CreateGroupModal from '@/components/CreateGroupModal.vue';
 import GroupManageModal from '@/components/GroupManageModal.vue';
+import { Button } from '@/components/ui/button';
+import { authQueueFor } from '@/services/auth-request-queue';
 import type {
   CreateGroupData,
   Group,
   GroupFiltersData
 } from '@/types/groups';
 const { t } = useAppLocale();
+const auth = authQueueFor(useNuxtApp());
+const route = useRoute();
+const router = useRouter();
+const linkedSlug = computed(() =>
+  typeof route.query.slug === 'string' && route.query.slug.length > 0
+    ? route.query.slug : null
+);
+const mode = ref<'discover' | 'popular'>('discover');
 
 const filters = ref<GroupFiltersData>({
   search: '',
@@ -22,7 +32,7 @@ const filters = ref<GroupFiltersData>({
 });
 
 const groupList = useGroupList({
-  mode: 'discover',
+  mode,
   filters
 });
 const groupDetail = useGroupDetail();
@@ -38,24 +48,22 @@ const selectedGroup = groupDetail.selectedGroup;
 const members = groupDetail.members;
 const posts = groupDetail.posts;
 
-function syncSelectedGroup(groupId: number): void {
-  if (selectedGroup.value?.id !== groupId) return;
-  const updated = groups.value.find(
-    group => group.id === groupId
-  );
-  if (updated) selectedGroup.value = updated;
-}
-
 onMounted(() => {
   void groupList.refresh();
+  if (linkedSlug.value) void groupDetail.openGroupBySlug(linkedSlug.value);
+});
+
+watch(linkedSlug, (slug, previous) => {
+  if (slug) void groupDetail.openGroupBySlug(slug);
+  else if (previous) groupDetail.close();
 });
 
 watch(
-  filters,
+  [mode, filters],
   () => {
     void groupList.refresh();
   },
-  { deep: true }
+  { deep: true, flush: 'sync' }
 );
 
 watch(detailModalOpen, isOpen => {
@@ -63,15 +71,18 @@ watch(detailModalOpen, isOpen => {
 });
 
 async function handleJoin(id: number): Promise<void> {
+  const revision = auth.revision;
   try {
     const status = await groupList.join(id);
-    syncSelectedGroup(id);
+    if (revision !== auth.revision) return;
+    if (selectedGroup.value?.id === id) void groupDetail.refresh();
     toast.success(
       status === 'active'
         ? t('groups.feedback.joined')
         : t('groups.feedback.joinRequested')
     );
   } catch (error) {
+    if (revision !== auth.revision) return;
     toast.error(t('groups.feedback.joinFailed'), {
       description:
         error instanceof Error ? error.message : undefined
@@ -80,11 +91,17 @@ async function handleJoin(id: number): Promise<void> {
 }
 
 async function handleLeave(id: number): Promise<void> {
+  const revision = auth.revision;
+  const pending = (selectedGroup.value?.id === id
+    ? selectedGroup.value
+    : groups.value.find(group => group.id === id))?.membershipStatus === 'pending';
   try {
     await groupList.leave(id);
-    syncSelectedGroup(id);
-    toast.success(t('groups.feedback.left'));
+    if (revision !== auth.revision) return;
+    if (selectedGroup.value?.id === id) void groupDetail.refresh();
+    toast.success(t(pending ? 'groups.feedback.requestCanceled' : 'groups.feedback.left'));
   } catch (error) {
+    if (revision !== auth.revision) return;
     toast.error(t('groups.feedback.leaveFailed'), {
       description:
         error instanceof Error ? error.message : undefined
@@ -93,6 +110,14 @@ async function handleLeave(id: number): Promise<void> {
 }
 
 async function handleViewDetail(group: Group): Promise<void> {
+  if (group.slug && linkedSlug.value !== group.slug) {
+    await router.replace({
+      path: route.path,
+      query: { ...route.query, slug: group.slug },
+      hash: route.hash
+    });
+    return;
+  }
   await groupDetail.openGroup(group);
 }
 
@@ -162,6 +187,7 @@ async function handleInvite(id: number): Promise<void> {
 
 function handleGroupUpdated(group: Group): void {
   groupList.patchGroup(group.id, () => group);
+  if (mode.value === 'popular') void groupList.refresh();
   if (selectedGroup.value?.id === group.id) {
     selectedGroup.value = group;
   }
@@ -187,11 +213,24 @@ async function handleGroupDeleted(groupId: number): Promise<void> {
 
 <template>
   <div class="space-y-6">
+    <div class="flex flex-wrap gap-2">
+      <Button
+        :variant="mode === 'discover' ? 'default' : 'outline'"
+        :aria-pressed="mode === 'discover'"
+        @click="mode = 'discover'"
+      >{{ t('groups.tabs.discover') }}</Button>
+      <Button
+        :variant="mode === 'popular' ? 'default' : 'outline'"
+        :aria-pressed="mode === 'popular'"
+        @click="mode = 'popular'"
+      >{{ t('groups.tabs.popular') }}</Button>
+    </div>
     <!-- 统计面板 -->
-    <GroupStats :stats="statsData" />
+    <GroupStats v-if="mode === 'discover'" :stats="statsData" />
 
     <!-- 过滤器 -->
     <GroupFilters
+      v-if="mode === 'discover'"
       v-model="filters"
       @reset="handleResetFilters"
     />
@@ -200,6 +239,7 @@ async function handleGroupDeleted(groupId: number): Promise<void> {
     <GroupList
       :groups="groups"
       :loading="loading"
+      :has-next="mode === 'discover' && groupList.hasNext.value"
       :show-create-button="true"
       @join="handleJoin"
       @leave="handleLeave"
@@ -214,6 +254,9 @@ async function handleGroupDeleted(groupId: number): Promise<void> {
     <GroupDetailModal
       v-model:open="detailModalOpen"
       :group="selectedGroup"
+      :loading="groupDetail.loading.value"
+      :error="groupDetail.error.value"
+      @retry="groupDetail.refresh"
       :members="members"
       :posts="posts"
       @join="handleJoin"

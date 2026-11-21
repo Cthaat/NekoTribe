@@ -740,6 +740,7 @@ interface V2GroupMember {
   role_desc: string;
   status: string;
   nickname: string | null;
+  mute_until: string | null;
   joined_at: string;
 }
 
@@ -768,6 +769,7 @@ interface V2GroupPost {
 }
 
 interface V2CreateGroupPostPayload {
+  is_announcement?: boolean;
   content: string;
   media_urls?: string[];
 }
@@ -862,7 +864,9 @@ interface V2GroupNotificationPreference {
 interface V2GroupAuditLog {
   log_id: number;
   group_id: number;
-  actor: V2PublicUser;
+  actor_id: number;
+  actor: V2PublicUser | null;
+  target_user_id: number | null;
   target_user: V2PublicUser | null;
   target_post_id: number | null;
   target_comment_id: number | null;

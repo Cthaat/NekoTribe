@@ -1,5 +1,8 @@
+import { requirePublishAccess } from './moderation-publish-policy';
+import directRealtimeAccess from '../../../specifications/requirements/direct-realtime-access.json';
+import directDelete from '../../../specifications/requirements/direct-message-delete.json';
 import type { H3Event } from 'h3';
-import { readBody } from 'h3';
+import { getQuery, readRawBody } from 'h3';
 import type oracledb from 'oracledb';
 import type {
   V2ApiResponse as V2Response,
@@ -21,6 +24,7 @@ import type {
   V2GroupRole,
   V2MediaAsset
 } from '../../../app/types/v2';
+import { normalizeStoragePublicUrl } from '~/server/storage';
 import type { WSMessage } from '~/server/utils/redis';
 import {
   REDIS_CHANNELS,
@@ -39,6 +43,7 @@ import {
   v2BoolNumber,
   v2Boolean,
   v2Count,
+  v2Conflict,
   v2DateString,
   v2Execute,
   v2Forbidden,
@@ -46,19 +51,19 @@ import {
   v2NotFound,
   v2Null,
   v2Number,
-  v2NumberArray,
   v2Ok,
   v2One,
   v2Page,
   v2PageMeta,
   v2QueryString,
-  v2RequiredNumber,
   v2RequiredString,
   v2Rows,
+  v2ServerError,
   v2String
 } from '~/server/utils/v2';
 import { v2MapMedia, v2MapPublicUser } from '~/server/models/v2';
-import { v2CreateNotification } from './notifications';
+import { v2DeliverStoredNotification, v2StoreNotification } from './notifications';
+import { canBindMedia } from './private-media-binding';
 
 interface ChatMembership {
   groupId: number;
@@ -136,14 +141,12 @@ function v2MapChatMember(row: V2DbRecord): V2ChatMember {
     if (value === 'online' || value === 'hidden') return value;
     return 'offline';
   })();
+  const avatar = v2String(row.AVATAR_URL);
   return {
     user_id: v2Number(row.USER_ID),
     username: v2String(row.USERNAME),
-    display_name:
-      v2String(row.NICKNAME) ||
-      v2String(row.DISPLAY_NAME) ||
-      v2String(row.USERNAME),
-    avatar_url: v2String(row.AVATAR_URL) || null,
+    display_name: v2String(row.DISPLAY_NAME),
+    avatar_url: avatar ? normalizeStoragePublicUrl(avatar) : null,
     role: v2String(row.ROLE, 'member') as V2GroupRole,
     status,
     online_status: onlineStatus,
@@ -168,26 +171,11 @@ function v2InPlaceholders(
     .join(', ');
 }
 
-async function v2OptionalBody(
-  event: H3Event
-): Promise<Record<string, unknown>> {
-  const body = await readBody<unknown>(event);
-  if (body === undefined || body === null || body === '') {
-    return {};
-  }
-  if (
-    typeof body === 'object' &&
-    !Array.isArray(body)
-  ) {
-    return body as Record<string, unknown>;
-  }
-  v2BadRequest('请求体必须是 JSON 对象');
-}
-
 async function v2ChatMembership(
   connection: oracledb.Connection,
   userId: number,
-  groupId: number
+  groupId: number,
+  lock = false
 ): Promise<ChatMembership> {
   const row = await v2One(
     connection,
@@ -207,6 +195,7 @@ async function v2ChatMembership(
       AND gm.status IN ('active', 'muted')
       AND g.is_active = 1
       AND g.is_deleted = 0
+    ${lock ? 'FOR UPDATE OF gm.role' : ''}
     `,
     { user_id: userId, group_id: groupId }
   );
@@ -222,7 +211,8 @@ async function v2ChatMembership(
 
 async function v2EnsureDefaultChatChannels(
   connection: oracledb.Connection,
-  groupId: number
+  groupId: number,
+  userId: number
 ): Promise<void> {
   const count = await v2Count(
     connection,
@@ -242,11 +232,23 @@ async function v2EnsureDefaultChatChannels(
     SELECT owner_id
     FROM n_groups
     WHERE group_id = :group_id
+      AND is_active = 1
       AND is_deleted = 0
+    FOR UPDATE
     `,
     { group_id: groupId }
   );
   if (!group) v2NotFound('群组不存在');
+
+  const latestCount = await v2Count(
+    connection,
+    'SELECT COUNT(*) AS total FROM n_chat_channels WHERE group_id = :group_id AND is_deleted = 0',
+    { group_id: groupId }
+  );
+  if (latestCount > 0) {
+    await connection.rollback();
+    return;
+  }
 
   const ownerId = v2Number(group.OWNER_ID);
   const defaults: Array<{
@@ -269,7 +271,9 @@ async function v2EnsureDefaultChatChannels(
     }
   ];
 
-  for (const item of defaults) {
+  try {
+    await v2ChatMembership(connection, userId, groupId);
+    for (const item of defaults) {
     const channelId = await v2NextId(
       connection,
       'seq_chat_channel_id'
@@ -303,15 +307,22 @@ async function v2EnsureDefaultChatChannels(
         category: item.category,
         position: item.position,
         created_by: ownerId
-      }
+      },
+      false
     );
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
   }
 }
 
 async function v2RequireChatChannelAccess(
   connection: oracledb.Connection,
   userId: number,
-  channelId: number
+  channelId: number,
+  lockMembership = false
 ): Promise<ChatChannelAccess> {
   const row = await v2One(
     connection,
@@ -337,6 +348,7 @@ async function v2RequireChatChannelAccess(
       AND g.is_active = 1
       AND g.is_deleted = 0
       AND gm.status IN ('active', 'muted')
+    ${lockMembership ? 'FOR UPDATE OF gm.role' : ''}
     `,
     { user_id: userId, channel_id: channelId }
   );
@@ -367,7 +379,7 @@ function v2AssertCanManage(access: ChatMembership): void {
 }
 
 function v2AssertCanSend(access: ChatChannelAccess): void {
-  if (access.status !== 'active') {
+  if (access.status !== 'active' || (access.channelType === 'announcement' && !access.canManage)) {
     v2Forbidden('当前群组状态不允许发送消息');
   }
   if (
@@ -375,12 +387,6 @@ function v2AssertCanSend(access: ChatChannelAccess): void {
     access.channelType !== 'announcement'
   ) {
     v2BadRequest('该频道类型暂不支持文字消息');
-  }
-  if (
-    access.channelType === 'announcement' &&
-    !access.canManage
-  ) {
-    v2Forbidden('只有管理员可以在公告频道发言');
   }
 }
 
@@ -560,10 +566,56 @@ async function v2AssertDirectTargetCanReceive(
   }
 }
 
+export async function v2DeleteDirectMessage(
+  event: H3Event, connection: oracledb.Connection, conversationId: number, messageId: number
+) {
+  const userId = v2Auth(event).userId;
+  const conversation = {conversation_id: conversationId};
+  const message = {...conversation, message_id: messageId};
+  const actor = {user_id: userId};
+  let recipient: number;
+  try {
+    const member = await v2One(connection, directDelete.lockConversation, {...conversation, ...actor});
+    if (!member) {
+      v2Forbidden('无权访问该私聊会话');
+    }
+    recipient = v2Number(member.RECIPIENT);
+    if (!Number.isSafeInteger(recipient) || recipient <= 0 || recipient === userId) throw new Error('Invalid direct message recipient');
+    const row = await v2One(connection, directDelete.lockMessage, message);
+    if (!row) v2NotFound('私信不存在');
+    if (v2Number(row.SENDER_ID) !== userId) v2Forbidden('无权删除该私信');
+    if (v2Number(row.IS_DELETED) === 1) {
+      await connection.rollback();
+      return v2Ok(null, 'direct message deleted');
+    }
+    if (await v2Execute(connection, directDelete.deleteMessage, {...message, ...actor}, false) !== 1 ||
+        await v2Execute(connection, directDelete.refreshConversation, conversation, false) !== 1) {
+      throw new Error('Direct message delete affected an unexpected number of rows');
+    }
+    await v2Execute(connection, directDelete.redactNotification, {message_id: messageId, ...actor}, false);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
+  try { await v2PublishDirectEvent([userId, recipient], 'direct_message_deleted', message); }
+  catch { console.warn('[chat] direct deletion delivery unavailable'); }
+  return v2Ok(null, 'direct message deleted');
+}
+
+export async function v2CanDeliverDirectMessage(
+  connection: oracledb.Connection, userId: number, conversationId: number, messageId: number, deleted: boolean
+): Promise<boolean> {
+  return !!await v2One(connection, directRealtimeAccess.messageAccessSQL, {
+    conversation_id: conversationId, message_id: messageId, user_id: userId, is_deleted: deleted ? 1 : 0
+  });
+}
+
 async function v2RequireDirectConversationAccess(
   connection: oracledb.Connection,
   userId: number,
-  conversationId: number
+  conversationId: number,
+  lock = false
 ): Promise<DirectConversationAccess> {
   const row = await v2One(
     connection,
@@ -573,6 +625,7 @@ async function v2RequireDirectConversationAccess(
     WHERE conversation_id = :conversation_id
       AND is_deleted = 0
       AND (user_low_id = :user_id OR user_high_id = :user_id)
+    ${lock ? 'FOR UPDATE' : ''}
     `,
     {
       conversation_id: conversationId,
@@ -658,7 +711,7 @@ async function v2MarkDirectConversationRead(
   connection: oracledb.Connection,
   userId: number,
   conversationId: number,
-  lastReadMessageId: number | null
+  lastReadMessageId: number
 ): Promise<void> {
   await v2Execute(
     connection,
@@ -677,7 +730,7 @@ async function v2MarkDirectConversationRead(
     )
     WHEN MATCHED THEN
       UPDATE SET
-        r.last_read_message_id = src.last_read_message_id,
+        r.last_read_message_id = GREATEST(NVL(r.last_read_message_id, 0), src.last_read_message_id),
         r.last_read_at = CURRENT_TIMESTAMP
     WHEN NOT MATCHED THEN
       INSERT (
@@ -696,7 +749,8 @@ async function v2MarkDirectConversationRead(
       conversation_id: conversationId,
       user_id: userId,
       last_read_message_id: lastReadMessageId
-    }
+    },
+    false
   );
 }
 
@@ -768,7 +822,7 @@ async function v2ChatMessageMediaMap(
     FROM n_chat_message_media cmm
     JOIN n_media_assets ma ON ma.media_id = cmm.media_id
     WHERE cmm.message_id IN (${placeholders})
-    ORDER BY cmm.message_id, cmm.position ASC
+    ORDER BY cmm.message_id, cmm.position ASC, cmm.chat_message_media_id ASC
     `,
     binds
   );
@@ -900,7 +954,7 @@ async function v2GetChatMessageRows(
       m.author_id AS user_id,
       m.message_type,
       m.content,
-      m.reply_to_message_id,
+      rm.message_id AS reply_to_message_id,
       m.is_pinned,
       m.is_deleted,
       m.created_at,
@@ -925,6 +979,7 @@ async function v2GetChatMessageRows(
     JOIN v_user_profile_public u ON u.user_id = m.author_id
     LEFT JOIN n_chat_messages rm
       ON rm.message_id = m.reply_to_message_id
+     AND rm.channel_id = m.channel_id AND rm.is_deleted = 0
     LEFT JOIN n_users ru ON ru.user_id = rm.author_id
     WHERE ${whereClause}
     ORDER BY m.created_at ASC, m.message_id ASC
@@ -969,8 +1024,10 @@ async function v2MarkChannelRead(
   connection: oracledb.Connection,
   userId: number,
   channelId: number,
-  lastReadMessageId: number | null
+  lastReadMessageId: number | null,
+  alreadyLocked = false
 ): Promise<V2ChatReadStatusData> {
+  if (!alreadyLocked) await v2LockChatChannelStatus(connection, userId, channelId);
   let targetMessageId: number | null = null;
   if (lastReadMessageId !== null) {
     const row = await v2One(
@@ -1022,7 +1079,9 @@ async function v2MarkChannelRead(
     )
     WHEN MATCHED THEN
       UPDATE SET
-        r.last_read_message_id = src.last_read_message_id,
+        r.last_read_message_id = CASE
+          WHEN NVL(src.last_read_message_id, 0) > NVL(r.last_read_message_id, 0)
+          THEN src.last_read_message_id ELSE r.last_read_message_id END,
         r.last_read_at = CURRENT_TIMESTAMP
     WHEN NOT MATCHED THEN
       INSERT (
@@ -1041,28 +1100,32 @@ async function v2MarkChannelRead(
       channel_id: channelId,
       user_id: userId,
       last_read_message_id: targetMessageId
-    }
+    },
+    false
   );
 
-  const unread = await v2Count(
+  const row = await v2One(
     connection,
     `
-    SELECT COUNT(*) AS total
-    FROM n_chat_messages
-    WHERE channel_id = :channel_id
-      AND is_deleted = 0
-      AND message_id > NVL(:last_read_message_id, 0)
+    SELECT r.last_read_message_id,
+      (SELECT COUNT(*) FROM n_chat_messages m
+       WHERE m.channel_id = r.channel_id AND m.is_deleted = 0
+         AND m.message_id > NVL(r.last_read_message_id, 0)) AS unread_count
+    FROM n_chat_channel_reads r
+    WHERE r.channel_id = :channel_id AND r.user_id = :user_id
     `,
     {
       channel_id: channelId,
-      last_read_message_id: targetMessageId
+      user_id: userId
     }
   );
+  if (!row) v2ServerError();
+  await connection.commit();
 
   return {
     channel_id: channelId,
-    last_read_message_id: targetMessageId,
-    unread_count: unread
+    last_read_message_id: v2Number(row.LAST_READ_MESSAGE_ID) || null,
+    unread_count: v2Number(row.UNREAD_COUNT)
   };
 }
 
@@ -1089,25 +1152,10 @@ export async function v2ListChatGroups(
 ): Promise<V2Response<V2ChatGroup[]>> {
   const auth = v2Auth(event);
   const page = v2Page(event);
-  const total = await v2Count(
-    connection,
-    `
-    SELECT COUNT(*) AS total
-    FROM n_group_members gm
-    JOIN n_groups g ON g.group_id = gm.group_id
-    WHERE gm.user_id = :user_id
-      AND gm.status IN ('active', 'muted')
-      AND g.is_active = 1
-      AND g.is_deleted = 0
-    `,
-    { user_id: auth.userId }
-  );
-
   const rows = await v2Rows(
     connection,
     `
-    SELECT *
-    FROM (
+    WITH ranked AS (
       SELECT
         g.group_id,
         g.name,
@@ -1116,30 +1164,8 @@ export async function v2ListChatGroups(
         gm.role,
         gm.status,
         gm.joined_at,
-        CASE
-          WHEN gm.role IN ('owner', 'admin', 'moderator') THEN 1
-          ELSE 0
-        END AS can_manage,
-        (
-          SELECT COUNT(*)
-          FROM n_chat_channels c
-          WHERE c.group_id = g.group_id
-            AND c.is_deleted = 0
-        ) AS channel_count,
-        (
-          SELECT COUNT(*)
-          FROM n_chat_messages m
-          JOIN n_chat_channels c ON c.channel_id = m.channel_id
-          LEFT JOIN n_chat_channel_reads r
-            ON r.channel_id = c.channel_id
-           AND r.user_id = :user_id
-          WHERE c.group_id = g.group_id
-            AND c.is_deleted = 0
-            AND m.is_deleted = 0
-            AND m.message_id > NVL(r.last_read_message_id, 0)
-        ) AS unread_count,
         ROW_NUMBER() OVER (
-          ORDER BY g.member_count DESC, g.created_at DESC
+          ORDER BY g.member_count DESC, g.created_at DESC, g.group_id DESC
         ) AS rn
       FROM n_group_members gm
       JOIN n_groups g ON g.group_id = gm.group_id
@@ -1148,7 +1174,34 @@ export async function v2ListChatGroups(
         AND g.is_active = 1
         AND g.is_deleted = 0
     )
-    WHERE rn BETWEEN :start_row AND :end_row
+    SELECT r.*, t.total,
+        CASE
+          WHEN r.role IN ('owner', 'admin', 'moderator') THEN 1
+          ELSE 0
+        END AS can_manage,
+        (
+          SELECT COUNT(*)
+          FROM n_chat_channels c
+          WHERE c.group_id = r.group_id
+            AND c.is_deleted = 0
+            AND (c.is_private = 0 OR r.role IN ('owner', 'admin', 'moderator'))
+        ) AS channel_count,
+        (
+          SELECT COUNT(*)
+          FROM n_chat_messages m
+          JOIN n_chat_channels c ON c.channel_id = m.channel_id
+          LEFT JOIN n_chat_channel_reads cr
+            ON cr.channel_id = c.channel_id
+           AND cr.user_id = :user_id
+          WHERE c.group_id = r.group_id
+            AND c.is_deleted = 0
+            AND (c.is_private = 0 OR r.role IN ('owner', 'admin', 'moderator'))
+            AND m.is_deleted = 0
+            AND m.message_id > NVL(cr.last_read_message_id, 0)
+        ) AS unread_count
+    FROM (SELECT COUNT(*) AS total FROM ranked) t
+    LEFT JOIN ranked r ON r.rn BETWEEN :start_row AND :end_row
+    ORDER BY r.rn
     `,
     {
       user_id: auth.userId,
@@ -1157,19 +1210,12 @@ export async function v2ListChatGroups(
     }
   );
 
-  for (const row of rows) {
-    await v2EnsureDefaultChatChannels(
-      connection,
-      v2Number(row.GROUP_ID)
-    );
-  }
-
-  const groupsData: V2ChatGroup[] = rows.map(row => ({
+  const groupsData: V2ChatGroup[] = rows.filter(row => row.GROUP_ID != null).map(row => ({
     group_id: v2Number(row.GROUP_ID),
     name: v2String(row.NAME),
     avatar_url: v2String(row.AVATAR_URL) || null,
     member_count: v2Number(row.MEMBER_COUNT),
-    channel_count: Math.max(v2Number(row.CHANNEL_COUNT), 2),
+    channel_count: v2Number(row.CHANNEL_COUNT),
     unread_count: v2Number(row.UNREAD_COUNT),
     membership: {
       is_member: true,
@@ -1183,23 +1229,16 @@ export async function v2ListChatGroups(
   return v2Ok(
     groupsData,
     'success',
-    v2PageMeta(page.page, page.page_size, total)
+    v2PageMeta(page.page, page.page_size, v2Number(rows[0]?.TOTAL))
   );
 }
 
-export async function v2ListChatChannels(
-  event: H3Event,
+async function v2ReadChatChannels(
   connection: oracledb.Connection,
-  groupId: number
-): Promise<V2Response<V2ChatChannel[]>> {
-  const auth = v2Auth(event);
-  const membership = await v2ChatMembership(
-    connection,
-    auth.userId,
-    groupId
-  );
-  await v2EnsureDefaultChatChannels(connection, groupId);
-
+  userId: number,
+  groupId: number,
+  channelId?: number
+): Promise<V2ChatChannel[]> {
   const rows = await v2Rows(
     connection,
     `
@@ -1213,6 +1252,7 @@ export async function v2ListChatChannels(
       c.is_private,
       c.created_at,
       c.updated_at,
+      CASE WHEN gm.role IN ('owner', 'admin', 'moderator') THEN 1 ELSE 0 END AS can_manage,
       CASE WHEN cm.user_id IS NULL THEN 0 ELSE 1 END AS is_muted_by_me,
       (
         SELECT COUNT(*)
@@ -1229,30 +1269,102 @@ export async function v2ListChatChannels(
       lm.created_at AS last_message_at,
       COALESCE(lu.display_name, lu.username) AS last_message_author
     FROM n_chat_channels c
+    JOIN n_groups g ON g.group_id = c.group_id AND g.is_active = 1 AND g.is_deleted = 0
+    JOIN n_group_members gm
+      ON gm.group_id = c.group_id AND gm.user_id = :user_id
+     AND gm.status IN ('active', 'muted')
     LEFT JOIN n_chat_channel_mutes cm
       ON cm.channel_id = c.channel_id
      AND cm.user_id = :user_id
     LEFT JOIN n_chat_messages lm
       ON lm.message_id = c.last_message_id
+     AND lm.channel_id = c.channel_id
+     AND lm.is_deleted = 0
     LEFT JOIN n_users lu ON lu.user_id = lm.author_id
     WHERE c.group_id = :group_id
       AND c.is_deleted = 0
       AND (
         c.is_private = 0
-        OR :can_manage = 1
+        OR gm.role IN ('owner', 'admin', 'moderator')
       )
-    ORDER BY c.category ASC, c.position ASC, c.created_at ASC
+    ${channelId === undefined
+      ? 'ORDER BY c.category ASC, c.position ASC, c.created_at ASC, c.channel_id ASC'
+      : 'AND c.channel_id = :channel_id'}
     `,
     {
-      user_id: auth.userId,
+      user_id: userId,
       group_id: groupId,
-      can_manage: membership.canManage ? 1 : 0
+      ...(channelId === undefined ? {} : { channel_id: channelId })
     }
   );
 
-  return v2Ok(
-    rows.map(row => v2MapChatChannel(row, membership.canManage))
+  return rows.map(row => v2MapChatChannel(row, v2Boolean(row.CAN_MANAGE)));
+}
+
+export async function v2ListChatChannels(
+  event: H3Event,
+  connection: oracledb.Connection,
+  groupId: number
+): Promise<V2Response<V2ChatChannel[]>> {
+  const { userId } = v2Auth(event);
+  await v2ChatMembership(connection, userId, groupId);
+  await v2EnsureDefaultChatChannels(connection, groupId, userId);
+  const channels = await v2ReadChatChannels(connection, userId, groupId);
+  if (channels.length === 0) await v2ChatMembership(connection, userId, groupId);
+  return v2Ok(channels);
+}
+
+async function v2LockChatChannelManagement(
+  connection: oracledb.Connection,
+  userId: number,
+  groupId: number
+): Promise<void> {
+  // Share the group lock with default-channel initialization and other channel writes.
+  const group = await v2One(
+    connection,
+    `SELECT group_id FROM n_groups WHERE group_id = :group_id
+     AND is_active = 1 AND is_deleted = 0 FOR UPDATE`,
+    { group_id: groupId }
   );
+  if (!group) v2Forbidden('无权访问该群组聊天');
+  v2AssertCanManage(await v2ChatMembership(connection, userId, groupId, true));
+}
+
+async function v2ChatChannelBody(event: H3Event, optional = false): Promise<Record<string, unknown>> {
+  const raw = await readRawBody(event);
+  if (raw && Buffer.byteLength(raw, 'utf8') > 1024 * 1024) v2BadRequest('请求体格式错误');
+  if (optional && !raw?.trim()) return {};
+  if (!raw) v2BadRequest('请求体格式错误');
+  let body: unknown;
+  try { body = JSON.parse(raw); }
+  catch { v2BadRequest('请求体格式错误'); }
+  if (optional && body === null) return {};
+  if (!body || typeof body !== 'object' || Array.isArray(body)) v2BadRequest('请求体格式错误');
+  return body as Record<string, unknown>;
+}
+
+function v2ChatChannelName(value: unknown): string {
+  const name = v2String(value).trim();
+  if (!name || Buffer.byteLength(name, 'utf8') > 100) v2BadRequest('name 参数错误');
+  return name;
+}
+
+function v2ChatChannelCategory(value: unknown): string {
+  const category = v2String(value, '文字频道') || '文字频道';
+  if (Buffer.byteLength(category, 'utf8') > 50) v2BadRequest('category 参数错误');
+  return category;
+}
+
+async function v2CommitChatChannel(
+  connection: oracledb.Connection,
+  userId: number,
+  groupId: number,
+  channelId: number
+): Promise<V2ChatChannel> {
+  const [channel] = await v2ReadChatChannels(connection, userId, groupId, channelId);
+  if (!channel) v2ServerError();
+  await connection.commit();
+  return channel;
 }
 
 export async function v2CreateChatChannel(
@@ -1260,87 +1372,51 @@ export async function v2CreateChatChannel(
   connection: oracledb.Connection,
   groupId: number
 ): Promise<V2Response<V2ChatChannel>> {
-  const auth = v2Auth(event);
-  const membership = await v2ChatMembership(
-    connection,
-    auth.userId,
-    groupId
-  );
-  v2AssertCanManage(membership);
-  const body = await v2Body(event);
+  const { userId } = v2Auth(event);
+  const body = await v2ChatChannelBody(event);
   const payload: V2CreateChatChannelPayload = {
-    name: v2RequiredString(body, 'name'),
-    type: v2NormalizeChatChannelType(
-      v2String(body.type, 'text')
-    ),
-    category: v2String(body.category, '文字频道'),
+    name: v2ChatChannelName(body.name),
+    type: v2NormalizeChatChannelType(v2String(body.type, 'text')),
+    category: v2ChatChannelCategory(body.category),
     is_private: v2Boolean(body.is_private)
   };
 
-  const position =
-    v2Number(
-      (
-        await v2One(
-          connection,
-          `
-          SELECT NVL(MAX(position), 0) + 10 AS next_position
-          FROM n_chat_channels
-          WHERE group_id = :group_id
-          `,
-          { group_id: groupId }
-        )
-      )?.NEXT_POSITION,
-      10
-    ) || 10;
-  const channelId = await v2NextId(
+  await v2LockChatChannelManagement(connection, userId, groupId);
+  const channelId = await v2NextId(connection, 'seq_chat_channel_id');
+  if (!Number.isSafeInteger(channelId) || channelId <= 0) v2ServerError();
+  const written = await v2Execute(
     connection,
-    'seq_chat_channel_id'
-  );
-  await v2Execute(
-    connection,
-    `
-    INSERT INTO n_chat_channels (
-      channel_id,
-      group_id,
-      name,
-      channel_type,
-      category,
-      position,
-      is_private,
-      created_by
+    `INSERT INTO n_chat_channels (
+      channel_id, group_id, name, channel_type, category, position, is_private, created_by
     ) VALUES (
-      :channel_id,
-      :group_id,
-      :name,
-      :channel_type,
-      :category,
-      :position,
-      :is_private,
-      :created_by
-    )
-    `,
+      :channel_id, :group_id, :name, :channel_type, :category,
+      (SELECT NVL(MAX(position), 0) + 10 FROM n_chat_channels WHERE group_id = :group_id),
+      :is_private, :created_by
+    )`,
     {
       channel_id: channelId,
       group_id: groupId,
       name: payload.name,
       channel_type: payload.type,
       category: payload.category || '文字频道',
-      position,
       is_private: v2BoolNumber(payload.is_private),
-      created_by: auth.userId
-    }
+      created_by: userId
+    },
+    false
   );
+  if (written !== 1) v2ServerError();
+  return v2Ok(await v2CommitChatChannel(connection, userId, groupId, channelId), 'chat channel created');
+}
 
-  const channels = await v2ListChatChannels(
-    event,
-    connection,
-    groupId
-  );
-  const channel = channels.data.find(
-    item => item.channel_id === channelId
-  );
-  if (!channel) v2NotFound('频道不存在');
-  return v2Ok(channel, 'chat channel created');
+async function v2LockExistingChatChannel(
+  connection: oracledb.Connection,
+  userId: number,
+  channelId: number
+): Promise<ChatChannelAccess> {
+  const access = await v2RequireChatChannelAccess(connection, userId, channelId);
+  v2AssertCanManage(access);
+  await v2LockChatChannelManagement(connection, userId, access.groupId);
+  return v2RequireChatChannelAccess(connection, userId, channelId);
 }
 
 export async function v2UpdateChatChannel(
@@ -1348,54 +1424,36 @@ export async function v2UpdateChatChannel(
   connection: oracledb.Connection,
   channelId: number
 ): Promise<V2Response<V2ChatChannel>> {
-  const auth = v2Auth(event);
-  const access = await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-  v2AssertCanManage(access);
-  const body = await v2Body(event);
+  const { userId } = v2Auth(event);
+  const body = await v2ChatChannelBody(event);
   const clauses: string[] = [];
-  const binds: Record<string, string | number> = {
-    channel_id: channelId
-  };
+  const binds: Record<string, string | number> = { channel_id: channelId };
 
   if (Object.hasOwn(body, 'name')) {
     clauses.push('name = :name');
-    binds.name = v2RequiredString(body, 'name');
+    binds.name = v2ChatChannelName(body.name);
   }
   if (Object.hasOwn(body, 'category')) {
     clauses.push('category = :category');
-    binds.category = v2String(body.category, '文字频道');
+    binds.category = v2ChatChannelCategory(body.category);
   }
   if (Object.hasOwn(body, 'is_private')) {
     clauses.push('is_private = :is_private');
     binds.is_private = v2BoolNumber(body.is_private);
   }
+  const access = await v2LockExistingChatChannel(connection, userId, channelId);
   if (clauses.length) {
-    await v2Execute(
+    const written = await v2Execute(
       connection,
-      `
-      UPDATE n_chat_channels
-      SET ${clauses.join(', ')},
-          updated_at = CURRENT_TIMESTAMP
-      WHERE channel_id = :channel_id
-      `,
-      binds
+      `UPDATE n_chat_channels
+      SET ${clauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE channel_id = :channel_id AND is_deleted = 0`,
+      binds,
+      false
     );
+    if (written !== 1) v2ServerError();
   }
-
-  const channels = await v2ListChatChannels(
-    event,
-    connection,
-    access.groupId
-  );
-  const channel = channels.data.find(
-    item => item.channel_id === channelId
-  );
-  if (!channel) v2NotFound('频道不存在');
-  return v2Ok(channel, 'chat channel updated');
+  return v2Ok(await v2CommitChatChannel(connection, userId, access.groupId, channelId), 'chat channel updated');
 }
 
 export async function v2DeleteChatChannel(
@@ -1403,24 +1461,17 @@ export async function v2DeleteChatChannel(
   connection: oracledb.Connection,
   channelId: number
 ): Promise<V2Response<null>> {
-  const auth = v2Auth(event);
-  const access = await v2RequireChatChannelAccess(
+  const { userId } = v2Auth(event);
+  await v2LockExistingChatChannel(connection, userId, channelId);
+  const written = await v2Execute(
     connection,
-    auth.userId,
-    channelId
+    `UPDATE n_chat_channels SET is_deleted = 1, updated_at = CURRENT_TIMESTAMP
+    WHERE channel_id = :channel_id AND is_deleted = 0`,
+    { channel_id: channelId },
+    false
   );
-  v2AssertCanManage(access);
-
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_chat_channels
-    SET is_deleted = 1,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE channel_id = :channel_id
-    `,
-    { channel_id: channelId }
-  );
+  if (written !== 1) v2ServerError();
+  await connection.commit();
   return v2Null('chat channel deleted');
 }
 
@@ -1429,55 +1480,25 @@ export async function v2ListChatMembers(
   connection: oracledb.Connection,
   groupId: number
 ): Promise<V2Response<V2ChatMember[]>> {
-  const auth = v2Auth(event);
-  await v2ChatMembership(connection, auth.userId, groupId);
-  const rows = await v2Rows(
-    connection,
-    `
-    SELECT
-      gm.user_id,
-      gm.username,
-      gm.display_name,
-      gm.avatar_url,
-      gm.nickname,
-      gm.role,
-      gm.status,
-      CASE
-        WHEN NVL(us.show_online_status, 1) = 0 THEN 'hidden'
-        WHEN EXISTS (
-          SELECT 1
-          FROM n_auth_sessions s
-          WHERE s.user_id = gm.user_id
-            AND s.revoked_at IS NULL
-            AND s.last_accessed_at >= CURRENT_TIMESTAMP - NUMTODSINTERVAL(90, 'SECOND')
-        ) THEN 'online'
-        ELSE 'offline'
-      END AS online_status,
-      CASE
-        WHEN NVL(us.show_online_status, 1) = 0 THEN NULL
-        ELSE (
-          SELECT MAX(s.last_accessed_at)
-          FROM n_auth_sessions s
-          WHERE s.user_id = gm.user_id
-            AND s.revoked_at IS NULL
-        )
-      END AS last_seen_at
-    FROM v_group_member_details gm
-    LEFT JOIN n_user_settings us ON us.user_id = gm.user_id
-    WHERE gm.group_id = :group_id
-      AND gm.status IN ('active', 'muted')
-    ORDER BY
-      CASE gm.role
-        WHEN 'owner' THEN 1
-        WHEN 'admin' THEN 2
-        WHEN 'moderator' THEN 3
-        ELSE 4
-      END,
-      gm.joined_at ASC
-    `,
-    { group_id: groupId }
-  );
-  return v2Ok(rows.map(v2MapChatMember));
+  const { userId } = v2Auth(event);
+  const rows = await v2Rows(connection, `SELECT gm.user_id,gm.username,COALESCE(gm.nickname,gm.display_name,gm.username) AS display_name,
+gm.avatar_url,gm.role,gm.status,
+CASE WHEN NVL(us.show_online_status,1)=0 THEN 'hidden'
+ WHEN EXISTS (SELECT 1 FROM n_auth_sessions s WHERE s.user_id=gm.user_id
+ AND s.revoked_at IS NULL AND s.last_accessed_at>=CURRENT_TIMESTAMP-NUMTODSINTERVAL(90,'SECOND')) THEN 'online'
+ ELSE 'offline' END AS online_status,
+CASE WHEN NVL(us.show_online_status,1)=0 THEN NULL ELSE
+ (SELECT MAX(s.last_accessed_at) FROM n_auth_sessions s WHERE s.user_id=gm.user_id AND s.revoked_at IS NULL)
+ END AS last_seen_at
+FROM n_group_members viewer
+JOIN n_groups g ON g.group_id=viewer.group_id AND g.is_active=1 AND g.is_deleted=0
+LEFT JOIN v_group_member_details gm ON gm.group_id=g.group_id AND gm.status IN ('active','muted')
+LEFT JOIN n_user_settings us ON us.user_id=gm.user_id
+WHERE viewer.group_id=:group_id AND viewer.user_id=:user_id AND viewer.status IN ('active','muted')
+ORDER BY CASE gm.role WHEN 'owner' THEN 1 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 3 ELSE 4 END,
+gm.joined_at ASC,gm.user_id ASC`, { group_id: groupId, user_id: userId });
+  if (rows.length === 0) v2Forbidden('无权访问该群组聊天');
+  return v2Ok(rows.filter(row => row.USER_ID != null).map(v2MapChatMember));
 }
 
 export async function v2ListChatMessages(
@@ -1486,7 +1507,7 @@ export async function v2ListChatMessages(
   channelId: number
 ): Promise<V2Response<V2ChatMessage[]>> {
   const auth = v2Auth(event);
-  const access = await v2RequireChatChannelAccess(
+  const access = await v2LockChatChannelStatus(
     connection,
     auth.userId,
     channelId
@@ -1508,6 +1529,7 @@ export async function v2ListChatMessages(
     `
     SELECT COUNT(*) AS total
     FROM n_chat_messages m
+    JOIN v_user_profile_public u ON u.user_id = m.author_id
     WHERE m.channel_id = :channel_id
       AND m.is_deleted = 0
       ${qWhere}
@@ -1533,7 +1555,7 @@ export async function v2ListChatMessages(
           m.author_id AS user_id,
           m.message_type,
           m.content,
-          m.reply_to_message_id,
+          rm.message_id AS reply_to_message_id,
           m.is_pinned,
           m.is_deleted,
           m.created_at,
@@ -1558,6 +1580,7 @@ export async function v2ListChatMessages(
         JOIN v_user_profile_public u ON u.user_id = m.author_id
         LEFT JOIN n_chat_messages rm
           ON rm.message_id = m.reply_to_message_id
+         AND rm.channel_id = m.channel_id AND rm.is_deleted = 0
         LEFT JOIN n_users ru ON ru.user_id = rm.author_id
         WHERE m.channel_id = :channel_id
           AND m.is_deleted = 0
@@ -1584,13 +1607,16 @@ export async function v2ListChatMessages(
     accessMap
   );
 
-  if (page.page === 1 && messages.length > 0) {
+  if (!q && page.page === 1 && messages.length > 0) {
     await v2MarkChannelRead(
       connection,
       auth.userId,
       channelId,
-      messages[messages.length - 1]?.message_id ?? null
+      messages[messages.length - 1]?.message_id ?? null,
+      true
     );
+  } else {
+    await connection.commit();
   }
 
   return v2Ok(
@@ -1606,76 +1632,65 @@ export async function v2CreateChatMessage(
   channelId: number
 ): Promise<V2Response<V2ChatMessage>> {
   const auth = v2Auth(event);
-  const access = await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-  v2AssertCanSend(access);
-  const body = await v2Body(event);
-  const content = v2String(body.content).trim();
-  const mediaIds = v2NumberArray(body.media_ids);
-  if (!content && mediaIds.length === 0) {
-    v2BadRequest('消息内容或附件不能为空');
+  const body = await v2ChatChannelBody(event);
+  if (body.content != null && typeof body.content !== 'string') v2BadRequest('content 参数错误');
+  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  if (Buffer.byteLength(content, 'utf8') > 4000) v2BadRequest('content 超过最大长度');
+  const isId = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+  const mediaIds = body.media_ids === undefined ? [] : body.media_ids;
+  if (!Array.isArray(mediaIds) || mediaIds.length > 32 ||
+      !mediaIds.every(isId) || new Set(mediaIds).size !== mediaIds.length) {
+    v2BadRequest('media_ids 参数错误');
   }
+  if (!content && mediaIds.length === 0) v2BadRequest('消息内容或附件不能为空');
 
-  let replyToMessageId: number | null = null;
-  if (
-    body.reply_to_message_id !== undefined &&
-    body.reply_to_message_id !== null
-  ) {
-    replyToMessageId = v2RequiredNumber(
-      body.reply_to_message_id,
-      'reply_to_message_id'
-    );
-    const reply = await v2One(
-      connection,
-      `
-      SELECT message_id
-      FROM n_chat_messages
-      WHERE message_id = :message_id
-        AND channel_id = :channel_id
-        AND is_deleted = 0
-      `,
-      {
-        message_id: replyToMessageId,
-        channel_id: channelId
-      }
-    );
-    if (!reply) v2BadRequest('回复消息不存在');
-  }
-
-  if (mediaIds.length > 0) {
-    const binds: Record<string, number | string> = {
-      owner_user_id: auth.userId
-    };
-    const placeholders = v2InPlaceholders(
-      'media_id',
-      mediaIds,
-      binds
-    );
-    const mediaCount = await v2Count(
-      connection,
-      `
-      SELECT COUNT(*) AS total
-      FROM n_media_assets
-      WHERE media_id IN (${placeholders})
-        AND owner_user_id = :owner_user_id
-        AND status = 'ready'
-      `,
-      binds
-    );
-    if (mediaCount !== mediaIds.length) {
-      v2BadRequest('附件不存在或无权使用');
-    }
-  }
-
-  const messageId = await v2NextId(
-    connection,
-    'seq_chat_message_id'
-  );
+  const replyToMessageId = body.reply_to_message_id ?? null;
+  if (replyToMessageId !== null && !isId(replyToMessageId)) v2BadRequest('reply_to_message_id 参数错误');
+  let messageId: number;
+  let message: V2ChatMessage;
   try {
-    await v2Execute(
+    const access = await v2LockChatChannelStatus(connection, auth.userId, channelId);
+    v2AssertCanSend(access);
+    await requirePublishAccess(connection, auth.userId);
+    if (replyToMessageId !== null) {
+      const reply = await v2One(
+        connection,
+        `
+        SELECT message_id
+        FROM n_chat_messages
+        WHERE message_id = :message_id
+          AND channel_id = :channel_id
+          AND is_deleted = 0
+        FOR UPDATE
+        `,
+        {
+          message_id: replyToMessageId,
+          channel_id: channelId
+        }
+      );
+      if (!reply) v2BadRequest('回复消息不存在');
+    }
+
+    for (const mediaId of [...mediaIds].sort((left, right) => left - right)) {
+      const asset = await v2One(
+        connection,
+        `SELECT media_id, storage_key FROM n_media_assets WHERE media_id = :media_id
+         AND owner_user_id = :owner_user_id AND status = 'ready'
+         FOR UPDATE`,
+        { media_id: mediaId, owner_user_id: auth.userId }
+      );
+      if (!asset || !await canBindMedia(connection, mediaId, asset.STORAGE_KEY, { scope: 'chat' })) {
+        v2BadRequest('附件不存在或无权使用');
+      }
+    }
+
+    messageId = await v2NextId(
+      connection,
+      'seq_chat_message_id'
+    );
+    if (!isId(messageId)) v2ServerError();
+    const inserted = await v2Execute(
       connection,
       `
       INSERT INTO n_chat_messages (
@@ -1706,13 +1721,14 @@ export async function v2CreateChatMessage(
       },
       false
     );
+    if (inserted !== 1) v2ServerError();
 
     for (const [index, mediaId] of mediaIds.entries()) {
       const linkId = await v2NextId(
         connection,
         'seq_chat_message_media_id'
       );
-      await v2Execute(
+      const linked = await v2Execute(
         connection,
         `
         INSERT INTO n_chat_message_media (
@@ -1735,9 +1751,10 @@ export async function v2CreateChatMessage(
         },
         false
       );
+      if (linked !== 1) v2ServerError();
     }
 
-    await v2Execute(
+    const updated = await v2Execute(
       connection,
       `
       UPDATE n_chat_channels
@@ -1745,7 +1762,7 @@ export async function v2CreateChatMessage(
           last_message_at = CURRENT_TIMESTAMP,
           message_count = message_count + 1,
           updated_at = CURRENT_TIMESTAMP
-      WHERE channel_id = :channel_id
+      WHERE channel_id = :channel_id AND is_deleted = 0
       `,
       {
         message_id: messageId,
@@ -1753,345 +1770,198 @@ export async function v2CreateChatMessage(
       },
       false
     );
+    if (updated !== 1) v2ServerError();
+    message = await v2GetChatMessage(connection, auth.userId, messageId, access);
     await connection.commit();
   } catch (error) {
     await connection.rollback();
     throw error;
   }
 
-  const message = await v2GetChatMessage(
-    connection,
-    auth.userId,
-    messageId,
-    access
-  );
-  await v2PublishChatEvent(channelId, 'chat_message', {
-    message
-  });
+  await v2PublishMessageMutation(channelId, 'chat_message', messageId, message);
   return v2Ok(message, 'chat message created');
 }
 
-export async function v2UpdateChatMessage(
-  event: H3Event,
+type ChatMessageChange =
+  | { kind: 'edit'; content: string }
+  | { kind: 'delete' }
+  | { kind: 'pin'; pinned: boolean }
+  | { kind: 'reaction'; emoji: string; add: boolean };
+
+async function v2PublishMessageMutation(
+  channelId: number,
+  type: 'chat_message' | 'chat_message_updated' | 'chat_message_deleted' | 'chat_reaction_updated',
+  messageId: number,
+  message: V2ChatMessage | null
+): Promise<void> {
+  try {
+    await v2PublishChatEvent(channelId, type, message ? {
+      viewer_neutral: true,
+      message: {
+        ...message,
+        can_delete: false,
+        can_pin: false,
+        reactions: message.reactions.map(reaction => ({ ...reaction, reacted_by_me: false })),
+        author: {
+          ...message.author,
+          relationship: { relation: 'none', is_self: false, is_following: false, is_blocked: false, is_blocking: false }
+        }
+      }
+    } : { message_id: messageId });
+  } catch {
+    console.warn('chat message delivery unavailable');
+  }
+}
+
+async function v2MutateChatMessage(
   connection: oracledb.Connection,
-  messageId: number
-): Promise<V2Response<V2ChatMessage>> {
-  const auth = v2Auth(event);
-  const body = await v2Body(event);
-  const content = v2RequiredString(body, 'content');
+  userId: number,
+  messageId: number,
+  change: ChatMessageChange
+): Promise<V2ChatMessage | null> {
   const row = await v2One(
     connection,
-    `
-    SELECT
-      message_id,
-      channel_id,
-      author_id
-    FROM n_chat_messages
-    WHERE message_id = :message_id
-      AND is_deleted = 0
-      AND message_type = 'text'
-    `,
+    'SELECT channel_id FROM n_chat_messages WHERE message_id = :message_id AND is_deleted = 0',
     { message_id: messageId }
   );
   if (!row) v2NotFound('聊天消息不存在');
   const channelId = v2Number(row.CHANNEL_ID);
-  const access = await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-  if (v2Number(row.AUTHOR_ID) !== auth.userId) {
-    v2Forbidden('只能编辑自己的消息');
-  }
-  if (access.status !== 'active') {
-    v2Forbidden('当前群组状态不允许编辑消息');
-  }
-
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_chat_messages
-    SET content = :content,
-        edited_at = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE message_id = :message_id
-    `,
-    {
-      content,
-      message_id: messageId
+  try {
+    const access = await v2LockChatChannelStatus(connection, userId, channelId);
+    const target = await v2One(
+      connection,
+      `SELECT author_id, message_type FROM n_chat_messages WHERE message_id = :message_id
+       AND channel_id = :channel_id AND is_deleted = 0 FOR UPDATE`,
+      { message_id: messageId, channel_id: channelId }
+    );
+    if (!target) v2NotFound('聊天消息不存在');
+    if (change.kind === 'reaction') {
+      await v2Execute(
+        connection,
+        change.add ? `MERGE INTO n_chat_message_reactions r
+USING (SELECT :message_id AS message_id,:user_id AS user_id,:emoji AS emoji FROM dual) src
+ON (r.message_id=src.message_id AND r.user_id=src.user_id AND r.emoji=src.emoji)
+WHEN NOT MATCHED THEN INSERT (message_id,user_id,emoji) VALUES (src.message_id,src.user_id,src.emoji)`
+          : `DELETE FROM n_chat_message_reactions WHERE message_id=:message_id AND user_id=:user_id AND emoji=:emoji`,
+        { message_id: messageId, user_id: userId, emoji: change.emoji },
+        false
+      );
+      const message = await v2GetChatMessage(connection, userId, messageId, access);
+      await connection.commit();
+      await v2PublishMessageMutation(channelId, 'chat_reaction_updated', messageId, message);
+      return message;
     }
-  );
+    const authorId = v2Number(target.AUTHOR_ID);
+    const binds: Record<string, string | number> = { message_id: messageId };
+    let fields: string;
+    switch (change.kind) {
+      case 'edit':
+        if (target.MESSAGE_TYPE !== 'text') v2NotFound('聊天消息不存在');
+        if (authorId !== userId || access.status !== 'active') v2Forbidden('无权操作该聊天消息');
+        await requirePublishAccess(connection, userId);
+        fields = 'content = :content, edited_at = CURRENT_TIMESTAMP';
+        binds.content = change.content;
+        break;
+      case 'delete':
+        if (authorId !== userId && !access.canManage) v2Forbidden('无权操作该聊天消息');
+        fields = 'is_deleted = 1, deleted_by = :user_id, deleted_at = CURRENT_TIMESTAMP';
+        binds.user_id = userId;
+        break;
+      case 'pin':
+        if (!access.canManage) v2Forbidden('无权操作该聊天消息');
+        fields = 'is_pinned = :is_pinned';
+        binds.is_pinned = v2BoolNumber(change.pinned);
+        break;
+    }
+    const affected = await v2Execute(
+      connection,
+      `UPDATE n_chat_messages SET ${fields}, updated_at = CURRENT_TIMESTAMP
+       WHERE message_id = :message_id AND is_deleted = 0`,
+      binds,
+      false
+    );
+    if (affected !== 1) v2ServerError();
 
-  const message = await v2GetChatMessage(
-    connection,
-    auth.userId,
-    messageId,
-    access
-  );
-  await v2PublishChatEvent(channelId, 'chat_message_updated', {
-    message
-  });
+    let message: V2ChatMessage | null = null;
+    if (change.kind === 'delete') {
+      const updated = await v2Execute(
+        connection,
+        `UPDATE n_chat_channels c
+         SET message_count = GREATEST(c.message_count - 1, 0),
+             last_message_id = CASE WHEN c.last_message_id = :message_id THEN
+               (SELECT MAX(m.message_id) FROM n_chat_messages m WHERE m.channel_id = c.channel_id AND m.is_deleted = 0)
+               ELSE c.last_message_id END,
+             last_message_at = CASE WHEN c.last_message_id = :message_id THEN
+               (SELECT MAX(m.created_at) KEEP (DENSE_RANK LAST ORDER BY m.message_id)
+                FROM n_chat_messages m WHERE m.channel_id = c.channel_id AND m.is_deleted = 0)
+               ELSE c.last_message_at END,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE c.channel_id = :channel_id AND c.is_deleted = 0`,
+        { message_id: messageId, channel_id: channelId },
+        false
+      );
+      if (updated !== 1) v2ServerError();
+    } else {
+      message = await v2GetChatMessage(connection, userId, messageId, access);
+    }
+    await connection.commit();
+    await v2PublishMessageMutation(channelId, change.kind === 'delete'
+      ? 'chat_message_deleted' : 'chat_message_updated', messageId, message);
+    return message;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
+}
+
+export async function v2UpdateChatMessage(
+  event: H3Event, connection: oracledb.Connection, messageId: number
+): Promise<V2Response<V2ChatMessage>> {
+  const { userId } = v2Auth(event);
+  const body = await v2ChatChannelBody(event);
+  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  if (!content || Buffer.byteLength(content, 'utf8') > 4000) v2BadRequest('content 参数错误');
+  const message = await v2MutateChatMessage(connection, userId, messageId, { kind: 'edit', content });
+  if (!message) v2ServerError();
   return v2Ok(message, 'chat message updated');
 }
 
 export async function v2DeleteChatMessage(
-  event: H3Event,
-  connection: oracledb.Connection,
-  messageId: number
+  event: H3Event, connection: oracledb.Connection, messageId: number
 ): Promise<V2Response<null>> {
-  const auth = v2Auth(event);
-  const row = await v2One(
-    connection,
-    `
-    SELECT
-      m.message_id,
-      m.channel_id,
-      m.author_id
-    FROM n_chat_messages m
-    WHERE m.message_id = :message_id
-      AND m.is_deleted = 0
-    `,
-    { message_id: messageId }
-  );
-  if (!row) v2NotFound('聊天消息不存在');
-  const channelId = v2Number(row.CHANNEL_ID);
-  const access = await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-  const authorId = v2Number(row.AUTHOR_ID);
-  if (authorId !== auth.userId && !access.canManage) {
-    v2Forbidden('无权删除该消息');
-  }
-
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_chat_messages
-    SET is_deleted = 1,
-        deleted_by = :deleted_by,
-        deleted_at = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE message_id = :message_id
-    `,
-    {
-      deleted_by: auth.userId,
-      message_id: messageId
-    }
-  );
-
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_chat_channels c
-    SET message_count = GREATEST(message_count - 1, 0),
-        last_message_id = CASE
-          WHEN c.last_message_id = :message_id THEN (
-            SELECT MAX(m.message_id)
-            FROM n_chat_messages m
-            WHERE m.channel_id = :channel_id
-              AND m.is_deleted = 0
-          )
-          ELSE c.last_message_id
-        END,
-        last_message_at = CASE
-          WHEN c.last_message_id = :message_id THEN (
-            SELECT MAX(m.created_at) KEEP (
-              DENSE_RANK LAST ORDER BY m.message_id
-            )
-            FROM n_chat_messages m
-            WHERE m.channel_id = :channel_id
-              AND m.is_deleted = 0
-          )
-          ELSE c.last_message_at
-        END,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE c.channel_id = :channel_id
-    `,
-    {
-      message_id: messageId,
-      channel_id: channelId
-    }
-  );
-
-  await v2PublishChatEvent(channelId, 'chat_message_deleted', {
-    message_id: messageId
-  });
+  const { userId } = v2Auth(event);
+  await v2MutateChatMessage(connection, userId, messageId, { kind: 'delete' });
   return v2Null('chat message deleted');
 }
 
 export async function v2SetChatMessagePinStatus(
-  event: H3Event,
-  connection: oracledb.Connection,
-  messageId: number
+  event: H3Event, connection: oracledb.Connection, messageId: number
 ): Promise<V2Response<V2ChatMessage>> {
-  const auth = v2Auth(event);
-  const body = await v2Body(event);
-  const row = await v2One(
-    connection,
-    `
-    SELECT channel_id
-    FROM n_chat_messages
-    WHERE message_id = :message_id
-      AND is_deleted = 0
-    `,
-    { message_id: messageId }
-  );
-  if (!row) v2NotFound('聊天消息不存在');
-  const channelId = v2Number(row.CHANNEL_ID);
-  const access = await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-  v2AssertCanManage(access);
-
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_chat_messages
-    SET is_pinned = :is_pinned,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE message_id = :message_id
-    `,
-    {
-      is_pinned: v2BoolNumber(body.is_pinned),
-      message_id: messageId
-    }
-  );
-
-  const message = await v2GetChatMessage(
-    connection,
-    auth.userId,
-    messageId,
-    access
-  );
-  await v2PublishChatEvent(channelId, 'chat_message_updated', {
-    message
-  });
+  const { userId } = v2Auth(event);
+  const body = await v2ChatChannelBody(event);
+  const message = await v2MutateChatMessage(connection, userId, messageId, { kind: 'pin', pinned: v2Boolean(body.is_pinned) });
+  if (!message) v2ServerError();
   return v2Ok(message, 'chat message pin status updated');
 }
 
-export async function v2CreateChatReaction(
-  event: H3Event,
-  connection: oracledb.Connection,
-  messageId: number
+async function v2SetChatReaction(
+  event: H3Event, connection: oracledb.Connection, messageId: number, add: boolean
 ): Promise<V2Response<V2ChatMessage>> {
-  const auth = v2Auth(event);
-  const body = await v2Body(event);
-  const emoji = v2RequiredString(body, 'emoji');
-  if (emoji.length > 16) v2BadRequest('emoji 参数过长');
-
-  const row = await v2One(
-    connection,
-    `
-    SELECT channel_id
-    FROM n_chat_messages
-    WHERE message_id = :message_id
-      AND is_deleted = 0
-    `,
-    { message_id: messageId }
-  );
-  if (!row) v2NotFound('聊天消息不存在');
-  const channelId = v2Number(row.CHANNEL_ID);
-  const access = await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-
-  await v2Execute(
-    connection,
-    `
-    MERGE INTO n_chat_message_reactions r
-    USING (
-      SELECT
-        :message_id AS message_id,
-        :user_id AS user_id,
-        :emoji AS emoji
-      FROM dual
-    ) src
-    ON (
-      r.message_id = src.message_id
-      AND r.user_id = src.user_id
-      AND r.emoji = src.emoji
-    )
-    WHEN NOT MATCHED THEN
-      INSERT (message_id, user_id, emoji)
-      VALUES (src.message_id, src.user_id, src.emoji)
-    `,
-    {
-      message_id: messageId,
-      user_id: auth.userId,
-      emoji
-    }
-  );
-
-  const message = await v2GetChatMessage(
-    connection,
-    auth.userId,
-    messageId,
-    access
-  );
-  await v2PublishChatEvent(channelId, 'chat_reaction_updated', {
-    message
-  });
-  return v2Ok(message, 'chat reaction created');
+  const { userId } = v2Auth(event);
+  const body = await v2ChatChannelBody(event);
+  const emoji = typeof body.emoji === 'string' ? body.emoji.trim() : '';
+  if (!emoji || emoji.length > 16 || Buffer.byteLength(emoji, 'utf8') > 32) v2BadRequest('emoji 参数错误');
+  const message = await v2MutateChatMessage(connection, userId, messageId, { kind: 'reaction', emoji, add });
+  if (!message) v2ServerError();
+  return v2Ok(message, add ? 'chat reaction created' : 'chat reaction deleted');
 }
 
-export async function v2DeleteChatReaction(
-  event: H3Event,
-  connection: oracledb.Connection,
-  messageId: number
-): Promise<V2Response<V2ChatMessage>> {
-  const auth = v2Auth(event);
-  const body = await v2Body(event);
-  const emoji = v2RequiredString(body, 'emoji');
+export function v2CreateChatReaction(event: H3Event, connection: oracledb.Connection, messageId: number) {
+  return v2SetChatReaction(event, connection, messageId, true);
+}
 
-  const row = await v2One(
-    connection,
-    `
-    SELECT channel_id
-    FROM n_chat_messages
-    WHERE message_id = :message_id
-      AND is_deleted = 0
-    `,
-    { message_id: messageId }
-  );
-  if (!row) v2NotFound('聊天消息不存在');
-  const channelId = v2Number(row.CHANNEL_ID);
-  const access = await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-
-  await v2Execute(
-    connection,
-    `
-    DELETE FROM n_chat_message_reactions
-    WHERE message_id = :message_id
-      AND user_id = :user_id
-      AND emoji = :emoji
-    `,
-    {
-      message_id: messageId,
-      user_id: auth.userId,
-      emoji
-    }
-  );
-
-  const message = await v2GetChatMessage(
-    connection,
-    auth.userId,
-    messageId,
-    access
-  );
-  await v2PublishChatEvent(channelId, 'chat_reaction_updated', {
-    message
-  });
-  return v2Ok(message, 'chat reaction deleted');
+export function v2DeleteChatReaction(event: H3Event, connection: oracledb.Connection, messageId: number) {
+  return v2SetChatReaction(event, connection, messageId, false);
 }
 
 export async function v2SetChatReadStatus(
@@ -2100,20 +1970,12 @@ export async function v2SetChatReadStatus(
   channelId: number
 ): Promise<V2Response<V2ChatReadStatusData>> {
   const auth = v2Auth(event);
-  await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-  const body = await v2OptionalBody(event);
-  const lastReadMessageId =
-    body.last_read_message_id === undefined ||
-    body.last_read_message_id === null
-      ? null
-      : v2RequiredNumber(
-          body.last_read_message_id,
-          'last_read_message_id'
-        );
+  const body = await v2ChatChannelBody(event, true);
+  const lastReadMessageId = body.last_read_message_id ?? null;
+  if (lastReadMessageId !== null &&
+      (typeof lastReadMessageId !== 'number' || !Number.isSafeInteger(lastReadMessageId) || lastReadMessageId <= 0)) {
+    v2BadRequest('last_read_message_id 参数错误');
+  }
   return v2Ok(
     await v2MarkChannelRead(
       connection,
@@ -2131,13 +1993,9 @@ export async function v2SetChatChannelMuteStatus(
   channelId: number
 ): Promise<V2Response<V2ChatChannelMuteData>> {
   const auth = v2Auth(event);
-  await v2RequireChatChannelAccess(
-    connection,
-    auth.userId,
-    channelId
-  );
-  const body = await v2Body(event);
+  const body = await v2ChatChannelBody(event);
   const muted = v2Boolean(body.is_muted);
+  await v2LockChatChannelStatus(connection, auth.userId, channelId);
 
   if (muted) {
     await v2Execute(
@@ -2161,7 +2019,8 @@ export async function v2SetChatChannelMuteStatus(
       {
         channel_id: channelId,
         user_id: auth.userId
-      }
+      },
+      false
     );
   } else {
     await v2Execute(
@@ -2174,10 +2033,12 @@ export async function v2SetChatChannelMuteStatus(
       {
         channel_id: channelId,
         user_id: auth.userId
-      }
+      },
+      false
     );
   }
 
+  await connection.commit();
   return v2Ok(
     {
       channel_id: channelId,
@@ -2187,29 +2048,37 @@ export async function v2SetChatChannelMuteStatus(
   );
 }
 
+async function v2LockChatChannelStatus(
+  connection: oracledb.Connection,
+  userId: number,
+  channelId: number
+): Promise<ChatChannelAccess> {
+  const { groupId } = await v2RequireChatChannelAccess(connection, userId, channelId);
+  const group = await v2One(
+    connection,
+    `SELECT group_id FROM n_groups WHERE group_id = :group_id
+     AND is_active = 1 AND is_deleted = 0 FOR UPDATE`,
+    { group_id: groupId }
+  );
+  if (!group) v2Forbidden('无权访问该聊天频道');
+  return v2RequireChatChannelAccess(connection, userId, channelId, true);
+}
+
 export async function v2ListDirectConversations(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<V2DirectConversation[]>> {
   const auth = v2Auth(event);
   const page = v2Page(event);
-
-  const total = await v2Count(
-    connection,
-    `
-    SELECT COUNT(*) AS total
-    FROM n_direct_conversations
-    WHERE is_deleted = 0
-      AND (user_low_id = :viewer_id OR user_high_id = :viewer_id)
-    `,
-    { viewer_id: auth.userId }
-  );
+  const raw = getQuery(event).conversation_id;
+  const conversationId = raw === undefined ? 0 : typeof raw === 'string' &&
+    /^[1-9][0-9]*$/.test(raw) && raw.trim() === raw ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(conversationId)) v2BadRequest('conversation_id 参数错误');
 
   const rows = await v2Rows(
     connection,
     `
-    SELECT *
-    FROM (
+    WITH ranked AS (
       SELECT
         inner_rows.*,
         ROW_NUMBER() OVER (
@@ -2261,21 +2130,26 @@ export async function v2ListDirectConversations(
         LEFT JOIN n_users lu ON lu.user_id = lm.sender_id
         WHERE c.is_deleted = 0
           AND (c.user_low_id = :viewer_id OR c.user_high_id = :viewer_id)
+          AND (:conversation_id = 0 OR c.conversation_id = :conversation_id)
       ) inner_rows
     )
-    WHERE rn BETWEEN :start_row AND :end_row
+    SELECT r.*, t.total
+    FROM (SELECT COUNT(*) AS total FROM ranked) t
+    LEFT JOIN ranked r ON r.rn BETWEEN :start_row AND :end_row
+    ORDER BY r.rn
     `,
     {
       viewer_id: auth.userId,
+      conversation_id: conversationId,
       start_row: page.start,
       end_row: page.end
     }
   );
 
   return v2Ok(
-    rows.map(v2MapDirectConversation),
+    rows.filter(row => row.CONVERSATION_ID != null).map(v2MapDirectConversation),
     'success',
-    v2PageMeta(page.page, page.page_size, total)
+    v2PageMeta(page.page, page.page_size, v2Number(rows[0]?.TOTAL))
   );
 }
 
@@ -2286,10 +2160,12 @@ export async function v2CreateDirectConversation(
   const auth = v2Auth(event);
   const body =
     (await v2Body(event)) as Partial<V2CreateDirectConversationPayload>;
-  const targetUserId = v2RequiredNumber(
-    body.target_user_id,
-    'target_user_id'
-  );
+  const raw: unknown = body.target_user_id;
+  const targetUserId = typeof raw === 'number' || (typeof raw === 'string' && /^[1-9][0-9]*$/.test(raw))
+    ? Number(raw) : 0;
+  if (!Number.isSafeInteger(targetUserId) || targetUserId <= 0) {
+    v2BadRequest('target_user_id 参数错误');
+  }
   await v2AssertDirectTargetCanReceive(
     connection,
     auth.userId,
@@ -2298,14 +2174,13 @@ export async function v2CreateDirectConversation(
 
   const userLowId = Math.min(auth.userId, targetUserId);
   const userHighId = Math.max(auth.userId, targetUserId);
-  const existing = await v2One(
+  const readPair = () => v2One(
     connection,
     `
-    SELECT conversation_id
+    SELECT conversation_id, is_deleted
     FROM n_direct_conversations
     WHERE user_low_id = :user_low_id
       AND user_high_id = :user_high_id
-      AND is_deleted = 0
     `,
     {
       user_low_id: userLowId,
@@ -2313,13 +2188,16 @@ export async function v2CreateDirectConversation(
     }
   );
 
+  const existing = await readPair();
+  if (existing && v2Boolean(existing.IS_DELETED)) v2Conflict('私聊会话已删除');
   let conversationId = v2Number(existing?.CONVERSATION_ID);
   if (!conversationId) {
     conversationId = await v2NextId(
       connection,
       'seq_direct_conversation_id'
     );
-    await v2Execute(
+    try {
+      await v2Execute(
       connection,
       `
       INSERT INTO n_direct_conversations (
@@ -2340,7 +2218,14 @@ export async function v2CreateDirectConversation(
         user_high_id: userHighId,
         created_by: auth.userId
       }
-    );
+      );
+    } catch (error) {
+      if (typeof error !== 'object' || error === null || !('errorNum' in error) || error.errorNum !== 1) throw error;
+      const winner = await readPair();
+      if (!winner) throw error;
+      if (v2Boolean(winner.IS_DELETED)) v2Conflict('私聊会话已删除');
+      conversationId = v2Number(winner.CONVERSATION_ID);
+    }
   }
 
   return v2Ok(
@@ -2359,91 +2244,99 @@ export async function v2ListDirectMessages(
   conversationId: number
 ): Promise<V2Response<V2DirectMessage[]>> {
   const auth = v2Auth(event);
-  await v2RequireDirectConversationAccess(
-    connection,
-    auth.userId,
-    conversationId
-  );
-  const page = v2Page(event);
-
-  const total = await v2Count(
-    connection,
-    `
-    SELECT COUNT(*) AS total
-    FROM n_direct_messages
-    WHERE conversation_id = :conversation_id
-      AND is_deleted = 0
-    `,
-    { conversation_id: conversationId }
-  );
-
-  const rows = await v2Rows(
-    connection,
-    `
-    SELECT *
-    FROM (
-      SELECT
-        inner_rows.*,
-        ROW_NUMBER() OVER (
-          ORDER BY inner_rows.created_at DESC, inner_rows.message_id DESC
-        ) AS rn
-      FROM (
-        SELECT
-          dm.message_id,
-          dm.conversation_id,
-          dm.sender_id AS user_id,
-          dm.content,
-          dm.is_deleted,
-          dm.created_at,
-          dm.updated_at,
-          dm.edited_at,
-          dm.deleted_at,
-          u.username,
-          u.avatar_url,
-          u.display_name,
-          u.bio,
-          u.location,
-          u.website,
-          u.is_verified,
-          u.followers_count,
-          u.following_count,
-          u.posts_count,
-          u.likes_count,
-          fn_get_user_relationship(:viewer_id, u.user_id) AS relation
-        FROM n_direct_messages dm
-        JOIN v_user_profile_public u ON u.user_id = dm.sender_id
-        WHERE dm.conversation_id = :conversation_id
-          AND dm.is_deleted = 0
-      ) inner_rows
-    )
-    WHERE rn BETWEEN :start_row AND :end_row
-    ORDER BY created_at ASC, message_id ASC
-    `,
-    {
-      viewer_id: auth.userId,
-      conversation_id: conversationId,
-      start_row: page.start,
-      end_row: page.end
-    }
-  );
-  const messages = rows.map(row =>
-    v2MapDirectMessage(row, auth.userId)
-  );
-
-  if (page.page === 1 && messages.length > 0) {
-    await v2MarkDirectConversationRead(
+  try {
+    await v2RequireDirectConversationAccess(
       connection,
       auth.userId,
       conversationId,
-      messages[messages.length - 1]?.message_id ?? null
+      true
     );
-  }
+    const page = v2Page(event);
 
-  return v2Ok(
-    messages,
-    'success',
-    v2PageMeta(page.page, page.page_size, total)
-  );
+    const total = await v2Count(
+      connection,
+      `
+      SELECT COUNT(*) AS total
+      FROM n_direct_messages
+      WHERE conversation_id = :conversation_id
+        AND is_deleted = 0
+      `,
+      { conversation_id: conversationId }
+    );
+
+    const rows = await v2Rows(
+      connection,
+      `
+      SELECT *
+      FROM (
+        SELECT
+          inner_rows.*,
+          ROW_NUMBER() OVER (
+            ORDER BY inner_rows.created_at DESC, inner_rows.message_id DESC
+          ) AS rn
+        FROM (
+          SELECT
+            dm.message_id,
+            dm.conversation_id,
+            dm.sender_id AS user_id,
+            dm.content,
+            dm.is_deleted,
+            dm.created_at,
+            dm.updated_at,
+            dm.edited_at,
+            dm.deleted_at,
+            u.username,
+            u.avatar_url,
+            u.display_name,
+            u.bio,
+            u.location,
+            u.website,
+            u.is_verified,
+            u.followers_count,
+            u.following_count,
+            u.posts_count,
+            u.likes_count,
+            fn_get_user_relationship(:viewer_id, u.user_id) AS relation
+          FROM n_direct_messages dm
+          JOIN v_user_profile_public u ON u.user_id = dm.sender_id
+          WHERE dm.conversation_id = :conversation_id
+            AND dm.is_deleted = 0
+        ) inner_rows
+      )
+      WHERE rn BETWEEN :start_row AND :end_row
+      ORDER BY created_at ASC, message_id ASC
+      `,
+      {
+        viewer_id: auth.userId,
+        conversation_id: conversationId,
+        start_row: page.start,
+        end_row: page.end
+      }
+    );
+    const messages = rows.map(row =>
+      v2MapDirectMessage(row, auth.userId)
+    );
+
+    const last = messages.at(-1);
+    if (page.page === 1 && last) {
+      await v2MarkDirectConversationRead(
+        connection,
+        auth.userId,
+        conversationId,
+        last.message_id
+      );
+    }
+
+    await connection.commit();
+    return v2Ok(
+      messages,
+      'success',
+      v2PageMeta(page.page, page.page_size, total)
+    );
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
 }
 
 export async function v2CreateDirectMessage(
@@ -2452,26 +2345,22 @@ export async function v2CreateDirectMessage(
   conversationId: number
 ): Promise<V2Response<V2DirectMessage>> {
   const auth = v2Auth(event);
-  const access = await v2RequireDirectConversationAccess(
-    connection,
-    auth.userId,
-    conversationId
-  );
-  await v2AssertDirectTargetCanReceive(
-    connection,
-    auth.userId,
-    access.participantUserId
-  );
-
   const body =
     (await v2Body(event)) as Partial<V2CreateDirectMessagePayload>;
   const content = v2RequiredString(body, 'content');
-  const messageId = await v2NextId(
-    connection,
-    'seq_direct_message_id'
-  );
+  if (Buffer.byteLength(content, 'utf8') > 4000) {
+    v2BadRequest('content 超过最大长度');
+  }
+
+  let access: DirectConversationAccess;
+  let message: V2DirectMessage;
+  let notification: Awaited<ReturnType<typeof v2StoreNotification>>;
 
   try {
+    access = await v2RequireDirectConversationAccess(connection, auth.userId, conversationId, true);
+    await v2AssertDirectTargetCanReceive(connection, auth.userId, access.participantUserId);
+    await requirePublishAccess(connection, auth.userId);
+    const messageId = await v2NextId(connection, 'seq_direct_message_id');
     await v2Execute(
       connection,
       `
@@ -2513,45 +2402,33 @@ export async function v2CreateDirectMessage(
       false
     );
 
+    await v2MarkDirectConversationRead(connection, auth.userId, conversationId, messageId);
+    message = await v2GetDirectMessage(connection, auth.userId, messageId);
+    const actorName = await v2UserDisplayName(connection, auth.userId);
+    notification = await v2StoreNotification(connection, {
+      userId: access.participantUserId,
+      actorId: auth.userId,
+      type: 'direct_message',
+      title: `${actorName} 给你发来私信`,
+      message: v2NotificationPreview(content),
+      resourceType: 'direct_message',
+      resourceId: messageId,
+      metadata: { conversation_id: conversationId, event: 'direct_message_created' }
+    }, false);
     await connection.commit();
   } catch (error) {
     await connection.rollback();
     throw error;
   }
 
-  await v2MarkDirectConversationRead(
-    connection,
-    auth.userId,
-    conversationId,
-    messageId
-  );
-
-  const message = await v2GetDirectMessage(
-    connection,
-    auth.userId,
-    messageId
-  );
-  const actorName = await v2UserDisplayName(connection, auth.userId);
-  await v2CreateNotification(connection, {
-    userId: access.participantUserId,
-    actorId: auth.userId,
-    type: 'direct_message',
-    title: `${actorName} 给你发来私信`,
-    message: v2NotificationPreview(content),
-    resourceType: 'direct_message',
-    resourceId: messageId,
-    metadata: {
-      conversation_id: conversationId,
-      event: 'direct_message_created'
-    }
-  });
-  await v2PublishDirectEvent(
-    [auth.userId, access.participantUserId],
-    'direct_message',
-    {
-      conversation_id: conversationId,
-      direct_message: message
-    }
-  );
+  const delivery = await Promise.allSettled([
+    v2PublishDirectEvent([auth.userId, access.participantUserId], 'direct_message', {
+      conversation_id: conversationId, direct_message: message
+    }),
+    notification ? v2DeliverStoredNotification(connection, notification) : Promise.resolve()
+  ]);
+  if (delivery.some(result => result.status === 'rejected')) {
+    console.warn('[chat] direct message delivery unavailable');
+  }
   return v2Ok(message, 'direct message created');
 }

@@ -242,20 +242,21 @@ export async function v2ListPublicUsersByIds(
 }
 
 export function v2MapMedia(row: V2DbRecord): V2MediaAsset {
+  const id = v2Number(row.MEDIA_ID);
+  const url = v2String(row.PUBLIC_URL);
+  const privateContent = url === `/api/v2/media/${id}/content`;
   return {
-    media_id: v2Number(row.MEDIA_ID),
+    media_id: id,
     media_type: v2String(row.MEDIA_TYPE),
     file_name: v2String(row.FILE_NAME),
-    public_url: normalizeStoragePublicUrl(
-      v2String(row.PUBLIC_URL)
-    ),
+    public_url: privateContent ? url : normalizeStoragePublicUrl(url),
     file_size: v2Number(row.FILE_SIZE),
     mime_type: v2String(row.MIME_TYPE),
     width: row.WIDTH === null ? null : v2Number(row.WIDTH),
     height: row.HEIGHT === null ? null : v2Number(row.HEIGHT),
     duration:
       row.DURATION === null ? null : v2Number(row.DURATION),
-    thumbnail_url: normalizeNullableStoragePublicUrl(
+    thumbnail_url: privateContent ? null : normalizeNullableStoragePublicUrl(
       v2StringOrNull(row.THUMBNAIL_URL)
     ),
     alt_text: v2StringOrNull(row.ALT_TEXT),
@@ -527,6 +528,18 @@ export async function v2MapComment(
   };
 }
 
+export const v2VisiblePostCommentScope = `FROM v_post_comment_list_item c
+  JOIN n_posts p ON p.post_id = c.post_id
+  JOIN n_users post_author ON post_author.user_id = p.author_id AND post_author.is_active = 1
+  JOIN n_users comment_author ON comment_author.user_id = c.user_id AND comment_author.is_active = 1
+  WHERE c.post_id = :post_id
+    AND fn_can_view_post(:viewer_id, c.post_id) = 1
+    AND NOT EXISTS (
+      SELECT 1 FROM n_user_blocks b
+      WHERE (b.user_id = :viewer_id AND b.target_user_id = c.user_id)
+         OR (b.target_user_id = :viewer_id AND b.user_id = c.user_id)
+    )`;
+
 export async function v2CommentCount(
   connection: oracledb.Connection,
   postId: number,
@@ -536,9 +549,7 @@ export async function v2CommentCount(
     connection,
     `
     SELECT COUNT(*) AS total
-    FROM v_post_comment_list_item c
-    WHERE c.post_id = :post_id
-      AND fn_can_view_post(:viewer_id, c.post_id) = 1
+    ${v2VisiblePostCommentScope}
     `,
     { post_id: postId, viewer_id: viewerId }
   );

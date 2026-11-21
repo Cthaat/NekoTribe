@@ -1,6 +1,6 @@
 import type { Peer } from 'crossws';
 import { v2VerifyAccessToken } from '~/server/services/v2/auth';
-import { v2CanAccessChatChannel } from '~/server/services/v2/chat';
+import { v2CanAccessChatChannel, v2CanDeliverDirectMessage } from '~/server/services/v2/chat';
 import {
   v2PublishUserPresence,
   v2TouchAuthSession
@@ -9,27 +9,31 @@ import { getOracleConnection } from '~/server/utils/oracle';
 import { resolveCorsOrigin } from '~/server/utils/cors';
 import { attachOracleQueryCacheWithSource } from '~/server/utils/oracle-query-cache';
 import type { WSMessage } from '~/server/utils/redis';
-import {
-  getRedisClient,
-  getRedisSubscriber,
-  REDIS_CHANNELS,
-  subscribeToChannel
-} from '~/server/utils/redis';
+import { getRedisClient } from '~/server/utils/redis';
+import { createRedisRealtimeTransport } from '~/server/utils/realtime-redis';
+import { createRealtimeSubscription } from '~/server/utils/realtime-subscription';
+import type { RealtimeSubscription } from '~/server/utils/realtime-subscription';
 import type { WSSessionAuthPayload } from '~/server/utils/wsSession';
 import {
   WS_SERVER_ID,
-  sendWsToAll,
-  sendWsToRoom,
-  sendWsNotificationToUser,
-  sendWsToUser,
+  sendWsEventToSession,
+  sendWsRawToSession,
+  disconnectWsSession,
   revalidateWsSession,
   sessionManager
 } from '~/server/utils/wsSession';
-import { v2Execute, v2One } from '~/server/utils/v2';
+import { touchActiveSession } from '~/server/utils/auth-session';
 
 type ExtendedPeer = Peer & {
   sessionId?: string;
   connectionClosed?: boolean;
+  opening?: boolean;
+  failed?: boolean;
+  ready?: boolean;
+  sessionAuth?: WSSessionAuthPayload;
+  realtime?: RealtimeSubscription;
+  inboundTail?: Promise<void>;
+  pendingInbound?: number;
 };
 
 interface WsPeerRequest {
@@ -48,14 +52,6 @@ function generateSessionId(): string {
 
 function chatRoomId(channelId: number): string {
   return `chat:channel:${channelId}`;
-}
-
-function chatRedisChannel(channelId: number): string {
-  return `${REDIS_CHANNELS.CHAT_CHANNEL}${channelId}`;
-}
-
-function userRedisChannel(userId: number): string {
-  return `${REDIS_CHANNELS.USER_MESSAGE}${userId}`;
 }
 
 async function getCachedWsOracleConnection(options: {
@@ -116,8 +112,7 @@ function peerRequest(peer: Peer): WsPeerRequest {
   return peer.request as unknown as WsPeerRequest;
 }
 
-function extractPeerToken(peer: Peer): string {
-  const request = peerRequest(peer);
+function extractRequestToken(request: WsPeerRequest): string {
   const url = new URL(request?.url ?? '/_ws', 'http://localhost');
   const queryToken = url.searchParams.get('token');
   if (queryToken) return queryToken;
@@ -133,54 +128,39 @@ function extractPeerToken(peer: Peer): string {
   );
 }
 
-async function authenticatePeer(
-  peer: Peer
-): Promise<WSSessionAuthPayload | null> {
-  const token = extractPeerToken(peer);
+async function authenticateRequest(request: WsPeerRequest): Promise<WSSessionAuthPayload | null> {
+  const token = extractRequestToken(request);
   if (!token) return null;
 
   const payload = v2VerifyAccessToken(
     token
   ) as WSSessionAuthPayload | null;
-  if (!payload?.userId || !payload.sessionId || !payload.jti) {
+  if (!payload || !Number.isSafeInteger(payload.userId) || payload.userId <= 0 ||
+      payload.type !== 'access' || typeof payload.sessionId !== 'string' || !payload.sessionId ||
+      typeof payload.jti !== 'string' || !payload.jti) {
     return null;
   }
 
   // Session checks must never use the Oracle query cache: revocation is immediate.
   const connection = await getOracleConnection();
   try {
-    const session = await v2One(
-      connection,
-      `
-      SELECT session_id
-      FROM n_auth_sessions
-      WHERE user_id = :user_id
-        AND session_id = :session_id
-        AND access_jti = :access_jti
-        AND revoked_at IS NULL
-        AND access_token_expires_at > CURRENT_TIMESTAMP
-      `,
-      {
-        user_id: payload.userId,
-        session_id: payload.sessionId,
-        access_jti: payload.jti
-      }
-    );
-    if (!session) return null;
-
-    await v2Execute(
-      connection,
-      `
-      UPDATE n_auth_sessions
-      SET last_accessed_at = CURRENT_TIMESTAMP
-      WHERE session_id = :session_id
-      `,
-      { session_id: payload.sessionId }
-    );
-    return payload;
+    const active = await touchActiveSession(connection, {
+      userId: payload.userId, sessionId: payload.sessionId, jti: payload.jti
+    });
+    return active ? payload : null;
   } finally {
     await connection.close();
   }
+}
+
+function authenticatePeer(peer: Peer): Promise<WSSessionAuthPayload | null> {
+  return authenticateRequest(peerRequest(peer));
+}
+
+function handshakeError(status: number, code: number, message: string): Response {
+  return new Response(JSON.stringify({code, message, data: null, meta: null}), {
+    status, headers: {'content-type': 'application/json', 'cache-control': 'private, no-store'}
+  });
 }
 
 function parseClientMessage(raw: string): ClientMessage | null {
@@ -201,9 +181,9 @@ function parseClientMessage(raw: string): ClientMessage | null {
 function channelIdFromData(data: unknown): number | null {
   if (!isRecord(data)) return null;
   const raw = data.channelId ?? data.channel_id;
-  const channelId =
-    typeof raw === 'number' ? raw : Number(String(raw ?? ''));
-  return Number.isFinite(channelId) && channelId > 0
+  if (typeof raw !== 'number' && (typeof raw !== 'string' || !/^\+?[0-9]+$/.test(raw))) return null;
+  const channelId = Number(raw);
+  return Number.isSafeInteger(channelId) && channelId > 0
     ? channelId
     : null;
 }
@@ -222,174 +202,56 @@ function sendPeer(
   );
 }
 
-const subscribedChatChannels = new Set<number>();
-const subscribedUsers = new Set<number>();
-const pendingUserSubscriptions = new Map<number, Promise<boolean>>();
-const subscribedGlobalChannels = new Set<string>();
+function sendSession(
+  sessionId: string, type: WSMessage['type'], data: Record<string, unknown>
+): Promise<void> {
+  return sendWsEventToSession(sessionId, {type, data, timestamp: Date.now()} satisfies WSMessage);
+}
+
 const presenceOfflineTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const PRESENCE_OFFLINE_GRACE_MS = 95_000;
 
-async function initializeRedisSubscriptions(): Promise<void> {
-  if (!subscribedGlobalChannels.has(REDIS_CHANNELS.BROADCAST)) {
-    const subscribed = await subscribeToChannel(
-      REDIS_CHANNELS.BROADCAST,
-      message => {
-        sendWsToAll(message);
-      }
-    );
-    if (subscribed) {
-      subscribedGlobalChannels.add(REDIS_CHANNELS.BROADCAST);
-    }
-  }
-
-  if (
-    !subscribedGlobalChannels.has(
-      REDIS_CHANNELS.SYSTEM_NOTIFICATION
-    )
-  ) {
-    const subscribed = await subscribeToChannel(
-      REDIS_CHANNELS.SYSTEM_NOTIFICATION,
-      message => {
-        sendWsToAll(message);
-      }
-    );
-    if (subscribed) {
-      subscribedGlobalChannels.add(
-        REDIS_CHANNELS.SYSTEM_NOTIFICATION
-      );
-    }
-  }
-
-  if (!subscribedGlobalChannels.has(REDIS_CHANNELS.PRESENCE)) {
-    const subscribed = await subscribeToChannel(
-      REDIS_CHANNELS.PRESENCE,
-      message => {
-        const data = isRecord(message.data) ? message.data : {};
-        if (data.server_id === WS_SERVER_ID) return;
-        sendWsToAll(message);
-      }
-    );
-    if (subscribed) {
-      subscribedGlobalChannels.add(REDIS_CHANNELS.PRESENCE);
-    }
-  }
-}
-
-async function ensureChatRedisSubscription(
-  channelId: number
-): Promise<void> {
-  if (subscribedChatChannels.has(channelId)) return;
-
-  const subscribed = await subscribeToChannel(
-    chatRedisChannel(channelId),
-    (message: WSMessage) => {
-      const data = isRecord(message.data) ? message.data : {};
-      if (data.server_id === WS_SERVER_ID) return;
-      sendWsToRoom(chatRoomId(channelId), message);
-    }
-  );
-  if (subscribed) {
-    subscribedChatChannels.add(channelId);
-  }
-}
-
-async function ensureUserRedisSubscription(
-  userId: number
-): Promise<boolean> {
-  if (subscribedUsers.has(userId)) {
-    return getRedisSubscriber()?.status === 'ready';
-  }
-  const pending = pendingUserSubscriptions.get(userId);
-  if (pending) return await pending;
-
-  const subscription = (async () => {
-    try {
-      const subscribed = await subscribeToChannel(
-        userRedisChannel(userId),
-        (message: WSMessage) => {
-          if (!message || typeof message.type !== 'string') return;
-          const data = isRecord(message.data) ? message.data : {};
-          if (data.server_id === WS_SERVER_ID) return;
-          if (message.type.startsWith('notification_') || message.type === 'notifications_read_status_updated') {
-            if (!isRecord(message.data) || typeof message.timestamp !== 'number') return;
-            void sendWsNotificationToUser(userId, message);
-          } else {
-            sendWsToUser(userId, message);
-          }
-        }
-      );
-      if (subscribed) subscribedUsers.add(userId);
-      return subscribed;
-    } catch {
-      return false;
-    }
-  })();
-  pendingUserSubscriptions.set(userId, subscription);
-  try {
-    return await subscription;
-  } finally {
-    if (pendingUserSubscriptions.get(userId) === subscription) {
-      pendingUserSubscriptions.delete(userId);
-    }
-  }
-}
-
-async function handleJoinChatChannel(
-  sessionId: string,
-  data: unknown
-): Promise<void> {
+async function handleJoinChatChannel(sessionId: string, data: unknown): Promise<void> {
   const session = sessionManager.getSession(sessionId);
-  if (!session) return;
-
+  if (!session || session.closing) return;
   const channelId = channelIdFromData(data);
   if (!channelId) {
-    sendPeer(session.peer, 'error', {
-      message: 'channelId 参数错误'
-    });
+    await sendSession(sessionId, 'error', {message: 'channelId 参数错误'});
     return;
   }
-
-  const connection = await getCachedWsOracleConnection({
-    authUserId: session.auth.userId,
-    path: '/_ws/chat/join'
-  });
+  let canAccess = false;
   try {
-    const canAccess = await v2CanAccessChatChannel(
-      connection,
-      session.auth.userId,
-      channelId
-    );
-    if (!canAccess) {
-      sendPeer(session.peer, 'error', {
-        message: '无权访问该聊天频道',
-        channel_id: channelId
-      });
-      return;
-    }
-  } finally {
-    await connection.close();
+    const connection = await getOracleConnection();
+    try { canAccess = await v2CanAccessChatChannel(connection, session.auth.userId, channelId); }
+    finally { await connection.close(); }
+  } catch {
+    await sendSession(sessionId, 'error', {message: '服务暂不可用'});
+    return;
   }
-
+  if (sessionManager.getSession(sessionId) !== session || session.closing) return;
+  if (!canAccess) {
+    await sendSession(sessionId, 'error', {message: '无权访问该聊天频道', channel_id: channelId});
+    return;
+  }
   const roomId = chatRoomId(channelId);
-  sessionManager.joinRoom(sessionId, roomId);
-  await ensureChatRedisSubscription(channelId);
-  sendPeer(session.peer, 'system_notification', {
-    message: 'chat channel joined',
-    channel_id: channelId,
-    room: roomId
-  });
+  if (!sessionManager.joinRoom(sessionId, roomId)) {
+    await sendSession(sessionId, 'error', {message: '加入的聊天频道已达上限'});
+    return;
+  }
+  if (!(session.peer as ExtendedPeer).realtime?.joinChat(channelId)) {
+    sessionManager.leaveRoom(sessionId, roomId);
+    await sendSession(sessionId, 'error', {message: '服务暂不可用'});
+    return;
+  }
+  await sendSession(sessionId, 'system_notification', {message: 'chat channel joined', channel_id: channelId, room: roomId});
 }
 
-function handleLeaveChatChannel(
-  sessionId: string,
-  data: unknown
-): void {
+function handleLeaveChatChannel(sessionId: string, data: unknown): void {
   const session = sessionManager.getSession(sessionId);
-  if (!session) return;
-
   const channelId = channelIdFromData(data);
-  if (!channelId) return;
+  if (!session || !channelId) return;
   sessionManager.leaveRoom(sessionId, chatRoomId(channelId));
+  (session.peer as ExtendedPeer).realtime?.leaveChat(channelId);
 }
 
 function clearPresenceOfflineTimer(userId: number): void {
@@ -401,152 +263,188 @@ function clearPresenceOfflineTimer(userId: number): void {
 
 function schedulePresenceOfflinePublish(userId: number): void {
   clearPresenceOfflineTimer(userId);
-  presenceOfflineTimers.set(
-    userId,
-    setTimeout(async () => {
-      presenceOfflineTimers.delete(userId);
-      if (sessionManager.isUserOnline(userId)) return;
-
-      const connection = await getCachedWsOracleConnection({
-        authUserId: userId,
-        path: '/_ws/presence/offline'
-      });
-      try {
-        await v2PublishUserPresence(connection, userId);
-      } catch (error) {
-        console.error('[ws] publish delayed presence failed', {
-          userId,
-          error
-        });
-      } finally {
-        await connection.close();
-      }
-    }, PRESENCE_OFFLINE_GRACE_MS)
-  );
+  if (presenceOfflineTimers.size >= 1024) {
+    const oldest = presenceOfflineTimers.keys().next().value;
+    if (oldest !== undefined) clearPresenceOfflineTimer(oldest);
+  }
+  const timer = setTimeout(async () => {
+    presenceOfflineTimers.delete(userId);
+    if (sessionManager.isUserOnline(userId)) return;
+    try {
+      const connection = await getCachedWsOracleConnection({authUserId: userId, path: '/_ws/presence/offline'});
+      try { await v2PublishUserPresence(connection, userId); }
+      finally { await connection.close(); }
+    } catch { console.warn('[ws] delayed presence unavailable'); }
+  }, PRESENCE_OFFLINE_GRACE_MS);
+  timer.unref?.();
+  presenceOfflineTimers.set(userId, timer);
 }
 
 export default defineWebSocketHandler({
-  upgrade(request) {
+  async upgrade(request) {
     const origin = request.headers.get('origin');
-    if (origin === null) return;
-    if (resolveCorsOrigin(origin)) return;
-    const host = request.headers.get('host');
+    if (origin !== null && !resolveCorsOrigin(origin)) {
+      const host = request.headers.get('host');
+      let sameOrigin = false;
+      try {
+        const parsed = new URL(origin);
+        const publicBase = (process.env.BASE_URL ?? '').trim().replace(/\/+$/, '');
+        sameOrigin = parsed.origin === origin && (
+          parsed.protocol === 'https:' && origin === publicBase ||
+          parsed.protocol === 'http:' && !!host && origin === `http://${host}`
+        );
+      } catch { /* Reject malformed or opaque origins. */ }
+      if (!sameOrigin) return handshakeError(403, 40301, 'Forbidden');
+    }
+    const target: WsPeerRequest = {url: request.url, headers: request.headers};
+    if (!extractRequestToken(target)) return handshakeError(401, 40101, '请先登录');
     try {
-      const parsed = new URL(origin);
-      if (host && parsed.protocol === 'http:' && parsed.origin === origin && origin === `http://${host}`) return;
-    } catch { /* Reject malformed or opaque origins. */ }
-    return new Response('Forbidden', { status: 403 });
+      if (!await authenticateRequest(target)) return handshakeError(401, 40101, 'Token无效或已过期');
+    } catch {
+      console.warn('[ws] authentication unavailable');
+      return handshakeError(401, 40101, 'Token无效或已过期');
+    }
+    if (!sessionManager.hasCapacity()) return handshakeError(503, 50301, '服务暂不可用，请稍后重试。');
   },
   async open(peer) {
-    const extendedPeer = peer as ExtendedPeer;
+    const extended = peer as ExtendedPeer;
+    if (extended.opening || extended.connectionClosed || extended.failed) return;
+    extended.opening = true;
     let auth: WSSessionAuthPayload | null = null;
-    try {
-      auth = await authenticatePeer(extendedPeer);
-    } catch (error) {
-      console.error('[ws] authenticate error', error);
-    }
-    if (extendedPeer.connectionClosed) return;
+    try { auth = await authenticatePeer(peer); }
+    catch { console.warn('[ws] authentication unavailable'); }
+    if (extended.connectionClosed || extended.failed) return;
     if (!auth) {
-      sendPeer(peer, 'error', { message: 'WebSocket 未认证' });
+      sendPeer(peer, 'error', {message: 'WebSocket 未认证'});
       peer.close();
       return;
     }
-
     const sessionId = generateSessionId();
-    await initializeRedisSubscriptions();
-    if (extendedPeer.connectionClosed) return;
-    const subscribed = await ensureUserRedisSubscription(auth.userId);
-    if (extendedPeer.connectionClosed) return;
-    if (!subscribed) {
-      sendPeer(peer, 'error', { message: '通知服务暂不可用' });
-      peer.close();
-      return;
-    }
-    const wasOnline = sessionManager.isUserOnline(auth.userId);
-    extendedPeer.sessionId = sessionId;
     const initialAuth = auth;
-    sessionManager.addSession(sessionId, peer, initialAuth, async () => {
+    const wasOnline = sessionManager.isUserOnline(auth.userId);
+    const registered = sessionManager.addSession(sessionId, peer, initialAuth, async () => {
       const current = await authenticatePeer(peer);
       return !!current && current.userId === initialAuth.userId &&
         current.sessionId === initialAuth.sessionId && current.jti === initialAuth.jti;
-    });
-    clearPresenceOfflineTimer(auth.userId);
-    if (!wasOnline) {
-      const connection = await getCachedWsOracleConnection({
-        authUserId: auth.userId,
-        path: '/_ws/presence/online'
-      });
-      try {
-        await v2PublishUserPresence(connection, auth.userId);
-      } finally {
-        await connection.close();
+    }, () => {
+      extended.ready = false;
+      extended.realtime?.close();
+      extended.realtime = undefined;
+    }, {
+      authorize: async channel => {
+        const connection = await getOracleConnection();
+        try { return await v2CanAccessChatChannel(connection, initialAuth.userId, channel); }
+        finally { await connection.close(); }
+      },
+      leave: channel => { extended.realtime?.leaveChat(channel); },
+      authorizeDirect: async (conversation, message, deleted) => {
+        const connection = await getOracleConnection();
+        try { return await v2CanDeliverDirectMessage(connection, initialAuth.userId, conversation, message, deleted); }
+        finally { await connection.close(); }
       }
-    }
-    sendPeer(peer, 'system_notification', {
-      message: 'WebSocket connected',
-      session_id: sessionId,
-      user_id: auth.userId
     });
+    if (!registered) {
+      sendPeer(peer, 'error', {message: '服务暂不可用'});
+      peer.close();
+      return;
+    }
+    extended.sessionId = sessionId;
+    extended.sessionAuth = initialAuth;
+    const active = () => !extended.connectionClosed && !extended.failed &&
+      sessionManager.getSession(sessionId)?.peer === peer;
+    clearPresenceOfflineTimer(auth.userId);
+    await sendSession(sessionId, 'system_notification', {
+      message: 'WebSocket connected', session_id: sessionId, user_id: auth.userId
+    });
+    if (!active()) return;
+    const realtime = createRealtimeSubscription({
+      userId: auth.userId,
+      serverId: WS_SERVER_ID,
+      createTransport: createRedisRealtimeTransport,
+      onState: state => {
+        void sendSession(sessionId, 'system_notification', {
+          code: 'realtime_status', user_id: initialAuth.userId, server_id: WS_SERVER_ID,
+          local_presence: true, remote_events: state
+        });
+      },
+      onMessage: raw => { void sendWsRawToSession(sessionId, raw); },
+      onChatReady: channel => {
+        const room = chatRoomId(channel);
+        if (!sessionManager.getSession(sessionId)?.joinedRooms.has(room)) return;
+        void sendSession(sessionId, 'system_notification', {code:'chat_channel_ready', channel_id:channel, room});
+      }
+    });
+    extended.realtime = realtime;
+    if (!active()) { realtime.close(); extended.realtime = undefined; return; }
+    extended.ready = true;
+    if (!wasOnline) {
+      try {
+        const connection = await getCachedWsOracleConnection({authUserId: auth.userId, path: '/_ws/presence/online'});
+        try { if (active()) await v2PublishUserPresence(connection, auth.userId); }
+        finally { await connection.close(); }
+      } catch { console.warn('[ws] presence unavailable'); }
+    }
   },
 
   async message(peer, message) {
-    const sessionId = (peer as ExtendedPeer).sessionId;
-    if (!sessionId) return;
-    const session = sessionManager.getSession(sessionId);
-    if (!session || session.peer !== peer || session.closing) return;
-
-    sessionManager.updateActivity(sessionId);
-    const parsed = parseClientMessage(message.text());
-    if (!parsed) {
-      sendPeer(peer, 'error', { message: '消息格式错误' });
-      return;
+    const extended = peer as ExtendedPeer;
+    const sessionId = extended.sessionId;
+    if (!sessionId || !extended.ready || extended.connectionClosed || extended.failed) return;
+    let raw: string;
+    try { raw = message.text(); }
+    catch { disconnectWsSession(sessionId); return; }
+    if (raw.length > 65536 || new TextEncoder().encode(raw).byteLength > 65536) {
+      disconnectWsSession(sessionId); return;
     }
-
-    switch (parsed.type) {
-      case 'chat_join_channel':
-        await handleJoinChatChannel(sessionId, parsed.data);
-        break;
-      case 'chat_leave_channel':
-        handleLeaveChatChannel(sessionId, parsed.data);
-        break;
-      case 'ping':
-        if (!await revalidateWsSession(sessionId)) break;
-        sendPeer(peer, 'pong', { timestamp: Date.now() });
-        break;
-      default:
-        sendPeer(peer, 'error', {
-          message: '不支持的 WebSocket 消息类型',
-          type: parsed.type
-        });
-    }
+    const pending = extended.pendingInbound ?? 0;
+    if (pending >= 16) { disconnectWsSession(sessionId); return; }
+    extended.pendingInbound = pending + 1;
+    const dispatch = (extended.inboundTail ?? Promise.resolve()).then(async () => {
+      const session = sessionManager.getSession(sessionId);
+      if (!session || session.peer !== peer || session.closing || !await revalidateWsSession(sessionId)) return;
+      sessionManager.updateActivity(sessionId);
+      const parsed = parseClientMessage(raw);
+      if (!parsed) { await sendSession(sessionId, 'error', {message: '消息格式错误'}); return; }
+      switch (parsed.type) {
+        case 'chat_join_channel': await handleJoinChatChannel(sessionId, parsed.data); break;
+        case 'chat_leave_channel': handleLeaveChatChannel(sessionId, parsed.data); break;
+        case 'ping': await sendSession(sessionId, 'pong', {timestamp: Date.now()}); break;
+        default: await sendSession(sessionId, 'error', {message: '不支持的 WebSocket 消息类型', type: parsed.type});
+      }
+    }).catch(() => {
+      disconnectWsSession(sessionId);
+    }).finally(() => {
+      extended.pendingInbound = (extended.pendingInbound ?? 1) - 1;
+    });
+    extended.inboundTail = dispatch;
+    await dispatch;
   },
 
   async close(peer) {
-    (peer as ExtendedPeer).connectionClosed = true;
-    const sessionId = (peer as ExtendedPeer).sessionId;
-    if (sessionId) {
-      const removedSession = sessionManager.removeSession(sessionId);
-      const userId = removedSession?.auth.userId;
-      const authSessionId = removedSession?.auth.sessionId;
-      if (userId && authSessionId) {
-        const connection = await getCachedWsOracleConnection({
-          authUserId: userId,
-          path: '/_ws/close'
-        });
-        try {
-          await v2TouchAuthSession(connection, authSessionId);
-          if (!sessionManager.isUserOnline(userId)) {
-            schedulePresenceOfflinePublish(userId);
-          }
-        } finally {
-          await connection.close();
-        }
-      }
-    }
+    const extended = peer as ExtendedPeer;
+    if (extended.connectionClosed) return;
+    extended.connectionClosed = true;
+    extended.ready = false;
+    const removed = extended.sessionId ? sessionManager.removeSession(extended.sessionId) : null;
+    const auth = removed?.auth ?? extended.sessionAuth;
+    extended.sessionAuth = undefined;
+    extended.realtime?.close();
+    extended.realtime = undefined;
+    if (!auth?.userId || !auth.sessionId) return;
+    try {
+      const connection = await getCachedWsOracleConnection({authUserId: auth.userId, path: '/_ws/close'});
+      try { await v2TouchAuthSession(connection, auth.sessionId); }
+      finally { await connection.close(); }
+    } catch { console.warn('[ws] close presence unavailable'); }
+    if (!sessionManager.isUserOnline(auth.userId)) schedulePresenceOfflinePublish(auth.userId);
   },
 
-  error(peer, error) {
-    const sessionId = (peer as ExtendedPeer).sessionId;
-    console.error('[ws] error', { sessionId, error });
+  error(peer) {
+    const extended = peer as ExtendedPeer;
+    if (extended.failed) return;
+    extended.failed = true;
+    console.warn('[ws] connection unavailable');
+    if (extended.sessionId) disconnectWsSession(extended.sessionId);
+    else { try { peer.close(); } catch { /* Already closed. */ } }
   }
 });

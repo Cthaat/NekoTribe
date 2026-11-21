@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { usePreferenceStore } from '@/stores/user';
 import {
   Copy,
   KeyRound,
@@ -22,50 +23,74 @@ const { t } = useAppLocale();
 
 const loading = ref(false);
 const actionPending = ref(false);
-const enabled = ref(false);
+const enabled = ref<boolean | null>(null);
+const statusFailed = ref(false);
 const setupPassword = ref('');
 const setupCode = ref('');
 const disablePassword = ref('');
 const disableCode = ref('');
 const setup = ref<TwoFactorSetupVM | null>(null);
 const recoveryCodes = ref<string[]>([]);
+const preferenceStore = usePreferenceStore();
+const ownerRevision = preferenceStore.authRevision();
+let disposed = false;
+function isCurrent(): boolean { return !disposed && preferenceStore.isAuthCurrent(ownerRevision); }
+onUnmounted(() => {
+  disposed = true;
+  setup.value = null; recoveryCodes.value = [];
+  setupPassword.value = ''; setupCode.value = ''; disablePassword.value = ''; disableCode.value = '';
+});
 
 async function loadStatus(): Promise<void> {
+  if (!isCurrent() || loading.value || actionPending.value) return;
   loading.value = true;
+  enabled.value = null;
+  statusFailed.value = false;
+  setup.value = null; recoveryCodes.value = [];
   try {
     const settings = await v2GetSettings();
+    if (!isCurrent()) return;
     enabled.value = settings.twoFactorEnabled;
   } catch {
-    toast.error(t('account.security.twoFactor.feedback.loadFailed'));
+    if (!isCurrent()) return;
+    statusFailed.value = true;
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 async function startSetup(): Promise<void> {
+  if (enabled.value !== false || actionPending.value || loading.value || !isCurrent()) return;
   if (!setupPassword.value.trim()) {
     toast.error(t('account.security.twoFactor.feedback.passwordRequired'));
     return;
   }
 
+  setup.value = null;
+  setupCode.value = '';
+  recoveryCodes.value = [];
   actionPending.value = true;
   try {
-    setup.value = await v2StartTwoFactorSetup({
-      password: setupPassword.value
+    const result = await v2StartTwoFactorSetup({
+      password: setupPassword.value.trim()
     });
+    if (!isCurrent()) return;
+    setup.value = result;
     setupCode.value = '';
     recoveryCodes.value = [];
     toast.success(t('account.security.twoFactor.feedback.setupStarted'));
   } catch (error) {
+    if (!isCurrent()) return;
     toast.error(t('account.security.twoFactor.feedback.setupFailed'), {
       description: error instanceof Error ? error.message : undefined
     });
   } finally {
-    actionPending.value = false;
+    if (isCurrent()) actionPending.value = false;
   }
 }
 
 async function confirmSetup(): Promise<void> {
+  if (enabled.value !== false || actionPending.value || loading.value || !isCurrent()) return;
   if (!setup.value || !setupCode.value.trim()) {
     toast.error(t('account.security.twoFactor.feedback.codeRequired'));
     return;
@@ -74,8 +99,9 @@ async function confirmSetup(): Promise<void> {
   actionPending.value = true;
   try {
     const result = await v2ConfirmTwoFactorSetup({
-      code: setupCode.value
+      code: setupCode.value.trim()
     });
+    if (!isCurrent()) return;
     enabled.value = result.enabled;
     recoveryCodes.value = result.recoveryCodes;
     setup.value = null;
@@ -83,15 +109,17 @@ async function confirmSetup(): Promise<void> {
     setupCode.value = '';
     toast.success(t('account.security.twoFactor.feedback.enabled'));
   } catch (error) {
+    if (!isCurrent()) return;
     toast.error(t('account.security.twoFactor.feedback.confirmFailed'), {
       description: error instanceof Error ? error.message : undefined
     });
   } finally {
-    actionPending.value = false;
+    if (isCurrent()) actionPending.value = false;
   }
 }
 
 async function disableTwoFactor(): Promise<void> {
+  if (enabled.value !== true || actionPending.value || loading.value || !isCurrent()) return;
   if (!disablePassword.value.trim() || !disableCode.value.trim()) {
     toast.error(t('account.security.twoFactor.feedback.disableRequired'));
     return;
@@ -100,26 +128,34 @@ async function disableTwoFactor(): Promise<void> {
   actionPending.value = true;
   try {
     const result = await v2DisableTwoFactor({
-      password: disablePassword.value,
-      code: disableCode.value
+      password: disablePassword.value.trim(),
+      code: disableCode.value.trim()
     });
+    if (!isCurrent()) return;
     enabled.value = result.enabled;
     disablePassword.value = '';
     disableCode.value = '';
     recoveryCodes.value = [];
     toast.success(t('account.security.twoFactor.feedback.disabled'));
   } catch (error) {
+    if (!isCurrent()) return;
     toast.error(t('account.security.twoFactor.feedback.disableFailed'), {
       description: error instanceof Error ? error.message : undefined
     });
   } finally {
-    actionPending.value = false;
+    if (isCurrent()) actionPending.value = false;
   }
 }
 
+function canCopySecret(value: string): boolean {
+  return isCurrent() && !loading.value && !actionPending.value && enabled.value !== null &&
+    (setup.value?.secret === value || (recoveryCodes.value.length > 0 && recoveryCodes.value.join('\n') === value));
+}
 async function copySecret(value: string): Promise<void> {
+  if (!canCopySecret(value)) return;
   if (!import.meta.client) return;
   await navigator.clipboard.writeText(value);
+  if (!canCopySecret(value)) return;
   toast.success(t('account.security.twoFactor.feedback.copied'));
 }
 
@@ -140,20 +176,24 @@ onMounted(loadStatus);
       <span
         :class="[
           'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium',
-          enabled
+          enabled === true
             ? 'border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300'
             : 'border-border/60 bg-muted/40 text-muted-foreground'
         ]"
       >
         {{
-          enabled
+          enabled === null
+            ? (loading ? t('account.security.twoFactor.statusLoading') : t('account.security.twoFactor.statusUnknown'))
+            : enabled
             ? t('account.security.twoFactor.enabled')
             : t('account.security.twoFactor.disabled')
         }}
       </span>
     </div>
 
-    <div v-if="!enabled" class="grid gap-4">
+    <p v-if="statusFailed" role="alert" class="text-sm text-destructive">{{ t('account.security.twoFactor.feedback.loadFailed') }}</p>
+    <Button variant="outline" :disabled="loading || actionPending" @click="loadStatus">{{ t('account.security.twoFactor.reloadStatus') }}</Button>
+    <div v-if="enabled === false" class="grid gap-4">
       <div class="grid gap-2">
         <Label for="two-factor-setup-password" class="text-xs font-medium">
           {{ t('account.security.twoFactor.password') }}
@@ -235,7 +275,7 @@ onMounted(loadStatus);
       </div>
     </div>
 
-    <div v-else class="grid gap-4">
+    <div v-else-if="enabled === true" class="grid gap-4">
       <div class="grid gap-2">
         <Label for="two-factor-disable-password" class="text-xs font-medium">
           {{ t('account.security.twoFactor.password') }}

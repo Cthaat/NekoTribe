@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import {
   Clock,
@@ -20,10 +20,30 @@ import {
   respondGroupInvite
 } from '@/services/groups';
 import type { GroupInviteView } from '@/types/groups';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { matchesGroupInviteResponse } from '@/utils/group-invite';
+import { notificationTargetId } from '@/utils/post-notification-target';
+
+definePageMeta({ key: route => route.fullPath });
+
+const inviteId = notificationTargetId(useRoute().query.invite) ?? undefined;
 
 const invites = ref<GroupInviteView[]>([]);
 const isRefreshing = ref(false);
+const responding = ref(false);
+const hasNext = ref(false);
+const total = ref(0);
+const failed = ref(false);
+const expired = ref(false);
+const acceptedGroup = ref<GroupInviteView['group'] | null>(null);
+let page = 0;
+let readRequest: AbortController | undefined;
+let writeRequest: AbortController | undefined;
+let unsubscribe: (() => void) | undefined;
+const app = useNuxtApp();
+const auth = authQueueFor(app);
 const { t } = useAppLocale();
+const localePath = useLocalePath();
 
 function formatTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -61,58 +81,88 @@ function getRemainingTime(expiresAt: string): string {
   return t('groups.invites.expiresInHours', { hours });
 }
 
-async function refreshInvites(): Promise<void> {
+async function refreshInvites(append = false): Promise<void> {
+  if (expired.value || auth.isIdentityChanging || isRefreshing.value ||
+      (append && !hasNext.value)) return;
+  const request = new AbortController();
+  readRequest = request;
+  const revision = auth.revision;
+  const current = () => readRequest === request && revision === auth.revision;
+  const next = append ? page + 1 : 1;
   isRefreshing.value = true;
-  try {
-    invites.value = await listMyGroupInvites();
-  } catch (error) {
+  failed.value = false;
+  if (!append) {
     invites.value = [];
-    toast.error(t('groups.feedback.loadInvitesFailed'), {
-      description:
-        error instanceof Error ? error.message : undefined
-    });
+    hasNext.value = false;
+    total.value = 0;
+    page = 0;
+  }
+  try {
+    const result = await app.runWithContext(() => listMyGroupInvites(next, request.signal, inviteId));
+    if (!current()) return;
+    const entries = new Map(invites.value.map(invite => [invite.id, invite]));
+    for (const invite of result.items) entries.set(invite.id, invite);
+    invites.value = [...entries.values()];
+    hasNext.value = result.hasNext;
+    total.value = result.total;
+    page = next;
+  } catch {
+    if (current()) failed.value = true;
   } finally {
-    isRefreshing.value = false;
+    if (current()) isRefreshing.value = false;
   }
 }
 
-async function handleAccept(id: number): Promise<void> {
+async function handleResponse(invite: GroupInviteView, accept: boolean): Promise<void> {
+  if (expired.value || auth.isIdentityChanging || responding.value || isRefreshing.value) return;
+  if (!Number.isSafeInteger(invite.id) || invite.id <= 0 ||
+      !Number.isSafeInteger(invite.group.id) || invite.group.id <= 0) return;
+  const request = new AbortController();
+  writeRequest = request;
+  const revision = auth.revision;
+  const current = () => writeRequest === request && revision === auth.revision;
+  responding.value = true;
   try {
-    await respondGroupInvite(id, true);
-    invites.value = invites.value.filter(
-      invite => invite.id !== id
-    );
-    toast.success(t('groups.feedback.inviteAccepted'));
-  } catch (error) {
-    toast.error(t('groups.feedback.inviteAcceptFailed'), {
-      description:
-        error instanceof Error ? error.message : undefined
-    });
+    const receipt = await app.runWithContext(() => respondGroupInvite(invite.id, accept, request.signal));
+    if (!current()) return;
+    if (!matchesGroupInviteResponse(receipt, invite.id, invite.group.id, accept)) throw Error('Invalid invite response');
+    if (accept) {
+      acceptedGroup.value = invite.group;
+      toast.success(t('groups.feedback.inviteAccepted'));
+    } else {
+      toast.info(t('groups.feedback.inviteRejected'));
+    }
+  } catch {
+    if (current()) toast.error(t('groups.feedback.inviteResponseUnknown'));
+  } finally {
+    if (current()) {
+      await refreshInvites();
+      if (current()) responding.value = false;
+    }
   }
 }
 
-async function handleReject(id: number): Promise<void> {
-  try {
-    await respondGroupInvite(id, false);
-    invites.value = invites.value.filter(
-      invite => invite.id !== id
-    );
-    toast.info(t('groups.feedback.inviteRejected'));
-  } catch (error) {
-    toast.error(t('groups.feedback.inviteRejectFailed'), {
-      description:
-        error instanceof Error ? error.message : undefined
-    });
-  }
-}
-
-async function handleRefresh(): Promise<void> {
-  await refreshInvites();
-  toast.success(t('groups.feedback.refreshed'));
+function clearRequests() {
+  readRequest?.abort();
+  writeRequest?.abort();
+  readRequest = writeRequest = undefined;
 }
 
 onMounted(() => {
+  unsubscribe = auth.subscribe(() => {
+    clearRequests();
+    expired.value = true;
+    invites.value = [];
+    acceptedGroup.value = null;
+    total.value = 0;
+    hasNext.value = responding.value = isRefreshing.value = failed.value = false;
+  });
+  expired.value = auth.isIdentityChanging;
   void refreshInvites();
+});
+onBeforeUnmount(() => {
+  unsubscribe?.();
+  clearRequests();
 });
 </script>
 
@@ -125,13 +175,16 @@ onMounted(() => {
         class="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground"
       >
         <Inbox class="h-3 w-3" />
-        {{ t('groups.invites.pendingCount', { count: invites.length }) }}
+        {{ t('groups.invites.pendingCount', { count: total }) }}
       </span>
+      <Button v-if="inviteId !== undefined" as-child variant="ghost" size="sm">
+        <NuxtLink :to="localePath('/groups/invites')">{{ t('groups.invites.viewAll') }}</NuxtLink>
+      </Button>
       <Button
         variant="outline"
         class="h-9 w-full rounded-md shadow-xs sm:w-auto"
-        :disabled="isRefreshing"
-        @click="handleRefresh"
+        :disabled="isRefreshing || responding || expired"
+        @click="refreshInvites()"
       >
         <RefreshCw
           :class="[
@@ -143,8 +196,18 @@ onMounted(() => {
       </Button>
     </div>
 
+    <div v-if="acceptedGroup" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3">
+      <span class="break-words text-sm" role="status">{{ acceptedGroup.name }}</span>
+      <Button as-child variant="outline" size="sm">
+        <NuxtLink :to="localePath({ path: '/groups/posts', query: { group: String(acceptedGroup.id) } })">
+          {{ t('groups.invites.openGroup') }}
+        </NuxtLink>
+      </Button>
+    </div>
+    <p v-if="expired" role="status">{{ t('visibility.sessionChanged') }}</p>
+    <p v-else-if="failed" role="alert">{{ t('groups.feedback.loadInvitesFailed') }}</p>
     <div
-      v-if="invites.length === 0"
+      v-else-if="!isRefreshing && invites.length === 0 && (inviteId === undefined || !acceptedGroup)"
       class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/10 py-16 text-center"
     >
       <span
@@ -154,15 +217,15 @@ onMounted(() => {
       </span>
       <div class="grid gap-1">
         <h3 class="text-sm font-semibold tracking-tight">
-          {{ t('groups.invites.emptyTitle') }}
+          {{ t(inviteId === undefined ? 'groups.invites.emptyTitle' : 'groups.invites.unavailable') }}
         </h3>
-        <p class="max-w-sm text-xs text-muted-foreground">
+        <p v-if="inviteId === undefined" class="max-w-sm text-xs text-muted-foreground">
           {{ t('groups.invites.emptyDescription') }}
         </p>
       </div>
     </div>
 
-    <div v-else class="grid gap-3">
+    <div v-if="invites.length" class="grid gap-3">
       <article
         v-for="invite in invites"
         :key="invite.id"
@@ -248,14 +311,16 @@ onMounted(() => {
             <Button
               variant="outline"
               class="h-8 rounded-md shadow-xs"
-              @click="handleReject(invite.id)"
+              :disabled="responding || isRefreshing"
+              @click="handleResponse(invite, false)"
             >
               <XCircle class="h-3.5 w-3.5" />
               {{ t('groups.invites.reject') }}
             </Button>
             <Button
               class="h-8 rounded-md shadow-xs"
-              @click="handleAccept(invite.id)"
+              :disabled="responding || isRefreshing"
+              @click="handleResponse(invite, true)"
             >
               <CheckCircle class="h-3.5 w-3.5" />
               {{ t('groups.invites.accept') }}
@@ -264,5 +329,9 @@ onMounted(() => {
         </div>
       </article>
     </div>
+    <Button v-if="hasNext" variant="outline" class="justify-self-center"
+      :disabled="responding || isRefreshing" @click="refreshInvites(true)">
+      {{ t(failed ? 'common.retry' : 'common.loadMore') }}
+    </Button>
   </div>
 </template>

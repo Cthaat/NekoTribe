@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import {
   computed,
+  defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
-  ref
+  onMounted,
+  ref,
+  watch
 } from 'vue';
 import type { Component } from 'vue';
 import type {
@@ -27,6 +30,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import {
   Tooltip,
   TooltipContent,
@@ -46,12 +50,17 @@ import {
   Plus,
   SmilePlus,
   Users,
+  WandSparkles,
   X
 } from 'lucide-vue-next';
 import AppSendButton from '@/components/app/AppSendButton.vue';
 import { toast } from 'vue-sonner';
 import TweetPreviewCard from './TweetPreviewCard.vue';
 import MentionPicker from './MentionPicker.vue';
+import { v2DeleteMedia, v2UploadMedia } from '@/api/v2/posts';
+import { usePreferenceStore } from '@/stores/user';
+import { isPrivateMediaContent } from '@/utils/private-media';
+import { authQueueFor } from '@/services/auth-request-queue';
 
 interface MediaDraft {
   id: string;
@@ -60,6 +69,8 @@ interface MediaDraft {
   kind: 'image' | 'video';
   altText: string;
   description: string;
+  mediaId?: number;
+  accessScope?: 'public' | 'post';
 }
 
 interface MentionDraft {
@@ -80,6 +91,7 @@ const props = withDefaults(
     replyTo?: PreviewPostVM;
     quoteTo?: PreviewPostVM;
     isSubmitting?: boolean;
+    initialDraft?: string;
   }>(),
   {
     isSubmitting: false
@@ -93,8 +105,7 @@ const emit = defineEmits<{
   (e: 'clear-quote'): void;
   (
     e: 'submit',
-    form: CreatePostFormVM,
-    formData: FormData
+    form: CreatePostFormVM
   ): void;
 }>();
 
@@ -142,12 +153,35 @@ const visibilityOptions: Array<{
   }
 ];
 
-const tweetContent = ref('');
+const tweetContent = ref(props.initialDraft ?? '');
 const visibility = ref<V2PostVisibility>('public');
 const location = ref('');
 const tagInput = ref('');
 const manualTags = ref<string[]>([]);
 const mediaDrafts = ref<MediaDraft[]>([]);
+const preparingMedia = ref(false);
+const deletingDraftId = ref<string | null>(null);
+const mediaBusy = computed(() => props.isSubmitting || preparingMedia.value || deletingDraftId.value !== null);
+const AiConversation = defineAsyncComponent(() => import('./AiConversation.vue'));
+const writingOpen = ref(false);
+const writingDraft = ref('');
+let writingRevision = -1;
+let assistantApplied = false;
+const preferences = usePreferenceStore();
+const auth = authQueueFor(useNuxtApp());
+const draftRevision = auth.revision;
+let mediaScope = 0;
+let mediaUpload: AbortController | null = null;
+let stopAuth: (() => void) | undefined;
+watch(
+  [
+    () => preferences.isLoggedIn,
+    () => preferences.preferences.user.id,
+    () => preferences.preferences.authSession?.sessionId
+  ],
+  clearIdentityScope,
+  { flush: 'sync' }
+);
 const selectedMentions = ref<MentionDraft[]>([]);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
@@ -193,7 +227,7 @@ const mentionUserIds = computed(() =>
 );
 
 const isTweetDisabled = computed(() => {
-  if (props.isSubmitting) return true;
+  if (mediaBusy.value) return true;
   if (characterCount.value > MAX_CHARS) return true;
   return !contentHasValue.value && mediaDrafts.value.length === 0;
 });
@@ -292,12 +326,18 @@ function createMediaDraftId(file: File): string {
 }
 
 function updateVisibility(value: unknown): void {
+  if (mediaBusy.value) return;
   if (
     value === 'public' ||
     value === 'followers' ||
     value === 'mentioned' ||
     value === 'private'
   ) {
+    const scope = value === 'public' ? 'public' : 'post';
+    if (mediaDrafts.value.some(draft => draft.mediaId !== undefined && draft.accessScope !== scope)) {
+      toast.error(t('media.attachmentScopeChanged'));
+      return;
+    }
     visibility.value = value;
   }
 }
@@ -313,6 +353,7 @@ function mediaKind(file: File): MediaDraft['kind'] | null {
 }
 
 function appendMediaFiles(files: File[]): void {
+  if (mediaBusy.value) return;
   const availableSlots = MAX_MEDIA - mediaDrafts.value.length;
   if (availableSlots <= 0) {
     toast.error(t('post.composer.mediaLimitTitle'), {
@@ -374,13 +415,22 @@ function handleDrop(event: DragEvent): void {
   appendMediaFiles(Array.from(event.dataTransfer?.files ?? []));
 }
 
-function removeMedia(index: number): void {
-  const removed = mediaDrafts.value[index];
-  if (!removed) return;
-  URL.revokeObjectURL(removed.previewUrl);
-  mediaDrafts.value = mediaDrafts.value.filter(
-    (_, itemIndex) => itemIndex !== index
-  );
+async function removeMedia(draft: MediaDraft): Promise<void> {
+  if (mediaBusy.value) return;
+  const scope = mediaScope;
+  deletingDraftId.value = draft.id;
+  try {
+    if (draft.mediaId !== undefined) await v2DeleteMedia(draft.mediaId);
+    if (scope !== mediaScope) return;
+    URL.revokeObjectURL(draft.previewUrl);
+    mediaDrafts.value = mediaDrafts.value.filter(item => item.id !== draft.id);
+  } catch (error) {
+    if (scope !== mediaScope) return;
+    const conflict = error instanceof Error && 'statusCode' in error && error.statusCode === 409;
+    toast.error(t(conflict ? 'post.composer.mediaInUse' : 'post.composer.mediaDeleteFailed'));
+  } finally {
+    if (scope === mediaScope) deletingDraftId.value = null;
+  }
 }
 
 function addManualTag(): void {
@@ -560,29 +610,14 @@ function clearContext(): void {
   if (props.quoteTo) emit('clear-quote');
 }
 
-function buildMediaFormData(): FormData {
-  const formData = new FormData();
-  mediaDrafts.value.forEach((draft, index) => {
-    formData.append('file', draft.file);
-    formData.append(
-      `altText:${index}`,
-      draft.altText.trim()
-    );
-    formData.append(
-      `description:${index}`,
-      draft.description.trim()
-    );
-  });
-  return formData;
-}
+async function handleSubmit(): Promise<void> {
+  if (isTweetDisabled.value || auth.isIdentityChanging) return;
 
-function handleSubmit(): void {
-  if (isTweetDisabled.value) return;
-
+  const mediaIds: number[] = [];
   const form: CreatePostFormVM = {
     content: tweetContent.value.trim(),
     visibility: visibility.value,
-    mediaIds: [],
+    mediaIds,
     tagNames: tagNames.value,
     mentionUserIds: mentionUserIds.value,
     replyToPostId: props.replyTo?.id ?? null,
@@ -591,10 +626,49 @@ function handleSubmit(): void {
     location: location.value.trim() || undefined
   };
 
-  emit('submit', form, buildMediaFormData());
+  const scope = mediaScope;
+  const accessScope = form.visibility === 'public' ? 'public' : 'post';
+  const upload = new AbortController();
+  mediaUpload = upload;
+  preparingMedia.value = true;
+  try {
+    for (const draft of mediaDrafts.value) {
+      if (draft.mediaId === undefined) {
+        const body = new FormData();
+        body.append('file', draft.file);
+        if (accessScope === 'post') body.append('access_scope', 'post');
+        if (draft.altText.trim()) body.append('alt_text', draft.altText.trim());
+        if (draft.description.trim()) body.append('description', draft.description.trim());
+        const asset = await v2UploadMedia(body, upload.signal);
+        if (scope !== mediaScope) return;
+        if (!Number.isSafeInteger(asset.media_id) || asset.media_id < 1 ||
+            isPrivateMediaContent(asset.media_id, asset.public_url) !== (accessScope === 'post') ||
+            (accessScope === 'post' && asset.thumbnail_url !== null)) {
+          throw new Error(t('post.composePage.submitUnknownError'));
+        }
+        draft.mediaId = asset.media_id;
+        draft.accessScope = accessScope;
+      }
+      if (draft.accessScope !== accessScope) {
+        throw new Error(t('media.attachmentScopeChanged'));
+      }
+      mediaIds.push(draft.mediaId);
+    }
+    emit('submit', form);
+  } catch (error) {
+    if (scope !== mediaScope) return;
+    toast.error(t('post.composePage.publishFailed', {
+      message: error instanceof Error ? error.message : t('post.composePage.submitUnknownError')
+    }));
+  } finally {
+    if (mediaUpload === upload) mediaUpload = null;
+    if (scope === mediaScope) preparingMedia.value = false;
+  }
 }
 
 function reset(): void {
+  writingOpen.value = false;
+  assistantApplied = false;
   tweetContent.value = '';
   visibility.value = 'public';
   location.value = '';
@@ -602,16 +676,56 @@ function reset(): void {
   manualTags.value = [];
   selectedMentions.value = [];
   showMentionPicker.value = false;
+  clearScope();
+}
+
+function clearIdentityScope(): void {
+  writingOpen.value = false;
+  writingDraft.value = '';
+  if (props.initialDraft || assistantApplied) reset();
+  else clearScope();
+}
+
+function openWritingAssistant(): void {
+  if (mediaBusy.value || !preferences.isLoggedIn || auth.isIdentityChanging) return;
+  writingDraft.value = tweetContent.value;
+  writingRevision = auth.revision;
+  writingOpen.value = true;
+}
+
+function applyWritingDraft(text: string): void {
+  if (!writingOpen.value || mediaBusy.value || !preferences.isLoggedIn || auth.isIdentityChanging ||
+      auth.revision !== writingRevision || tweetContent.value !== writingDraft.value ||
+      !text.trim() || text.length > MAX_CHARS) return;
+  tweetContent.value = text;
+  assistantApplied = true;
+  writingOpen.value = false;
+}
+
+watch(writingOpen, open => { if (!open) writingDraft.value = ''; });
+watch([() => props.replyTo?.id, () => props.quoteTo?.id], () => {
+  writingOpen.value = false;
+}, { flush: 'sync' });
+
+function clearScope(): void {
+  mediaScope++;
+  mediaUpload?.abort();
+  mediaUpload = null;
+  preparingMedia.value = false;
+  deletingDraftId.value = null;
   mediaDrafts.value.forEach(draft => {
     URL.revokeObjectURL(draft.previewUrl);
   });
   mediaDrafts.value = [];
 }
 
+onMounted(() => {
+  if (props.initialDraft && (auth.isIdentityChanging || auth.revision !== draftRevision)) reset();
+  stopAuth = auth.subscribe(clearIdentityScope);
+});
 onBeforeUnmount(() => {
-  mediaDrafts.value.forEach(draft => {
-    URL.revokeObjectURL(draft.previewUrl);
-  });
+  stopAuth?.();
+  clearScope();
 });
 
 defineExpose({
@@ -688,7 +802,7 @@ defineExpose({
         :class="mediaGridClass"
       >
         <div
-          v-for="(draft, index) in mediaDrafts"
+          v-for="draft in mediaDrafts"
           :key="draft.id"
           class="group/media overflow-hidden rounded-lg border border-border/60 bg-muted/20"
         >
@@ -716,7 +830,8 @@ defineExpose({
               type="button"
               class="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-background/90 text-foreground opacity-0 shadow-sm ring-1 ring-border/60 transition group-hover/media:opacity-100 hover:bg-background"
               :aria-label="t('post.composer.removeMedia')"
-              @click="removeMedia(index)"
+              :disabled="mediaBusy"
+              @click="removeMedia(draft)"
             >
               <X class="h-3.5 w-3.5" />
             </button>
@@ -734,12 +849,14 @@ defineExpose({
             </div>
             <Input
               v-model="draft.altText"
+              :disabled="mediaBusy || draft.mediaId !== undefined"
               :placeholder="t('post.composer.altTextPlaceholder')"
               maxlength="120"
               class="h-8 text-xs shadow-xs"
             />
             <Input
               v-model="draft.description"
+              :disabled="mediaBusy || draft.mediaId !== undefined"
               :placeholder="
                 t('post.composer.mediaDescriptionPlaceholder')
               "
@@ -811,6 +928,16 @@ defineExpose({
     >
       <div class="mobile-action-row">
         <TooltipProvider>
+          <Tooltip v-if="preferences.isLoggedIn">
+            <TooltipTrigger as-child>
+              <button type="button" :disabled="mediaBusy"
+                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                :aria-label="t('aiWriting.title')" @click="openWritingAssistant">
+                <WandSparkles class="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{{ t('aiWriting.title') }}</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger as-child>
               <button
@@ -878,6 +1005,7 @@ defineExpose({
 
         <Select
           :model-value="visibility"
+          :disabled="mediaBusy"
           @update:model-value="updateVisibility"
         >
           <SelectTrigger class="h-8 w-full shadow-xs sm:w-[154px]">
@@ -1046,12 +1174,12 @@ defineExpose({
 
         <AppSendButton
           class="h-9 flex-1 rounded-md px-5 font-medium shadow-xs sm:flex-none"
-          :loading="isSubmitting"
+          :loading="isSubmitting || preparingMedia"
           :disabled="isTweetDisabled"
           @click="handleSubmit"
         >
           {{
-            isSubmitting
+            isSubmitting || preparingMedia
               ? t('post.composePage.submitting')
               : t('post.composer.publish')
           }}
@@ -1067,5 +1195,12 @@ defineExpose({
       class="hidden"
       @change="handleFileSelect"
     />
+    <Dialog v-model:open="writingOpen">
+      <DialogContent class="max-h-[90dvh] overflow-y-auto p-0 sm:max-h-[90dvh] sm:w-[calc(100%-2rem)] sm:max-w-5xl sm:p-0">
+        <DialogTitle class="sr-only">{{ t('aiWriting.title') }}</DialogTitle>
+        <DialogDescription class="sr-only">{{ t('aiWriting.composerSource') }}</DialogDescription>
+        <AiConversation v-if="writingOpen" purpose="writing" :composer-draft="writingDraft" @apply-draft="applyWritingDraft" />
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

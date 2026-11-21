@@ -138,8 +138,10 @@ function sanitizeSearchParams(searchParams: URLSearchParams): void {
 }
 
 function sanitizeSessionPath(value: string): string {
-  return value.replace(/^(\/api\/v2\/auth\/sessions\/)([^/]+)(\/?)$/, (path: string, prefix: string, id: string, suffix: string) =>
-    id === 'others' ? path : `${prefix}[session]${suffix}`);
+  return value
+    .replace(/^(\/api\/v2\/auth\/sessions\/)([^/]+)(\/?)$/, (path: string, prefix: string, id: string, suffix: string) =>
+      id === 'others' ? path : `${prefix}[session]${suffix}`)
+    .replace(/^(\/(?:api\/v2\/groups\/invite-codes|groups\/invite)\/)[^/]+/, '$1[invite]');
 }
 
 function sanitizeUrlLikeValue(value: string): string {

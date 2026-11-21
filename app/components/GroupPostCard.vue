@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import {
   Heart,
   MessageCircle,
@@ -40,6 +40,8 @@ const props = defineProps<{
   post: GroupPost;
   canManage?: boolean;
   isAuthor?: boolean;
+  readOnly?: boolean;
+  mutationPending?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -52,23 +54,7 @@ const emit = defineEmits<{
   (e: 'share', id: number): void;
 }>();
 
-const isLiked = ref(props.post.isLiked || false);
-const likeCount = ref(props.post.likeCount);
 const groupContext = computed(() => props.post.group);
-
-watch(
-  () => props.post.isLiked,
-  value => {
-    isLiked.value = !!value;
-  }
-);
-
-watch(
-  () => props.post.likeCount,
-  value => {
-    likeCount.value = value;
-  }
-);
 
 const formatTime = (dateStr: string) => {
   const date = new Date(dateStr);
@@ -126,8 +112,6 @@ const groupInitial = computed(() => {
 });
 
 const handleLike = () => {
-  isLiked.value = !isLiked.value;
-  likeCount.value += isLiked.value ? 1 : -1;
   emit('like', props.post.id);
 };
 
@@ -136,16 +120,13 @@ const handleComment = () => emit('comment', props.post.id);
 const handlePin = () => {
   if (props.post.isPinned) {
     emit('unpin', props.post.id);
-    toast.success(t('groups.post.feedback.unpinned'));
   } else {
     emit('pin', props.post.id);
-    toast.success(t('groups.post.feedback.pinned'));
   }
 };
 
 const handleDelete = () => {
   emit('delete', props.post.id);
-  toast.success(t('groups.post.feedback.deleted'));
 };
 
 const handleReport = () => emit('report', props.post.id);
@@ -249,9 +230,10 @@ const openAuthorProfile = () => {
               <Share2 class="h-4 w-4" />
               {{ t('groups.post.actions.share') }}
             </DropdownMenuItem>
-            <DropdownMenuSeparator v-if="canManage || isAuthor" />
+            <DropdownMenuSeparator v-if="!readOnly && (canManage || isAuthor)" />
             <DropdownMenuItem
-              v-if="canManage"
+              v-if="!readOnly && canManage"
+              :disabled="mutationPending"
               @click="handlePin"
             >
               <Pin class="h-4 w-4" />
@@ -262,7 +244,8 @@ const openAuthorProfile = () => {
               }}
             </DropdownMenuItem>
             <DropdownMenuItem
-              v-if="canManage || isAuthor"
+              v-if="!readOnly && (canManage || isAuthor)"
+              :disabled="mutationPending"
               class="text-destructive focus:text-destructive"
               @click="handleDelete"
             >
@@ -326,15 +309,16 @@ const openAuthorProfile = () => {
         variant="ghost"
         size="sm"
         class="flex h-9 flex-1 items-center justify-center gap-2 rounded-md text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
-        :class="{ 'text-rose-600 dark:text-rose-400': isLiked }"
+        :class="{ 'text-rose-600 dark:text-rose-400': post.isLiked }"
+        :disabled="readOnly || mutationPending"
         @click="handleLike"
       >
         <Heart
           class="h-4 w-4"
-          :class="{ 'fill-rose-600 dark:fill-rose-400': isLiked }"
+          :class="{ 'fill-rose-600 dark:fill-rose-400': post.isLiked }"
         />
         <span class="tabular-nums text-xs font-medium">
-          {{ likeCount }}
+          {{ post.likeCount }}
         </span>
       </Button>
       <Button

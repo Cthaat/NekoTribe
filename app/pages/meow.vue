@@ -4,9 +4,9 @@ import type {
   PreviewPostVM
 } from '@/types/posts';
 import {
+  UnconfirmedPostError,
   v2CreatePost,
-  v2ListPostPreviews,
-  v2UploadMedia
+  v2ListPostPreviews
 } from '@/services';
 import { toast } from 'vue-sonner';
 import { Separator } from '@/components/ui/separator';
@@ -27,8 +27,13 @@ import {
 } from '@/components/ui/dialog';
 
 import TweetComposer from '@/components/TweetComposer.vue';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { takeAiPostDraft } from '@/utils/ai-post-draft';
 const localePath = useLocalePath();
 const { t } = useAppLocale();
+const app = useNuxtApp();
+const auth = authQueueFor(app);
+const initialDraft = takeAiPostDraft(app, auth.revision);
 
 function getInitials(name: string): string {
   return name.trim().slice(0, 2).toUpperCase() || '?';
@@ -105,40 +110,19 @@ watch(isReplyDialogOpen, async isOpen => {
 
 const isSubmitting = ref(false); // 控制提交状态
 const submissionError = ref<string | null>(null); // 存储提交错误信息
+let composerActive = true;
+onBeforeUnmount(() => { composerActive = false; });
 // 3. 【核心修改】创建 handleTweetSubmit 方法来处理子组件上报的数据
 async function handleTweetSubmit(
-  submitForm: CreatePostFormVM,
-  formData: FormData
+  submitForm: CreatePostFormVM
 ) {
+  if (isSubmitting.value || auth.isIdentityChanging) return;
+  const revision = auth.revision;
+  const isCurrent = () => composerActive && !auth.isIdentityChanging && auth.revision === revision;
   isSubmitting.value = true;
   submissionError.value = null;
 
   try {
-    const mediaIds: number[] = [];
-    const fileEntries = formData.getAll('file');
-
-    for (const [index, entry] of fileEntries.entries()) {
-      if (!(entry instanceof File)) {
-        continue;
-      }
-      const mediaFormData = new FormData();
-      mediaFormData.append('file', entry);
-      const altText = String(
-        formData.get(`altText:${index}`) || ''
-      );
-      if (altText) {
-        mediaFormData.append('alt_text', altText);
-      }
-      const description = String(
-        formData.get(`description:${index}`) || ''
-      );
-      if (description) {
-        mediaFormData.append('description', description);
-      }
-      const media = await v2UploadMedia(mediaFormData);
-      mediaIds.push(media.media_id);
-    }
-
     const replyToPostId =
       submitForm.replyToPostId ?? previewPostId(tweetToReply.value);
     const quotedPostId =
@@ -148,10 +132,10 @@ async function handleTweetSubmit(
       ...submitForm,
       replyToPostId,
       repostOfPostId: null,
-      quotedPostId,
-      mediaIds
+      quotedPostId
     });
 
+    if (!isCurrent()) return;
     toast.success(t('post.composePage.publishSuccess'));
     tweetToReply.value = undefined;
     tweetToQuote.value = undefined;
@@ -159,6 +143,12 @@ async function handleTweetSubmit(
     // 跳转到推文页
     await navigateTo(localePath('/'));
   } catch (err) {
+    if (!isCurrent()) return;
+    if (err instanceof UnconfirmedPostError) {
+      submissionError.value = t('post.feedback.postUnconfirmed');
+      toast.error(submissionError.value);
+      return;
+    }
     submissionError.value =
       err instanceof Error
         ? err.message
@@ -169,7 +159,7 @@ async function handleTweetSubmit(
       })
     );
   } finally {
-    isSubmitting.value = false;
+    if (composerActive) isSubmitting.value = false;
   }
 }
 </script>
@@ -220,6 +210,7 @@ async function handleTweetSubmit(
           :quote-to="tweetToQuote"
           :reply-to="tweetToReply"
           :is-submitting="isSubmitting"
+          :initial-draft="initialDraft"
         />
       </div>
       <!-- TODO: 未来可以把Dialog单独抽取为一个组件 -->

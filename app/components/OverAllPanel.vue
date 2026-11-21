@@ -59,9 +59,12 @@ const props = withDefaults(
   defineProps<{
     userAnalytics: UserAnalyticsData;
     dailyAnalytics?: UserDailyAnalyticsVM[];
+    dailyReady?: boolean;
+    summaryOnly?: boolean;
   }>(),
   {
-    dailyAnalytics: () => []
+    dailyAnalytics: () => [],
+    dailyReady: true
   }
 );
 
@@ -561,6 +564,7 @@ const tableRows = computed(() =>
       </p>
     </section>
 
+    <template v-if="!summaryOnly">
     <section
       class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 lg:col-span-3"
     >
@@ -624,6 +628,8 @@ const tableRows = computed(() =>
       </div>
     </section>
 
+    <slot name="daily-controls" />
+    <template v-if="dailyReady">
     <section
       class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
     >
@@ -1145,5 +1151,7 @@ const tableRows = computed(() =>
         </Table>
       </div>
     </section>
+    </template>
+    </template>
   </div>
 </template>

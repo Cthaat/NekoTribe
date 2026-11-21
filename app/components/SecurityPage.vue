@@ -4,12 +4,50 @@ import SecurityPagePasswordForm from '@/components/SecurityPagePasswordForm.vue'
 import SecurityPageEmail from '@/components/SecurityPageEmail.vue';
 import SecurityPageTwoFactor from '@/components/SecurityPageTwoFactor.vue';
 import SecurityPageDangerZone from '@/components/SecurityPageDangerZone.vue';
+import { ref, onUnmounted } from 'vue';
+import { useNuxtApp } from '#app';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { Button } from '@/components/ui/button';
+import { usePreferenceStore } from '@/stores/user';
+import { toast } from 'vue-sonner';
 
 const { t } = useAppLocale();
+const localePath = useLocalePath();
+const preferenceStore = usePreferenceStore();
+const app = useNuxtApp();
+const queue = authQueueFor(app);
+let disposed = false;
+let ownerRevision = queue.revision;
+const expired = ref(queue.isIdentityChanging);
+const changing = ref(queue.isIdentityChanging);
+const contentRevision = ref(0);
+const stopObserving = queue.subscribe(() => {
+  changing.value = queue.isIdentityChanging;
+  if (queue.revision !== ownerRevision) expired.value = true;
+});
+onUnmounted(() => { disposed = true; stopObserving(); });
+function reopen(): void {
+  if (disposed || changing.value) return;
+  ownerRevision = queue.revision;
+  contentRevision.value++;
+  expired.value = false;
+}
+async function finishSessionClear(result: {revision: number; ok: boolean}): Promise<void> {
+  if (disposed || !preferenceStore.isAuthCurrent(result.revision)) return;
+  if (!result.ok) { toast.error(t('account.security.sessionActionFailed')); return; }
+  try { await app.runWithContext(() => navigateTo(localePath('/auth/login'))); }
+  catch { if (!disposed && preferenceStore.isAuthCurrent(result.revision)) toast.error(t('account.security.sessionActionFailed')); }
+}
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div v-if="expired" key="session-expired" role="status" class="grid gap-3 rounded-xl border border-border/60 bg-card p-5">
+    <p>{{ t('account.security.sessionChanged') }}</p>
+    <Button :disabled="changing" class="w-fit" @click="reopen">
+      {{ t('account.security.reopen') }}
+    </Button>
+  </div>
+  <div v-else :key="'security-' + contentRevision" class="space-y-6">
     <section
       class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
     >
@@ -28,7 +66,7 @@ const { t } = useAppLocale();
           </p>
         </div>
       </header>
-      <SecurityPagePasswordForm />
+      <SecurityPagePasswordForm :on-session-cleared="finishSessionClear" />
     </section>
 
     <section
@@ -70,7 +108,7 @@ const { t } = useAppLocale();
           </p>
         </div>
       </header>
-      <SecurityPageEmail />
+      <SecurityPageEmail :on-session-cleared="finishSessionClear" />
     </section>
 
     <SecurityPageDangerZone />

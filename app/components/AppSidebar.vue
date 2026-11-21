@@ -139,6 +139,7 @@ const baseNavData = computed(() => ({
         { title: t('account.tabs.profile'), url: 'account-profile' },
         { title: t('account.tabs.posts'), url: 'account-posts' },
         { title: t('account.tabs.likes'), url: 'account-likes' },
+        { title: t('account.tabs.bookmarks'), url: 'account-bookmarks' },
         {
           title: t('account.tabs.appearance'),
           url: 'account-appearance'

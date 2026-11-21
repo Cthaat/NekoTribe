@@ -4,6 +4,7 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  shallowReactive,
   watch
 } from 'vue';
 import { toast } from 'vue-sonner';
@@ -22,6 +23,7 @@ import {
 } from 'lucide-vue-next';
 import ChatChannelList from '@/components/ChatChannelList.vue';
 import ChatDirectConversationList from '@/components/ChatDirectConversationList.vue';
+import { notificationTargetId } from '@/utils/post-notification-target';
 import ChatRoom from '@/components/ChatRoom.vue';
 import GroupManageModal from '@/components/GroupManageModal.vue';
 import {
@@ -51,6 +53,7 @@ import type {
 import type { ChatMessageType } from '@/components/ChatMessage.vue';
 import type { ChatMember } from '@/components/ChatMemberList.vue';
 import {
+  isDirectMessageForConversation,
   v2CreateChatChannel,
   v2CreateChatMessage,
   v2CreateDirectConversation,
@@ -59,6 +62,7 @@ import {
   v2CreateGroupInvite,
   v2DeleteChatChannel,
   v2DeleteChatMessage,
+  v2DeleteDirectMessage,
   v2DeleteChatReaction,
   v2ListChatChannels,
   v2ListChatGroups,
@@ -67,6 +71,7 @@ import {
   v2ListDirectConversations,
   v2ListDirectMessages,
   v2SetChatChannelMuteStatus,
+  v2SetChatReadStatus,
   v2SetChatMessagePinStatus,
   v2UpdateChatChannel,
   v2UpdateChatMessage,
@@ -79,12 +84,16 @@ import {
   mapV2ChatGroup,
   mapV2ChatMember,
   mapV2ChatMessage,
+  mergeDirectMessages,
+  reconcileDirectHistory,
   replaceChatMessage
 } from '@/services/chat';
 import type { ChatGroupVM } from '@/services/chat';
 import { v2SearchUsers } from '@/services/users';
+import { groupInviteeId, normalizeGroupInviteCode } from '@/utils/group-invite';
 import { usePreferenceStore } from '@/stores/user';
-import { resolveRealtimeUrl } from '@/utils/apiBase';
+import { useRealtimeSocket } from '@/composables/useRealtimeSocket';
+import type { RealtimeMessage } from '@/composables/useRealtimeSocket';
 import type { Group } from '@/types/groups';
 import type {
   V2CreateGroupInviteData,
@@ -93,6 +102,8 @@ import type {
   V2DirectMessage
 } from '@/types/v2';
 import type { PublicUserVM } from '@/types/users';
+import { confirmedChatUnread, displayedChatCursor } from '@/utils/chat-channel-read';
+import { isPrivateMediaContent } from '@/utils/private-media';
 
 const { t } = useAppLocale();
 const localePath = useLocalePath();
@@ -108,6 +119,8 @@ definePageMeta({
 interface ChatWsEvent {
   type: string;
   data?: {
+    code?: string;
+    room?: string;
     channel_id?: number;
     conversation_id?: number;
     message_id?: number;
@@ -115,28 +128,52 @@ interface ChatWsEvent {
     online_status?: 'online' | 'offline' | 'hidden';
     last_seen_at?: string | null;
     message?: V2ChatMessage;
+    viewer_neutral?: boolean;
     direct_message?: V2DirectMessage;
   };
 }
 
 const preferenceStore = usePreferenceStore();
+const realtime = useRealtimeSocket();
+const app = useNuxtApp();
 const groups = ref<ChatGroupVM[]>([]);
+const groupPage = ref(1);
+const hasMoreGroups = ref(false);
+const loadingMoreGroups = ref(false);
 const activeGroup = ref<ChatGroupVM | null>(null);
+const loadingGroupChannels = ref(false);
+const channelLoadFailed = ref(false);
 const channelCategories = ref<ChannelCategory[]>([]);
+const muteRequests = shallowReactive(new Map<number, AbortController>());
+const confirmedMutes = new Map<number, { muted: boolean; revision: number }>();
+let muteRevision = 0;
+let channelsRequest = 0;
+const isMutePending = (channelId: number) => muteRequests.has(channelId);
 const activeChannel = ref<Channel | null>(null);
 const members = ref<ChatMember[]>([]);
 const messages = ref<ChatMessageType[]>([]);
 const isLoading = ref(true);
 const isLoadingMessages = ref(false);
+const failedMessageLoad = ref<boolean | null>(null);
 const isSending = ref(false);
-const isCreatingChannel = ref(false);
+const channelComposerRevision = ref(0);
+let uploadedChannelAttachments = new WeakMap<File, { id: number; authRevision: number }>();
+let channelAttachmentUpload: AbortController | null = null;
+const channelWriteBusy = ref(false);
+let channelWriteRevision = 0;
 const errorMessage = ref('');
 const messagePage = ref(1);
 const hasMoreMessages = ref(false);
 const searchQuery = ref('');
+let channelReadTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingChannelRead = 0;
+let channelReadReceipt = 0;
+let syncingChannelRead = false;
 const createChannelDialogOpen = ref(false);
-const createChannelCategoryId = ref<number | null>(null);
+const editingChannelId = ref<number | null>(null);
 const createChannelName = ref('');
+const channelCategory = ref('');
+const channelPrivate = ref(false);
 const inviteDialogOpen = ref(false);
 const inviteSearchQuery = ref('');
 const inviteMessage = ref('');
@@ -147,6 +184,8 @@ const selectedInvitee = ref<PublicUserVM | null>(null);
 const createdInvite = ref<V2CreateGroupInviteData | null>(null);
 const isSearchingInviteUsers = ref(false);
 const isCreatingInvite = ref(false);
+const inviteResultUnknown = ref(false);
+const pendingInvitee = computed(() => groupInviteeId(inviteSearchQuery.value, selectedInvitee.value?.id));
 const notificationSettingsOpen = ref(false);
 const groupSettingsOpen = ref(false);
 const groupSettingsModel = ref<Group | null>(null);
@@ -154,10 +193,22 @@ const directConversationId = ref<number | null>(null);
 const directMessageTargetId = ref<number | null>(null);
 const directMessageStandaloneTarget = ref<ChatMember | null>(null);
 const directMessageContent = ref('');
+let directSelectionRevision = 0;
+let directLinkRequest = 0;
+const directLinkStatus = ref<'loading' | 'failed' | null>(null);
 const directConversations = ref<V2DirectConversation[]>([]);
+const directListPage = ref(1);
+const hasMoreDirectConversations = ref(false);
+let requestedDirectListPage = 1;
 const directMessages = ref<V2DirectMessage[]>([]);
+const directHistoryPage = ref(1);
+const hasOlderDirectMessages = ref(false);
+const loadingOlderDirectMessages = ref(false);
 const isLoadingDirectConversations = ref(false);
 const isLoadingDirectMessages = ref(false);
+let directReadTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingDirectRead: number | null = null;
+let syncingDirectRead = false;
 const isSendingDirectMessage = ref(false);
 const isMobileNavigationOpen = ref(true);
 
@@ -200,15 +251,13 @@ const pinnedMessages = computed(() =>
 const membersById = computed(
   () => new Map(members.value.map(member => [member.id, member]))
 );
-const createChannelCategoryName = computed(() =>
-  createChannelCategoryId.value === null
-    ? t('chat.defaultCategoryName')
-    : findCategoryName(createChannelCategoryId.value)
-);
+const channelEncoder = new TextEncoder();
+const channelNameBytes = computed(() => channelEncoder.encode(createChannelName.value.trim()).length);
+const channelCategoryBytes = computed(() => channelEncoder.encode(channelCategory.value.trim()).length);
 const canSubmitCreateChannel = computed(
   () =>
-    createChannelName.value.trim().length > 0 &&
-    !isCreatingChannel.value
+    channelNameBytes.value > 0 && channelNameBytes.value <= 100 &&
+    channelCategoryBytes.value <= 50 && !channelWriteBusy.value
 );
 
 function showMobileNavigation(): void {
@@ -219,13 +268,19 @@ function showMobileContent(): void {
   isMobileNavigationOpen.value = false;
 }
 
-let ws: WebSocket | null = null;
-let shouldReconnectWs = true;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let wsHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let unsubscribeRealtime: (() => void) | undefined;
+let joinedChannel: number | null = null;
+let disposed = false;
+let messageRequest = 0;
+let groupRequest = 0;
+let conversationRequest = 0;
+let conversationListRequest = 0;
+let chatRequest = 0;
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let inviteSearchTimer: ReturnType<typeof setTimeout> | null =
   null;
+let inviteSearchRequest: AbortController | undefined;
+let inviteSubmitRequest: AbortController | undefined;
 
 function allChannels(): Channel[] {
   return channelCategories.value.flatMap(
@@ -310,14 +365,8 @@ function absoluteUrl(pathOrUrl: string): string {
 function inviteUrl(
   invite: V2CreateGroupInviteData | null
 ): string | null {
-  if (!invite) return null;
-  if (invite.invite_url) {
-    return absoluteUrl(invite.invite_url);
-  }
-  if (invite.invite_code) {
-    return absoluteUrl(`/groups/invite/${invite.invite_code}`);
-  }
-  return null;
+  const code = normalizeGroupInviteCode(invite?.invite_code);
+  return code ? absoluteUrl(`/groups/invite/${code}`) : null;
 }
 
 async function copyText(value: string): Promise<void> {
@@ -335,12 +384,10 @@ async function copyCreatedInvite(): Promise<void> {
 }
 
 function openInviteDialog(): void {
-  inviteDialogOpen.value = true;
+  if (!activeGroup.value || inviteDialogOpen.value) return;
   inviteSearchQuery.value = '';
   inviteMessage.value = '';
-  selectedInvitee.value = null;
-  createdInvite.value = null;
-  inviteUsers.value = [];
+  inviteDialogOpen.value = true;
 }
 
 function openNotificationSettings(): void {
@@ -385,69 +432,99 @@ function handleGroupDeleted(groupId: number): void {
   if (activeGroup.value?.id !== groupId) return;
   activeGroup.value = null;
   activeChannel.value = null;
+  loadingGroupChannels.value = false;
+  channelLoadFailed.value = false;
   channelCategories.value = [];
   messages.value = [];
+  members.value = [];
   const next = groups.value[0];
   if (next) {
     void loadGroup(next);
   }
 }
 
-function sendWs(payload: Record<string, unknown>): void {
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(payload));
+function syncChatChannel(ready: boolean, channelId: number | null): void {
+  if (!ready) {
+    joinedChannel = null;
+    return;
+  }
+  if (joinedChannel === channelId) return;
+  if (joinedChannel !== null) {
+    realtime.send({type: 'chat_leave_channel', data: {channelId: joinedChannel}});
+    joinedChannel = null;
+  }
+  if (channelId !== null &&
+      realtime.send({type: 'chat_join_channel', data: {channelId}})) {
+    joinedChannel = channelId;
   }
 }
 
-function stopWsHeartbeat(): void {
-  if (wsHeartbeatTimer) {
-    clearInterval(wsHeartbeatTimer);
-    wsHeartbeatTimer = null;
-  }
-}
-
-function startWsHeartbeat(): void {
-  stopWsHeartbeat();
-  sendWs({ type: 'ping' });
-  wsHeartbeatTimer = setInterval(() => {
-    sendWs({ type: 'ping' });
-  }, 30000);
-}
-
-function joinWsChannel(channelId: number): void {
-  sendWs({
-    type: 'chat_join_channel',
-    data: { channelId }
-  });
-}
-
-function leaveWsChannel(channelId: number): void {
-  sendWs({
-    type: 'chat_leave_channel',
-    data: { channelId }
-  });
-}
+let liveChannelChanges: Map<number, ChatMessageType | null> | null = null;
+const pendingChannelReactions = new Set<number>();
 
 function upsertMessage(message: ChatMessageType): void {
+  if (liveChannelChanges?.get(message.id) === null) return;
+  liveChannelChanges?.set(message.id, message);
   messages.value = replaceChatMessage(messages.value, message);
 }
 
-function upsertDirectMessage(message: V2DirectMessage): void {
-  const index = directMessages.value.findIndex(
-    item => item.message_id === message.message_id
-  );
-  if (index === -1) {
-    directMessages.value = [...directMessages.value, message].sort(
-      (a, b) =>
-        new Date(a.created_at).getTime() -
-        new Date(b.created_at).getTime()
-    );
-    return;
-  }
+function removeChannelMessage(messageId: number): void {
+  liveChannelChanges?.set(messageId, null);
+  messages.value = messages.value.filter(message => message.id !== messageId);
+}
 
-  const updated = [...directMessages.value];
-  updated[index] = message;
-  directMessages.value = updated;
+let liveDirectChanges: Map<number, V2DirectMessage | null> | null = null;
+const directDeleteTarget = ref<V2DirectMessage | null>(null);
+const deletingDirect = ref(false);
+
+function canDeleteDirectMessage(message: V2DirectMessage): boolean {
+  return message.conversation_id === directConversationId.value &&
+    message.author.user_id === currentUserId.value && message.can_delete && !message.is_deleted;
+}
+
+function requestDirectDelete(message: V2DirectMessage): void {
+  if (!deletingDirect.value && canDeleteDirectMessage(message)) directDeleteTarget.value = message;
+}
+
+function closeDirectDelete(): void {
+  directDeleteTarget.value = null;
+  deletingDirect.value = false;
+}
+
+async function confirmDirectDelete(): Promise<void> {
+  const message = directDeleteTarget.value;
+  if (!message || deletingDirect.value || !canDeleteDirectMessage(message)) return;
+  const ownsPage = captureChatOwner();
+  const current = () => ownsPage() && directDeleteTarget.value === message &&
+    directConversationId.value === message.conversation_id;
+  deletingDirect.value = true;
+  try {
+    await v2DeleteDirectMessage(message.conversation_id, message.message_id);
+    if (!current()) return;
+    liveDirectChanges?.set(message.message_id, null);
+    directMessages.value = directMessages.value.filter(item => item.message_id !== message.message_id);
+    hideDeletedDirectPreview(message.conversation_id, message.message_id);
+    closeDirectDelete();
+    void loadDirectConversations(false);
+  } catch {
+    if (current()) toast.error(t('chat.feedback.deleteFailed'));
+  } finally {
+    if (current()) deletingDirect.value = false;
+  }
+}
+
+function upsertDirectMessage(message: V2DirectMessage): void {
+  if (liveDirectChanges?.get(message.message_id) === null) return;
+  liveDirectChanges?.set(message.message_id, message);
+  directMessages.value = mergeDirectMessages(directMessages.value, [message]);
+}
+
+function hideDeletedDirectPreview(conversationId: number, messageId: number): void {
+  directConversations.value = directConversations.value.map(conversation =>
+    conversation.conversation_id === conversationId && conversation.last_message?.message_id === messageId
+      ? {...conversation, last_message: null}
+      : conversation
+  );
 }
 
 function sortDirectConversations(
@@ -471,10 +548,13 @@ function upsertDirectConversation(
     item => item.conversation_id === conversation.conversation_id
   );
   if (index === -1) {
-    directConversations.value = sortDirectConversations([
+    if (directListPage.value !== 1) return;
+    const next = sortDirectConversations([
       conversation,
       ...directConversations.value
     ]);
+    if (next.length > 20) hasMoreDirectConversations.value = true;
+    directConversations.value = next.slice(0, 20);
     return;
   }
 
@@ -497,6 +577,11 @@ function updateDirectConversationPreview(
 
   const current = directConversations.value[index];
   if (!current) return;
+  if (current.last_message) {
+    if (message.message_id === current.last_message.message_id) return;
+    const timeDifference = Date.parse(message.created_at) - Date.parse(current.last_message.created_at);
+    if (timeDifference < 0 || (timeDifference === 0 && message.message_id < current.last_message.message_id)) return;
+  }
 
   const updated = [...directConversations.value];
   const isIncoming = message.author.user_id !== currentUserId.value;
@@ -518,6 +603,7 @@ function updateDirectConversationPreview(
     updated_at: message.updated_at || message.created_at
   };
   directConversations.value = sortDirectConversations(updated);
+  if (directListPage.value > 1) void loadDirectConversations(false);
 }
 
 function updateChannelPreview(
@@ -536,7 +622,7 @@ function updateChannelPreview(
         ? t('chat.message.attachmentPreview')
         : '');
     channel.lastMessageTime = rawMessage.created_at;
-    if (!isActiveChannel && !channel.isMuted) {
+    if (!isActiveChannel) {
       channel.unreadCount = (channel.unreadCount ?? 0) + 1;
     }
     break;
@@ -554,7 +640,7 @@ function updateMemberPresence(
           ...member,
           status:
             onlineStatus === 'online' ? 'online' : 'offline',
-          lastSeenAt: lastSeenAt ?? member.lastSeenAt
+          lastSeenAt: lastSeenAt === undefined ? member.lastSeenAt : lastSeenAt
         }
       : member
   );
@@ -563,20 +649,21 @@ function updateMemberPresence(
       ...directMessageStandaloneTarget.value,
       status: onlineStatus === 'online' ? 'online' : 'offline',
       lastSeenAt:
-        lastSeenAt ?? directMessageStandaloneTarget.value.lastSeenAt
+        lastSeenAt === undefined ? directMessageStandaloneTarget.value.lastSeenAt : lastSeenAt
     };
   }
 }
 
-function handleWsMessage(event: MessageEvent<string>): void {
-  let payload: ChatWsEvent;
-  try {
-    payload = JSON.parse(event.data) as ChatWsEvent;
-  } catch {
+function handleWsMessage(event: RealtimeMessage): void {
+  const payload: ChatWsEvent = event;
+  const channelId = payload.data?.channel_id;
+  if (payload.type === 'system_notification' && payload.data?.code === 'chat_channel_ready') {
+    if (channelId !== undefined && joinedChannel === channelId && activeChannel.value?.id === channelId &&
+        payload.data.room === `chat:channel:${channelId}`) {
+      void app.runWithContext(() => loadMessages(channelId));
+    }
     return;
   }
-
-  const channelId = payload.data?.channel_id;
   if (
     payload.type === 'presence_update' &&
     payload.data?.user_id &&
@@ -606,28 +693,61 @@ function handleWsMessage(event: MessageEvent<string>): void {
       payload.data.message,
       membersById.value
     );
-    if (isActiveChannel) {
-      upsertMessage(vm);
+    const existing = isActiveChannel ? messages.value.find(message => message.id === vm.id) : undefined;
+    if (isActiveChannel && !searchQuery.value.trim()) {
+      if (payload.data.viewer_neutral === true) {
+        vm.canPin = canManage.value;
+        vm.canDelete = canManage.value || vm.author.id === currentUserId.value;
+        const reacted = new Set(existing?.reactions?.filter(reaction => reaction.reacted).map(reaction => reaction.emoji));
+        for (const reaction of vm.reactions ?? []) reaction.reacted = reacted.has(reaction.emoji);
+      }
+      if (payload.type !== 'chat_reaction_updated') upsertMessage(vm);
+      else if (existing) upsertMessage({ ...existing, reactions: vm.reactions });
     }
     if (payload.type === 'chat_message') {
-      updateChannelPreview(payload.data.message, isActiveChannel);
+      const own = vm.author.id === currentUserId.value;
+      updateChannelPreview(payload.data.message, own || Boolean(existing));
+      if (channelId && isActiveChannel && !own && !existing && !searchQuery.value.trim()) {
+        pendingChannelRead = Math.max(pendingChannelRead, vm.id);
+        scheduleChannelRead();
+      }
     }
     return;
   }
 
   if (
-    payload.type === 'direct_message' &&
-    payload.data?.direct_message
+    payload.type === 'direct_message_deleted' && Number.isSafeInteger(payload.data?.conversation_id) &&
+    Number.isSafeInteger(payload.data?.message_id)
   ) {
-    const directMessage = payload.data.direct_message;
+    const conversationId = payload.data?.conversation_id ?? 0;
+    const messageId = payload.data?.message_id ?? 0;
+    if (conversationId <= 0 || messageId <= 0) return;
+    if (directConversationId.value === conversationId) {
+      liveDirectChanges?.set(messageId, null);
+      directMessages.value = directMessages.value.filter(message => message.message_id !== messageId);
+      if (directDeleteTarget.value?.message_id === messageId) closeDirectDelete();
+    }
+    hideDeletedDirectPreview(conversationId, messageId);
+    void loadDirectConversations(false);
+    return;
+  }
+
+  if (payload.type === 'direct_message') {
+    const directMessage = payload.data?.direct_message;
+    if (!isDirectMessageForConversation(payload.data?.conversation_id, directMessage)) return;
     const isActiveConversation =
       directMessage.conversation_id === directConversationId.value;
     if (isActiveConversation) {
+      const isNew = !directMessages.value.some(message => message.message_id === directMessage.message_id);
       upsertDirectMessage(directMessage);
+      if (isNew && directMessage.author.user_id !== currentUserId.value) {
+        pendingDirectRead = directMessage.conversation_id;
+        scheduleDirectRead();
+      }
     }
     updateDirectConversationPreview(
       directMessage,
-      isActiveConversation
+      isActiveConversation && directMessage.author.user_id === currentUserId.value
     );
     return;
   }
@@ -636,29 +756,73 @@ function handleWsMessage(event: MessageEvent<string>): void {
     payload.type === 'chat_message_deleted' &&
     payload.data?.message_id
   ) {
-    messages.value = messages.value.filter(
-      message => message.id !== payload.data?.message_id
-    );
+    if (isActiveChannel) {
+      removeChannelMessage(payload.data.message_id);
+    }
+    if (channelId !== undefined && allChannels().some(channel => channel.id === channelId)) {
+      void refreshChannels().catch(() => undefined);
+    }
   }
 }
 
-function connectWs(): void {
-  if (!import.meta.client || ws) return;
+function captureChatOwner(): () => boolean {
+  const owner = realtime.ownerRevision.value;
+  const authRevision = preferenceStore.authRevision();
+  return () => !disposed && realtime.ownerRevision.value === owner &&
+    preferenceStore.isAuthCurrent(authRevision);
+}
 
-  ws = new WebSocket(resolveRealtimeUrl());
-  ws.onopen = () => {
-    startWsHeartbeat();
-    if (activeChannel.value) {
-      joinWsChannel(activeChannel.value.id);
+function isVisibleChannel(channelId: number): boolean {
+  return activeChannel.value?.id === channelId && directConversationId.value === null &&
+    directMessageStandaloneTarget.value === null && !searchQuery.value.trim() &&
+    document.visibilityState === 'visible' &&
+    (!isMobileNavigationOpen.value || window.matchMedia('(min-width: 768px)').matches);
+}
+
+async function acknowledgeDisplayedChannel(
+  channelId: number, cursor: number, current: () => boolean
+): Promise<void> {
+  if (!cursor || !current() || !isVisibleChannel(channelId)) return;
+  const request = ++channelReadReceipt;
+  try {
+    const receipt = await app.runWithContext(() => v2SetChatReadStatus(channelId, cursor));
+    if (!current() || request !== channelReadReceipt || pendingChannelRead > cursor || !isVisibleChannel(channelId)) return;
+    const unread = confirmedChatUnread(channelId, cursor, receipt);
+    if (unread === null) return;
+    const channel = allChannels().find(item => item.id === channelId);
+    if (channel) channel.unreadCount = unread;
+    if (activeChannel.value?.id === channelId) activeChannel.value.unreadCount = unread;
+  } catch {
+    // Keep the server's previous unread count and retry on the next history refresh.
+  }
+}
+
+function scheduleChannelRead(): void {
+  const channelId = activeChannel.value?.id;
+  if (!channelId || !pendingChannelRead || channelReadTimer || syncingChannelRead ||
+      isLoadingMessages.value || !isVisibleChannel(channelId)) return;
+  const current = captureChatOwner();
+  channelReadTimer = setTimeout(async () => {
+    channelReadTimer = undefined;
+    if (!current() || !isVisibleChannel(channelId) || isLoadingMessages.value) return;
+    const cursor = displayedChatCursor(messages.value.filter(message => message.id <= pendingChannelRead));
+    pendingChannelRead = 0;
+    if (!cursor) return;
+    syncingChannelRead = true;
+    try {
+      await acknowledgeDisplayedChannel(channelId, cursor, current);
+    } finally {
+      syncingChannelRead = false;
+      scheduleChannelRead();
     }
-  };
-  ws.onmessage = handleWsMessage;
-  ws.onclose = () => {
-    ws = null;
-    stopWsHeartbeat();
-    if (!shouldReconnectWs) return;
-    reconnectTimer = setTimeout(connectWs, 3000);
-  };
+  }, 250);
+}
+
+function refreshVisibleChannel(): void {
+  const channelId = activeChannel.value?.id;
+  if (channelId && messagePage.value === 1 && isVisibleChannel(channelId)) {
+    void app.runWithContext(() => loadMessages(channelId));
+  }
 }
 
 async function loadMessages(
@@ -666,64 +830,139 @@ async function loadMessages(
   reset = true,
   q = searchQuery.value
 ): Promise<void> {
-  if (isLoadingMessages.value) return;
+  if (isLoadingMessages.value && !reset) return;
+  const request = ++messageRequest;
+  const ownsPage = captureChatOwner();
+  const query = q.trim();
+  const current = () => ownsPage() && request === messageRequest &&
+    activeChannel.value?.id === channelId && searchQuery.value.trim() === query;
+  const changes = new Map<number, ChatMessageType | null>();
+  liveChannelChanges = changes;
   isLoadingMessages.value = true;
+  failedMessageLoad.value = null;
   try {
     const page = reset ? 1 : messagePage.value + 1;
     const result = await v2ListChatMessages(channelId, {
       page,
       page_size: 50,
-      q: q.trim() || undefined
+      q: query || undefined
     });
+    if (!current()) return;
     const mapped = result.items.map(message =>
       mapV2ChatMessage(message, membersById.value)
     );
-    messages.value = reset
-      ? mapped
-      : [...mapped, ...messages.value];
+    const displayedIds = new Set(messages.value.map(message => message.id));
+    let next = reset ? mapped : [
+      ...mapped.filter(message => !displayedIds.has(message.id)),
+      ...messages.value
+    ];
+    for (const [id, change] of changes) {
+      next = change === null ? next.filter(message => message.id !== id) : replaceChatMessage(next, change);
+    }
+    messages.value = next;
     messagePage.value = page;
     hasMoreMessages.value = result.meta?.has_next ?? false;
+    if (reset && !query) {
+      const cursor = displayedChatCursor(next);
+      if (cursor && isVisibleChannel(channelId)) {
+        if (pendingChannelRead <= cursor) pendingChannelRead = 0;
+        void acknowledgeDisplayedChannel(channelId, cursor, current);
+      }
+    }
   } catch {
-    toast.error(t('chat.feedback.loadMessagesFailed'));
+    if (current()) failedMessageLoad.value = reset;
   } finally {
-    isLoadingMessages.value = false;
+    if (liveChannelChanges === changes) liveChannelChanges = null;
+    if (ownsPage() && request === messageRequest) {
+      isLoadingMessages.value = false;
+      scheduleChannelRead();
+    }
   }
 }
 
+function retryChannelHistory(): void {
+  const channelId = activeChannel.value?.id;
+  const reset = failedMessageLoad.value;
+  if (channelId === undefined || reset === null || isLoadingMessages.value) return;
+  void app.runWithContext(() => loadMessages(channelId, reset));
+}
+
 async function loadDirectConversations(
-  showLoading = true
+  showLoading = true,
+  page = requestedDirectListPage
 ): Promise<void> {
+  const request = ++conversationListRequest;
+  const ownsPage = captureChatOwner();
+  const current = () => ownsPage() && request === conversationListRequest;
+  requestedDirectListPage = page;
   if (showLoading) {
     isLoadingDirectConversations.value = true;
   }
   try {
-    const result = await v2ListDirectConversations({
-      page: 1,
-      page_size: 50
-    });
+    const readPage = (target: number) => app.runWithContext(() => v2ListDirectConversations({ page: target, page_size: 20 }));
+    let result = await readPage(page);
+    if (!current()) return;
+    if (page > 1 && !result.items.length) {
+      page = 1;
+      result = await readPage(page);
+      if (!current()) return;
+    }
+    if (result.meta?.page !== page) throw Error('UNEXPECTED_DIRECT_CONVERSATION_PAGE');
     directConversations.value = sortDirectConversations(
       result.items
     );
+    directListPage.value = requestedDirectListPage = page;
+    hasMoreDirectConversations.value = result.meta.has_next === true;
   } catch {
-    toast.error(t('chat.feedback.loadDirectConversationsFailed'));
+    if (current()) {
+      requestedDirectListPage = directListPage.value;
+      toast.error(t('chat.feedback.loadDirectConversationsFailed'));
+    }
   } finally {
-    if (showLoading) {
+    if (current()) {
       isLoadingDirectConversations.value = false;
     }
   }
 }
 
 async function loadDirectMessagesForConversation(
-  conversationId: number
+  conversationId: number,
+  clear = true,
+  older = false,
+  background = false
 ): Promise<void> {
-  directMessages.value = [];
-  isLoadingDirectMessages.value = true;
+  if (older && (syncingDirectRead || loadingOlderDirectMessages.value || isLoadingDirectMessages.value || !hasOlderDirectMessages.value)) return;
+  const request = ++conversationRequest;
+  const ownsPage = captureChatOwner();
+  const current = () => ownsPage() && request === conversationRequest &&
+    directConversationId.value === conversationId;
+  const changes = new Map<number, V2DirectMessage | null>();
+  liveDirectChanges = changes;
+  const page = older ? directHistoryPage.value + 1 : 1;
+  if (clear) directMessages.value = [];
+  if (older) loadingOlderDirectMessages.value = true;
+  else if (!background) {
+    loadingOlderDirectMessages.value = false;
+    isLoadingDirectMessages.value = true;
+    if (clear) {
+      directHistoryPage.value = 1;
+      hasOlderDirectMessages.value = false;
+    }
+  }
   try {
-    const result = await v2ListDirectMessages(conversationId, {
-      page: 1,
-      page_size: 50
-    });
-    directMessages.value = result.items;
+    const result = await app.runWithContext(() => v2ListDirectMessages(conversationId, { page, page_size: 20 }));
+    if (!current()) return;
+    if (result.meta?.page !== page) throw Error('UNEXPECTED_DIRECT_HISTORY_PAGE');
+    const pageIds = background ? new Set(result.items.map(message => message.message_id)) : null;
+    const retained = pageIds ? directMessages.value.filter(message => !pageIds.has(message.message_id))
+      : older ? directMessages.value : [];
+    directMessages.value = reconcileDirectHistory(result.items, retained, changes);
+    if (!background || directHistoryPage.value === 1) {
+      directHistoryPage.value = page;
+      hasOlderDirectMessages.value = result.meta.has_next === true;
+    }
+    if (older || !result.items.length) return;
+    if (pendingDirectRead === conversationId) return;
     directConversations.value = directConversations.value.map(
       conversation =>
         conversation.conversation_id === conversationId
@@ -731,21 +970,54 @@ async function loadDirectMessagesForConversation(
           : conversation
     );
   } catch {
-    toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+    if (current() && !background) toast.error(t('chat.feedback.loadDirectMessagesFailed'));
   } finally {
-    isLoadingDirectMessages.value = false;
+    if (liveDirectChanges === changes) liveDirectChanges = null;
+    if (current()) {
+      isLoadingDirectMessages.value = false;
+      loadingOlderDirectMessages.value = false;
+      scheduleDirectRead();
+    }
   }
+}
+
+function scheduleDirectRead(): void {
+  const id = pendingDirectRead;
+  if (id === null || id !== directConversationId.value || directReadTimer || syncingDirectRead ||
+      isLoadingDirectMessages.value || loadingOlderDirectMessages.value || document.visibilityState !== 'visible' ||
+      (isMobileNavigationOpen.value && !window.matchMedia('(min-width: 768px)').matches)) return;
+  const current = captureChatOwner();
+  directReadTimer = setTimeout(async () => {
+    directReadTimer = undefined;
+    if (!current() || directConversationId.value !== id || pendingDirectRead !== id ||
+        isLoadingDirectMessages.value || loadingOlderDirectMessages.value || document.visibilityState !== 'visible' ||
+        (isMobileNavigationOpen.value && !window.matchMedia('(min-width: 768px)').matches)) return;
+    pendingDirectRead = null;
+    syncingDirectRead = true;
+    try {
+      await loadDirectMessagesForConversation(id, false, false, true);
+    } finally {
+      syncingDirectRead = false;
+      scheduleDirectRead();
+    }
+  }, 250);
+}
+
+function loadOlderDirectMessages(): void {
+  const conversationId = directConversationId.value;
+  if (conversationId !== null) void loadDirectMessagesForConversation(conversationId, false, true);
 }
 
 async function openDirectConversation(
   conversation: V2DirectConversation
 ): Promise<void> {
+  exitDirectMessageView();
   upsertDirectConversation(conversation);
   directConversationId.value = conversation.conversation_id;
   directMessageTargetId.value = conversation.participant.user_id;
   directMessageStandaloneTarget.value =
     mapV2DirectConversationMember(conversation);
-  directMessageContent.value = '';
+  showMobileContent();
   await loadDirectMessagesForConversation(
     conversation.conversation_id
   );
@@ -759,18 +1031,63 @@ function directMessageQueryUserId(): number | null {
 }
 
 function clearDirectMessageQuery(): void {
-  if (!('dm' in route.query)) return;
+  if (!('dm' in route.query) && !('conversation' in route.query)) return;
   const query = { ...route.query };
   delete query.dm;
+  delete query.conversation;
   void router.replace({
     path: route.path,
     query
   });
 }
 
+function cancelDirectLinkLookup(): void {
+  directLinkRequest++;
+  directLinkStatus.value = null;
+  clearDirectMessageQuery();
+}
+
+function retryDirectLinkLookup(): void {
+  void app.runWithContext(openDirectMessageFromQuery);
+}
+
 async function openDirectMessageFromQuery(): Promise<void> {
+  const current = captureChatOwner();
+  const selection = directSelectionRevision;
+  const rawConversation = route.query.conversation;
+  if (rawConversation !== undefined) {
+    const conversationId = notificationTargetId(rawConversation);
+    if (conversationId === null) {
+      cancelDirectLinkLookup();
+      toast.error(t('chat.feedback.openDirectConversationFailed'));
+      return;
+    }
+    const request = ++directLinkRequest;
+    const stillCurrent = () => current() && selection === directSelectionRevision &&
+      request === directLinkRequest && route.query.conversation === rawConversation;
+    directLinkStatus.value = 'loading';
+    showMobileNavigation();
+    try {
+      const result = await v2ListDirectConversations({ conversation_id: conversationId, page: 1, page_size: 1 });
+      if (!stillCurrent()) return;
+      const conversation = result.items.length === 1 ? result.items[0] : undefined;
+      if (conversation?.conversation_id !== conversationId) {
+        directLinkStatus.value = 'failed';
+        return;
+      }
+      clearDirectMessageQuery();
+      await openDirectConversation(conversation);
+    } catch {
+      if (stillCurrent()) directLinkStatus.value = 'failed';
+    }
+    return;
+  }
+  directLinkRequest++;
+  directLinkStatus.value = null;
   const targetUserId = directMessageQueryUserId();
   if (!targetUserId) return;
+  const originalTarget = route.query.dm;
+  const sameQuery = () => current() && route.query.dm === originalTarget && route.query.conversation === undefined;
   if (targetUserId === currentUserId.value) {
     toast.error(t('chat.feedback.cannotMessageSelf'));
     clearDirectMessageQuery();
@@ -781,13 +1098,13 @@ async function openDirectMessageFromQuery(): Promise<void> {
     const conversation = await v2CreateDirectConversation({
       target_user_id: targetUserId
     });
+    if (!sameQuery() || selection !== directSelectionRevision) return;
     await openDirectConversation(conversation);
-    showMobileContent();
-    await loadDirectConversations(false);
+    if (sameQuery()) await loadDirectConversations(false);
   } catch {
-    toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+    if (sameQuery() && selection === directSelectionRevision) toast.error(t('chat.feedback.loadDirectMessagesFailed'));
   } finally {
-    clearDirectMessageQuery();
+    if (sameQuery()) clearDirectMessageQuery();
   }
 }
 
@@ -795,8 +1112,17 @@ async function refreshChannels(
   preferredChannelId?: number
 ): Promise<void> {
   if (!activeGroup.value) return;
-  const channels = await v2ListChatChannels(activeGroup.value.id);
+  const groupId = activeGroup.value.id;
+  const current = captureChatOwner();
+  const request = ++channelsRequest;
+  const observedMuteRevision = muteRevision;
+  const channels = await v2ListChatChannels(groupId);
+  if (!current() || activeGroup.value?.id !== groupId || request !== channelsRequest) return;
   channelCategories.value = buildChatChannelCategories(channels);
+  for (const channel of allChannels()) {
+    const confirmed = confirmedMutes.get(channel.id);
+    if (confirmed && confirmed.revision > observedMuteRevision) channel.isMuted = confirmed.muted;
+  }
 
   const availableChannels = allChannels().filter(
     channel =>
@@ -817,42 +1143,96 @@ async function refreshChannels(
 }
 
 async function loadGroup(group: ChatGroupVM): Promise<Channel | null> {
+  const request = ++groupRequest;
+  const owner = captureChatOwner();
+  if (activeGroup.value?.id !== group.id) {
+    activeChannel.value = null;
+    channelCategories.value = [];
+    messages.value = [];
+    members.value = [];
+    searchQuery.value = '';
+  }
   activeGroup.value = group;
+  const current = () => owner() && groupRequest === request && activeGroup.value?.id === group.id;
   writeLastChatGroupId(group.id);
-  const [memberItems] = await Promise.all([
-    v2ListChatMembers(group.id),
-    refreshChannels()
-  ]);
-  members.value = memberItems.map(mapV2ChatMember);
+  loadingGroupChannels.value = true;
+  channelLoadFailed.value = false;
+  void v2ListChatMembers(group.id).then(items => {
+    if (current()) members.value = items.map(mapV2ChatMember);
+  }).catch(() => {
+    if (current()) members.value = [];
+  });
+  try {
+    await refreshChannels();
+  } catch {
+    if (current()) channelLoadFailed.value = true;
+    return null;
+  } finally {
+    if (current()) loadingGroupChannels.value = false;
+  }
+  if (!current()) return null;
 
   if (activeChannel.value) {
-    await loadMessages(activeChannel.value.id);
+    const channelId = activeChannel.value.id;
+    await app.runWithContext(() => loadMessages(channelId));
   }
-  return activeChannel.value;
+  return current() ? activeChannel.value : null;
+}
+
+function retryGroupChannels(): void {
+  if (activeGroup.value && !loadingGroupChannels.value) void loadGroup(activeGroup.value);
 }
 
 async function loadChat(): Promise<void> {
+  const current = captureChatOwner();
+  const request = ++chatRequest;
+  const valid = () => current() && request === chatRequest;
   isLoading.value = true;
+  loadingMoreGroups.value = false;
   errorMessage.value = '';
   try {
     const [result] = await Promise.all([
       v2ListChatGroups({
         page: 1,
-        page_size: 50
+        page_size: 20
       }),
       loadDirectConversations()
     ]);
+    if (!valid()) return;
     groups.value = result.items.map(mapV2ChatGroup);
+    groupPage.value = 1;
+    hasMoreGroups.value = result.meta?.page === 1 && result.meta.has_next === true;
     const nextGroup = preferredChatGroup();
     if (nextGroup) {
-      await loadGroup(nextGroup);
+      await app.runWithContext(() => loadGroup(nextGroup));
     }
-    connectWs();
-    await openDirectMessageFromQuery();
   } catch {
-    errorMessage.value = t('chat.feedback.loadFailed');
+    if (valid()) errorMessage.value = t('chat.feedback.loadFailed');
   } finally {
-    isLoading.value = false;
+    if (valid()) isLoading.value = false;
+  }
+}
+
+async function loadMoreGroups(): Promise<void> {
+  if (isLoading.value || loadingMoreGroups.value || !hasMoreGroups.value) return;
+  const ownsPage = captureChatOwner();
+  const request = chatRequest;
+  const current = () => ownsPage() && request === chatRequest;
+  const page = groupPage.value + 1;
+  loadingMoreGroups.value = true;
+  try {
+    const result = await v2ListChatGroups({ page, page_size: 20 });
+    if (!current()) return;
+    if (result.meta?.page !== page) throw Error('UNEXPECTED_CHAT_GROUP_PAGE');
+    const unique = new Map(groups.value.map(group => [group.id, group]));
+    for (const row of result.items) unique.set(row.group_id, mapV2ChatGroup(row));
+    groups.value = [...unique.values()];
+    groupPage.value = page;
+    hasMoreGroups.value = result.meta.has_next === true;
+  } catch {
+    if (current()) toast.error(t('chat.feedback.loadFailed'));
+  } finally {
+    if (current()) loadingMoreGroups.value = false;
   }
 }
 
@@ -861,15 +1241,13 @@ async function handleSelectChannel(
 ): Promise<void> {
   exitDirectMessageView();
   showMobileContent();
-  if (activeChannel.value?.id === channel.id) return;
-  if (activeChannel.value) {
-    leaveWsChannel(activeChannel.value.id);
+  if (activeChannel.value?.id === channel.id) {
+    refreshVisibleChannel();
+    return;
   }
   activeChannel.value = channel;
-  channel.unreadCount = 0;
   searchQuery.value = '';
   await loadMessages(channel.id);
-  joinWsChannel(channel.id);
 }
 
 async function handleSelectGroup(groupId: number): Promise<void> {
@@ -878,66 +1256,94 @@ async function handleSelectGroup(groupId: number): Promise<void> {
 
   exitDirectMessageView();
 
-  if (group.id === activeGroup.value?.id) return;
-
-  if (activeChannel.value) {
-    leaveWsChannel(activeChannel.value.id);
-  }
-  activeChannel.value = null;
-  messages.value = [];
-  searchQuery.value = '';
-  const nextChannel = await loadGroup(group);
-  if (nextChannel) {
-    joinWsChannel(nextChannel.id);
-  }
+  if (group.id === activeGroup.value?.id && !channelLoadFailed.value) return;
+  await loadGroup(group);
 }
 
 async function uploadAttachments(
-  files: File[] = []
-): Promise<number[]> {
+  files: File[],
+  authRevision: number,
+  signal: AbortSignal,
+  current: () => boolean
+): Promise<number[] | null> {
   const mediaIds: number[] = [];
   for (const file of files) {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('alt_text', file.name);
-    const media = await v2UploadMedia(formData);
-    mediaIds.push(media.media_id);
+    if (!current()) return null;
+    const uploaded = uploadedChannelAttachments.get(file);
+    let id = uploaded?.authRevision === authRevision ? uploaded.id : undefined;
+    if (id === undefined) {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('alt_text', file.name);
+      form.append('access_scope', 'chat');
+      const media = await app.runWithContext(() => v2UploadMedia(form, signal));
+      if (!current()) return null;
+      if (!media || media.thumbnail_url !== null || !isPrivateMediaContent(media.media_id, media.public_url)) {
+        throw new Error('INVALID_CHAT_ATTACHMENT_RECEIPT');
+      }
+      id = media.media_id;
+    }
+    if (mediaIds.includes(id)) throw new Error('DUPLICATE_CHAT_ATTACHMENT');
+    uploadedChannelAttachments.set(file, { id, authRevision });
+    mediaIds.push(id);
   }
   return mediaIds;
 }
 
 async function handleSendMessage(
   content: string,
-  attachments?: File[],
+  attachments: File[] = [],
   replyToMessageId?: number
-): Promise<void> {
+): Promise<boolean> {
   if (
     !activeChannel.value ||
     isSending.value ||
     !canSendActiveChannel.value
   ) {
-    return;
+    return false;
   }
+  const channelId = activeChannel.value.id;
+  const actorId = currentUserId.value;
+  const revision = channelComposerRevision.value;
+  const authRevision = preferenceStore.authRevision();
+  const ownsPage = captureChatOwner();
+  const current = () => ownsPage() && channelComposerRevision.value === revision;
+  const upload = new AbortController();
+  channelAttachmentUpload = upload;
   isSending.value = true;
   try {
-    const mediaIds = await uploadAttachments(attachments);
-    const created = await v2CreateChatMessage(
-      activeChannel.value.id,
+    const mediaIds = await uploadAttachments(attachments, authRevision, upload.signal, current);
+    if (channelAttachmentUpload === upload) channelAttachmentUpload = null;
+    if (!mediaIds || !current()) return false;
+    const created = await app.runWithContext(() => v2CreateChatMessage(
+      channelId,
       {
         content,
         media_ids: mediaIds,
         reply_to_message_id: replyToMessageId ?? null
       }
-    );
+    ));
+    if (!current()) return false;
+    if (!created || created.channel_id !== channelId || created.author?.user_id !== actorId ||
+        !Number.isSafeInteger(created.message_id) || created.message_id <= 0 ||
+        !Array.isArray(created.media) || created.media.length !== mediaIds.length ||
+        mediaIds.some(id => !created.media.some(media =>
+          media.media_id === id && isPrivateMediaContent(id, media.public_url)))) {
+      throw new Error('INVALID_CHAT_SEND_RECEIPT');
+    }
     upsertMessage(
       mapV2ChatMessage(created, membersById.value)
     );
     updateChannelPreview(created, true);
+    for (const file of attachments) uploadedChannelAttachments.delete(file);
     toast.success(t('chat.feedback.sent'));
+    return true;
   } catch {
-    toast.error(t('chat.feedback.sendFailed'));
+    if (current()) toast.error(t('chat.feedback.sendFailed'));
+    return false;
   } finally {
-    isSending.value = false;
+    if (channelAttachmentUpload === upload) channelAttachmentUpload = null;
+    if (channelComposerRevision.value === revision) isSending.value = false;
   }
 }
 
@@ -945,40 +1351,65 @@ async function handleReact(
   messageId: number,
   emoji: string
 ): Promise<void> {
+  const scope = captureChannelMessageWrite();
   const message = messages.value.find(item => item.id === messageId);
-  const reacted = message?.reactions?.some(
+  if (!scope.current() || !message || pendingChannelReactions.has(messageId)) return;
+  const reacted = message.reactions?.some(
     reaction => reaction.emoji === emoji && reaction.reacted
   );
+  pendingChannelReactions.add(messageId);
   try {
     const updated = reacted
       ? await v2DeleteChatReaction(messageId, { emoji })
       : await v2CreateChatReaction(messageId, { emoji });
-    upsertMessage(
-      mapV2ChatMessage(updated, membersById.value)
-    );
+    if (!scope.current()) return;
+    if (!scope.confirms(updated)) throw new Error('Unexpected chat reaction scope');
+    const visible = messages.value.find(item => item.id === messageId);
+    if (visible) {
+      const reactions = mapV2ChatMessage(updated, membersById.value).reactions;
+      upsertMessage({ ...visible, reactions });
+    }
   } catch {
-    toast.error(t('chat.feedback.reactionFailed'));
+    if (scope.current()) toast.error(t('chat.feedback.reactionFailed'));
+  } finally {
+    if (scope.current()) pendingChannelReactions.delete(messageId);
   }
 }
 
 async function handleDeleteMessage(
   messageId: number
 ): Promise<void> {
+  const scope = captureChannelMessageWrite();
+  if (!scope.current() || !messages.value.some(message => message.id === messageId)) return;
   try {
     await v2DeleteChatMessage(messageId);
-    messages.value = messages.value.filter(
-      message => message.id !== messageId
-    );
+    if (!scope.current()) return;
+    removeChannelMessage(messageId);
     toast.success(t('chat.feedback.deleted'));
+    void refreshChannels().catch(() => undefined);
   } catch {
-    toast.error(t('chat.feedback.deleteFailed'));
+    if (scope.current()) toast.error(t('chat.feedback.deleteFailed'));
   }
+}
+
+function captureChannelMessageWrite() {
+  const owner = captureChatOwner();
+  const revision = channelComposerRevision.value;
+  const groupId = activeGroup.value?.id;
+  const channelId = activeChannel.value?.id;
+  const current = () => owner() && channelId !== undefined && groupId !== undefined &&
+    revision === channelComposerRevision.value && activeGroup.value?.id === groupId &&
+    activeChannel.value?.id === channelId;
+  const confirms = (message: V2ChatMessage) => message.channel_id === channelId && message.group_id === groupId;
+  return { current, confirms };
 }
 
 async function handleEditMessage(
   message: ChatMessageType
 ): Promise<void> {
-  if (!import.meta.client) return;
+  const scope = captureChannelMessageWrite();
+  if (!import.meta.client || !scope.current() || message.author.id !== currentUserId.value ||
+      message.type !== 'text') return;
   const content = window
     .prompt(t('chat.prompts.messageContent'), message.content)
     ?.trim();
@@ -988,113 +1419,139 @@ async function handleEditMessage(
     const updated = await v2UpdateChatMessage(message.id, {
       content
     });
-    upsertMessage(
-      mapV2ChatMessage(updated, membersById.value)
-    );
+    if (!scope.current()) return;
+    if (!scope.confirms(updated)) throw new Error('Unexpected chat message scope');
+    const visible = messages.value.find(item => item.id === message.id);
+    if (!visible) return;
+    const result = mapV2ChatMessage(updated, membersById.value);
+    upsertMessage({ ...visible, content: result.content, editedAt: result.editedAt });
     toast.success(t('chat.feedback.messageUpdated'));
   } catch {
-    toast.error(t('chat.feedback.updateMessageFailed'));
+    if (scope.current()) toast.error(t('chat.feedback.updateMessageFailed'));
   }
 }
 
 async function handlePinMessage(messageId: number): Promise<void> {
-  const current = messages.value.find(
+  const scope = captureChannelMessageWrite();
+  const message = messages.value.find(
     message => message.id === messageId
   );
-  if (!current) return;
+  if (!scope.current() || !message?.canPin) return;
 
   try {
     const updated = await v2SetChatMessagePinStatus(messageId, {
-      is_pinned: !current.isPinned
+      is_pinned: !message.isPinned
     });
-    upsertMessage(
-      mapV2ChatMessage(updated, membersById.value)
-    );
+    if (!scope.current()) return;
+    if (!scope.confirms(updated)) throw new Error('Unexpected chat message scope');
+    const visible = messages.value.find(item => item.id === messageId);
+    if (!visible) return;
+    upsertMessage({ ...visible, isPinned: updated.is_pinned });
     toast.success(
       updated.is_pinned
         ? t('chat.feedback.pinned')
         : t('chat.feedback.unpinned')
     );
   } catch {
-    toast.error(t('chat.feedback.pinFailed'));
+    if (scope.current()) toast.error(t('chat.feedback.pinFailed'));
   }
 }
 
-function handleCreateChannel(categoryId: number): void {
-  if (!activeGroup.value) return;
-  createChannelCategoryId.value = categoryId;
+function handleCreateChannel(categoryId: number | null): void {
+  if (!canManage.value || channelWriteBusy.value) return;
+  editingChannelId.value = null;
   createChannelName.value = '';
+  channelCategory.value = categoryId === null ? '' : findCategoryName(categoryId);
+  channelPrivate.value = false;
   createChannelDialogOpen.value = true;
 }
 
-async function submitCreateChannel(): Promise<void> {
-  const group = activeGroup.value;
-  const categoryId = createChannelCategoryId.value;
-  const name = createChannelName.value.trim();
-  if (!group || categoryId === null || !name) return;
+function captureChannelWrite(): () => boolean {
+  const owner = captureChatOwner();
+  const revision = channelWriteRevision;
+  return () => owner() && revision === channelWriteRevision;
+}
 
-  isCreatingChannel.value = true;
+async function submitChannel(): Promise<void> {
+  const group = activeGroup.value;
+  const target = editingChannelId.value;
+  if (!group?.canManage || !canSubmitCreateChannel.value) return;
+  if (target !== null && !allChannels().some(channel => channel.id === target)) return;
+  const current = captureChannelWrite();
+  const payload = {
+    name: createChannelName.value.trim(),
+    category: channelCategory.value.trim(),
+    is_private: channelPrivate.value
+  };
+
+  channelWriteBusy.value = true;
+  let confirmed = false;
   try {
-    const created = await v2CreateChatChannel(group.id, {
-      name,
-      type: 'text',
-      category: findCategoryName(categoryId)
-    });
-    await refreshChannels(created.channel_id);
-    if (activeChannel.value) {
-      await loadMessages(activeChannel.value.id);
-      joinWsChannel(activeChannel.value.id);
-    }
+    const result = target === null
+      ? await v2CreateChatChannel(group.id, { ...payload, type: 'text' })
+      : await v2UpdateChatChannel(target, payload);
+    if (!current()) return;
+    if (result.group_id !== group.id) throw new Error('Unexpected chat channel group');
+    confirmed = true;
     createChannelDialogOpen.value = false;
-    toast.success(t('chat.feedback.channelCreated'));
+    toast.success(t(target === null ? 'chat.feedback.channelCreated' : 'chat.feedback.channelUpdated'));
+    const previousChannel = activeChannel.value?.id;
+    await refreshChannels(target === null ? result.channel_id : undefined);
+    if (!current()) return;
+    if (activeChannel.value && activeChannel.value.id !== previousChannel) {
+      await loadMessages(activeChannel.value.id);
+    }
   } catch {
-    toast.error(t('chat.feedback.createChannelFailed'));
+    if (current()) toast.error(t(confirmed ? 'chat.feedback.loadFailed' :
+      target === null ? 'chat.feedback.createChannelFailed' : 'chat.feedback.updateChannelFailed'));
   } finally {
-    isCreatingChannel.value = false;
+    if (current()) channelWriteBusy.value = false;
   }
 }
 
-async function handleEditChannel(
-  channel: Channel
-): Promise<void> {
-  if (!import.meta.client) return;
-  const name = window
-    .prompt(t('chat.prompts.channelName'), channel.name)
-    ?.trim();
-  if (!name || name === channel.name) return;
-
-  try {
-    const updated = await v2UpdateChatChannel(channel.id, {
-      name
-    });
-    await refreshChannels(updated.channel_id);
-    toast.success(t('chat.feedback.channelUpdated'));
-  } catch {
-    toast.error(t('chat.feedback.updateChannelFailed'));
-  }
+function handleEditChannel(channel: Channel): void {
+  if (!canManage.value || channelWriteBusy.value) return;
+  const category = channelCategories.value.find(item => item.channels.some(item => item.id === channel.id));
+  if (!category) return;
+  editingChannelId.value = channel.id;
+  createChannelName.value = channel.name;
+  channelCategory.value = category.name;
+  channelPrivate.value = channel.isPrivate === true;
+  createChannelDialogOpen.value = true;
 }
 
 async function handleDeleteChannel(
   channelId: number
 ): Promise<void> {
-  if (!import.meta.client) return;
+  if (!import.meta.client || !canManage.value || channelWriteBusy.value ||
+      !allChannels().some(channel => channel.id === channelId)) return;
   if (!window.confirm(t('chat.prompts.deleteChannel'))) return;
 
+  const current = captureChannelWrite();
+  channelWriteBusy.value = true;
+  let confirmed = false;
   try {
     await v2DeleteChatChannel(channelId);
-    if (activeChannel.value?.id === channelId) {
-      leaveWsChannel(channelId);
+    if (!current()) return;
+    confirmed = true;
+    for (const category of channelCategories.value) {
+      category.channels = category.channels.filter(channel => channel.id !== channelId);
+    }
+    toast.success(t('chat.feedback.channelDeleted'));
+    const deletedActive = activeChannel.value?.id === channelId;
+    if (deletedActive) {
       messages.value = [];
       activeChannel.value = null;
     }
     await refreshChannels();
-    if (activeChannel.value) {
+    if (!current()) return;
+    if (deletedActive && activeChannel.value) {
       await loadMessages(activeChannel.value.id);
-      joinWsChannel(activeChannel.value.id);
     }
-    toast.success(t('chat.feedback.channelDeleted'));
   } catch {
-    toast.error(t('chat.feedback.deleteChannelFailed'));
+    if (current()) toast.error(t(confirmed ? 'chat.feedback.loadFailed' : 'chat.feedback.deleteChannelFailed'));
+  } finally {
+    if (current()) channelWriteBusy.value = false;
   }
 }
 
@@ -1102,75 +1559,114 @@ async function handleToggleChannelMute(
   channelId?: number
 ): Promise<void> {
   const targetId = channelId ?? activeChannel.value?.id;
-  if (!targetId) return;
+  if (!targetId || muteRequests.has(targetId)) return;
   const channel = allChannels().find(item => item.id === targetId);
   if (!channel) return;
-
+  const ownsPage = captureChatOwner();
+  const request = new AbortController();
+  const current = () => ownsPage() && muteRequests.get(targetId) === request;
+  muteRequests.set(targetId, request);
   try {
-    const nextMuted = !channel.isMuted;
-    await v2SetChatChannelMuteStatus(targetId, nextMuted);
-    channel.isMuted = nextMuted;
+    const { is_muted: muted } = await v2SetChatChannelMuteStatus(targetId, !channel.isMuted, request.signal);
+    if (!current()) return;
+    confirmedMutes.set(targetId, { muted, revision: ++muteRevision });
+    const listedChannel = allChannels().find(item => item.id === targetId);
+    if (listedChannel) listedChannel.isMuted = muted;
     if (activeChannel.value?.id === targetId) {
-      activeChannel.value.isMuted = nextMuted;
+      activeChannel.value.isMuted = muted;
     }
     toast.success(
-      nextMuted
+      muted
         ? t('chat.feedback.channelMuted')
         : t('chat.feedback.channelUnmuted')
     );
   } catch {
-    toast.error(t('chat.feedback.muteFailed'));
+    if (current()) toast.error(t('chat.feedback.muteFailed'));
+  } finally {
+    if (muteRequests.get(targetId) === request) muteRequests.delete(targetId);
   }
+}
+
+function clearMuteRequests(): void {
+  for (const request of muteRequests.values()) request.abort();
+  muteRequests.clear();
+  confirmedMutes.clear();
 }
 
 function handleSearch(query: string): void {
   searchQuery.value = query;
-  if (!activeChannel.value) return;
+  const channelId = activeChannel.value?.id;
+  if (channelId === undefined) return;
   if (searchTimer) clearTimeout(searchTimer);
+  const ownsPage = captureChatOwner();
   searchTimer = setTimeout(() => {
-    if (activeChannel.value) {
-      void loadMessages(activeChannel.value.id, true, query);
+    if (ownsPage() && activeChannel.value?.id === channelId && searchQuery.value === query) {
+      void loadMessages(channelId, true, query);
     }
   }, 300);
 }
 
-function handleInviteSearchInput(): void {
+function clearInviteSearch(): void {
   if (inviteSearchTimer) clearTimeout(inviteSearchTimer);
+  inviteSearchTimer = null;
+  inviteSearchRequest?.abort();
+  inviteSearchRequest = undefined;
+  isSearchingInviteUsers.value = false;
+  inviteUsers.value = [];
+}
+
+function resetInviteDialog(): void {
+  clearInviteSearch();
+  inviteSubmitRequest?.abort();
+  inviteSubmitRequest = undefined;
+  isCreatingInvite.value = false;
+  inviteResultUnknown.value = false;
+  selectedInvitee.value = null;
+  createdInvite.value = null;
+  inviteSearchQuery.value = '';
+  inviteMessage.value = '';
+}
+
+function handleInviteSearchInput(): void {
+  clearInviteSearch();
+  selectedInvitee.value = null;
+  createdInvite.value = null;
+  const query = inviteSearchQuery.value.trim();
+  if (!inviteDialogOpen.value || query.length < 2) return;
+  isSearchingInviteUsers.value = true;
   inviteSearchTimer = setTimeout(() => {
-    void searchInviteUsers();
+    inviteSearchTimer = null;
+    void searchInviteUsers(query);
   }, 300);
 }
 
-async function searchInviteUsers(): Promise<void> {
-  const q = inviteSearchQuery.value.trim();
-  selectedInvitee.value = null;
-  createdInvite.value = null;
-
-  if (q.length < 2) {
-    inviteUsers.value = [];
-    return;
-  }
-
-  isSearchingInviteUsers.value = true;
+async function searchInviteUsers(query: string): Promise<void> {
+  const request = new AbortController();
+  inviteSearchRequest = request;
+  const ownsPage = captureChatOwner();
+  const current = () => ownsPage() && inviteDialogOpen.value && inviteSearchRequest === request;
   try {
-    const result = await v2SearchUsers({
-      q,
+    const result = await app.runWithContext(() => v2SearchUsers({
+      q: query,
       page: 1,
       pageSize: 12,
       sort: 'popular'
-    });
-    inviteUsers.value = result.items;
+    }, request.signal));
+    if (current()) inviteUsers.value = result.items;
   } catch (error) {
+    if (!current()) return;
     toast.error(t('chat.feedback.searchUsersFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    isSearchingInviteUsers.value = false;
+    if (current()) isSearchingInviteUsers.value = false;
   }
 }
 
 function selectInvitee(user: PublicUserVM): void {
+  if (isCreatingInvite.value || inviteResultUnknown.value ||
+      !inviteCandidates.value.some(candidate => candidate.id === user.id)) return;
   selectedInvitee.value = user;
   createdInvite.value = null;
 }
@@ -1185,9 +1681,21 @@ function normalizedPositiveInteger(
 
 async function submitInvite(): Promise<void> {
   const group = activeGroup.value;
-  if (!group || isCreatingInvite.value) return;
+  const invitee = pendingInvitee.value;
+  if (!group || !inviteDialogOpen.value || isCreatingInvite.value || inviteResultUnknown.value ||
+      invitee === undefined || isSearchingInviteUsers.value) return;
+  const message = inviteMessage.value.trim();
+  if (new TextEncoder().encode(message).length > 200) {
+    toast.error(t('chat.invite.messageTooLong'));
+    return;
+  }
 
+  const request = new AbortController();
+  const ownsPage = captureChatOwner();
+  inviteSubmitRequest = request;
+  const current = () => ownsPage() && inviteDialogOpen.value && inviteSubmitRequest === request;
   isCreatingInvite.value = true;
+  createdInvite.value = null;
   try {
     inviteMaxUses.value = normalizedPositiveInteger(
       inviteMaxUses.value,
@@ -1197,35 +1705,44 @@ async function submitInvite(): Promise<void> {
       inviteExpireHours.value,
       168
     );
-    const invite = await v2CreateGroupInvite(group.id, {
-      invitee_id: selectedInvitee.value?.id ?? null,
-      max_uses: selectedInvitee.value ? 1 : inviteMaxUses.value,
+    const invite = await app.runWithContext(() => v2CreateGroupInvite(group.id, {
+      invitee_id: invitee,
+      max_uses: invitee === null ? inviteMaxUses.value : 1,
       expire_hours: inviteExpireHours.value,
-      message: inviteMessage.value.trim() || undefined
-    });
+      message: message || undefined
+    }, request.signal));
+    if (!current()) return;
+    if (!Number.isSafeInteger(invite?.invite_id) || invite.invite_id <= 0 ||
+        (invitee === null ? !inviteUrl(invite) : invite.invite_code !== null || invite.invite_url !== null)) {
+      throw new Error('Invalid invite receipt');
+    }
     createdInvite.value = invite;
 
     const url = inviteUrl(invite);
     if (url) {
-      await copyText(url);
+      await copyText(url).catch(() => undefined);
     }
+    if (!current()) return;
     toast.success(
-      selectedInvitee.value
+      invitee !== null
         ? t('chat.feedback.memberInvited')
         : t('chat.feedback.inviteCreated')
     );
   } catch (error) {
-    toast.error(t('chat.feedback.inviteFailed'), {
-      description:
-        error instanceof Error ? error.message : undefined
-    });
+    if (!current()) return;
+    const failure = error as {statusCode?: number; status?: number} | null;
+    if ([400, 401, 403, 404, 422, 429].includes(failure?.statusCode ?? failure?.status ?? 0)) {
+      toast.error(t('chat.feedback.inviteFailed'));
+    } else {
+      inviteResultUnknown.value = true;
+    }
   } finally {
-    isCreatingInvite.value = false;
+    if (current()) isCreatingInvite.value = false;
   }
 }
 
 function handleLoadMore(): void {
-  if (!activeChannel.value || !hasMoreMessages.value) return;
+  if (!activeChannel.value || !hasMoreMessages.value || failedMessageLoad.value !== null) return;
   void loadMessages(activeChannel.value.id, false);
 }
 
@@ -1235,52 +1752,75 @@ function openMemberProfile(userId: number): void {
 }
 
 async function handleOpenDirectMessage(
-  member: ChatMember
+  member: ChatMember,
+  standalone = false
 ): Promise<void> {
+  const owner = captureChatOwner();
+  exitDirectMessageView();
+  const selection = directSelectionRevision;
+  const current = () => owner() && selection === directSelectionRevision;
   directMessageTargetId.value = member.id;
-  directConversationId.value = null;
+  if (standalone) {
+    directMessageStandaloneTarget.value = member;
+    showMobileContent();
+  }
+  isLoadingDirectMessages.value = true;
 
   try {
     const conversation = await v2CreateDirectConversation({
       target_user_id: member.id
     });
+    if (!current()) return;
     directConversationId.value = conversation.conversation_id;
     upsertDirectConversation(conversation);
     await loadDirectMessagesForConversation(
       conversation.conversation_id
     );
   } catch {
-    toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+    if (current()) toast.error(t('chat.feedback.loadDirectMessagesFailed'));
+  } finally {
+    if (current()) isLoadingDirectMessages.value = false;
   }
 }
 
 async function handleOpenDirectMessageStandalone(
   member: ChatMember
 ): Promise<void> {
-  await handleOpenDirectMessage(member);
-  directMessageContent.value = '';
-  directMessageStandaloneTarget.value = member;
-  showMobileContent();
+  if (directMessageTargetId.value === member.id && directConversationId.value) {
+    directMessageStandaloneTarget.value = member;
+    showMobileContent();
+    return;
+  }
+  await handleOpenDirectMessage(member, true);
 }
 
 async function handleSelectDirectConversation(
   conversation: V2DirectConversation
 ): Promise<void> {
+  if (directLinkStatus.value) cancelDirectLinkLookup();
   await openDirectConversation(conversation);
-  showMobileContent();
 }
 
 function closeDirectMessageStandalone(): void {
-  directMessageStandaloneTarget.value = null;
+  exitDirectMessageView();
   showMobileNavigation();
 }
 
 function exitDirectMessageView(): void {
+  directSelectionRevision++;
+  directLinkRequest++;
+  directLinkStatus.value = null;
+  conversationRequest++;
+  isSendingDirectMessage.value = false;
+  closeDirectDelete();
+  liveDirectChanges = null;
   directMessageStandaloneTarget.value = null;
   directMessageContent.value = '';
   directConversationId.value = null;
   directMessageTargetId.value = null;
   directMessages.value = [];
+  directHistoryPage.value = 1;
+  hasOlderDirectMessages.value = loadingOlderDirectMessages.value = isLoadingDirectMessages.value = false;
 }
 
 function handleSendDirectMessageKeydown(
@@ -1293,107 +1833,263 @@ function handleSendDirectMessageKeydown(
 
 async function submitStandaloneDirectMessage(): Promise<void> {
   const target = directMessageStandaloneTarget.value;
-  const content = directMessageContent.value.trim();
+  const draft = directMessageContent.value;
+  const content = draft.trim();
   if (!target || !content) return;
 
-  await handleSendDirectMessage(target.id, content);
-  directMessageContent.value = '';
+  const sent = await handleSendDirectMessage(target.id, content);
+  if (sent && directMessageStandaloneTarget.value?.id === target.id &&
+      directMessageContent.value === draft) {
+    directMessageContent.value = '';
+  }
 }
 
 async function handleSendDirectMessage(
   targetUserId: number,
   content: string
-): Promise<void> {
-  if (isSendingDirectMessage.value) return;
+): Promise<boolean> {
+  if (isSendingDirectMessage.value || isLoadingDirectMessages.value ||
+      directMessageTargetId.value !== targetUserId) return false;
+  const owner = captureChatOwner();
+  const selection = directSelectionRevision;
+  const current = () => owner() && selection === directSelectionRevision &&
+    directMessageTargetId.value === targetUserId;
+  if (!current()) return false;
   isSendingDirectMessage.value = true;
 
   try {
     let conversationId = directConversationId.value;
-    if (
-      !conversationId ||
-      directMessageTargetId.value !== targetUserId
-    ) {
+    if (!conversationId) {
       const conversation = await v2CreateDirectConversation({
         target_user_id: targetUserId
       });
+      if (!current()) return false;
       conversationId = conversation.conversation_id;
       directConversationId.value = conversationId;
-      directMessageTargetId.value = targetUserId;
+      upsertDirectConversation(conversation);
     }
 
     const created = await v2CreateDirectMessage(conversationId, {
       content
     });
-    upsertDirectMessage(created);
-    updateDirectConversationPreview(created, true);
+    if (!current()) return false;
+    const isActive = directConversationId.value === conversationId;
+    if (isActive) upsertDirectMessage(created);
+    updateDirectConversationPreview(created, isActive);
     void loadDirectConversations(false);
     toast.success(t('chat.feedback.directMessageSent'));
+    return true;
   } catch {
-    toast.error(t('chat.feedback.directMessageFailed'));
+    if (current()) toast.error(t('chat.feedback.directMessageFailed'));
+    return false;
   } finally {
-    isSendingDirectMessage.value = false;
+    if (current()) isSendingDirectMessage.value = false;
   }
 }
 
 onMounted(() => {
+  unsubscribeRealtime = realtime.subscribe(handleWsMessage);
+  document.addEventListener('visibilitychange', refreshVisibleChannel);
+  document.addEventListener('visibilitychange', scheduleChannelRead);
+  document.addEventListener('visibilitychange', scheduleDirectRead);
   void loadChat();
 });
 
+watch(directConversationId, () => {
+  closeDirectDelete();
+  clearTimeout(directReadTimer);
+  directReadTimer = undefined;
+  pendingDirectRead = null;
+}, {flush:'sync'});
+watch(isMobileNavigationOpen, scheduleDirectRead);
+watch([isMobileNavigationOpen, directConversationId, directMessageStandaloneTarget], scheduleChannelRead);
+watch([() => activeChannel.value?.id, () => searchQuery.value.trim(), realtime.ownerRevision], () => {
+  messageRequest++;
+  liveChannelChanges = null;
+  isLoadingMessages.value = false;
+  failedMessageLoad.value = null;
+  messages.value = [];
+  messagePage.value = 1;
+  hasMoreMessages.value = false;
+}, { flush: 'sync' });
+
+watch([() => activeChannel.value?.id, realtime.ownerRevision, searchQuery], () => {
+  clearTimeout(channelReadTimer);
+  channelReadTimer = undefined;
+  pendingChannelRead = 0;
+  channelReadReceipt++;
+}, { flush: 'sync' });
+
+watch([
+  () => activeChannel.value?.id,
+  isDirectMessageStandalone,
+  realtime.ownerRevision,
+  currentUserId,
+  () => preferenceStore.preferences.authSession?.sessionId
+], () => {
+  channelComposerRevision.value++;
+  pendingChannelReactions.clear();
+  channelAttachmentUpload?.abort();
+  channelAttachmentUpload = null;
+  uploadedChannelAttachments = new WeakMap();
+  isSending.value = false;
+}, { flush: 'sync' });
+
 watch(
-  () => route.query.dm,
+  [realtime.serverReady, () => activeChannel.value?.id ?? null],
+  ([ready, channelId]) => syncChatChannel(ready, channelId),
+  {flush: 'sync'}
+);
+
+watch(realtime.ownerRevision, () => {
+  clearMuteRequests();
+  activeGroup.value = null;
+  loadingGroupChannels.value = false;
+  channelLoadFailed.value = false;
+  activeChannel.value = null;
+  channelCategories.value = [];
+  groups.value = [];
+  groupPage.value = 1;
+  hasMoreGroups.value = loadingMoreGroups.value = false;
+  members.value = [];
+  messages.value = [];
+  directConversations.value = [];
+  directListPage.value = requestedDirectListPage = 1;
+  hasMoreDirectConversations.value = false;
+  exitDirectMessageView();
+  isLoadingMessages.value = false;
+  isLoadingDirectConversations.value = false;
+  isLoadingDirectMessages.value = false;
+  isSending.value = false;
+  isSendingDirectMessage.value = false;
+  messagePage.value = 1;
+  hasMoreMessages.value = false;
+  searchQuery.value = '';
+  if (searchTimer) clearTimeout(searchTimer);
+  inviteDialogOpen.value = false;
+  groupSettingsOpen.value = false;
+  groupSettingsModel.value = null;
+}, {flush: 'sync'});
+
+watch(inviteSearchQuery, handleInviteSearchInput, {flush: 'sync'});
+watch(inviteDialogOpen, open => { if (!open) resetInviteDialog(); }, {flush: 'sync'});
+watch(() => activeGroup.value?.id, () => { inviteDialogOpen.value = false; }, {flush: 'sync'});
+watch([() => activeGroup.value?.id, realtime.ownerRevision], () => {
+  channelWriteRevision++;
+  channelWriteBusy.value = false;
+  createChannelDialogOpen.value = false;
+}, {flush: 'sync'});
+
+watch(realtime.ownerRevision, () => {
+  if (preferenceStore.isLoggedIn) void app.runWithContext(loadChat);
+}, {flush: 'post'});
+
+watch(realtime.recoveryRevision, () => {
+  void app.runWithContext(() => {
+    void loadDirectConversations(false);
+    if (activeChannel.value) void loadMessages(activeChannel.value.id);
+    if (directConversationId.value) {
+      void loadDirectMessagesForConversation(directConversationId.value, false);
+    }
+  });
+});
+
+watch(
+  [() => route.query.dm, () => route.query.conversation, isLoading],
   () => {
     if (!isLoading.value) {
-      void openDirectMessageFromQuery();
+      void app.runWithContext(openDirectMessageFromQuery);
     }
   }
 );
 
 onBeforeUnmount(() => {
-  shouldReconnectWs = false;
-  if (reconnectTimer) clearTimeout(reconnectTimer);
-  stopWsHeartbeat();
+  disposed = true;
+  channelAttachmentUpload?.abort();
+  clearMuteRequests();
+  document.removeEventListener('visibilitychange', refreshVisibleChannel);
+  document.removeEventListener('visibilitychange', scheduleChannelRead);
+  document.removeEventListener('visibilitychange', scheduleDirectRead);
+  clearTimeout(directReadTimer);
+  clearTimeout(channelReadTimer);
+  pendingDirectRead = null;
   if (searchTimer) clearTimeout(searchTimer);
-  if (inviteSearchTimer) clearTimeout(inviteSearchTimer);
-  if (activeChannel.value) {
-    leaveWsChannel(activeChannel.value.id);
-  }
-  ws?.close();
+  inviteDialogOpen.value = false;
+  syncChatChannel(realtime.serverReady.value, null);
+  unsubscribeRealtime?.();
 });
 </script>
 
 <template>
   <div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden md:flex-row">
+    <Dialog :open="directDeleteTarget !== null" @update:open="open => { if (!open && !deletingDirect) closeDirectDelete() }">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{{ t('chat.actions.deleteMessage') }}</DialogTitle>
+          <DialogDescription>{{ t('chat.prompts.deleteDirectMessage') }}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" :disabled="deletingDirect" @click="closeDirectDelete">{{ t('common.cancel') }}</Button>
+          <Button variant="destructive" :disabled="deletingDirect" @click="confirmDirectDelete">{{ t('common.delete') }}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <div
       data-chat-nav-panel="true"
       class="h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden border-b bg-muted/20 md:w-72 md:border-b-0 md:border-r"
       :class="isMobileNavigationOpen ? 'flex' : 'hidden md:flex'"
     >
       <div class="flex h-full min-h-0 flex-col">
+        <p v-if="directLinkStatus === 'loading'" class="px-3 py-2 text-xs text-muted-foreground" role="status">
+          {{ t('common.loading') }}
+        </p>
+        <div v-else-if="directLinkStatus === 'failed'" class="space-y-2 px-3 py-2">
+          <p class="text-xs text-destructive" role="alert">{{ t('chat.feedback.openDirectConversationFailed') }}</p>
+          <div class="flex gap-2">
+            <Button size="sm" variant="outline" @click="retryDirectLinkLookup">{{ t('common.retry') }}</Button>
+            <Button size="sm" variant="ghost" @click="cancelDirectLinkLookup">{{ t('common.cancel') }}</Button>
+          </div>
+        </div>
         <div class="h-64 shrink-0 max-md:h-[30dvh] max-md:min-h-44 max-md:max-h-72">
           <ChatDirectConversationList
             :conversations="directConversations"
             :active-conversation-id="directConversationId"
             :is-loading="isLoadingDirectConversations"
+            :page="directListPage"
+            :has-next="hasMoreDirectConversations"
+            @change-page="(page: number) => loadDirectConversations(true, page)"
             @select="handleSelectDirectConversation"
             @view-profile="openMemberProfile"
           />
         </div>
-        <div class="min-h-0 flex-1 border-t">
+        <div class="flex min-h-0 flex-1 flex-col border-t">
+          <p v-if="loadingGroupChannels" class="px-3 py-2 text-xs text-muted-foreground" role="status">
+            {{ t('common.loading') }}
+          </p>
+          <div v-else-if="channelLoadFailed" class="flex items-center justify-between gap-2 px-3 py-2">
+            <p class="text-xs text-destructive" role="alert">{{ t('chat.feedback.loadChannelsFailed') }}</p>
+            <Button size="sm" variant="outline" @click="retryGroupChannels">{{ t('common.retry') }}</Button>
+          </div>
           <ChatChannelList
+            class="flex-1"
             :categories="channelCategories"
             :active-channel-id="activeChannel?.id"
             :group-name="activeGroup?.name"
             :group-avatar="activeGroup?.avatar"
             :groups="groups"
+            :has-more-groups="hasMoreGroups"
+            :loading-more-groups="isLoading || loadingMoreGroups"
             :active-group-id="activeGroup?.id"
             :can-manage="canManage"
             :current-user-name="currentUserName"
             @select-group="handleSelectGroup"
+            @load-more-groups="loadMoreGroups"
             @select="handleSelectChannel"
             @create-channel="handleCreateChannel"
             @edit-channel="handleEditChannel"
             @delete-channel="handleDeleteChannel"
             @toggle-mute="handleToggleChannelMute"
+            :is-mute-pending="isMutePending"
             @invite-members="openInviteDialog"
             @notification-settings="openNotificationSettings"
             @settings="openGroupSettings"
@@ -1402,7 +2098,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <Dialog v-model:open="createChannelDialogOpen">
+    <Dialog :open="createChannelDialogOpen" @update:open="open => { if (!channelWriteBusy) createChannelDialogOpen = open; }">
       <DialogContent
         class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-md"
       >
@@ -1415,20 +2111,20 @@ onBeforeUnmount(() => {
             >
               <Hash class="h-4 w-4" />
             </span>
-            {{ t('chat.dialogs.createChannel.title') }}
+            {{ t(editingChannelId === null ? 'chat.dialogs.createChannel.title' : 'chat.actions.editChannel') }}
           </DialogTitle>
           <DialogDescription class="text-xs text-muted-foreground">
             {{
-              t('chat.dialogs.createChannel.description', {
-                category: createChannelCategoryName
-              })
+              editingChannelId === null
+                ? t('chat.dialogs.createChannel.description', { category: channelCategory || t('chat.defaultCategoryName') })
+                : t('chat.dialogs.createChannel.editDescription')
             }}
           </DialogDescription>
         </DialogHeader>
 
         <form
           class="grid gap-4 px-5 py-4"
-          @submit.prevent="submitCreateChannel"
+          @submit.prevent="submitChannel"
         >
           <div class="grid gap-2">
             <Label
@@ -1441,11 +2137,24 @@ onBeforeUnmount(() => {
               id="create-channel-name"
               v-model="createChannelName"
               :placeholder="t('chat.prompts.channelName')"
-              :disabled="isCreatingChannel"
-              maxlength="64"
+              :disabled="channelWriteBusy"
               autocomplete="off"
               class="h-9 shadow-xs"
             />
+            <p v-if="channelNameBytes > 100" class="text-xs text-destructive">
+              {{ t('chat.dialogs.createChannel.byteLimit', { max: 100 }) }}
+            </p>
+          </div>
+          <div class="grid gap-2">
+            <Label for="chat-channel-category">{{ t('chat.dialogs.createChannel.categoryLabel') }}</Label>
+            <Input id="chat-channel-category" v-model="channelCategory" :disabled="channelWriteBusy" />
+            <p v-if="channelCategoryBytes > 50" class="text-xs text-destructive">
+              {{ t('chat.dialogs.createChannel.byteLimit', { max: 50 }) }}
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <Switch id="chat-channel-private" v-model="channelPrivate" :disabled="channelWriteBusy" />
+            <Label for="chat-channel-private">{{ t('chat.dialogs.createChannel.privateLabel') }}</Label>
           </div>
 
           <DialogFooter
@@ -1456,7 +2165,7 @@ onBeforeUnmount(() => {
               variant="outline"
               size="sm"
               class="h-9 rounded-md shadow-xs"
-              :disabled="isCreatingChannel"
+              :disabled="channelWriteBusy"
               @click="createChannelDialogOpen = false"
             >
               {{ t('common.cancel') }}
@@ -1468,13 +2177,13 @@ onBeforeUnmount(() => {
               :disabled="!canSubmitCreateChannel"
             >
               <Loader2
-                v-if="isCreatingChannel"
+                v-if="channelWriteBusy"
                 class="h-3.5 w-3.5 animate-spin"
               />
               {{
-                isCreatingChannel
+                channelWriteBusy
                   ? t('common.processing')
-                  : t('common.create')
+                  : t(editingChannelId === null ? 'common.create' : 'common.submit')
               }}
             </Button>
           </DialogFooter>
@@ -1482,7 +2191,7 @@ onBeforeUnmount(() => {
       </DialogContent>
     </Dialog>
 
-    <Dialog v-model:open="inviteDialogOpen">
+    <Dialog :open="inviteDialogOpen" @update:open="value => { if (!isCreatingInvite) inviteDialogOpen = value; }">
       <DialogContent
         class="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-2xl"
       >
@@ -1527,7 +2236,7 @@ onBeforeUnmount(() => {
                   class="h-9 pl-9 shadow-xs"
                   :placeholder="t('chat.invite.searchPlaceholder')"
                   autocomplete="off"
-                  @input="handleInviteSearchInput"
+                  :disabled="isCreatingInvite || inviteResultUnknown"
                 />
               </div>
               <p class="text-[11px] text-muted-foreground">
@@ -1562,6 +2271,7 @@ onBeforeUnmount(() => {
                 variant="ghost"
                 size="sm"
                 class="h-8 rounded-md"
+                :disabled="isCreatingInvite || inviteResultUnknown"
                 @click="selectedInvitee = null"
               >
                 {{ t('chat.invite.clearSelection') }}
@@ -1599,6 +2309,7 @@ onBeforeUnmount(() => {
                   :key="user.id"
                   variant="ghost"
                   class="h-auto w-full justify-start gap-3 rounded-md p-2 text-left"
+                  :disabled="isCreatingInvite || inviteResultUnknown"
                   :class="{
                     'bg-muted': selectedInvitee?.id === user.id
                   }"
@@ -1663,7 +2374,7 @@ onBeforeUnmount(() => {
                   type="number"
                   min="1"
                   class="h-9 shadow-xs"
-                  :disabled="!!selectedInvitee"
+                  :disabled="pendingInvitee !== null || isCreatingInvite || inviteResultUnknown"
                 />
               </div>
               <div class="grid gap-2">
@@ -1679,6 +2390,7 @@ onBeforeUnmount(() => {
                   type="number"
                   min="1"
                   class="h-9 shadow-xs"
+                  :disabled="isCreatingInvite || inviteResultUnknown"
                 />
               </div>
             </div>
@@ -1696,9 +2408,13 @@ onBeforeUnmount(() => {
                 class="min-h-24 resize-none shadow-xs"
                 :placeholder="t('chat.invite.messagePlaceholder')"
                 maxlength="200"
+                :disabled="isCreatingInvite || inviteResultUnknown"
               />
             </div>
 
+            <p v-if="inviteResultUnknown" role="alert" class="text-sm text-destructive">
+              {{ t('chat.invite.resultUnknown') }}
+            </p>
             <section
               v-if="createdInvite"
               class="rounded-lg border border-emerald-200/60 bg-emerald-50/40 p-3 shadow-none dark:border-emerald-900/40 dark:bg-emerald-950/20"
@@ -1751,7 +2467,7 @@ onBeforeUnmount(() => {
             type="button"
             size="sm"
             class="h-9 rounded-md shadow-xs"
-            :disabled="isCreatingInvite || !activeGroup"
+            :disabled="isCreatingInvite || isSearchingInviteUsers || !activeGroup || inviteResultUnknown || pendingInvitee === undefined"
             @click="submitInvite"
           >
             <Loader2
@@ -1761,7 +2477,7 @@ onBeforeUnmount(() => {
             {{
               isCreatingInvite
                 ? t('common.processing')
-                : selectedInvitee
+                : pendingInvitee !== null
                   ? t('chat.invite.sendInvite')
                   : t('chat.invite.createLink')
             }}
@@ -1841,6 +2557,7 @@ onBeforeUnmount(() => {
               </div>
               <Switch
                 :model-value="!!channel.isMuted"
+                :disabled="isMutePending(channel.id)"
                 @update:model-value="
                   () => handleToggleChannelMute(channel.id)
                 "
@@ -1970,6 +2687,9 @@ onBeforeUnmount(() => {
           <div class="relative min-h-0 flex-1">
             <ScrollArea class="h-full">
               <div class="min-h-full px-4 py-4">
+                <Button v-if="hasOlderDirectMessages && !isLoadingDirectMessages" variant="outline" size="sm" class="mb-3" :disabled="loadingOlderDirectMessages" @click="loadOlderDirectMessages">
+                  {{ t('chat.directMessage.loadOlder') }}
+                </Button>
                 <div
                   v-if="isLoadingDirectMessages"
                   class="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground"
@@ -2014,6 +2734,9 @@ onBeforeUnmount(() => {
                         :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
                       >
                         {{ new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+                        <button v-if="canDeleteDirectMessage(message)" type="button" class="ml-2 underline underline-offset-2" @click="requestDirectDelete(message)">
+                          {{ t('chat.actions.deleteMessage') }}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -2046,20 +2769,26 @@ onBeforeUnmount(() => {
         <ChatRoom
           v-else-if="activeChannel"
           :channel="activeChannel"
+          :mute-pending="isMutePending(activeChannel.id)"
           :messages="messages"
           :members="members"
           :pinned-messages="pinnedMessages"
           :can-manage="canManage"
           :is-loading="isLoadingMessages"
+          :message-load-failed="failedMessageLoad !== null"
           :is-sending="isSending"
           :current-user-id="currentUserId"
           :direct-messages="directMessages"
           :is-loading-direct-messages="isLoadingDirectMessages"
+          :has-older-direct-messages="hasOlderDirectMessages"
+          :loading-older-direct-messages="loadingOlderDirectMessages"
           :is-sending-direct-message="isSendingDirectMessage"
           :channels="chatChannels"
           :show-mobile-navigation-toggle="true"
-          @send="handleSendMessage"
+          :composer-revision="channelComposerRevision"
+          :send-message="handleSendMessage"
           @load-more="handleLoadMore"
+          @retry-history="retryChannelHistory"
           @react="handleReact"
           @edit="handleEditMessage"
           @delete="handleDeleteMessage"
@@ -2070,14 +2799,17 @@ onBeforeUnmount(() => {
           @view-profile="openMemberProfile"
           @open-direct-message="handleOpenDirectMessage"
           @open-direct-message-standalone="handleOpenDirectMessageStandalone"
-          @send-direct-message="handleSendDirectMessage"
+          :send-direct-message="handleSendDirectMessage"
+          @delete-direct-message="requestDirectDelete"
+          @load-older-direct-messages="loadOlderDirectMessages"
         />
 
         <div
           v-else
           class="h-full flex items-center justify-center text-muted-foreground"
         >
-          {{ t('chat.empty.noChannels') }}
+          {{ t(loadingGroupChannels ? 'common.loading' : channelLoadFailed
+            ? 'chat.feedback.loadChannelsFailed' : 'chat.empty.noChannels') }}
         </div>
       </template>
     </div>

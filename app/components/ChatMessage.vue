@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import PrivateMediaDownload from '@/components/PrivateMediaDownload.vue';
+import { isPrivateMediaContent } from '@/utils/private-media';
 import {
   MoreHorizontal,
   Reply,
@@ -90,6 +92,16 @@ const emit = defineEmits<{
   (e: 'copy', content: string): void;
   (e: 'view-profile', userId: number): void;
 }>();
+
+const privateAttachments = computed(() =>
+  props.message.attachments?.filter(asset => isPrivateMediaContent(asset.id, asset.url)) ?? []
+);
+const publicImages = computed(() =>
+  props.message.attachments?.filter(asset => asset.type === 'image' && !isPrivateMediaContent(asset.id, asset.url)) ?? []
+);
+const publicFiles = computed(() =>
+  props.message.attachments?.filter(asset => asset.type === 'file' && !isPrivateMediaContent(asset.id, asset.url)) ?? []
+);
 
 const roleIcon = computed(() => {
   switch (props.message.author.role) {
@@ -304,11 +316,11 @@ const handleViewProfile = () => {
 
         <!-- 图片附件 -->
         <div
-          v-if="message.attachments?.some(a => a.type === 'image')"
+          v-if="publicImages.length"
           class="mt-1.5 flex flex-wrap gap-1.5"
         >
           <img
-            v-for="attachment in message.attachments.filter(a => a.type === 'image')"
+            v-for="attachment in publicImages"
             :key="attachment.id"
             :src="attachment.url"
             :alt="attachment.name"
@@ -318,11 +330,11 @@ const handleViewProfile = () => {
 
         <!-- 文件附件 -->
         <div
-          v-if="message.attachments?.some(a => a.type === 'file')"
+          v-if="publicFiles.length || privateAttachments.length"
           class="mt-1.5 space-y-1"
         >
           <a
-            v-for="attachment in message.attachments.filter(a => a.type === 'file')"
+            v-for="attachment in publicFiles"
             :key="attachment.id"
             :href="attachment.url"
             target="_blank"
@@ -344,6 +356,13 @@ const handleViewProfile = () => {
               </div>
             </div>
           </a>
+          <PrivateMediaDownload
+            v-for="attachment in privateAttachments"
+            :key="attachment.id"
+            :media-id="attachment.id"
+            :file-name="attachment.name"
+            class="max-w-sm"
+          />
         </div>
 
         <!-- 表情反应 -->
@@ -454,7 +473,7 @@ const handleViewProfile = () => {
             </DropdownMenuItem>
             <DropdownMenuSeparator v-if="isOwn || message.canDelete" />
             <DropdownMenuItem
-              v-if="isOwn"
+              v-if="isOwn && message.type === 'text'"
               @click="emit('edit', message)"
             >
               <Edit3 class="h-4 w-4" />

@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import ModerationAdvicePanel from './ModerationAdvicePanel.vue';
 import type {
   ModerationReportReason,
   ModerationTweet
@@ -191,21 +192,18 @@ const nextImage = () => {
 const handleApprove = () => {
   if (props.tweet) {
     emit('approve', props.tweet.id, moderationNote.value);
-    emit('update:open', false);
   }
 };
 
 const handleReject = () => {
   if (props.tweet) {
     emit('reject', props.tweet.id, moderationNote.value);
-    emit('update:open', false);
   }
 };
 
 const handleFlag = () => {
   if (props.tweet) {
     emit('flag', props.tweet.id, moderationNote.value);
-    emit('update:open', false);
   }
 };
 
@@ -467,6 +465,13 @@ const closeDialog = () => {
               </div>
             </div>
           </div>
+
+          <ModerationAdvicePanel
+            v-if="open"
+            :key="tweet.id"
+            kind="post"
+            :target-id="tweet.id"
+          />
 
           <div>
             <Label

@@ -61,6 +61,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'vue-sonner';
 import GroupAvatarCropDialog from './GroupAvatarCropDialog.vue';
+import GroupDraftPanel from './GroupDraftPanel.vue';
+import { canUseGroupDrafts } from '@/utils/group-draft-access';
 import {
   approveGroupMember,
   changeGroupMemberRole,
@@ -76,6 +78,7 @@ import {
   updateGroup
 } from '@/services/groups';
 import { v2UploadMedia } from '@/services';
+import { authQueueFor } from '@/services/auth-request-queue';
 import type {
   Group,
   GroupCategory,
@@ -102,10 +105,28 @@ const emit = defineEmits<{
 }>();
 
 const { t, locale } = useAppLocale();
+const app = useNuxtApp();
+const auth = authQueueFor(app);
 
 const activeTab = ref('settings');
+const canOpenAuditLogs = computed(() => props.group?.membershipStatus === 'active' &&
+  ['owner', 'admin', 'moderator'].includes(props.group.membershipRole || ''));
+watch(canOpenAuditLogs, allowed => {
+  if (!allowed && activeTab.value === 'audit') activeTab.value = 'settings';
+});
+const canOpenGroupDrafts = computed(() => canUseGroupDrafts(props.group));
+watch(canOpenGroupDrafts, allowed => {
+  if (!allowed && activeTab.value === 'ai') activeTab.value = 'settings';
+});
 const members = shallowRef<GroupMember[]>([]);
+const memberPage = ref(0);
+const hasMoreMembers = ref(false);
+let memberRequest: AbortController | undefined;
 const invites = shallowRef<V2GroupInvite[]>([]);
+const invitePage = ref(1);
+const hasMoreInvites = ref(false);
+const inviteLoadFailed = ref(false);
+let inviteRequest: AbortController | undefined;
 const memberSearch = ref('');
 const deleteConfirm = ref('');
 const inviteMaxUses = ref(100);
@@ -198,7 +219,7 @@ const canModerateMembers = computed(
     props.group?.membershipRole === 'moderator'
 );
 const canTransferOwnership = computed(
-  () => props.group?.isOwner === true
+  () => props.group?.isOwner === true && props.group.membershipStatus === 'active'
 );
 
 const pendingMembers = computed(() =>
@@ -284,36 +305,78 @@ async function refreshGroup(): Promise<void> {
   emit('updated', updated);
 }
 
-async function loadMembers(): Promise<void> {
-  if (!props.group) return;
+function clearMembers() {
+  memberRequest?.abort();
+  memberRequest = undefined;
+  members.value = [];
+  memberPage.value = 0;
+  hasMoreMembers.value = false;
+  loadingMembers.value = false;
+}
+
+async function loadMembers(append = false): Promise<void> {
+  const groupId = props.group?.id;
+  if (!props.open || !groupId || auth.isIdentityChanging) return;
+  if (append && (loadingMembers.value || !hasMoreMembers.value)) return;
+  if (!append) clearMembers();
+  const request = new AbortController();
+  const revision = auth.revision;
+  const page = memberPage.value + 1;
+  const stillCurrent = () => memberRequest === request && auth.revision === revision &&
+    props.open && props.group?.id === groupId;
+  memberRequest = request;
   loadingMembers.value = true;
   try {
-    members.value = await listGroupMembers(props.group.id);
+    const result = await app.runWithContext(() => listGroupMembers(groupId, page, request.signal));
+    if (!stillCurrent()) return;
+    const byId = new Map(members.value.map(member => [member.id, member]));
+    for (const member of result.members) byId.set(member.id, member);
+    members.value = [...byId.values()];
+    memberPage.value = page;
+    hasMoreMembers.value = result.hasNext;
   } catch (error) {
+    if (!stillCurrent()) return;
     toast.error(t('groups.manage.feedback.loadMembersFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    loadingMembers.value = false;
+    if (stillCurrent()) loadingMembers.value = false;
   }
 }
 
-async function loadInvites(): Promise<void> {
-  if (!props.group || !canModerateMembers.value) {
-    invites.value = [];
-    return;
-  }
+function clearInvites() {
+  inviteRequest?.abort();
+  inviteRequest = undefined;
+  invites.value = [];
+  invitePage.value = 1;
+  hasMoreInvites.value = false;
+  inviteLoadFailed.value = false;
+  loadingInvites.value = false;
+}
+
+async function loadInvites(page = 1): Promise<void> {
+  const groupId = props.group?.id;
+  clearInvites();
+  if (!props.open || !groupId || props.group?.membershipStatus !== 'active' ||
+      !canModerateMembers.value || auth.isIdentityChanging) return;
+  const request = new AbortController();
+  const revision = auth.revision;
+  const current = () => inviteRequest === request && auth.revision === revision &&
+    props.open && props.group?.id === groupId;
+  inviteRequest = request;
+  invitePage.value = page;
   loadingInvites.value = true;
   try {
-    invites.value = await listGroupInvites(props.group.id);
-  } catch (error) {
-    toast.error(t('groups.manage.feedback.loadInvitesFailed'), {
-      description:
-        error instanceof Error ? error.message : undefined
-    });
+    const result = await app.runWithContext(() => listGroupInvites(groupId, page, request.signal));
+    if (!current()) return;
+    if (result.items.some(invite => invite.group?.group_id !== groupId)) throw Error('Invalid invite scope');
+    invites.value = result.items;
+    hasMoreInvites.value = result.meta?.has_next === true;
+  } catch {
+    if (current()) inviteLoadFailed.value = true;
   } finally {
-    loadingInvites.value = false;
+    if (current()) loadingInvites.value = false;
   }
 }
 
@@ -322,13 +385,26 @@ async function reloadManagementData(): Promise<void> {
 }
 
 watch(
-  () => [props.open, props.group?.id] as const,
-  async ([isOpen]) => {
-    if (!isOpen || !props.group) return;
+  () => [props.open, props.group?.id, props.group?.membershipRole, props.group?.membershipStatus] as const,
+  async ([isOpen, groupId], previous) => {
+    if (!isOpen || !props.group) {
+      clearMembers();
+      clearInvites();
+      return;
+    }
+    if (previous?.[0] && groupId === previous[1]) {
+      await reloadManagementData();
+      return;
+    }
     resetForm(props.group);
     await reloadManagementData();
-  }
+  },
+  { immediate: true }
 );
+const stopManagementSessionListener = auth.subscribe(() => {
+  clearMembers();
+  clearInvites();
+});
 
 function updatePrivacy(value: unknown): void {
   const next = String(value);
@@ -446,7 +522,7 @@ async function uploadGroupImage(
   body.append('file', file);
   body.append('alt_text', altText || file.name);
   const media = await v2UploadMedia(body);
-  return normalizeAssetUrl(media.public_url);
+  return media.public_url;
 }
 
 function revokeObjectUrl(url: string | null): void {
@@ -773,6 +849,7 @@ async function createInvite(): Promise<void> {
 }
 
 async function copyInvite(invite: V2GroupInvite): Promise<void> {
+  if (!invite.is_valid || invite.invitee) return;
   const url = inviteUrl(invite);
   if (!url) return;
   await copyText(url);
@@ -801,6 +878,9 @@ async function deleteCurrentGroup(): Promise<void> {
 }
 
 onBeforeUnmount(() => {
+  stopManagementSessionListener();
+  clearMembers();
+  clearInvites();
   closeAvatarCropDialog();
 });
 </script>
@@ -861,7 +941,7 @@ onBeforeUnmount(() => {
         >
           <div class="overflow-x-auto border-b border-border/60 px-4 pt-4 pb-3 sm:px-5">
             <TabsList
-              class="grid w-max min-w-full grid-cols-4 shadow-xs sm:w-full"
+              class="flex w-max min-w-full shadow-xs sm:w-full [&>*]:flex-1"
             >
               <TabsTrigger value="settings" class="text-xs font-medium">
                 {{ t('groups.manage.tabs.settings') }}
@@ -871,6 +951,12 @@ onBeforeUnmount(() => {
               </TabsTrigger>
               <TabsTrigger value="invites" class="text-xs font-medium">
                 {{ t('groups.manage.tabs.invites') }}
+              </TabsTrigger>
+              <TabsTrigger v-if="canOpenGroupDrafts" value="ai" class="text-xs font-medium">
+                {{ t('aiGroupDraft.title') }}
+              </TabsTrigger>
+              <TabsTrigger v-if="canOpenAuditLogs" value="audit" class="text-xs font-medium">
+                {{ t('groups.audit.title') }}
               </TabsTrigger>
               <TabsTrigger value="danger" class="text-xs font-medium">
                 {{ t('groups.manage.tabs.danger') }}
@@ -1033,7 +1119,7 @@ onBeforeUnmount(() => {
                         <Avatar class="h-16 w-16 ring-1 ring-border">
                           <AvatarImage
                             v-if="form.avatar"
-                            :src="form.avatar"
+                            :src="normalizeAssetUrl(form.avatar)"
                           />
                           <AvatarFallback
                             class="bg-primary/10 text-base font-semibold text-primary"
@@ -1132,7 +1218,7 @@ onBeforeUnmount(() => {
                       >
                         <img
                           v-if="form.coverImage"
-                          :src="form.coverImage"
+                          :src="normalizeAssetUrl(form.coverImage)"
                           :alt="form.name"
                           class="h-full w-full object-cover"
                         >
@@ -1301,7 +1387,7 @@ onBeforeUnmount(() => {
                     variant="outline"
                     class="h-9 w-full rounded-md shadow-xs sm:w-auto"
                     :disabled="loadingMembers"
-                    @click="loadMembers"
+                    @click="loadMembers()"
                   >
                     <RefreshCw
                       :class="[
@@ -1399,7 +1485,8 @@ onBeforeUnmount(() => {
                       <button
                         v-if="
                           canTransferOwnership &&
-                          member.role !== 'owner'
+                          member.role !== 'owner' &&
+                          member.status === 'active'
                         "
                         type="button"
                         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-amber-500 transition hover:bg-amber-500/10 hover:text-amber-600 disabled:opacity-50"
@@ -1439,6 +1526,10 @@ onBeforeUnmount(() => {
                     </span>
                     {{ t('groups.manage.emptyMembers') }}
                   </div>
+                  <Button v-if="hasMoreMembers" variant="outline" class="w-full"
+                    :disabled="loadingMembers || !!actionKey" @click="loadMembers(true)">
+                    {{ t('common.loadMore') }}
+                  </Button>
                 </div>
               </TabsContent>
 
@@ -1515,7 +1606,7 @@ onBeforeUnmount(() => {
                         <span
                           class="break-all rounded-md bg-muted/40 px-2 py-0.5 font-mono text-xs"
                         >
-                          {{ invite.invite_code || '-' }}
+                          {{ invite.invitee ? '@' + invite.invitee.username : invite.invite_code || '-' }}
                         </span>
                         <span :class="invitePillClass(invite.is_valid)">
                           {{ invite.status }}
@@ -1544,7 +1635,7 @@ onBeforeUnmount(() => {
                         :title="
                           t('groups.manage.actions.copyInvite')
                         "
-                        :disabled="!invite.invite_code"
+                        :disabled="!invite.is_valid || !!invite.invitee || !invite.invite_code"
                         @click="copyInvite(invite)"
                       >
                         <Copy class="h-3.5 w-3.5" />
@@ -1553,7 +1644,7 @@ onBeforeUnmount(() => {
                   </div>
 
                   <div
-                    v-if="!loadingInvites && invites.length === 0"
+                    v-if="!loadingInvites && !inviteLoadFailed && invites.length === 0"
                     class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-10 text-sm text-muted-foreground"
                   >
                     <span
@@ -1563,7 +1654,21 @@ onBeforeUnmount(() => {
                     </span>
                     {{ t('groups.manage.invites.empty') }}
                   </div>
+                  <p v-if="loadingInvites" role="status" class="text-sm text-muted-foreground">{{ t('common.loading') }}</p>
+                  <p v-else-if="inviteLoadFailed" role="alert" class="text-sm text-destructive">{{ t('groups.manage.feedback.loadInvitesFailed') }}</p>
+                  <div v-if="!loadingInvites" class="flex flex-wrap gap-2">
+                    <Button v-if="inviteLoadFailed" variant="outline" @click="loadInvites(invitePage)">{{ t('common.retry') }}</Button>
+                    <Button v-if="invitePage > 1" variant="outline" @click="loadInvites(invitePage - 1)">{{ t('groups.audit.previous') }}</Button>
+                    <Button v-if="hasMoreInvites" variant="outline" @click="loadInvites(invitePage + 1)">{{ t('groups.audit.next') }}</Button>
+                  </div>
                 </div>
+              </TabsContent>
+
+              <TabsContent v-if="canOpenGroupDrafts" value="ai" class="mt-0">
+                <GroupDraftPanel v-if="open && activeTab === 'ai' && canOpenGroupDrafts" :key="group.id" :group-id="group.id" />
+              </TabsContent>
+              <TabsContent v-if="canOpenAuditLogs" value="audit" class="mt-0">
+                <GroupAuditLogPanel v-if="open && activeTab === 'audit'" :key="group.id" :group-id="group.id" />
               </TabsContent>
 
               <TabsContent value="danger" class="mt-0 grid gap-4">

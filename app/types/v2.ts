@@ -271,18 +271,18 @@ export interface V2AvatarData {
 
 export interface V2UserSettings {
   user_id: number;
-  two_factor_enabled?: boolean;
+  two_factor_enabled: boolean;
   login_alerts: boolean;
   profile_visibility: string;
-  show_online_status?: boolean;
-  allow_dm_from_strangers?: boolean;
-  push_notification_enabled?: boolean;
-  email_notification_enabled?: boolean;
-  ai_sentiment_enabled?: boolean;
-  ai_sentiment_model_id?: string | null;
-  ai_sentiment_return_probabilities?: boolean;
-  ai_sentiment_include_metadata?: boolean;
-  ai_sentiment_top_k?: number;
+  show_online_status: boolean;
+  allow_dm_from_strangers: boolean;
+  push_notification_enabled: boolean;
+  email_notification_enabled: boolean;
+  ai_sentiment_enabled: boolean;
+  ai_sentiment_model_id: string | null;
+  ai_sentiment_return_probabilities: boolean;
+  ai_sentiment_include_metadata: boolean;
+  ai_sentiment_top_k: number;
   updated_at: string;
 }
 
@@ -594,6 +594,24 @@ export interface V2BookmarkPostData {
   is_bookmarked: boolean;
 }
 
+export interface V2TagAnalytics {
+  name: string;
+  total_posts: number;
+  total_authors: number;
+  total_views: number;
+  total_likes: number;
+  engagement_score: number;
+}
+
+export interface V2TagItem {
+  tag_id: number;
+  name: string;
+  usage_count: number;
+  trending_score: number;
+  is_trending: number;
+  updated_at: string;
+}
+
 export interface V2PostAnalytics {
   post_id: number;
   views_count: number;
@@ -803,6 +821,7 @@ export interface V2GroupPost {
 }
 
 export interface V2CreateGroupPostPayload {
+  is_announcement?: boolean;
   content: string;
   media_urls?: string[];
 }
@@ -898,6 +917,18 @@ export interface V2InviteResponseData {
   group_id: number;
 }
 
+export interface V2GroupAuditEntry {
+  log_id: number;
+  group_id: number;
+  actor_id: number;
+  target_user_id: number | null;
+  target_post_id: number | null;
+  target_comment_id: number | null;
+  action: string;
+  created_at: string;
+  details: V2Json;
+}
+
 export interface V2GroupNotificationPreference {
   user_id: number;
   group_id: number;
@@ -956,6 +987,10 @@ export interface V2GroupPostListQuery extends V2PageQuery {
 
 export interface V2GroupInviteListQuery extends V2PageQuery {
   status?: string;
+}
+
+export interface V2MyGroupInviteListQuery extends V2PageQuery {
+  invite_id?: number;
 }
 
 export interface V2ChatGroup {

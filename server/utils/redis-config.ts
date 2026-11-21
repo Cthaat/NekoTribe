@@ -1,4 +1,5 @@
 import { useRuntimeConfig } from '#imports';
+import { isIP } from 'node:net';
 import type { RedisOptions } from 'ioredis';
 
 function pickRuntimeValue(
@@ -9,8 +10,8 @@ function pickRuntimeValue(
   const runtimeValue =
     process.env[nuxtKey] ?? process.env[legacyKey];
 
-  if (typeof runtimeValue === 'string' && runtimeValue) {
-    return runtimeValue;
+  if (typeof runtimeValue === 'string') {
+    return runtimeValue || undefined;
   }
 
   if (typeof fallback === 'string' && fallback) {
@@ -22,10 +23,20 @@ function pickRuntimeValue(
 
 function parseInteger(
   value: string | undefined,
-  defaultValue: number
+  defaultValue: number,
+  minimum: number
 ): number {
-  const parsed = Number.parseInt(value ?? '', 10);
-  return Number.isFinite(parsed) ? parsed : defaultValue;
+  if (!value) return defaultValue;
+  const parsed = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(parsed) || parsed < minimum || parsed > 65535) {
+    throw Error('Invalid Redis configuration');
+  }
+  return parsed;
+}
+
+function unbracketIPv6(host: string): string {
+  const address = host.slice(1, -1);
+  return host.startsWith('[') && host.endsWith(']') && isIP(address) === 6 ? address : host;
 }
 
 function applyRedisUrl(
@@ -38,18 +49,18 @@ function applyRedisUrl(
 
   try {
     const parsedUrl = new URL(normalizedUrl);
-
-    if (parsedUrl.hostname) {
-      options.host = parsedUrl.hostname;
+    if (!['redis:', 'rediss:'].includes(parsedUrl.protocol) || !parsedUrl.hostname || parsedUrl.hash) {
+      throw Error('Invalid Redis configuration');
     }
+    options.host = unbracketIPv6(parsedUrl.hostname);
 
     if (parsedUrl.port) {
-      options.port = parseInteger(parsedUrl.port, 6379);
+      options.port = parseInteger(parsedUrl.port, 6379, 1);
     }
 
     const db = parsedUrl.pathname.replace(/^\/+/, '');
     if (db) {
-      options.db = parseInteger(db, 0);
+      options.db = parseInteger(db, 0, 0);
     }
 
     if (parsedUrl.username) {
@@ -63,8 +74,9 @@ function applyRedisUrl(
         parsedUrl.password
       );
     }
+    if (parsedUrl.protocol === 'rediss:') options.tls = { minVersion: 'TLSv1.2' };
   } catch {
-    options.host = redisUrl;
+    throw Error('Invalid Redis configuration');
   }
 }
 
@@ -102,12 +114,15 @@ export function resolveRedisOptions(): RedisOptions {
     applyRedisUrl(redisUrl, options);
   }
 
-  options.host = redisHost || options.host || '127.0.0.1';
+  options.host = unbracketIPv6(redisHost || options.host || '127.0.0.1');
+  if (/[\s/@?#]/.test(options.host)) throw Error('Invalid Redis configuration');
+  if (options.tls && !isIP(options.host)) options.tls.servername = options.host;
   options.port = parseInteger(
     redisPort,
-    options.port ?? 6379
+    options.port ?? 6379,
+    1
   );
-  options.db = parseInteger(redisDb, options.db ?? 0);
+  options.db = parseInteger(redisDb, options.db ?? 0, 0);
 
   if (redisPassword) {
     options.password = redisPassword;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
   Users,
   Settings,
@@ -15,7 +15,8 @@ import {
 } from 'lucide-vue-next';
 import {
   Dialog,
-  DialogContent
+  DialogContent,
+  DialogTitle
 } from '@/components/ui/dialog';
 import {
   Tabs,
@@ -37,6 +38,7 @@ import {
   changeGroupMemberRole,
   getGroup,
   getGroupNotificationPreference,
+  groupMembershipAction,
   muteGroupMember,
   removeGroupMember,
   setGroupNotificationPreference,
@@ -55,6 +57,8 @@ const props = defineProps<{
   group: Group | null;
   members?: GroupMember[];
   posts?: GroupPost[];
+  loading?: boolean;
+  error?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -65,9 +69,12 @@ const emit = defineEmits<{
   (e: 'invite', id: number): void;
   (e: 'updated', group: Group): void;
   (e: 'members-updated', id: number): void;
+  (e: 'retry'): void;
 }>();
 
 const activeTab = ref('about');
+const activeMember = computed(() => props.group?.membershipStatus === 'active');
+const membershipAction = computed(() => props.group && groupMembershipAction(props.group));
 
 const notificationsEnabled = ref(true);
 const notificationLoading = ref(false);
@@ -84,21 +91,24 @@ watch(
 );
 
 watch(
-  () => [props.open, props.group?.id] as const,
-  async ([isOpen, groupId]) => {
-    if (!isOpen || !groupId || !props.group?.isMember) {
-      notificationsEnabled.value = true;
+  () => [props.open, props.group?.id, activeMember.value] as const,
+  async ([isOpen, groupId, isActive], _, onCleanup) => {
+    let current = true;
+    onCleanup(() => { current = false; });
+    notificationsEnabled.value = true;
+    notificationLoading.value = false;
+    if (!isOpen || !groupId || !isActive) {
       return;
     }
     notificationLoading.value = true;
     try {
       const preference =
         await getGroupNotificationPreference(groupId);
-      notificationsEnabled.value = preference.is_enabled;
+      if (current) notificationsEnabled.value = preference.is_enabled;
     } catch {
-      notificationsEnabled.value = true;
+      if (current) notificationsEnabled.value = true;
     } finally {
-      notificationLoading.value = false;
+      if (current) notificationLoading.value = false;
     }
   },
   { immediate: true }
@@ -147,9 +157,9 @@ const formatDate = (dateStr: string) => {
 
 const handleJoinLeave = () => {
   if (!props.group) return;
-  if (props.group.isMember) {
+  if (membershipAction.value?.event === 'leave') {
     emit('leave', props.group.id);
-  } else {
+  } else if (membershipAction.value?.event === 'join') {
     emit('join', props.group.id);
   }
 };
@@ -371,11 +381,11 @@ const handleTabChange = (value: string | number) => {
               </AvatarFallback>
             </Avatar>
             <div class="min-w-0 flex-1 pb-1">
-              <h2
+              <DialogTitle
                 class="truncate text-xl font-semibold tracking-tight"
               >
                 {{ group.name }}
-              </h2>
+              </DialogTitle>
               <div
                 class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
               >
@@ -403,23 +413,17 @@ const handleTabChange = (value: string | number) => {
             class="mobile-action-row mt-4 sm:flex-nowrap"
           >
             <Button
-              v-if="!group.isOwner"
+              v-if="membershipAction"
               :variant="
-                group.isMember ? 'outline' : 'default'
+                membershipAction.event === 'leave' ? 'outline' : 'default'
               "
               class="h-9 w-full rounded-md shadow-xs sm:w-auto"
               @click="handleJoinLeave"
             >
-              {{
-                group.isMember
-                  ? t('groups.actions.leave')
-                  : group.privacy === 'public'
-                    ? t('groups.actions.join')
-                    : t('groups.actions.requestJoin')
-              }}
+              {{ t(`groups.actions.${membershipAction.label}`) }}
             </Button>
             <Button
-              v-if="group.isMember"
+              v-if="activeMember"
               variant="outline"
               class="h-9 w-full rounded-md shadow-xs sm:w-auto"
               @click="handleInvite"
@@ -428,7 +432,7 @@ const handleTabChange = (value: string | number) => {
               {{ t('groups.actions.invite') }}
             </Button>
             <button
-              v-if="group.isMember"
+              v-if="activeMember"
               type="button"
               class="flex h-9 w-9 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
               :disabled="notificationLoading || notificationSaving"
@@ -659,6 +663,7 @@ const handleTabChange = (value: string | number) => {
                 :key="post.id"
                 :post="post"
                 :can-manage="group.isOwner || group.isAdmin"
+                read-only
                 @comment="openPostComments"
                 @report="openPostReport"
               />
@@ -697,6 +702,14 @@ const handleTabChange = (value: string | number) => {
           </ScrollArea>
         </Tabs>
       </template>
+      <div v-else class="grid gap-3 p-6">
+        <DialogTitle>{{ t('groups.title') }}</DialogTitle>
+        <p v-if="loading" role="status">{{ t('common.loading') }}</p>
+        <div v-else-if="error" class="grid justify-items-start gap-2">
+          <p role="alert">{{ error }}</p>
+          <Button variant="outline" @click="emit('retry')">{{ t('common.retry') }}</Button>
+        </div>
+      </div>
     </DialogContent>
   </Dialog>
 </template>

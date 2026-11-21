@@ -5,12 +5,14 @@ import GroupList from '@/components/GroupList.vue';
 import GroupDetailModal from '@/components/GroupDetailModal.vue';
 import CreateGroupModal from '@/components/CreateGroupModal.vue';
 import GroupManageModal from '@/components/GroupManageModal.vue';
+import { authQueueFor } from '@/services/auth-request-queue';
 import type {
   CreateGroupData,
   Group,
   GroupFiltersData
 } from '@/types/groups';
 const { t } = useAppLocale();
+const auth = authQueueFor(useNuxtApp());
 
 const filters = ref<GroupFiltersData>({
   search: '',
@@ -35,14 +37,6 @@ const selectedGroup = groupDetail.selectedGroup;
 const members = groupDetail.members;
 const posts = groupDetail.posts;
 
-function syncSelectedGroup(groupId: number): void {
-  if (selectedGroup.value?.id !== groupId) return;
-  const updated = groups.value.find(
-    group => group.id === groupId
-  );
-  if (updated) selectedGroup.value = updated;
-}
-
 onMounted(() => {
   void groupList.refresh();
 });
@@ -52,11 +46,14 @@ watch(detailModalOpen, isOpen => {
 });
 
 async function handleLeave(id: number): Promise<void> {
+  const revision = auth.revision;
   try {
     await groupList.leave(id);
-    syncSelectedGroup(id);
+    if (revision !== auth.revision) return;
+    if (selectedGroup.value?.id === id) void groupDetail.refresh();
     toast.success(t('groups.feedback.left'));
   } catch (error) {
+    if (revision !== auth.revision) return;
     toast.error(t('groups.feedback.leaveFailed'), {
       description:
         error instanceof Error ? error.message : undefined
@@ -172,6 +169,9 @@ async function handleGroupDeleted(groupId: number): Promise<void> {
     <GroupDetailModal
       v-model:open="detailModalOpen"
       :group="selectedGroup"
+      :loading="groupDetail.loading.value"
+      :error="groupDetail.error.value"
+      @retry="groupDetail.refresh"
       :members="members"
       :posts="posts"
       @leave="handleLeave"

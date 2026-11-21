@@ -5,9 +5,12 @@ import {
   joinGroup,
   leaveGroup,
   listDiscoverGroups,
-  listJoinedGroups
+  listJoinedGroups,
+  listPopularGroups
 } from '@/services/groups';
-import type { Ref, ShallowRef } from 'vue';
+import { authQueueFor } from '@/services/auth-request-queue';
+import type { MaybeRef, Ref, ShallowRef } from 'vue';
+import { onScopeDispose, toValue } from 'vue';
 import type {
   CreateGroupData,
   Group,
@@ -15,10 +18,10 @@ import type {
   GroupStatsData
 } from '@/types/groups';
 
-type GroupListMode = 'discover' | 'mine';
+type GroupListMode = 'discover' | 'mine' | 'popular';
 
 interface UseGroupListOptions {
-  mode: GroupListMode;
+  mode: MaybeRef<GroupListMode>;
   filters: Ref<GroupFiltersData>;
   pageSize?: number;
 }
@@ -57,6 +60,8 @@ function defaultStats(): GroupStatsData {
 export function useGroupList(
   options: UseGroupListOptions
 ): UseGroupListReturn {
+  const app = useNuxtApp();
+  const auth = authQueueFor(app);
   const page = ref(1);
   const pageSize = ref(options.pageSize ?? 12);
   const groups = shallowRef<Group[]>([]);
@@ -65,17 +70,42 @@ export function useGroupList(
   const total = ref(0);
   const hasNext = ref(false);
   const stats = ref<GroupStatsData>(defaultStats());
+  let request = 0;
+  let disposed = false;
+  const currentSession = (revision: number) =>
+    !disposed && auth.revision === revision && !auth.isIdentityChanging;
+  const unsubscribe = auth.subscribe(() => {
+    request++;
+    page.value = 1;
+    groups.value = [];
+    total.value = 0;
+    loading.value = false;
+    error.value = null;
+    hasNext.value = false;
+    stats.value = defaultStats();
+  });
+  onScopeDispose(() => {
+    disposed = true;
+    request++;
+    unsubscribe();
+  });
 
   async function loadPage(
     nextPage: number,
     append: boolean
   ): Promise<void> {
+    const revision = auth.revision;
+    if (!currentSession(revision)) return;
+    const current = ++request;
     loading.value = true;
     error.value = null;
 
     try {
+      const mode = toValue(options.mode);
       const result =
-        options.mode === 'mine'
+        mode === 'popular'
+          ? await listPopularGroups()
+          : mode === 'mine'
           ? await listJoinedGroups(
               options.filters.value,
               nextPage,
@@ -87,6 +117,7 @@ export function useGroupList(
               pageSize.value
             );
 
+      if (request !== current) return;
       page.value = nextPage;
       groups.value = append
         ? [...groups.value, ...result.groups]
@@ -94,16 +125,20 @@ export function useGroupList(
       total.value = result.total;
       hasNext.value = result.hasNext;
 
+      if (mode === 'popular') return;
+
       const joinedCount =
-        options.mode === 'mine'
+        mode === 'mine'
           ? result.total
-          : await countJoinedGroups();
+          : await app.runWithContext(() => countJoinedGroups());
+      if (request !== current) return;
       stats.value = buildGroupStats(
         groups.value,
         result.total,
         joinedCount
       );
     } catch (caught) {
+      if (request !== current) return;
       error.value =
         caught instanceof Error
           ? caught.message
@@ -115,7 +150,7 @@ export function useGroupList(
         stats.value = defaultStats();
       }
     } finally {
-      loading.value = false;
+      if (request === current) loading.value = false;
     }
   }
 
@@ -138,7 +173,13 @@ export function useGroupList(
   }
 
   async function create(data: CreateGroupData): Promise<Group> {
+    const revision = auth.revision;
     const group = await createGroup(data);
+    if (!currentSession(revision)) return group;
+    if (toValue(options.mode) === 'popular') {
+      await app.runWithContext(refresh);
+      return group;
+    }
     groups.value = [group, ...groups.value];
     total.value += 1;
     stats.value = {
@@ -150,34 +191,18 @@ export function useGroupList(
   }
 
   async function join(groupId: number): Promise<string> {
+    const revision = auth.revision;
+    if (!currentSession(revision)) throw Error('GROUP_SESSION_CHANGED');
     const status = await joinGroup(groupId);
-    patchGroup(groupId, group => ({
-      ...group,
-      isMember: true,
-      membershipStatus: status,
-      memberCount:
-        status === 'active'
-          ? group.memberCount + 1
-          : group.memberCount
-    }));
+    if (currentSession(revision)) await app.runWithContext(refresh);
     return status;
   }
 
   async function leave(groupId: number): Promise<void> {
+    const revision = auth.revision;
+    if (!currentSession(revision)) throw Error('GROUP_SESSION_CHANGED');
     await leaveGroup(groupId);
-    if (options.mode === 'mine') {
-      groups.value = groups.value.filter(
-        group => group.id !== groupId
-      );
-      total.value = Math.max(total.value - 1, 0);
-    } else {
-      patchGroup(groupId, group => ({
-        ...group,
-        isMember: false,
-        membershipStatus: null,
-        memberCount: Math.max(group.memberCount - 1, 0)
-      }));
-    }
+    if (currentSession(revision)) await app.runWithContext(refresh);
   }
 
   return {

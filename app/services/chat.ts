@@ -4,15 +4,35 @@ import type {
 } from '@/components/ChatChannelList.vue';
 import type { ChatMessageType } from '@/components/ChatMessage.vue';
 import type { ChatMember } from '@/components/ChatMemberList.vue';
-import { normalizeAssetUrl, normalizeAvatarUrl } from '@/utils/assets';
+import { normalizePublicMediaUrl, normalizeAvatarUrl } from '@/utils/assets';
+import { isPrivateMediaContent } from '@/utils/private-media';
 import type {
   V2ChatChannel,
   V2ChatGroup,
   V2ChatMember,
   V2ChatMessage,
   V2DirectConversation,
+  V2DirectMessage,
   V2MediaAsset
 } from '@/types/v2';
+
+export function mergeDirectMessages(
+  history: readonly V2DirectMessage[], changes: Iterable<V2DirectMessage>
+): V2DirectMessage[] {
+  const byId = new Map(history.map(message => [message.message_id, message]));
+  for (const message of changes) byId.set(message.message_id, message);
+  return [...byId.values()].sort((left, right) =>
+    Date.parse(left.created_at) - Date.parse(right.created_at) || left.message_id - right.message_id);
+}
+
+export function reconcileDirectHistory(
+  page: readonly V2DirectMessage[], retained: readonly V2DirectMessage[],
+  live: ReadonlyMap<number, V2DirectMessage | null>
+): V2DirectMessage[] {
+  const changes = [...live.values()].filter((message): message is V2DirectMessage => message !== null);
+  return mergeDirectMessages(page, [...retained, ...changes])
+    .filter(message => live.get(message.message_id) !== null);
+}
 
 export interface ChatGroupVM {
   id: number;
@@ -111,7 +131,9 @@ function mapChatAttachment(media: V2MediaAsset): NonNullable<
   return {
     id: media.media_id,
     name: media.file_name,
-    url: normalizeAssetUrl(media.public_url),
+    url: isPrivateMediaContent(media.media_id, media.public_url)
+      ? media.public_url
+      : normalizePublicMediaUrl(media.public_url),
     type: isImage ? 'image' : 'file',
     size: media.file_size
   };

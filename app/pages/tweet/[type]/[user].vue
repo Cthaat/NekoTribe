@@ -11,6 +11,7 @@ import {
 import {
   v2BookmarkPost,
   v2CreateRetweet,
+  UnconfirmedRetweetError,
   v2DeletePost,
   v2LikePost,
   v2ListTimelinePosts,
@@ -152,7 +153,9 @@ async function handleSubmitRetweet({
     await feed.refresh();
   } catch (error) {
     const message =
-      error instanceof Error
+      error instanceof UnconfirmedRetweetError
+        ? t('post.feedback.retweetUnconfirmed')
+        : error instanceof Error
         ? error.message
         : t('post.feedback.retweetFailed');
     toast.error(message);

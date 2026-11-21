@@ -10,6 +10,8 @@ import {
   v2DeleteGroupPost,
   v2GetGroupNotificationPreference,
   v2GetGroupById,
+  v2GetGroupBySlug,
+  v2GetGroupPost,
   v2JoinGroup,
   v2LeaveGroup,
   v2ListGroupPostComments,
@@ -19,6 +21,7 @@ import {
   v2ListGroups,
   v2ListMyGroupInvites,
   v2ListMyGroups,
+  v2ListPopularGroups,
   v2MuteGroupMember,
   v2PatchGroup,
   v2PutGroupNotificationPreference,
@@ -39,7 +42,6 @@ import type {
   V2Group,
   V2GroupComment,
   V2GroupCommentLikeData,
-  V2GroupInvite,
   V2GroupNotificationPreference,
   V2GroupPostLikeData,
   V2GroupMember,
@@ -71,7 +73,7 @@ import type {
   PostAuthorVM
 } from '@/types/posts';
 import {
-  normalizeAssetUrl,
+  normalizePublicMediaUrl,
   normalizeAvatarUrl,
   normalizeNullableAssetUrl
 } from '@/utils/assets';
@@ -140,12 +142,14 @@ export function mapV2GroupToGroup(group: V2Group): Group {
   const role = group.membership.role;
   return {
     id: group.group_id,
+    slug: group.slug,
     name: group.name,
     description: group.description,
     avatar: normalizeNullableAssetUrl(group.avatar_url) || '',
     coverImage:
       normalizeNullableAssetUrl(group.cover_url) || undefined,
     privacy: group.privacy,
+    isActive: group.is_active === 1,
     joinApproval: group.join_approval,
     postPermission: group.post_permission,
     memberCount: group.member_count,
@@ -242,7 +246,7 @@ function mapV2PostToGroupPost(
       role: 'member'
     },
     media: post.media_urls.map(rawUrl => {
-      const url = normalizeAssetUrl(rawUrl);
+      const url = normalizePublicMediaUrl(rawUrl);
       return {
         type: mediaTypeFromUrl(url),
         url
@@ -263,7 +267,9 @@ function mapGroupToPostGroup(group: Group): GroupPostGroup {
     name: group.name,
     avatar: group.avatar,
     privacy: group.privacy,
+    isActive: group.isActive,
     isMember: group.isMember,
+    canComment: group.membershipStatus === 'active',
     canManage: !!(group.isOwner || group.isAdmin)
   };
 }
@@ -278,14 +284,11 @@ function matchesGroupPostType(
 }
 
 function sortGroupPosts(posts: GroupPost[]): GroupPost[] {
+  const rank = (post: GroupPost) => post.isPinned ? 2 : post.isAnnouncement ? 1 : 0;
   return [...posts].sort((a, b) => {
-    const pinnedDiff =
-      Number(!!b.isPinned) - Number(!!a.isPinned);
-    if (pinnedDiff !== 0) return pinnedDiff;
-    return (
-      new Date(b.createdAt).getTime() -
-      new Date(a.createdAt).getTime()
-    );
+    return rank(b) - rank(a) ||
+      (Date.parse(b.createdAt) - Date.parse(a.createdAt)) ||
+      b.id - a.id;
   });
 }
 
@@ -394,6 +397,12 @@ export async function listDiscoverGroups(
   };
 }
 
+export async function listPopularGroups(): Promise<GroupListResult> {
+  const { items } = await v2ListPopularGroups({ limit: 10 });
+  const groups = items.map(mapV2GroupToGroup);
+  return { groups, total: groups.length, hasNext: false };
+}
+
 export async function listJoinedGroups(
   filters: GroupFiltersData,
   page: number,
@@ -444,6 +453,10 @@ export async function createGroup(
 
 export async function getGroup(groupId: number): Promise<Group> {
   return mapV2GroupToGroup(await v2GetGroupById(groupId));
+}
+
+export async function getGroupBySlug(slug: string): Promise<Group> {
+  return mapV2GroupToGroup(await v2GetGroupBySlug(slug));
 }
 
 export async function updateGroup(
@@ -500,29 +513,45 @@ export async function leaveGroup(
   await v2LeaveGroup(groupId);
 }
 
+export function groupMembershipAction(group: Group) {
+  const status = group.membershipStatus;
+  if (group.isOwner || group.membershipRole === 'owner') return null;
+  if (status === 'pending') return { event: 'leave', label: 'cancelRequest' } as const;
+  if (status === 'active' || status === 'muted') return { event: 'leave', label: 'leave' } as const;
+  if (status || group.isMember || group.privacy === 'secret') return null;
+  return {
+    event: 'join',
+    label: group.privacy === 'public' && !group.joinApproval ? 'join' : 'requestJoin'
+  } as const;
+}
+
 export async function loadGroupDetail(
-  groupId: number
+  group: Group
 ): Promise<GroupDetailResult> {
+  const status = group.membershipStatus;
+  const canReadMembers = status !== 'banned' &&
+    (group.privacy === 'public' || status === 'active' || status === 'muted');
+  const canReadPosts = group.privacy === 'public' || status === 'active';
   const [membersResult, postsResult] = await Promise.allSettled([
-    v2ListGroupMembers(groupId, {
+    canReadMembers ? v2ListGroupMembers(group.id, {
       page: 1,
       page_size: 20
-    }),
-    v2ListGroupPosts(groupId, {
+    }) : null,
+    canReadPosts ? v2ListGroupPosts(group.id, {
       page: 1,
       page_size: 10
-    })
+    }) : null
   ]);
 
   return {
     members:
-      membersResult.status === 'fulfilled'
+      membersResult.status === 'fulfilled' && membersResult.value
         ? membersResult.value.items.map(
             mapV2MemberToGroupMember
           )
         : [],
     posts:
-      postsResult.status === 'fulfilled'
+      postsResult.status === 'fulfilled' && postsResult.value
         ? postsResult.value.items.map(mapV2PostToGroupPost)
         : []
   };
@@ -557,54 +586,69 @@ async function listJoinedGroupPostsForAllGroups(
   groups: Group[],
   type: V2GroupPostListType,
   page: number,
-  pageSize: number
+  pageSize: number,
+  current: () => boolean
 ): Promise<GroupPostFeedResult> {
-  const requestedSize = Math.max(page * pageSize, pageSize);
-  const settled = await Promise.allSettled(
-    groups.map(async group => {
-      const result = await listGroupPosts(
-        group.id,
-        1,
-        requestedSize,
-        type
-      );
-      const groupContext = mapGroupToPostGroup(group);
-      return {
-        hasNext: result.hasNext,
-        posts: result.posts.map(post => ({
-          ...post,
-          group: groupContext
-        }))
-      };
-    })
-  );
-  const fulfilled = settled.flatMap(result =>
-    result.status === 'fulfilled' ? [result.value] : []
-  );
+  const app = useNuxtApp();
+  const end = page * pageSize;
+  // Keep a fixed server page size when moving past the server's size cap.
+  const batchSize = Math.min(100, end);
+  async function readGroup(group: Group) {
+    const groupContext = mapGroupToPostGroup(group);
+    const posts = new Map<number, GroupPost>();
+    let total = 0;
+    for (let groupPage = 1; ; groupPage++) {
+      if (!current()) throw Error('Group feed request superseded');
+      const result = await app.runWithContext(() =>
+        listGroupPosts(group.id, groupPage, batchSize, type));
+      if (!current()) throw Error('Group feed request superseded');
+      total = result.total;
+      for (const post of result.posts) {
+        posts.set(post.id, { ...post, group: groupContext });
+      }
+      if (!result.hasNext || posts.size >= end) break;
+      if (!result.posts.length || groupPage === 10000) {
+        throw Error('Invalid group post pagination');
+      }
+    }
+    return { total, posts: [...posts.values()] };
+  }
+  const results: Awaited<ReturnType<typeof readGroup>>[] = [];
+  for (let index = 0; index < groups.length; index += 8) {
+    results.push(...await Promise.all(groups.slice(index, index + 8).map(readGroup)));
+  }
   const allPosts = sortGroupPosts(
-    fulfilled.flatMap(result => result.posts)
+    results.flatMap(result => result.posts)
   );
   const start = (page - 1) * pageSize;
-  const end = start + pageSize;
+  const total = results.reduce((sum, result) => sum + result.total, 0);
   return {
     groups,
     posts: allPosts.slice(start, end),
-    total: allPosts.length,
-    hasNext:
-      allPosts.length > end ||
-      fulfilled.some(result => result.hasNext)
+    total,
+    hasNext: total > end && allPosts.length > start
   };
 }
 
 export async function listJoinedGroupPostFeed(
-  options: GroupPostFeedOptions
+  options: GroupPostFeedOptions,
+  current: () => boolean
 ): Promise<GroupPostFeedResult> {
-  const groupsResult = await v2ListMyGroups({
-    page: 1,
-    page_size: 100
-  });
+  const app = useNuxtApp();
+  const joined = new Map<number, Group>();
+  for (let page = 1; ; page++) {
+    if (!current()) throw Error('Group feed request superseded');
+    const groupsResult = await app.runWithContext(() =>
+      v2ListMyGroups({ page, page_size: 100 }));
+    if (!current()) throw Error('Group feed request superseded');
+    for (const item of groupsResult.items) {
+      joined.set(item.group_id, mapV2GroupToGroup(item));
+    }
+    if (!groupsResult.meta?.has_next) break;
+    if (!groupsResult.items.length || page === 10000) throw Error('Invalid group pagination');
+  }
   const groups = applyLocalGroupFilters(
-    groupsResult.items.map(mapV2GroupToGroup),
+    [...joined.values()],
     {
       search: '',
       privacy: 'all',
@@ -626,12 +670,12 @@ export async function listJoinedGroupPostFeed(
         hasNext: false
       };
     }
-    const result = await listGroupPosts(
+    const result = await app.runWithContext(() => listGroupPosts(
       group.id,
       options.page,
       options.pageSize,
       type
-    );
+    ));
     const groupContext = mapGroupToPostGroup(group);
     return {
       groups,
@@ -644,20 +688,30 @@ export async function listJoinedGroupPostFeed(
     };
   }
 
-  return await listJoinedGroupPostsForAllGroups(
+  return await app.runWithContext(() => listJoinedGroupPostsForAllGroups(
     groups,
     type,
     options.page,
-    options.pageSize
-  );
+    options.pageSize,
+    current
+  ));
+}
+
+export async function getGroupPost(groupId: number, postId: number): Promise<GroupPost> {
+  const [group, post] = await Promise.all([getGroup(groupId), v2GetGroupPost(groupId, postId)]);
+  if (group.id !== groupId || post.post_id !== postId || post.group_id !== groupId) {
+    throw new Error('Invalid group post');
+  }
+  return { ...mapV2PostToGroupPost(post), group: mapGroupToPostGroup(group) };
 }
 
 export async function createGroupPost(
   groupId: number,
-  payload: V2CreateGroupPostPayload
+  payload: V2CreateGroupPostPayload,
+  signal?: AbortSignal
 ): Promise<GroupPost> {
   return mapV2PostToGroupPost(
-    await v2CreateGroupPost(groupId, payload)
+    await v2CreateGroupPost(groupId, payload, signal)
   );
 }
 
@@ -672,8 +726,8 @@ export async function setGroupPostPinStatus(
   groupId: number,
   postId: number,
   isPinned: boolean
-): Promise<void> {
-  await v2SetGroupPostPinStatus(
+) {
+  return await v2SetGroupPostPinStatus(
     groupId,
     postId,
     isPinned
@@ -696,7 +750,9 @@ export async function listGroupPostComments(
   groupId: number,
   postId: number,
   page = 1,
-  pageSize = 50
+  pageSize = 50,
+  commentId?: number,
+  sort: 'newest' | 'oldest' | 'popular' = 'newest'
 ): Promise<{
   comments: CommentVM[];
   total: number;
@@ -704,7 +760,9 @@ export async function listGroupPostComments(
 }> {
   const result = await v2ListGroupPostComments(groupId, postId, {
     page,
-    page_size: pageSize
+    page_size: pageSize,
+    sort,
+    ...(commentId === undefined ? {} : {comment_id: commentId})
   });
   const comments = result.items.map(mapV2GroupCommentToComment);
   return {
@@ -753,13 +811,18 @@ export async function setGroupCommentLikeStatus(
 }
 
 export async function listGroupMembers(
-  groupId: number
-): Promise<GroupMember[]> {
+  groupId: number,
+  page: number,
+  signal?: AbortSignal
+): Promise<{ members: GroupMember[]; hasNext: boolean }> {
   const result = await v2ListGroupMembers(groupId, {
-    page: 1,
+    page,
     page_size: 100
-  });
-  return result.items.map(mapV2MemberToGroupMember);
+  }, signal);
+  return {
+    members: result.items.map(mapV2MemberToGroupMember),
+    hasNext: result.meta?.has_next === true
+  };
 }
 
 export async function approveGroupMember(
@@ -812,13 +875,14 @@ export async function transferGroupOwnership(
 }
 
 export async function listGroupInvites(
-  groupId: number
-): Promise<V2GroupInvite[]> {
-  const result = await v2ListGroupInvites(groupId, {
-    page: 1,
+  groupId: number,
+  page: number,
+  signal?: AbortSignal
+) {
+  return v2ListGroupInvites(groupId, {
+    page,
     page_size: 20
-  });
-  return result.items;
+  }, signal);
 }
 
 export async function createGroupInviteData(
@@ -839,15 +903,14 @@ export async function createGroupInvite(
   return result.invite_url;
 }
 
-export async function listMyGroupInvites(): Promise<
-  GroupInviteView[]
-> {
+export async function listMyGroupInvites(page: number, signal?: AbortSignal, inviteId?: number) {
   const result = await v2ListMyGroupInvites({
-    page: 1,
-    page_size: 100
-  });
-  return result.items
-    .filter(invite => invite.group)
+    page,
+    page_size: 20,
+    ...(inviteId === undefined ? {} : { invite_id: inviteId })
+  }, signal);
+  const items: GroupInviteView[] = result.items
+    .filter(invite => invite.group && (inviteId === undefined || invite.invite_id === inviteId))
     .map(invite => ({
       id: invite.invite_id,
       group: {
@@ -865,11 +928,14 @@ export async function listMyGroupInvites(): Promise<
       createdAt: invite.created_at,
       expiresAt: invite.expires_at ?? undefined
     }));
+  if (inviteId !== undefined) return { items, hasNext: false, total: items.length };
+  return { items, hasNext: result.meta?.has_next === true, total: result.meta?.total ?? items.length };
 }
 
 export async function respondGroupInvite(
   inviteId: number,
-  accept: boolean
-): Promise<void> {
-  await v2RespondGroupInvite(inviteId, { accept });
+  accept: boolean,
+  signal?: AbortSignal
+) {
+  return v2RespondGroupInvite(inviteId, { accept }, signal);
 }
