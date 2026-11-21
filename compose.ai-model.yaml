@@ -1,0 +1,11 @@
+services:
+  go:
+    environment:
+      AI_MODEL_CONFIG_FILE: /run/neko-ai/model.json
+    volumes:
+      - type: bind
+        source: "${NEKO_AI_MODEL_CONFIG_DIR:?Set NEKO_AI_MODEL_CONFIG_DIR to the model config directory}"
+        target: /run/neko-ai
+        read_only: true
+        bind:
+          create_host_path: false

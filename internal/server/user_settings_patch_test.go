@@ -24,7 +24,7 @@ func TestSharedUserSettingsPatchVectors(t *testing.T) {
 			Error    string                 `json:"error"`
 		} `json:"cases"`
 	}
-	if json.Unmarshal(data, &fixture) != nil || fixture.ID != "USER-SETTINGS-PATCH" || len(fixture.Cases) != 16 {
+	if json.Unmarshal(data, &fixture) != nil || fixture.ID != "USER-SETTINGS-PATCH" || len(fixture.Cases) != 20 {
 		t.Fatal("invalid fixture")
 	}
 	for _, tc := range fixture.Cases {

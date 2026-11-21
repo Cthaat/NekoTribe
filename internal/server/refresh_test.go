@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -256,6 +257,50 @@ func TestRefreshFormBody(t *testing.T) {
 	handler.ServeHTTP(w, r)
 	if w.Code != 200 {
 		t.Fatalf("form rejected: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRefreshSharedCredentialBody(t *testing.T) {
+	data, err := os.ReadFile("../../contracts/scenarios/auth-refresh.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shared struct {
+		RequestBodyCases []struct {
+			ID, ContentType, Body, Cookie string
+			Bytes                         int
+			Accepted                      bool
+		}
+	}
+	if err := json.Unmarshal(data, &shared); err != nil {
+		t.Fatal(err)
+	}
+	if len(shared.RequestBodyCases) != 12 {
+		t.Fatal("expected all common request cases")
+	}
+	for _, item := range shared.RequestBodyCases {
+		t.Run(item.ID, func(t *testing.T) {
+			_, tokens, store, handler := refreshFixture(t, false)
+			token := tokens["refresh-hs256"]
+			body := strings.ReplaceAll(item.Body, "TOKEN", token)
+			if item.Bytes > len(body) {
+				body += strings.Repeat(" ", item.Bytes-len(body))
+			}
+			r := httptest.NewRequest("PATCH", "/api/v2/auth/tokens/current", strings.NewReader(body))
+			r.Header.Set("Content-Type", item.ContentType)
+			if item.Cookie != "" {
+				r.Header.Set("Cookie", "refresh_token="+strings.ReplaceAll(item.Cookie, "TOKEN", token))
+			}
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			status, cookies, calls := 401, 0, 0
+			if item.Accepted {
+				status, cookies, calls = 200, 2, 1
+			}
+			if w.Code != status || len(w.Result().Cookies()) != cookies || store.calls != calls {
+				t.Fatalf("status=%d, cookies=%d, rotations=%d", w.Code, len(w.Result().Cookies()), store.calls)
+			}
+		})
 	}
 }
 

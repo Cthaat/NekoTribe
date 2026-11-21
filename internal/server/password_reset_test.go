@@ -88,7 +88,7 @@ func TestSharedPasswordReset(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Cookie", "access_token=expired")
 			response := httptest.NewRecorder()
-			NewHandler(codec, s, CorsPolicy{}).ServeHTTP(response, req)
+			NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{OTPAttemptLimiter: otpAttemptFixture{}}).ServeHTTP(response, req)
 			if response.Code != tc.Status || s.marks != tc.Marks || s.writes != tc.Writes {
 				t.Fatalf("status=%d marks=%d writes=%d", response.Code, s.marks, s.writes)
 			}

@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -14,9 +15,11 @@ func TestKnowledgeSearchBodySharedVectors(t *testing.T) {
 	}
 	var fixture struct {
 		Cases []struct {
-			ID, Body string
-			Accepted bool
-			Phrase   *string
+			ID, Body         string
+			Accepted         bool
+			Phrase           *string
+			SkillID          *string `json:"skill_id"`
+			ExpectedSequence int64   `json:"expected_sequence"`
 		}
 	}
 	if err = json.Unmarshal(raw, &fixture); err != nil {
@@ -27,7 +30,7 @@ func TestKnowledgeSearchBodySharedVectors(t *testing.T) {
 		if (err == nil) != c.Accepted {
 			t.Fatalf("%s: %v", c.ID, err)
 		}
-		if c.Accepted && ((got == nil) != (c.Phrase == nil) || (got != nil && *got != *c.Phrase)) {
+		if c.Accepted && !reflect.DeepEqual(got, knowledgeSearchBody{Phrase: c.Phrase, SkillID: c.SkillID, ExpectedSequence: c.ExpectedSequence}) {
 			t.Fatalf("%s: %v", c.ID, got)
 		}
 	}

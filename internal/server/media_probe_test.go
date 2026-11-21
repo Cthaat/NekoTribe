@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +29,10 @@ func TestMediaProbeMapping(t *testing.T) {
 	if _, ok := parseMediaProbe([]byte("invalid")); ok {
 		t.Fatal("invalid JSON accepted")
 	}
+	result, ok = parseMediaProbe([]byte(`{"streams":[{"codec_type":"video","width":0,"height":2.7}],"format":{"duration":"-0.4"}}`))
+	if !ok || result.Width != nil || result.Height != nil || result.Duration != nil {
+		t.Fatal(result, ok)
+	}
 }
 
 func TestFFProbeHelper(t *testing.T) {
@@ -35,6 +42,17 @@ func TestFFProbeHelper(t *testing.T) {
 	}
 	switch mode {
 	case "valid":
+		if runtime.GOOS == "windows" {
+			index := slices.Index(os.Args, "-protocol_whitelist")
+			path := os.Args[len(os.Args)-1]
+			if index < 0 || index+1 >= len(os.Args) || os.Args[index+1] != "file" || !filepath.IsAbs(path) {
+				os.Exit(1)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil || string(data) != "data" {
+				os.Exit(1)
+			}
+		}
 		fmt.Print(`{"format":{"duration":"1.6"},"streams":[]}`)
 	case "large":
 		fmt.Print(strings.Repeat("x", 70000))

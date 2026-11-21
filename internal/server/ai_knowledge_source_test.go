@@ -35,10 +35,18 @@ func (c *knowledgeConn) QueryContext(_ context.Context, query string, args []dri
 		return nil, errors.New("incorrect actor")
 	}
 	if values["source_id"] == int64(11) {
-		return &alertRows{values: []driver.Value{int64(11), int64(11), "public post"}}, nil
+		row := []driver.Value{int64(11), int64(11), "public post"}
+		if strings.Contains(query, "p.group_id AS group_id") {
+			row = append(row, int64(7))
+		}
+		return &alertRows{values: row}, nil
 	}
 	if values["source_id"] == int64(21) {
-		return &alertRows{values: []driver.Value{int64(21), int64(11), "comment"}}, nil
+		row := []driver.Value{int64(21), int64(11), "comment"}
+		if strings.Contains(query, "p.group_id AS group_id") {
+			row = append(row, int64(7))
+		}
+		return &alertRows{values: row}, nil
 	}
 	return emptyRows{&c.state.driverState}, nil
 }
@@ -52,13 +60,17 @@ func TestKnowledgeSourceRepositoryUsesCurrentPublicVisibility(t *testing.T) {
 		t.Fatal(result, err, state)
 	}
 	for i, call := range state.queries {
-		for _, part := range []string{"p.visibility='public'", "p.is_deleted=0", "fn_can_view_post(:viewer_id,p.post_id)=1", "DBMS_LOB.GETLENGTH("} {
+		for _, part := range []string{"p.visibility='public'", "p.is_deleted=0", "post_author.is_active=1", "fn_can_view_post(:viewer_id,p.post_id)=1", "DBMS_LOB.GETLENGTH("} {
 			if !strings.Contains(call.sql, part) {
 				t.Fatal(call.sql)
 			}
 		}
-		if i == 1 && (!strings.Contains(call.sql, "c.is_deleted=0") || !strings.Contains(call.sql, "p.post_id=c.post_id")) {
-			t.Fatal(call.sql)
+		if i == 1 {
+			for _, part := range []string{"c.is_deleted=0", "p.post_id=c.post_id", "comment_author.is_active=1", "b.user_id=:viewer_id AND b.target_user_id=c.user_id", "b.target_user_id=:viewer_id AND b.user_id=c.user_id"} {
+				if !strings.Contains(call.sql, part) {
+					t.Fatal(call.sql)
+				}
+			}
 		}
 	}
 }
@@ -67,6 +79,42 @@ func TestDatabaseKnowledgeReaderRejectsUnknownKinds(t *testing.T) {
 	_, _, err := reader.get(context.Background(), 42, knowledgeCandidate{Kind: "unknown", ID: 3, Version: strings.Repeat("b", 64)})
 	if !errors.Is(err, errKnowledgeInvalid) {
 		t.Fatal(err)
+	}
+}
+
+func TestGroupKnowledgeSourcesUsePublicGroupAuthority(t *testing.T) {
+	state := &knowledgeDB{}
+	db := sql.OpenDB(knowledgeConnector{state})
+	defer db.Close()
+	candidates := []knowledgeCandidate{
+		{Kind: "group_post", ID: 11, Version: knowledgeSourceVersion("group_post", 11, 11, "public post")},
+		{Kind: "group_comment", ID: 21, Version: knowledgeSourceVersion("group_comment", 21, 11, "comment")},
+	}
+	result, err := (OracleSessions{db}).hydrateKnowledgeSources(context.Background(), 42, candidates)
+	if err != nil || len(result) != 2 || len(state.queries) != 2 {
+		t.Fatal(result, err, state.queries)
+	}
+	for i, table := range []string{"n_group_posts", "n_group_comments"} {
+		query := state.queries[i].sql
+		if !strings.Contains(query, "FROM "+table) || !strings.Contains(query, "g.privacy='public' AND g.is_active=1 AND g.is_deleted=0") {
+			t.Fatal(query)
+		}
+		if result[i].GroupID != 7 {
+			t.Fatalf("missing verified group: %+v", result[i])
+		}
+	}
+	if err := validateKnowledgeCandidates(42, candidates); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := encodeKnowledgeMessage("group answer", candidates)
+	if err != nil || strings.Contains(stored, "group_id") {
+		t.Fatal(stored, err)
+	}
+	restored, err := restoreKnowledgeMessage(context.Background(), stored, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
+		return (OracleSessions{db}).hydrateKnowledgeSources(ctx, 42, refs)
+	})
+	if err != nil || len(restored.Citations) != 2 || restored.Citations[1].GroupID != 7 {
+		t.Fatal(restored, err)
 	}
 }
 

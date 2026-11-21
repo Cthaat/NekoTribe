@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -17,6 +19,60 @@ type settingsRouteStore struct {
 	patch                     settingsPatch
 }
 
+func TestSharedSettingsNativeHTTP(t *testing.T) {
+	var vectors struct {
+		Cases []struct {
+			ID, Mode, Credential, Message string
+			Status                        int
+		}
+	}
+	raw, err := os.ReadFile("../../contracts/scenarios/user-settings-native.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(raw, &vectors); err != nil {
+		t.Fatal(err)
+	}
+	codec, tokens := fixture(t)
+	for _, method := range []string{"GET", "PATCH"} {
+		for _, tc := range vectors.Cases {
+			t.Run(method+"/"+tc.ID, func(t *testing.T) {
+				repository := &settingsRouteStore{memorySessions: store()}
+				switch tc.Mode {
+				case "schema":
+					repository.err = errSettingsSchema
+				case "error":
+					repository.err = errors.New("synthetic-settings-driver-secret")
+				case "missing-user":
+					repository.err = errSettingsUserMissing
+				case "missing-settings":
+					repository.err = errSettingsMissing
+				}
+				req := httptest.NewRequest(method, "/api/v2/users/me/settings", strings.NewReader("{}"))
+				req.Header.Set("Content-Type", "application/json")
+				switch tc.Credential {
+				case "valid":
+					req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+				case "invalid":
+					req.Header.Set("Authorization", "Bearer invalid-token")
+				}
+				w := httptest.NewRecorder()
+				NewHandler(codec, repository, CorsPolicy{}).ServeHTTP(w, req)
+				if w.Code != tc.Status || w.Header().Get("Cache-Control") != "private, no-store" || strings.Contains(w.Body.String(), "synthetic-settings-driver-secret") {
+					t.Fatal(w.Code, w.Header(), w.Body.String())
+				}
+				var body struct{ Message string }
+				if json.Unmarshal(w.Body.Bytes(), &body) != nil {
+					t.Fatal(w.Body.String())
+				}
+				if tc.Message != "" && body.Message != tc.Message {
+					t.Fatal(body)
+				}
+			})
+		}
+	}
+}
+
 func (s *settingsRouteStore) GetUserSettings(_ context.Context, user int64) (userSettings, error) {
 	s.user = user
 	return userSettings{UserID: user, ProfileVisibility: "public", AISentimentTopK: 3}, s.err
@@ -26,7 +82,7 @@ func (s *settingsRouteStore) PatchUserSettings(_ context.Context, user int64, pa
 	s.user = user
 	s.patch = patch
 	s.patchCalls++
-	return userSettings{UserID: user}, s.err
+	return userSettings{UserID: user, ProfileVisibility: "public", AISentimentTopK: 3}, s.err
 }
 func (s *settingsRouteStore) UserPresence(_ context.Context, user int64) (userPresence, error) {
 	s.presenceCalls++

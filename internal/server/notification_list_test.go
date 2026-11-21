@@ -126,10 +126,15 @@ func (c notificationConnector) Connect(context.Context) (driver.Conn, error) {
 func (c notificationConnector) Driver() driver.Driver { return testDriver{} }
 func (c *notificationConn) QueryContext(_ context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	*c.connector.calls = append(*c.connector.calls, listQueryCall{q, append([]driver.NamedValue(nil), args...)})
-	if strings.HasPrefix(q, "SELECT COUNT") {
-		return &alertRows{values: []driver.Value{int64(3)}}, nil
+	values := []driver.Value{int64(12), int64(7), "like", "title", "message", "post", int64(9), "normal", int64(0), nil, nil, c.connector.metadata, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}
+	if strings.Contains(q, "WITH ranked AS (") {
+		if c.connector.metadata == "fixture-empty-page" {
+			values = make([]driver.Value, len(values))
+			values[0] = int64(0)
+		}
+		values = append(values, int64(3))
 	}
-	return &alertRows{values: []driver.Value{int64(12), int64(7), "like", "title", "message", "post", int64(9), "normal", int64(0), nil, nil, c.connector.metadata, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, nil
+	return &alertRows{values: values}, nil
 }
 func TestNotificationRepositoryFiltersBindsAndMetadata(t *testing.T) {
 	for _, metadata := range []string{`{"event":"post_like"}`, `invalid`, ``} {
@@ -140,6 +145,10 @@ func TestNotificationRepositoryFiltersBindsAndMetadata(t *testing.T) {
 		db.Close()
 		if err != nil || total != 3 || len(items) != 1 {
 			t.Fatal(items, total, err)
+		}
+		if len(calls) != 1 || !strings.HasPrefix(calls[0].sql, "SELECT ") ||
+			!strings.Contains(calls[0].sql, "ORDER BY created_at DESC, notification_id DESC") || !strings.HasSuffix(calls[0].sql, "ORDER BY rn") {
+			t.Fatal(calls)
 		}
 		if metadata == "invalid" && items[0].Metadata != "invalid" {
 			t.Fatal(items[0].Metadata)
@@ -162,6 +171,16 @@ func TestNotificationRepositoryFiltersBindsAndMetadata(t *testing.T) {
 	q := parseNotificationQuery("type=like&type=other&unread_only=true&unread_only=false")
 	if q.Type != "all" || q.UnreadOnly {
 		t.Fatal(q)
+	}
+}
+
+func TestNotificationEmptyPagePreservesTotal(t *testing.T) {
+	var calls []listQueryCall
+	db := sql.OpenDB(notificationConnector{&calls, &driverState{}, "fixture-empty-page"})
+	defer db.Close()
+	items, total, err := (OracleSessions{db}).ListNotifications(context.Background(), 42, parseNotificationQuery("page=4&page_size=1"))
+	if err != nil || total != 3 || len(items) != 0 || len(calls) != 1 {
+		t.Fatal(items, total, calls, err)
 	}
 }
 

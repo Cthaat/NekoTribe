@@ -36,14 +36,17 @@ func (c termsAuthorityConnector) Connect(context.Context) (driver.Conn, error) {
 func (termsAuthorityConnector) Driver() driver.Driver { return testDriver{} }
 func (c *termsAuthorityConn) QueryContext(_ context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls++
+	if strings.Contains(q, "FROM n_group_") && len(args) == 4 {
+		return &sharedGroupDiscoveryRows{}, nil
+	}
 	if c.state.includeComment && strings.Contains(q, "FROM n_comments") {
 		return &alertRows{values: []driver.Value{int64(21), int64(11), "账户评论"}}, nil
 	}
 	if c.state.includePost && strings.Contains(q, "FROM n_posts") {
-		if len(args) == 3 {
+		if len(args) == 4 {
 			return &alertRows{values: []driver.Value{int64(11), int64(11), "账户帖子"}}, nil
 		}
-		if len(args) != 2 || args[0].Name != "source_id" || args[0].Value != int64(11) || args[1].Name != "viewer_id" || args[1].Value != int64(42) {
+		if len(args) != 3 || args[0].Name != "source_id" || args[0].Value != int64(11) || args[1].Name != "viewer_id" || args[1].Value != int64(42) || args[2].Name != "max_id" || args[2].Value != knowledgeMaxID {
 			return nil, errors.New("unexpected post query")
 		}
 		return &alertRows{values: []driver.Value{int64(11), int64(11), "public post"}}, nil

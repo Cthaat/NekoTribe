@@ -9,18 +9,34 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestRedisNotificationSourceSubscribesAndCloses(t *testing.T) {
+	testRedisNotificationSource(t, "close")
+}
+
+func TestRedisNotificationSourceExposesRemoteDisconnect(t *testing.T) {
+	testRedisNotificationSource(t, "disconnect")
+}
+
+func TestRedisNotificationSourceCancellationUnblocksRead(t *testing.T) {
+	testRedisNotificationSource(t, "cancel")
+}
+
+func testRedisNotificationSource(t *testing.T, mode string) {
+	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer listener.Close()
 	stopServer := make(chan struct{})
-	defer close(stopServer)
+	var stopOnce sync.Once
+	finishServer := func() { stopOnce.Do(func() { close(stopServer) }) }
+	defer finishServer()
 	serverDone := make(chan error, 1)
 	go func() {
 		conn, e := listener.Accept()
@@ -127,7 +143,11 @@ func TestRedisNotificationSourceSubscribesAndCloses(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("presence subscription timeout")
 	}
-	if err = source.Close(); err != nil {
+	if mode == "disconnect" {
+		finishServer()
+	} else if mode == "cancel" {
+		cancel()
+	} else if err = source.Close(); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -135,7 +155,7 @@ func TestRedisNotificationSourceSubscribesAndCloses(t *testing.T) {
 		if ok {
 			t.Fatal("source remained open")
 		}
-	case <-ctx.Done():
+	case <-time.After(3 * time.Second):
 		t.Fatal("source did not close")
 	}
 }

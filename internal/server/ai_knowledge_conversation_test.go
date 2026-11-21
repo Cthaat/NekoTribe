@@ -17,6 +17,33 @@ type knowledgeConversationFake struct {
 	saved     assistantMessageInput
 	refs      []knowledgeCandidate
 	appendErr error
+	skillErr  error
+	skillID   *string
+}
+
+func (f *knowledgeConversationFake) selectAIKnowledgeSkill(_ context.Context, _ int64, _ string, _ moderationPolicy, skillID *string) (int64, error) {
+	f.events = append(f.events, "skill")
+	f.skillID = skillID
+	return 7, f.skillErr
+}
+
+func TestKnowledgeConversationDoesNotInferWhenSkillDisabled(t *testing.T) {
+	store := &knowledgeConversationFake{purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "猫"}}, skillErr: errSkillUnavailable}
+	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
+	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3, ContextWindowTokens: 8192, MaxOutputTokens: 512}
+	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{}); !errors.Is(err, errSkillUnavailable) || strings.Contains(strings.Join(store.events, ","), "infer") {
+		t.Fatal(err, store.events)
+	}
+}
+
+func TestKnowledgeConversationRejectsMovedSequenceBeforeInference(t *testing.T) {
+	store := &knowledgeConversationFake{purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 2, Role: "user", Content: "newer"}}, skillErr: errSkillUnavailable}
+	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
+	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3}
+	_, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{ExpectedSequence: 1})
+	if !errors.Is(err, errConversationConflict) || len(transport.input) != 0 {
+		t.Fatal(err, store.events)
+	}
 }
 
 func TestKnowledgeConversationUsesAndGuardsHistory(t *testing.T) {
@@ -24,7 +51,7 @@ func TestKnowledgeConversationUsesAndGuardsHistory(t *testing.T) {
 	store := &knowledgeConversationFake{knowledgeServiceFake: knowledgeServiceFake{rows: []knowledgeSource{{Kind: "post", ID: 1, PostID: 1, Content: "资料", Version: ref.Version}}}, purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 1, Role: "assistant", Content: "旧回答", Citations: []knowledgeCitation{{Kind: "post", ID: 1, PostID: 1, Version: ref.Version}}}, {SequenceNo: 2, Role: "user", Content: "猫"}}}
 	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
 	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3, ContextWindowTokens: 8192, MaxOutputTokens: 512}
-	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport); err != nil {
+	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{}); err != nil {
 		t.Fatal(err)
 	}
 	var request struct {
@@ -49,7 +76,7 @@ func TestKnowledgeConversationPreservesAndRechecksHistoricalSources(t *testing.T
 	store := &knowledgeConversationFake{knowledgeServiceFake: knowledgeServiceFake{rows: []knowledgeSource{newRef}, historical: []knowledgeSource{old}}, purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 1, Role: "assistant", Content: "旧回答", Citations: []knowledgeCitation{{Kind: old.Kind, ID: old.ID, PostID: old.PostID, Version: old.Version}}}, {SequenceNo: 2, Role: "user", Content: "猫"}}}
 	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
 	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3, ContextWindowTokens: 8192, MaxOutputTokens: 512}
-	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport); err != nil {
+	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(store.refs) != 2 || store.refs[1] != (knowledgeCandidate{Kind: old.Kind, ID: old.ID, Version: old.Version}) {
@@ -57,7 +84,7 @@ func TestKnowledgeConversationPreservesAndRechecksHistoricalSources(t *testing.T
 	}
 	store.events = nil
 	transport.revoke = true
-	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport); !errors.Is(err, errKnowledgeSourceChanged) || strings.Contains(strings.Join(store.events, ","), "append") {
+	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{}); !errors.Is(err, errKnowledgeSourceChanged) || strings.Contains(strings.Join(store.events, ","), "append") {
 		t.Fatal("revoked history was delivered", err, store.events)
 	}
 }
@@ -66,9 +93,13 @@ func TestKnowledgeConversationSeparatesSearchPhraseFromQuestion(t *testing.T) {
 	store := &knowledgeConversationFake{knowledgeServiceFake: knowledgeServiceFake{rows: []knowledgeSource{{Kind: "post", ID: 1, PostID: 1, Content: "资料", Version: strings.Repeat("a", 64)}}}, purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "社区里有哪些猫咪？"}}}
 	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
 	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3, ContextWindowTokens: 8192, MaxOutputTokens: 512}
-	_, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, "猫")
+	phrase, skillID := "猫", "knowledge-answer"
+	_, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{Phrase: &phrase, SkillID: &skillID})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if store.skillID == nil || *store.skillID != "knowledge-answer" {
+		t.Fatal("explicit skill was not selected", store.skillID)
 	}
 	var request struct {
 		Messages []struct {
@@ -109,13 +140,13 @@ func TestKnowledgeConversationDoesNotHideConcurrentConflictOrCancellation(t *tes
 	store := &knowledgeConversationFake{knowledgeServiceFake: knowledgeServiceFake{rows: []knowledgeSource{{Kind: "post", ID: 1, PostID: 1, Content: "资料", Version: ref.Version}}}, purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "猫"}}, appendErr: errConversationConflict}
 	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
 	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3, ContextWindowTokens: 8192, MaxOutputTokens: 512}
-	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport); !errors.Is(err, errConversationConflict) {
+	if _, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{}); !errors.Is(err, errConversationConflict) {
 		t.Fatal(err)
 	}
 	store.events = nil
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := generateKnowledgeConversationWithTransport(ctx, store, 42, "id", moderationPolicy{}, selection, transport); !errors.Is(err, context.Canceled) || len(store.events) != 0 {
+	if _, err := generateKnowledgeConversationWithTransport(ctx, store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{}); !errors.Is(err, context.Canceled) || len(store.events) != 0 {
 		t.Fatal(err, store.events)
 	}
 }
@@ -125,8 +156,8 @@ func TestKnowledgeConversationGeneratesAndPersists(t *testing.T) {
 	store := &knowledgeConversationFake{knowledgeServiceFake: knowledgeServiceFake{rows: []knowledgeSource{{Kind: "post", ID: 1, PostID: 1, Content: "资料", Version: ref.Version}}}, purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "猫"}}}
 	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
 	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3, ContextWindowTokens: 8192, MaxOutputTokens: 512}
-	message, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport)
-	if err != nil || message == nil || message.SequenceNo != 2 || strings.Join(store.events, ",") != "read,history,discover,hydrate,infer,hydrate,append" || store.saved.Content != "answer" || store.saved.ExpectedSequence != 1 || store.saved.ModelID != "profile" || store.saved.ConfigRevision != 3 || len(store.refs) != 1 || store.refs[0] != ref {
+	message, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{})
+	if err != nil || message == nil || message.SequenceNo != 2 || strings.Join(store.events, ",") != "read,history,skill,discover,hydrate,infer,hydrate,append" || store.saved.SkillGeneration != 7 || store.saved.Content != "answer" || store.saved.ExpectedSequence != 1 || store.saved.ModelID != "profile" || store.saved.ConfigRevision != 3 || len(store.refs) != 1 || store.refs[0] != ref {
 		t.Fatal(message, err, store)
 	}
 }
@@ -134,12 +165,12 @@ func TestKnowledgeConversationNoEvidenceAndInvalidContext(t *testing.T) {
 	store := &knowledgeConversationFake{purpose: "knowledge", messages: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "猫"}}}
 	transport := &knowledgeTransportFake{store: &store.knowledgeServiceFake}
 	selection := ai.Selection{Role: "knowledge", ProfileID: "profile", ConfigurationRevision: 3, ContextWindowTokens: 8192, MaxOutputTokens: 512}
-	message, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport)
+	message, err := generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{})
 	if err != nil || message != nil || strings.Contains(strings.Join(store.events, ","), "append") {
 		t.Fatal(message, err, store.events)
 	}
 	store.purpose = "writing"
-	if _, err = generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport); !errors.Is(err, errKnowledgeConversationContext) {
+	if _, err = generateKnowledgeConversationWithTransport(context.Background(), store, 42, "id", moderationPolicy{}, selection, transport, knowledgeSearchBody{}); !errors.Is(err, errKnowledgeConversationContext) {
 		t.Fatal(err)
 	}
 }

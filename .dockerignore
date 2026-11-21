@@ -1,0 +1,9 @@
+.git
+.github
+.env
+.env.*
+*.log
+.codex-logs
+storage
+data
+bin

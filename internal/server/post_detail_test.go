@@ -117,3 +117,10 @@ func TestSharedPostDetailVectors(t *testing.T) {
 		})
 	}
 }
+func TestNormalizePrivatePostMediaKeepsCanonicalContentURL(t *testing.T) {
+	policy := StorageURLPolicy{PublicBase: "/api/v2/media", CDNBaseURL: "https://example.test"}
+	media := PostMedia{MediaID: 77, PublicURL: "/api/v2/media/77/content"}
+	if err := normalizePostMedia(policy, &media); err != nil || media.PublicURL != "/api/v2/media/77/content" {
+		t.Fatal(media, err)
+	}
+}

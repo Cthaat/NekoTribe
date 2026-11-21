@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -63,7 +64,7 @@ func TestSharedOTPVerification(t *testing.T) {
 		VerificationID      string `json:"verification_id"`
 		VerifiedAt          string `json:"verified_at"`
 	}
-	if err = json.Unmarshal(f.Raw, &base); err != nil || len(f.Cases) != 16 {
+	if err = json.Unmarshal(f.Raw, &base); err != nil || len(f.Cases) != 18 {
 		t.Fatal(err)
 	}
 	codec, _ := fixture(t)
@@ -74,7 +75,7 @@ func TestSharedOTPVerification(t *testing.T) {
 	for _, tc := range f.Cases {
 		t.Run(tc.ID, func(t *testing.T) {
 			s := &otpFixture{memorySessions: store(), account: base.Account, kind: base.Type, id: base.VerificationID, hash: base.Hash, when: when, expired: tc.Expired, fault: tc.Fault}
-			handler := NewHandler(codec, s, CorsPolicy{})
+			handler := NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{OTPAttemptLimiter: otpAttemptFixture{status: otpAttemptOutcome(tc.Fault)}})
 			n := 1
 			if tc.Repeat {
 				n = 2
@@ -105,5 +106,27 @@ func TestSharedOTPVerification(t *testing.T) {
 				t.Fatalf("updates=%d", s.updates)
 			}
 		})
+	}
+}
+
+type otpAttemptFixture struct {
+	status int
+}
+
+func (f otpAttemptFixture) ReserveOTPAttempt(context.Context, string) (bool, error) {
+	if f.status == http.StatusServiceUnavailable {
+		return false, errors.New("isolated Redis error")
+	}
+	return f.status != http.StatusTooManyRequests, nil
+}
+
+func otpAttemptOutcome(fault string) int {
+	switch fault {
+	case "exhausted":
+		return http.StatusTooManyRequests
+	case "unavailable":
+		return http.StatusServiceUnavailable
+	default:
+		return http.StatusOK
 	}
 }

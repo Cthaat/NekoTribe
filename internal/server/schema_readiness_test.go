@@ -152,7 +152,7 @@ func (c *schemaFixtureConn) QueryContext(_ context.Context, query string, args [
 		if table != nil {
 			objects = table.(map[string]any)["columns"].([]any)
 		}
-		return rows([]string{"COLUMN_NAME", "DATA_TYPE", "DATA_PRECISION", "DATA_SCALE", "CHAR_LENGTH", "NULLABLE", "DATA_DEFAULT"}, objects), nil
+		return rows([]string{"COLUMN_NAME", "DATA_TYPE", "DATA_PRECISION", "DATA_SCALE", "CHAR_LENGTH", "NULLABLE", "DATA_DEFAULT", "CHAR_USED"}, objects), nil
 	case strings.Contains(upper, "FROM USER_CONSTRAINTS C"):
 		table := tables[value("table_name")]
 		objects := []any{}

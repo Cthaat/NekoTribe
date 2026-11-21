@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,8 +14,11 @@ import (
 
 type settingsDBState struct {
 	driverState
-	mode  string
-	calls []listQueryCall
+	mode           string
+	calls          []listQueryCall
+	values         []driver.Value
+	presenceValues []driver.Value
+	presenceReads  int
 }
 type settingsConnector struct{ state *settingsDBState }
 type settingsConn struct {
@@ -54,11 +59,15 @@ func (c *settingsConn) QueryContext(_ context.Context, query string, args []driv
 		return &alertRows{values: []driver.Value{int64(42)}}, nil
 	}
 	if strings.Contains(query, "MAX(s.last_accessed_at)") {
+		c.state.presenceReads++
 		if c.state.mode == "presence-error" {
 			return nil, errors.New("secret")
 		}
 		if c.state.mode == "presence-missing" {
 			return emptyRows{&c.state.driverState}, nil
+		}
+		if c.state.presenceValues != nil {
+			return &alertRows{values: c.state.presenceValues}, nil
 		}
 		if c.state.mode == "presence-hidden" {
 			return &alertRows{values: []driver.Value{int64(0), time.Now(), "hidden"}}, nil
@@ -68,7 +77,66 @@ func (c *settingsConn) QueryContext(_ context.Context, query string, args []driv
 	if c.state.mode == "read" {
 		return nil, errors.New("secret")
 	}
+	if c.state.mode == "missing-settings" {
+		return &alertRows{values: make([]driver.Value, 14), done: true}, nil
+	}
+	if c.state.values != nil {
+		return &alertRows{values: c.state.values}, nil
+	}
 	return &alertRows{values: []driver.Value{int64(42), int64(0), int64(1), "public", int64(1), int64(0), int64(1), int64(1), int64(0), nil, nil, int64(0), int64(3), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}}, nil
+}
+
+func TestSettingsSharedNumberMapping(t *testing.T) {
+	var vectors struct {
+		MappingCases []struct {
+			ID                                  string
+			Flag, Top                           *float64
+			ExpectedFlag, ExpectedProbabilities bool
+			ExpectedTop                         int64
+		}
+	}
+	raw, err := os.ReadFile("../../contracts/scenarios/user-settings-native.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(raw, &vectors); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range vectors.MappingCases {
+		t.Run(tc.ID, func(t *testing.T) {
+			var flag, top driver.Value
+			if tc.Flag != nil {
+				flag = *tc.Flag
+			}
+			if tc.Top != nil {
+				top = *tc.Top
+			}
+			state := &settingsDBState{values: []driver.Value{int64(42), flag, flag, "public", flag, flag, flag, flag, flag, nil, flag, flag, top, nil}}
+			db := sql.OpenDB(settingsConnector{state})
+			defer db.Close()
+			result, err := (OracleSessions{db}).applyUserSettings(context.Background(), 42, nil, func(context.Context, *sql.Conn) error { return nil })
+			if err != nil || result.TwoFactorEnabled != tc.ExpectedFlag || result.LoginAlerts != tc.ExpectedFlag || result.AISentimentReturnProbabilities != tc.ExpectedProbabilities || result.AISentimentTopK != tc.ExpectedTop {
+				t.Fatal(result, err)
+			}
+		})
+	}
+}
+
+func TestSettingsMissingRowsAreDistinct(t *testing.T) {
+	for _, tc := range []struct{ mode, message string }{
+		{"missing-user", "user settings user missing"},
+		{"missing-settings", "user settings row missing"},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			state := &settingsDBState{mode: tc.mode}
+			db := sql.OpenDB(settingsConnector{state})
+			defer db.Close()
+			_, err := (OracleSessions{db}).applyUserSettings(context.Background(), 42, nil, func(context.Context, *sql.Conn) error { return nil })
+			if err == nil || err.Error() != tc.message || state.rollbacks != 1 || state.commits != 0 {
+				t.Fatal(err, state)
+			}
+		})
+	}
 }
 
 func TestUserPresenceRepository(t *testing.T) {

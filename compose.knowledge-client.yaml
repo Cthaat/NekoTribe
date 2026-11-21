@@ -1,0 +1,12 @@
+services:
+  go:
+    environment:
+      AI_KNOWLEDGE_INDEX_URL: http://knowledge-index:3818
+    networks:
+      - default
+      - neko-knowledge
+
+networks:
+  neko-knowledge:
+    external: true
+    name: ${NEKO_KNOWLEDGE_NETWORK:-nekotribe-knowledge}

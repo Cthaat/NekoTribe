@@ -25,7 +25,7 @@ func (c likeNoticeConnector) Connect(context.Context) (driver.Conn, error) {
 func (c likeNoticeConnector) Driver() driver.Driver { return testDriver{} }
 func (c *likeNoticeConn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	switch {
-	case strings.Contains(q, "FROM n_comments WHERE"):
+	case strings.Contains(q, "FROM n_comments c"):
 		if c.s.missing {
 			return emptyRows{&c.s.driverState}, nil
 		}

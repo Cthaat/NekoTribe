@@ -129,6 +129,27 @@ func TestSMTPImplicitTLSAndDelivery(t *testing.T) {
 		t.Fatal("local SMTP did not finish")
 	}
 }
+
+func TestSMTPLoginAlertEscapesHTML(t *testing.T) {
+	port, roots, result, closeServer := localSMTP(t, "PLAIN")
+	defer closeServer()
+	config := smtpConfig{host: "localhost", port: port, user: "sender@example.test", password: "fake-password", roots: roots}
+	if err := config.SendLoginAlert(context.Background(), "recipient@example.test", "device <b>", "127.0.0.1", "agent <i>"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case transcript := <-result:
+		if !strings.Contains(transcript, "RCPT TO:<recipient@example.test>") ||
+			!strings.Contains(transcript, "Subject: =?UTF-8?q?") ||
+			!strings.Contains(transcript, "device &lt;b&gt;") ||
+			!strings.Contains(transcript, "agent &lt;i&gt;") ||
+			!strings.Contains(transcript, "IP: 127.0.0.1") {
+			t.Fatal("login alert message was missing or incorrectly encoded")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("local SMTP did not finish")
+	}
+}
 func TestSMTPRejectsUntrustedCertificate(t *testing.T) {
 	port, _, result, closeServer := localSMTP(t, "PLAIN")
 	defer closeServer()

@@ -61,6 +61,32 @@ func (f *eventFake) Publish(ctx context.Context, channel string, message interfa
 }
 func (f *eventFake) Close() error { f.closed = true; return nil }
 
+func TestChatMessageBroadcastHasNoSenderPermissions(t *testing.T) {
+	redis := &eventFake{}
+	publisher := &UserEventPublisher{client: redis, serverID: "fixture", clock: time.Now}
+	message := chatMessage{
+		ID: 8, ChannelID: 7, CanDelete: true, CanPin: true,
+		Author: PublicUser{Relationship: SelfRelationship{Relation: "self", IsSelf: true}},
+	}
+	if err := publisher.PublishChatMessage(context.Background(), message); err != nil {
+		t.Fatal(err)
+	}
+	var frame struct {
+		Data struct {
+			Message chatMessage
+			Neutral bool `json:"viewer_neutral"`
+		}
+	}
+	if err := json.Unmarshal(redis.payload, &frame); err != nil {
+		t.Fatal(err)
+	}
+	if redis.channel != "ws:chat:channel:7" || !redis.deadline || !frame.Data.Neutral ||
+		frame.Data.Message.CanDelete || frame.Data.Message.CanPin || frame.Data.Message.Author.Relationship.IsSelf ||
+		!message.CanDelete || !message.CanPin {
+		t.Fatalf("unexpected frame: %s", redis.payload)
+	}
+}
+
 func TestNotificationEventSharedVectors(t *testing.T) {
 	raw, err := os.ReadFile("../../contracts/scenarios/notification-event-vectors.json")
 	if err != nil {

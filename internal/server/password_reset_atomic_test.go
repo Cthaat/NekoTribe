@@ -51,7 +51,7 @@ func TestPasswordResetConsumesOTPAndRevokesSessions(t *testing.T) {
 	}
 	codec, _ := fixture(t)
 	s := &atomicResetFixture{resetFixture: &resetFixture{memorySessions: store(), otpHash: string(hash)}, activeSessions: 2}
-	h := NewHandler(codec, s, CorsPolicy{})
+	h := NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{OTPAttemptLimiter: otpAttemptFixture{}})
 	post := func() int {
 		req := httptest.NewRequest("POST", "/api/v2/auth/password-reset", strings.NewReader(`{"email":"fake@example.test","verification_id":"otp_fixture","code":"123456","new_password":"synthetic-new-password"}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -77,7 +77,7 @@ func TestPasswordResetRollsBackOnTransactionFailure(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/v2/auth/password-reset", strings.NewReader(`{"email":"fake@example.test","verification_id":"otp_fixture","code":"123456","new_password":"synthetic-new-password"}`))
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
-	NewHandler(codec, s, CorsPolicy{}).ServeHTTP(res, req)
+	NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{OTPAttemptLimiter: otpAttemptFixture{}}).ServeHTTP(res, req)
 	if res.Code != 500 || s.consumed || s.activeSessions != 2 || s.passwordHash != "" {
 		t.Fatal("failed transaction changed account state")
 	}
@@ -87,7 +87,7 @@ func TestConcurrentPasswordResetAllowsOnlyOneCommit(t *testing.T) {
 	hash, _ := bcrypt.GenerateFromPassword([]byte("123456"), 4)
 	codec, _ := fixture(t)
 	s := &atomicResetFixture{resetFixture: &resetFixture{memorySessions: store(), otpHash: string(hash)}, activeSessions: 2}
-	h := NewHandler(codec, s, CorsPolicy{})
+	h := NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{OTPAttemptLimiter: otpAttemptFixture{}})
 	start := make(chan struct{})
 	statuses := make(chan int, 2)
 	for i := 0; i < 2; i++ {

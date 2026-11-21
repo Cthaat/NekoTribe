@@ -16,6 +16,12 @@ type knowledgeRouteFixture struct {
 	failWrite error
 	writes    int
 	query     string
+	skillErr  error
+	citations []knowledgeCandidate
+}
+
+func (f *knowledgeRouteFixture) selectAIKnowledgeSkill(context.Context, int64, string, moderationPolicy, *string) (int64, error) {
+	return 1, f.skillErr
 }
 
 func (f *knowledgeRouteFixture) readAIConversation(_ context.Context, _ int64, id string, _ moderationPolicy) (conversationRecord, error) {
@@ -33,6 +39,7 @@ func (f *knowledgeRouteFixture) hydrateKnowledgeSources(_ context.Context, _ int
 }
 func (f *knowledgeRouteFixture) appendAIKnowledgeAssistantMessage(_ context.Context, _ int64, id string, input assistantMessageInput, refs []knowledgeCandidate, _ moderationPolicy) (conversationMessage, error) {
 	f.writes++
+	f.citations = refs
 	return conversationMessage{ID: "a", ConversationID: id, SequenceNo: 2, Role: "assistant"}, f.failWrite
 }
 
@@ -43,7 +50,10 @@ func TestKnowledgeGenerationRoute(t *testing.T) {
 			t.Fatal("invalid provider request")
 		}
 		encoded, _ := json.Marshal(body)
-		output := fakeKnowledgeAnswer(encoded)
+		if !strings.Contains(string(encoded), `"enum":[1]`) {
+			t.Error("structured schema did not constrain citations to the supplied reference")
+		}
+		output := `{"answer":"answer","citations":[1]}`
 		json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"index": 0, "finish_reason": "stop", "message": map[string]any{"role": "assistant", "content": output}}}})
 	}))
 	defer provider.Close()
@@ -51,6 +61,16 @@ func TestKnowledgeGenerationRoute(t *testing.T) {
 	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
 	path := "/api/v2/ai/conversations/" + id + "/knowledge-generate"
 	ref := knowledgeSource{Kind: "post", ID: 1, PostID: 1, Content: "资料", Version: strings.Repeat("a", 64)}
+	for _, failure := range []error{errSkillUnavailable, errSkillConfigUnavailable} {
+		s := &knowledgeRouteFixture{aiHTTPFixture: &aiHTTPFixture{memorySessions: store()}, rows: []knowledgeSource{ref}, purpose: "knowledge", skillErr: failure}
+		req := httptest.NewRequest("POST", path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+		w := httptest.NewRecorder()
+		NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{AIModelQuotaLimiter: singleCallAIQuota{}, AIModelConfig: writingConfig(provider.URL)}).ServeHTTP(w, req)
+		if w.Code != 503 || strings.Contains(w.Body.String(), failure.Error()) || s.writes != 0 {
+			t.Fatal(w.Code, w.Body.String(), s.writes)
+		}
+	}
 	for _, tc := range []struct {
 		name    string
 		rows    []knowledgeSource
@@ -65,9 +85,12 @@ func TestKnowledgeGenerationRoute(t *testing.T) {
 			req := httptest.NewRequest("POST", path, nil)
 			req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
 			w := httptest.NewRecorder()
-			NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{AIModelConfig: writingConfig(provider.URL)}).ServeHTTP(w, req)
+			NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{AIModelQuotaLimiter: singleCallAIQuota{}, AIModelConfig: writingConfig(provider.URL)}).ServeHTTP(w, req)
 			if w.Code != tc.status || !strings.Contains(w.Body.String(), tc.body) || w.Header().Get("Cache-Control") != "private, no-store" || s.writes != tc.writes {
 				t.Fatal(w.Code, w.Body.String(), s.writes)
+			}
+			if tc.writes > 0 && (len(s.citations) != 1 || s.citations[0].ID != ref.ID || s.citations[0].Version != ref.Version) {
+				t.Fatal("citation did not resolve to the verified source")
 			}
 		})
 	}
@@ -84,7 +107,7 @@ func TestKnowledgeGenerationRoute(t *testing.T) {
 		req := httptest.NewRequest("POST", path, strings.NewReader(tc.body))
 		req.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
 		w := httptest.NewRecorder()
-		NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{AIModelConfig: writingConfig(provider.URL)}).ServeHTTP(w, req)
+		NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{AIModelQuotaLimiter: singleCallAIQuota{}, AIModelConfig: writingConfig(provider.URL)}).ServeHTTP(w, req)
 		if w.Code != tc.status || s.query != tc.query {
 			t.Fatalf("status=%d query=%q", w.Code, s.query)
 		}

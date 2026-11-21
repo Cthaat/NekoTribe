@@ -26,9 +26,65 @@ type conversationDB struct {
 	messageContent   string
 	messageRole      string
 	messageModel     driver.Value
+	messageVersion   driver.Value
 	messageRevision  driver.Value
 	knowledgeQueries int
 	historyChecks    int
+}
+
+func TestKnowledgeWriteChecksSkillGenerationUnderLock(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	ref := knowledgeCandidate{Kind: "post", ID: 11, Version: knowledgeSourceVersion("post", 11, 11, "public")}
+	for _, tc := range []struct {
+		name       string
+		generation int64
+		ids        string
+		success    bool
+	}{
+		{"matching", 1, `["knowledge-answer"]`, true},
+		{"changed", 2, `["knowledge-answer"]`, false},
+		{"disabled", 1, `[]`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := &skillConfigState{conversation: conversationDB{mode: "ok", owner: 42, id: id, purpose: "knowledge", messages: 1}, rows: [][]driver.Value{{tc.generation, tc.ids}}}
+			db := sql.OpenDB(skillConfigConnector{state})
+			defer db.Close()
+			input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile", ConfigRevision: 1, SkillGeneration: 1}
+			_, err := (OracleSessions{db}).appendAIKnowledgeAssistantOperation(context.Background(), 42, id, input, []knowledgeCandidate{ref}, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			if (err == nil) != tc.success || !strings.HasSuffix(strings.ToUpper(strings.TrimSpace(state.query)), "FOR UPDATE NOWAIT") {
+				t.Fatal(err, state.query)
+			}
+			if !tc.success && (state.conversation.rollbacks != 1 || state.conversation.commits != 0) {
+				t.Fatal(state.conversation)
+			}
+		})
+	}
+}
+
+func TestWritingWriteChecksSkillGenerationUnderLock(t *testing.T) {
+	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
+	for _, tc := range []struct {
+		name       string
+		generation int64
+		ids        string
+		success    bool
+	}{
+		{"matching", 1, `["writing-draft"]`, true}, {"changed", 2, `["writing-draft"]`, false}, {"disabled", 1, `[]`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := &skillConfigState{conversation: conversationDB{mode: "ok", owner: 42, id: id, purpose: "writing", messages: 1}, rows: [][]driver.Value{{tc.generation, tc.ids}}}
+			db := sql.OpenDB(skillConfigConnector{state})
+			defer db.Close()
+			input := assistantMessageInput{Content: "draft", ExpectedSequence: 1, ModelID: "profile", ConfigRevision: 1, SkillGeneration: 1}
+			_, err := (OracleSessions{db}).appendAIAssistantMessageOperation(context.Background(), 42, id, input, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			if (err == nil) != tc.success || !strings.HasSuffix(strings.ToUpper(strings.TrimSpace(state.query)), "FOR UPDATE NOWAIT") {
+				t.Fatal(err, state.query)
+			}
+			if !tc.success && (state.conversation.rollbacks != 1 || state.conversation.commits != 0) {
+				t.Fatal(state.conversation)
+			}
+		})
+	}
 }
 
 func TestKnowledgeWriteRejectsChangedHistory(t *testing.T) {
@@ -36,10 +92,11 @@ func TestKnowledgeWriteRejectsChangedHistory(t *testing.T) {
 	ref := knowledgeCandidate{Kind: "post", ID: 11, Version: knowledgeSourceVersion("post", 11, 11, "public")}
 	for _, mode := range []string{"history-ok", "history-before", "history-during"} {
 		t.Run(mode, func(t *testing.T) {
-			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "knowledge", messages: 1}
-			db := sql.OpenDB(conversationConnector{state})
+			skillState := &skillConfigState{conversation: conversationDB{mode: mode, owner: 42, id: id, purpose: "knowledge", messages: 1}, rows: [][]driver.Value{{int64(1), `["knowledge-answer"]`}}}
+			state := &skillState.conversation
+			db := sql.OpenDB(skillConfigConnector{skillState})
 			defer db.Close()
-			input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile", ConfigRevision: 1, ContextSnapshot: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "question"}}}
+			input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile", ConfigRevision: 1, SkillGeneration: 1, ContextSnapshot: []conversationHistoryMessage{{SequenceNo: 1, Role: "user", Content: "question"}}}
 			_, err := (OracleSessions{db}).appendAIKnowledgeAssistantOperation(context.Background(), 42, id, input, []knowledgeCandidate{ref}, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
 			if mode == "history-ok" {
 				if err != nil || state.historyChecks != 2 {
@@ -57,10 +114,11 @@ func TestKnowledgeAssistantStorageRevalidatesAndRejectsUnsafeWrite(t *testing.T)
 	ref := knowledgeCandidate{Kind: "post", ID: 11, Version: knowledgeSourceVersion("post", 11, 11, "public")}
 	for _, mode := range []string{"ok", "source-revoked", "unsafe"} {
 		t.Run(mode, func(t *testing.T) {
-			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "knowledge", messages: 1}
-			db := sql.OpenDB(conversationConnector{state})
+			skillState := &skillConfigState{conversation: conversationDB{mode: mode, owner: 42, id: id, purpose: "knowledge", messages: 1}, rows: [][]driver.Value{{int64(1), `["knowledge-answer"]`}}}
+			state := &skillState.conversation
+			db := sql.OpenDB(skillConfigConnector{skillState})
 			defer db.Close()
-			input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile-a", ConfigRevision: 12}
+			input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile-a", ConfigRevision: 12, SkillGeneration: 1}
 			var err error
 			if mode == "unsafe" {
 				_, err = (OracleSessions{db}).appendAIAssistantMessageOperation(context.Background(), 42, id, input, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
@@ -86,10 +144,11 @@ func TestKnowledgeWriteLocksTermsUntilCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := knowledgeCandidate{Kind: "terms", ID: 1, Version: catalog[0].Version}
-	state := &conversationDB{mode: "terms-write", owner: 42, id: id, purpose: "knowledge", messages: 1}
-	db := sql.OpenDB(conversationConnector{state})
+	skillState := &skillConfigState{conversation: conversationDB{mode: "terms-write", owner: 42, id: id, purpose: "knowledge", messages: 1}, rows: [][]driver.Value{{int64(1), `["knowledge-answer"]`}}}
+	state := &skillState.conversation
+	db := sql.OpenDB(skillConfigConnector{skillState})
 	defer db.Close()
-	input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile", ConfigRevision: 1}
+	input := assistantMessageInput{Content: "answer", ExpectedSequence: 1, ModelID: "profile", ConfigRevision: 1, SkillGeneration: 1}
 	_, err = (OracleSessions{db}).appendAIKnowledgeAssistantOperation(context.Background(), 42, id, input, []knowledgeCandidate{ref}, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
 	if err != nil || state.commits != 1 || state.knowledgeQueries != 2 {
 		t.Fatal(err, state)
@@ -117,10 +176,22 @@ func TestKnowledgeHistoryRevalidatesBeforeReturning(t *testing.T) {
 			}
 			db := sql.OpenDB(conversationConnector{state})
 			defer db.Close()
-			items, err := (OracleSessions{db}).listAIConversationMessagesOperation(context.Background(), 42, id, 1, 10, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			items, err := (OracleSessions{db}).listAIHistoryOperation(context.Background(), 42, id, 1, 0, 10, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil }, false)
 			if mode == "ok" {
 				if err != nil || len(items) != 1 || items[0].Content != "answer" || len(items[0].Citations) != 1 || items[0].Citations[0] != (knowledgeCitation{Kind: ref.Kind, ID: ref.ID, Version: ref.Version, PostID: ref.ID}) {
 					t.Fatal(items, err)
+				}
+			} else if mode == "source-revoked" || mode == "legacy" {
+				if err != nil || len(items) != 1 || items[0].SequenceNo != 2 || items[0].Content != "公开资料已变更，历史回答不可用。" || len(items[0].Citations) != 0 {
+					t.Fatal(items, err)
+				}
+				backward, backwardErr := (OracleSessions{db}).listAIHistoryOperation(context.Background(), 42, id, 0, 3, 10, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil }, false)
+				if backwardErr != nil || len(backward) != 1 || backward[0].SequenceNo != 2 || backward[0].Content != items[0].Content || len(backward[0].Citations) != 0 {
+					t.Fatal(backward, backwardErr)
+				}
+				recent, recentErr := (OracleSessions{db}).listAIHistoryOperation(context.Background(), 42, id, 0, 0, 50, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil }, true)
+				if recentErr != nil || len(recent) != 0 {
+					t.Fatal(recent, recentErr)
 				}
 			} else if err == nil || len(items) != 0 {
 				t.Fatal(items, err)
@@ -204,6 +275,9 @@ func (c *conversationConn) ExecContext(_ context.Context, query string, args []d
 			if arg.Name == "model_id" {
 				c.state.messageModel = arg.Value
 			}
+			if arg.Name == "model_version" {
+				c.state.messageVersion = arg.Value
+			}
 			if arg.Name == "config_revision" {
 				c.state.messageRevision = arg.Value
 			}
@@ -231,14 +305,64 @@ func (c *conversationConn) ExecContext(_ context.Context, query string, args []d
 	return driver.RowsAffected(1), nil
 }
 
-func TestAppendAssistantMessageChecksVersionAndCurrentSequence(t *testing.T) {
+type groupDraftTxConnector struct {
+	skillConfigConnector
+	evidence groupEvidence
+}
+type groupDraftTxConn struct {
+	*skillConfigConn
+	evidence groupEvidence
+}
+
+func (c groupDraftTxConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	conn, err := c.skillConfigConnector.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &groupDraftTxConn{conn.(*skillConfigConn), c.evidence}, nil
+}
+func (c *groupDraftTxConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if strings.HasPrefix(query, "SELECT group_id FROM n_groups") && strings.HasSuffix(query, "FOR UPDATE") {
+		return &alertRows{values: []driver.Value{int64(7)}}, nil
+	}
+	if query == groupEvidenceSQL {
+		example := c.evidence.Examples[0]
+		excerpt := example.Excerpt
+		if c.state.conversation.mode == "changed" && c.state.conversation.messageRole == "assistant" {
+			excerpt = "modified"
+		}
+		return &schemaFixtureRows{columns: make([]string, 8), values: [][]driver.Value{{
+			c.evidence.WindowStart, c.evidence.WindowEnd, c.evidence.PostsCount, c.evidence.CommentsCount,
+			example.Kind, example.SourceID, example.PostID, excerpt,
+		}}}, nil
+	}
+	if strings.Contains(query, "fn_has_group_permission") && c.state.conversation.mode == "revoked" {
+		c.state.conversation.permissionCalls++
+		allowed := int64(1)
+		if c.state.conversation.messageRole == "assistant" {
+			allowed = 0
+		}
+		return &alertRows{values: []driver.Value{allowed}}, nil
+	}
+	return c.skillConfigConn.QueryContext(ctx, query, args)
+}
+
+func TestAppendGroupDraftChecksVersionSourcesAndCurrentSequence(t *testing.T) {
 	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
-	for _, mode := range []string{"ok", "stale", "revoked", "invalid", "commit"} {
+	evidence := groupEvidence{WindowStart: "2026-11-10T12:00:00.000000", WindowEnd: "2026-11-17T12:00:00.000000", PostsCount: 1,
+		Examples: []groupEvidenceExample{{Kind: "post", SourceID: 10, PostID: 10, Excerpt: "公开资料"}}}
+	for _, mode := range []string{"ok", "stale", "revoked", "invalid", "changed", "unverified", "commit"} {
 		t.Run(mode, func(t *testing.T) {
-			state := &conversationDB{mode: mode, owner: 42, id: id, purpose: "group", group: int64(7), messages: 1}
-			db := sql.OpenDB(conversationConnector{state})
+			config := &skillConfigState{conversation: conversationDB{mode: mode, owner: 42, id: id, purpose: "group", group: int64(7), messages: 1},
+				rows: [][]driver.Value{{int64(1), `["group-brief"]`}}}
+			state := &config.conversation
+			db := sql.OpenDB(groupDraftTxConnector{skillConfigConnector{config}, evidence})
 			defer db.Close()
-			input := assistantMessageInput{Content: "result", ExpectedSequence: 1, ModelID: "profile-a", ConfigRevision: 12}
+			input := assistantMessageInput{Content: "result", ExpectedSequence: 1, ModelID: "profile-a", ModelVersion: "2026.11+q4", ConfigRevision: 12, SkillGeneration: 1}
+			if mode != "unverified" {
+				input.GroupDraft = &groupDraftRecord{Version: 1, Kind: "weekly_report", WindowEnd: evidence.WindowEnd,
+					SourceDigest: groupEvidenceDigest(evidence), ExampleCount: 1, SkillGeneration: 1, Draft: "result"}
+			}
 			if mode == "stale" {
 				input.ExpectedSequence = 2
 			}
@@ -247,7 +371,7 @@ func TestAppendAssistantMessageChecksVersionAndCurrentSequence(t *testing.T) {
 			}
 			result, err := (OracleSessions{db}).appendAIAssistantMessageOperation(context.Background(), 42, id, input, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
 			if mode == "ok" {
-				if err != nil || result.SequenceNo != 2 || result.Role != "assistant" || state.messageModel != "profile-a" || state.messageRevision != int64(12) || state.messageRole != "assistant" || state.permissionCalls != 2 || state.commits != 1 {
+				if err != nil || result.SequenceNo != 2 || result.Role != "assistant" || state.messageModel != "profile-a" || state.messageVersion != "2026.11+q4" || state.messageRevision != int64(12) || state.messageRole != "assistant" || state.permissionCalls != 3 || state.commits != 1 || config.calls != 1 {
 					t.Fatal(result, err, state)
 				}
 			} else {
@@ -261,6 +385,9 @@ func TestAppendAssistantMessageChecksVersionAndCurrentSequence(t *testing.T) {
 					t.Fatal(err, state)
 				}
 				if mode == "revoked" && (!errors.Is(err, errConversationForbidden) || state.rollbacks != 1) {
+					t.Fatal(err, state)
+				}
+				if (mode == "changed" || mode == "unverified") && (!errors.Is(err, errConversationConflict) || state.rollbacks != 1 || state.commits != 0) {
 					t.Fatal(err, state)
 				}
 				if mode == "commit" && (state.commits != 1 || state.rollbacks != 0) {
@@ -338,11 +465,16 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 		for _, arg := range args {
 			got[arg.Name] = arg.Value
 		}
-		after, limit := int64(1), int64(10)
-		if newest {
-			after, limit = 0, 50
+		cursorName, cursor, limit := "after_sequence", int64(1), int64(10)
+		if strings.Contains(query, "m.sequence_no<:before_sequence") {
+			if !newest || !strings.HasSuffix(query, ") ORDER BY sequence_no ASC") {
+				return nil, errors.New("incorrect backward page order")
+			}
+			cursorName, cursor = "before_sequence", 3
+		} else if newest {
+			cursor, limit = 0, 50
 		}
-		if got["owner_user_id"] != int64(42) || got["after_sequence"] != after || got["row_limit"] != limit || got["conversation_id"] != c.state.id {
+		if got["owner_user_id"] != int64(42) || got[cursorName] != cursor || got["row_limit"] != limit || got["conversation_id"] != c.state.id {
 			return nil, errors.New("incorrect page bindings")
 		}
 		if c.state.mode == "empty" {
@@ -382,7 +514,7 @@ func TestRecentConversationHistoryUsesOwnerAndDescendingWindow(t *testing.T) {
 	state := &conversationDB{owner: 42, id: id, purpose: "group", group: int64(7)}
 	db := sql.OpenDB(conversationConnector{state})
 	defer db.Close()
-	items, err := (OracleSessions{db}).listAIHistoryOperation(context.Background(), 42, id, 0, 50, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil }, true)
+	items, err := (OracleSessions{db}).listAIHistoryOperation(context.Background(), 42, id, 0, 0, 50, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil }, true)
 	if err != nil || len(items) != 1 || items[0].Content != "第二条" || state.permissionCalls != 2 {
 		t.Fatal(items, err, state)
 	}
@@ -402,7 +534,7 @@ func TestConversationMessageHistory(t *testing.T) {
 			if mode == "invalid" {
 				limit = 51
 			}
-			result, err := (OracleSessions{db}).listAIConversationMessagesOperation(context.Background(), user, id, 1, limit, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil })
+			result, err := (OracleSessions{db}).listAIHistoryOperation(context.Background(), user, id, 1, 0, limit, conversationPolicy("", ""), func(context.Context, *sql.Conn) error { return nil }, false)
 			if mode == "empty" {
 				if err != nil || result == nil || len(result) != 0 || state.permissionCalls != 2 {
 					t.Fatal(result, err, state)
@@ -526,6 +658,9 @@ func TestConversationReadOwnerAndPolicy(t *testing.T) {
 	verify := func(context.Context, *sql.Conn) error { return nil }
 	repo := OracleSessions{db}
 	if _, err := repo.conversationOperation(context.Background(), 9, id, nil, conversationPolicy("", ""), verify); !errors.Is(err, errConversationNotFound) {
+		t.Fatal(err)
+	}
+	if _, err := repo.conversationOperation(context.Background(), 42, id, nil, conversationPolicy("", ""), verify); !errors.Is(err, errConversationForbidden) {
 		t.Fatal(err)
 	}
 	if _, err := repo.conversationOperation(context.Background(), 42, id, nil, conversationPolicy("", "someone-else"), verify); !errors.Is(err, errConversationForbidden) {

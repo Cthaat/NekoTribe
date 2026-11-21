@@ -18,16 +18,12 @@ type challengeRace struct {
 	release chan struct{}
 }
 
-func (s *challengeRace) ConsumeLoginChallenge(_ context.Context, id string) (bool, error) {
+func (s *challengeRace) InsertLoginSession(ctx context.Context, session LoginSession) error {
 	s.arrived <- struct{}{}
 	<-s.release
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.consumed || s.challenge.ID != id {
-		return false, nil
-	}
-	s.consumed = true
-	return true, nil
+	return s.factorFixture.InsertLoginSession(ctx, session)
 }
 
 type recoveryRace struct {
@@ -46,25 +42,21 @@ func (s *recoveryRace) FindLoginChallenge(_ context.Context, id string) (LoginCh
 func (s *recoveryRace) FindRecoveryCodes(context.Context, int64) ([]RecoveryCode, error) {
 	return s.codes, nil
 }
-func (s *recoveryRace) ConsumeRecoveryCode(context.Context, int64) (bool, error) {
+func (s *recoveryRace) InsertLoginSession(ctx context.Context, session LoginSession) error {
 	s.arrived <- struct{}{}
 	<-s.release
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.recoveryUsed {
-		return false, nil
+	id := session.factorCompletion.challenge.ID
+	if s.recoveryUsed || s.consumedIDs[id] {
+		return errFactorCompletionUnavailable
+	}
+	if err := s.loginFixtureStore.InsertLoginSession(ctx, session); err != nil {
+		return err
 	}
 	s.recoveryUsed = true
-	return true, nil
-}
-func (s *recoveryRace) ConsumeLoginChallenge(_ context.Context, id string) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.consumedIDs[id] {
-		return false, nil
-	}
 	s.consumedIDs[id] = true
-	return true, nil
+	return nil
 }
 func runFactorRace(t *testing.T, h http.Handler, bodies []string, arrived chan struct{}, release chan struct{}) []*httptest.ResponseRecorder {
 	t.Helper()

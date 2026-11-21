@@ -17,11 +17,12 @@ type vectors struct {
 		Refresh string `json:"refresh"`
 	} `json:"keys"`
 	Cases []struct {
-		ID             string `json:"id"`
-		Type           Kind   `json:"type"`
-		Token          string `json:"token"`
-		ExpectedValid  bool   `json:"expectedValid"`
-		ExpectedUserID int64  `json:"expectedUserId"`
+		ID                       string `json:"id"`
+		Type                     Kind   `json:"type"`
+		Token                    string `json:"token"`
+		ExpectedValid            bool   `json:"expectedValid"`
+		ExpectedValidForRotation *bool  `json:"expectedValidForRotation"`
+		ExpectedUserID           int64  `json:"expectedUserId"`
 	} `json:"cases"`
 }
 
@@ -34,8 +35,8 @@ func TestNuxtTokenVectors(t *testing.T) {
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if len(fixture.Cases) != 25 {
-		t.Fatalf("expected 25 common vectors, got %d", len(fixture.Cases))
+	if len(fixture.Cases) != 35 {
+		t.Fatalf("expected 35 common vectors, got %d", len(fixture.Cases))
 	}
 	manager, err := NewTokenManager([]byte(fixture.Keys.Access), []byte(fixture.Keys.Refresh), func() time.Time { return time.Unix(fixture.Now, 0) })
 	if err != nil {
@@ -43,6 +44,20 @@ func TestNuxtTokenVectors(t *testing.T) {
 	}
 	for _, vector := range fixture.Cases {
 		t.Run(vector.ID, func(t *testing.T) {
+			if vector.Type == Refresh {
+				expected := vector.ExpectedValid
+				if vector.ExpectedValidForRotation != nil {
+					expected = *vector.ExpectedValidForRotation
+				}
+				claims, err := manager.VerifyRefreshForRotation(vector.Token)
+				if expected {
+					if err != nil || claims.UserID != vector.ExpectedUserID || claims.SessionID != "fixture-session-42" {
+						t.Fatalf("unexpected rotation claims: %+v, %v", claims, err)
+					}
+				} else if !errors.Is(err, ErrInvalidToken) {
+					t.Fatalf("expected sanitized rotation rejection, got %v", err)
+				}
+			}
 			claims, err := manager.Verify(vector.Token, vector.Type)
 			if !vector.ExpectedValid {
 				if !errors.Is(err, ErrInvalidToken) {

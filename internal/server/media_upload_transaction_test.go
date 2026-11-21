@@ -51,6 +51,12 @@ func (tx *mediaUploadTx) Rollback() error {
 }
 func (c *mediaUploadConn) QueryContext(_ context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	c.s.calls = append(c.s.calls, listQueryCall{q, append([]driver.NamedValue(nil), args...)})
+	if q == "SELECT access_scope FROM n_media_assets WHERE 1=0" {
+		if c.s.mode == "pre-t19" {
+			return nil, errors.New("ORA-00904: private column diagnostic")
+		}
+		return emptyRows{&c.s.driverState}, nil
+	}
 	if strings.Contains(q, "seq_media_id") {
 		if c.s.mode == "sequence" {
 			return nil, errors.New("private sequence")
@@ -78,6 +84,9 @@ func (c *mediaUploadConn) QueryContext(_ context.Context, q string, args []drive
 }
 func (c *mediaUploadConn) ExecContext(_ context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
 	c.s.calls = append(c.s.calls, listQueryCall{q, append([]driver.NamedValue(nil), args...)})
+	if c.s.mode == "schema-race" {
+		return nil, errors.New("ORA-00904: private column diagnostic")
+	}
 	if c.s.mode == "insert" || c.s.mode == "rollback" {
 		return nil, errors.New("private insert")
 	}

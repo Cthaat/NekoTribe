@@ -19,10 +19,20 @@ func TestNoNativeRouteCallsCountedNuxt(t *testing.T) {
 	s := store()
 	ts := httptest.NewServer(NewHandler(codec, s, CorsPolicy{}))
 	defer ts.Close()
-	for _, path := range []string{"/api/v2/auth/login", "/storage/file", "/uploads/file"} {
-		r, _ := request(t, ts.Client(), ts.URL, "GET", path, "", "")
-		if r.StatusCode != 404 {
-			t.Fatal(path, r.StatusCode)
+	for _, route := range []struct {
+		path   string
+		status int
+	}{
+		{"/api/v2/auth/login", http.StatusNotFound},
+		{"/storage/file", http.StatusNotFound},
+		{"/uploads/file", http.StatusGone},
+	} {
+		r, _ := request(t, ts.Client(), ts.URL, "GET", route.path, "", "")
+		if r.StatusCode != route.status {
+			t.Fatalf("%s: got %d, want %d", route.path, r.StatusCode, route.status)
+		}
+		if route.path == "/api/v2/auth/login" && r.Header.Get("Cache-Control") != "private, no-store" {
+			t.Fatal("v2 fallback must not be cached")
 		}
 	}
 	ws, _ := request(t, ts.Client(), ts.URL, "GET", "/_ws", "", "")
@@ -32,6 +42,9 @@ func TestNoNativeRouteCallsCountedNuxt(t *testing.T) {
 	list, _ := request(t, ts.Client(), ts.URL, "GET", "/api/v2/auth/sessions", "", "")
 	if list.StatusCode != 401 {
 		t.Fatal("native session list must require authentication", list.StatusCode)
+	}
+	if list.Header.Get("Cache-Control") != "private, no-store" {
+		t.Fatal("v2 authentication errors must not be cached")
 	}
 	if calls.Load() != 0 {
 		t.Fatal("unexpected Nuxt fallback", calls.Load())

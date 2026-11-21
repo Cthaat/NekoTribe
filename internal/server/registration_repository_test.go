@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -14,6 +15,8 @@ type registrationSQLState struct {
 	queries []string
 	args    [][]driver.NamedValue
 	exec    *driverState
+	claims  int
+	mode    string
 }
 type registrationSQLConnector struct{ s *registrationSQLState }
 type registrationSQLConn struct {
@@ -32,11 +35,31 @@ func (c *registrationSQLConn) QueryContext(_ context.Context, q string, args []d
 	case strings.Contains(q, "n_auth_otp_events"):
 		return &alertRows{values: []driver.Value{time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, nil
 	case strings.Contains(q, "COUNT(*)"):
+		if c.s.mode == "duplicate" {
+			return &alertRows{values: []driver.Value{int64(1)}}, nil
+		}
 		return &alertRows{values: []driver.Value{int64(0)}}, nil
 	case strings.Contains(q, "seq_user_id.NEXTVAL"):
 		return &alertRows{values: []driver.Value{int64(123)}}, nil
 	}
 	return nil, errSessionStore
+}
+func (c *registrationSQLConn) ExecContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
+	if q == claimRegistrationOTPSQL {
+		c.s.claims++
+		if c.s.mode == "expired" {
+			return driver.RowsAffected(0), nil
+		}
+	}
+	if q == insertRegistrationSQL {
+		switch c.s.mode {
+		case "insert-error":
+			return nil, errSessionStore
+		case "duplicate":
+			return nil, emailUniqueError{}
+		}
+	}
+	return c.testConn.ExecContext(ctx, q, args)
 }
 func TestRegistrationRepositoryUsesBoundQueriesAndCommit(t *testing.T) {
 	state := &registrationSQLState{exec: &driverState{}}
@@ -63,7 +86,7 @@ func TestRegistrationRepositoryUsesBoundQueriesAndCommit(t *testing.T) {
 	if strings.Contains(fmt.Sprintf("%v %#v", record, record), "synthetic-hash") {
 		t.Fatal("record leaked")
 	}
-	if err = repo.InsertRegistration(ctx, record); err != nil || state.exec.commits != 1 || strings.Contains(state.exec.sql, "fake';--") || !strings.Contains(state.exec.sql, "TO_DATE(:birth_date, 'YYYY-MM-DD')") {
+	if err = repo.InsertRegistration(ctx, record, "otp_fixture"); err != nil || state.claims != 1 || state.exec.commits != 1 || strings.Contains(state.exec.sql, "fake';--") || !strings.Contains(state.exec.sql, "TO_DATE(:birth_date, 'YYYY-MM-DD')") {
 		t.Fatal("insert invalid", err)
 	}
 	want := map[string]interface{}{"user_id": int64(123), "email": "fake';--", "username": "username", "password_hash": "synthetic-hash", "display_name": "Test", "bio": "  retained  ", "location": nil, "phone": nil, "birth_date": nil}
@@ -75,5 +98,24 @@ func TestRegistrationRepositoryUsesBoundQueriesAndCommit(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Fatal("missing binds", len(want))
+	}
+}
+
+func TestRegistrationRollsBackUnusableClaimAndFailedInsert(t *testing.T) {
+	for _, tc := range []struct {
+		mode string
+		want error
+	}{
+		{"expired", errRegistrationOTPMissing},
+		{"insert-error", errSessionStore},
+		{"duplicate", errRegistrationConflict},
+	} {
+		state := &registrationSQLState{exec: &driverState{}, mode: tc.mode}
+		db := sql.OpenDB(registrationSQLConnector{state})
+		err := (OracleSessions{DB: db}).InsertRegistration(context.Background(), RegistrationRecord{Email: "a@example.test"}, "otp_fixture")
+		db.Close()
+		if !errors.Is(err, tc.want) || state.claims != 1 || state.exec.rollbacks != 1 || state.exec.commits != 0 {
+			t.Fatalf("%s: err=%v claims=%d transaction=%+v", tc.mode, err, state.claims, state.exec)
+		}
 	}
 }

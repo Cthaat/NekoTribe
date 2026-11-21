@@ -43,6 +43,12 @@ func (c *mediaDeleteConn) QueryContext(_ context.Context, q string, args []drive
 	if c.state.mode == "missing" {
 		return emptyRows{&c.state.driverState}, nil
 	}
+	if strings.Contains(q, "AS in_use") {
+		if c.state.mode == "in-use" {
+			return &alertRows{values: []driver.Value{int64(1)}}, nil
+		}
+		return emptyRows{&c.state.driverState}, nil
+	}
 	return &alertRows{values: []driver.Value{"owned/a.txt", "/storage/owned/a.txt", nil}}, nil
 }
 func (c *mediaDeleteConn) ExecContext(_ context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
@@ -59,7 +65,7 @@ func (c *mediaDeleteConn) ExecContext(_ context.Context, q string, args []driver
 	return driver.RowsAffected(1), nil
 }
 func TestMediaDeleteRepositoryCommitAndOwnership(t *testing.T) {
-	for _, mode := range []string{"success", "missing", "race", "multiple", "query-error", "write-error", "commit-error"} {
+	for _, mode := range []string{"success", "missing", "in-use", "race", "multiple", "query-error", "write-error", "commit-error"} {
 		t.Run(mode, func(t *testing.T) {
 			state := &mediaDeleteDBState{mode: mode}
 			if mode == "commit-error" {
@@ -68,7 +74,7 @@ func TestMediaDeleteRepositoryCommitAndOwnership(t *testing.T) {
 			db := sql.OpenDB(mediaDeleteConnector{state})
 			defer db.Close()
 			record, err := (OracleSessions{db}).DeleteMedia(context.Background(), 42, 20)
-			shouldError := mode == "multiple" || strings.HasSuffix(mode, "-error")
+			shouldError := mode == "in-use" || mode == "multiple" || strings.HasSuffix(mode, "-error")
 			if (err != nil) != shouldError || (err != nil && strings.Contains(err.Error(), "private")) {
 				t.Fatal(record, err)
 			}
@@ -78,10 +84,23 @@ func TestMediaDeleteRepositoryCommitAndOwnership(t *testing.T) {
 			if mode == "success" && (record.Key != "owned/a.txt" || state.commits != 1) {
 				t.Fatal(record, state.commits)
 			}
-			if len(state.reads) != 1 || !strings.Contains(state.reads[0].sql, "owner_user_id=:user_id") {
+			if len(state.reads) == 0 || !strings.Contains(state.reads[0].sql, "owner_user_id=:user_id FOR UPDATE") {
 				t.Fatal(state.reads)
 			}
 			if mode != "missing" && mode != "query-error" {
+				if len(state.reads) != 2 ||
+					!strings.Contains(state.reads[1].sql, "n_post_media") ||
+					!strings.Contains(state.reads[1].sql, "n_chat_message_media") ||
+					!strings.Contains(state.reads[1].sql, "avatar_media_id") ||
+					!strings.Contains(state.reads[1].sql, "g.avatar_url") ||
+					!strings.Contains(state.reads[1].sql, "g.cover_url") {
+					t.Fatal(state.reads)
+				}
+			}
+			if mode == "in-use" && (!errors.Is(err, errMediaInUse) || state.commits != 0) {
+				t.Fatal(err, state.commits)
+			}
+			if mode != "missing" && mode != "query-error" && mode != "in-use" {
 				if len(state.writes) != 1 || !strings.Contains(state.writes[0].sql, "owner_user_id=:user_id") {
 					t.Fatal(state.writes)
 				}
@@ -115,6 +134,7 @@ func TestMediaDeleteRouteBoundaries(t *testing.T) {
 	}{
 		{"success", mediaDeleteRecord{Deleted: true, Key: "owned/file.txt"}, nil, 200, false},
 		{"missing", mediaDeleteRecord{}, nil, 404, true},
+		{"in-use", mediaDeleteRecord{}, errMediaInUse, 409, true},
 		{"uncertain commit", mediaDeleteRecord{}, errors.New("private detail"), 500, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

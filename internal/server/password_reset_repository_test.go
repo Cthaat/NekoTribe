@@ -51,7 +51,7 @@ func TestAtomicResetRepositoryTransactions(t *testing.T) {
 		wantError                 bool
 		commits, rollbacks, calls int
 	}{
-		{"success", 1, 1, 0, resetCommitted, false, 1, 0, 3},
+		{"success", 1, 1, 0, resetCommitted, false, 1, 0, 5},
 		{"already consumed", 0, 1, 0, resetExpired, false, 0, 1, 1},
 		{"missing user", 1, 0, 0, resetUserMissing, false, 0, 1, 2},
 		{"duplicate claim", 2, 1, 0, 0, true, 0, 1, 1},
@@ -59,6 +59,8 @@ func TestAtomicResetRepositoryTransactions(t *testing.T) {
 		{"claim failure", 1, 1, 1, 0, true, 0, 1, 1},
 		{"password failure", 1, 1, 2, 0, true, 0, 1, 2},
 		{"revoke failure", 1, 1, 3, 0, true, 0, 1, 3},
+		{"challenge revocation failure", 1, 1, 4, 0, true, 0, 1, 4},
+		{"device revocation failure", 1, 1, 5, 0, true, 0, 1, 5},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := &resetTransactionState{claim: tc.claim, user: tc.user, failAt: tc.fail}
@@ -94,8 +96,14 @@ func TestAtomicResetRepositoryTransactions(t *testing.T) {
 					t.Fatal("password binds incorrect")
 				}
 			}
-			if len(state.binds) > 2 && (len(state.binds[2]) != 1 || state.binds[2][0].Name != "email" || state.binds[2][0].Value != "fake';--") {
-				t.Fatal("session revoke bind incorrect")
+			for index, statement := range []string{revokeResetSessionsSQL, invalidateResetChallengesSQL, revokeResetDevicesSQL} {
+				if index+2 >= len(state.queries) {
+					break
+				}
+				args := state.binds[index+2]
+				if state.queries[index+2] != statement || len(args) != 1 || args[0].Name != "email" || args[0].Value != "fake';--" {
+					t.Fatal("reset revocation scope or binding incorrect")
+				}
 			}
 		})
 	}
@@ -107,7 +115,7 @@ func TestAtomicResetCommitFailureDoesNotReportSuccess(t *testing.T) {
 	db := sql.OpenDB(resetTransactionConnector{state})
 	defer db.Close()
 	_, err := (OracleSessions{db}).ResetPasswordAtomic(context.Background(), "fake@example.test", "otp_fixture", "otp-hash", "new-hash")
-	if err == nil || state.commits != 1 || len(state.queries) != 3 {
+	if err == nil || state.commits != 1 || len(state.queries) != 5 {
 		t.Fatal("commit failure was reported as success")
 	}
 }

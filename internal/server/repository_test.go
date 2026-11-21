@@ -17,6 +17,7 @@ type driverState struct {
 	args                       []driver.NamedValue
 	commits, rollbacks, closed int
 	fail                       string
+	queryRows                  map[string]driver.Value
 }
 type testConnector struct{ state *driverState }
 type testDriver struct{}
@@ -47,6 +48,12 @@ func (c *testConn) ExecContext(_ context.Context, q string, args []driver.NamedV
 	if c.state.fail == "execute" {
 		return nil, errors.New("private detail")
 	}
+	if c.state.fail == "trusted-device-unavailable" && q == claimTrustedDeviceSQL {
+		return driver.RowsAffected(0), nil
+	}
+	if c.state.fail == "factor-session-write" && q == insertLoginSessionSQL {
+		return nil, errors.New("private session driver error")
+	}
 	return driver.RowsAffected(1), nil
 }
 func (c *testConn) QueryContext(_ context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
@@ -54,6 +61,9 @@ func (c *testConn) QueryContext(_ context.Context, q string, args []driver.Named
 	c.state.args = args
 	if c.state.fail == "query" {
 		return nil, errors.New("private detail")
+	}
+	if value, found := c.state.queryRows[q]; found {
+		return &loginGuardRow{value: value}, nil
 	}
 	return emptyRows{c.state}, nil
 }
@@ -87,7 +97,7 @@ func TestOracleRepositoryBindsAndCommits(t *testing.T) {
 	}{
 		{"touch", func() (int64, error) {
 			return repo.Touch(ctx, auth.Claims{UserID: 42, SessionID: "opaque';--", JTI: "jti"})
-		}, []string{"last_accessed_at = CURRENT_TIMESTAMP", "access_jti = :access_jti", "access_token_expires_at > CURRENT_TIMESTAMP", "revoked_at IS NULL"}, map[string]interface{}{"user_id": int64(42), "session_id": "opaque';--", "access_jti": "jti"}},
+		}, []string{"last_accessed_at = CURRENT_TIMESTAMP", "access_jti = :access_jti", "access_token_expires_at > CURRENT_TIMESTAMP", "revoked_at IS NULL", "u.user_id = n_auth_sessions.user_id", "u.is_active = 1 AND u.status = 'active'"}, map[string]interface{}{"user_id": int64(42), "session_id": "opaque';--", "access_jti": "jti"}},
 		{"revoke", func() (int64, error) { return repo.Revoke(ctx, 42, "opaque';--") }, []string{"revoked_at = CURRENT_TIMESTAMP", "session_id = :session_id", "revoked_at IS NULL"}, map[string]interface{}{"user_id": int64(42), "session_id": "opaque';--"}},
 		{"others", func() (int64, error) { return repo.RevokeOthers(ctx, 42, "current") }, []string{"session_id <> :session_id", "revoked_at IS NULL"}, map[string]interface{}{"user_id": int64(42), "session_id": "current"}},
 	} {
@@ -135,7 +145,7 @@ func TestPasswordResetRepositoryBindsAndCommits(t *testing.T) {
 	db := sql.OpenDB(testConnector{state})
 	defer db.Close()
 	count, err := (OracleSessions{db}).ResetPasswordAtomic(context.Background(), "fake';--", "otp_fixture", "otp-hash", "synthetic-hash")
-	if err != nil || count != resetCommitted || state.commits != 1 || strings.Contains(state.sql, "fake';--") || !strings.Contains(state.sql, "UPDATE n_auth_sessions") {
+	if err != nil || count != resetCommitted || state.commits != 1 || strings.Contains(state.sql, "fake';--") || state.sql != revokeResetDevicesSQL {
 		t.Fatal("reset operation failed", err)
 	}
 	want := map[string]interface{}{"email": "fake';--"}
@@ -181,12 +191,12 @@ func TestOracleRotationUsesAtomicCompareAndSwap(t *testing.T) {
 	if err != nil || n != 1 || state.commits != 1 {
 		t.Fatal(n, err, state.commits)
 	}
-	for _, fragment := range []string{"UPDATE n_auth_sessions", "refresh_token_hash = :old_refresh_token_hash", "user_id = :user_id", "session_id = :session_id", "revoked_at IS NULL", "refresh_token_expires_at > CURRENT_TIMESTAMP", "access_jti = :access_jti", "last_refresh_at = CURRENT_TIMESTAMP"} {
+	for _, fragment := range []string{"UPDATE n_auth_sessions", "refresh_token_hash = :old_refresh_token_hash", "user_id = :user_id", "session_id = :session_id", "revoked_at IS NULL", "refresh_token_expires_at > CURRENT_TIMESTAMP", "access_jti = :access_jti", "last_refresh_at = CURRENT_TIMESTAMP", "u.user_id = n_auth_sessions.user_id", "u.is_active = 1 AND u.status = 'active'"} {
 		if !strings.Contains(state.sql, fragment) {
 			t.Fatalf("missing SQL condition %s", fragment)
 		}
 	}
-	expected := map[string]interface{}{"access_jti": r.AccessJTI, "refresh_token_hash": r.NewHash, "access_token_expires_at": r.AccessExpiresAt, "refresh_token_expires_at": r.RefreshExpiresAt, "session_id": r.SessionID, "user_id": r.UserID, "old_refresh_token_hash": r.OldHash}
+	expected := map[string]interface{}{"access_jti": r.AccessJTI, "refresh_token_hash": r.NewHash, "access_token_expires_at": "2026-01-02T03:04:05.000+00:00", "refresh_token_expires_at": "2026-01-02T04:04:05.000+00:00", "session_id": r.SessionID, "user_id": r.UserID, "old_refresh_token_hash": r.OldHash}
 	for _, value := range state.args {
 		if expected[value.Name] != value.Value {
 			t.Fatalf("incorrect bind %s", value.Name)

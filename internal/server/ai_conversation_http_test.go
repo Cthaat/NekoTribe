@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -10,20 +11,26 @@ import (
 
 type aiHTTPFixture struct {
 	*memorySessions
-	operation    string
-	actor        int64
-	after, limit int64
-	content      string
-	cursor       string
-	policy       moderationPolicy
-	fail         error
+	operation            string
+	actor                int64
+	after, before, limit int64
+	content              string
+	cursor               string
+	purpose              string
+	groupID              *int64
+	targetTitle          string
+	policy               moderationPolicy
+	fail                 error
 }
 
-func (s *aiHTTPFixture) listAIConversations(_ context.Context, user int64, after string, limit int, policy moderationPolicy) (conversationPage, error) {
+func (s *aiHTTPFixture) listAIConversations(_ context.Context, user int64, after string, limit int, purpose string, groupID *int64, targetTitle string, policy moderationPolicy) (conversationPage, error) {
 	s.operation = "list-owned"
 	s.actor = user
 	s.cursor = after
 	s.limit = int64(limit)
+	s.purpose = purpose
+	s.groupID = groupID
+	s.targetTitle = targetTitle
 	return conversationPage{Items: []conversationRecord{}}, s.fail
 }
 
@@ -49,13 +56,53 @@ func (s *aiHTTPFixture) appendAIUserMessage(_ context.Context, user int64, id, c
 	s.content = content
 	return conversationMessage{ID: id, ConversationID: id, SequenceNo: 1, Role: "user"}, s.fail
 }
-func (s *aiHTTPFixture) listAIConversationMessages(_ context.Context, user int64, id string, after, limit int64, policy moderationPolicy) ([]conversationHistoryMessage, error) {
+func (s *aiHTTPFixture) listAIConversationMessages(_ context.Context, user int64, id string, after, before, limit int64, policy moderationPolicy) ([]conversationHistoryMessage, error) {
 	s.operation = "list"
 	s.actor = user
 	s.after = after
+	s.before = before
 	s.limit = limit
 	return []conversationHistoryMessage{}, s.fail
 }
+func TestAIConversationHTTPBody(t *testing.T) {
+	codec, tokens := fixture(t)
+	for _, route := range []struct{ path, json, form, duplicate, operation string }{
+		{"/api/v2/ai/conversations", `{"purpose":"writing"}`, "purpose=writing", `{"purpose":"knowledge","purpo\u0073e":"writing"}`, "create"},
+		{"/api/v2/ai/conversations/f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb/messages", `{"content":"猫😺"}`, "content=hello", `{"content":"first","cont\u0065nt":"replacement"}`, "append"},
+	} {
+		padded := route.json + strings.Repeat(" ", (1<<20)-len(route.json))
+		for _, tc := range []struct {
+			name, body, mediaType string
+			status                int
+		}{
+			{"limit", padded, "application/json", 200},
+			{"over limit", padded + " ", "application/json", 400},
+			{"form", route.form, "application/x-www-form-urlencoded", 400},
+			{"array", "[]", "application/json", 400},
+			{"extra object", route.json + "{}", "application/json", 400},
+			{"duplicate member", route.duplicate, "application/json", 400},
+			{"invalid UTF-8", "{\"content\":\"\xff\"}", "application/json", 400},
+			{"unpaired surrogate", `{"content":"\ud800"}`, "application/json", 400},
+		} {
+			t.Run(route.operation+"/"+tc.name, func(t *testing.T) {
+				s := &aiHTTPFixture{memorySessions: store()}
+				r := httptest.NewRequest("POST", route.path, io.NopCloser(strings.NewReader(tc.body)))
+				r.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+				r.Header.Set("Content-Type", tc.mediaType)
+				w := httptest.NewRecorder()
+				NewHandlerWithConfig(codec, s, CorsPolicy{}, RefreshConfig{}).ServeHTTP(w, r)
+				wantOperation := ""
+				if tc.status == 200 {
+					wantOperation = route.operation
+				}
+				if w.Code != tc.status || s.operation != wantOperation {
+					t.Fatalf("status=%d operation=%s body=%s", w.Code, s.operation, w.Body.String())
+				}
+			})
+		}
+	}
+}
+
 func TestAIConversationHTTPRoutes(t *testing.T) {
 	codec, tokens := fixture(t)
 	id := "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb"
@@ -65,12 +112,25 @@ func TestAIConversationHTTPRoutes(t *testing.T) {
 	}{
 		{"POST", "/api/v2/ai/conversations", `{"purpose":"knowledge"}`, "create", 200},
 		{"GET", "/api/v2/ai/conversations?limit=10", "", "list-owned", 200},
+		{"GET", "/api/v2/ai/conversations?purpose=knowledge", "", "list-owned", 200},
+		{"GET", "/api/v2/ai/conversations?purpose=group&group_id=7", "", "list-owned", 200},
+		{"GET", "/api/v2/ai/conversations?purpose=moderation&target_type=post&target_id=17", "", "list-owned", 200},
+		{"GET", "/api/v2/ai/conversations?purpose=moderation&target_type=post", "", "", 400},
+		{"GET", "/api/v2/ai/conversations?purpose=moderation&target_type=user&target_id=17", "", "", 400},
+		{"GET", "/api/v2/ai/conversations?purpose=writing&group_id=7", "", "", 400},
+		{"GET", "/api/v2/ai/conversations?purpose=group&group_id=7&group_id=8", "", "", 400},
+		{"GET", "/api/v2/ai/conversations?purpose=", "", "", 400},
+		{"GET", "/api/v2/ai/conversations?purpose=knowledge&purpose=writing", "", "", 400},
 		{"GET", "/api/v2/ai/conversations?after_id=bad", "", "", 400},
 		{"GET", "/api/v2/ai/conversations?limit=1&limit=2", "", "", 400},
 		{"GET", "/api/v2/ai/conversations/" + id, "", "read", 200},
 		{"DELETE", "/api/v2/ai/conversations/" + id, "", "delete", 200},
 		{"POST", "/api/v2/ai/conversations/" + id + "/messages", `{"content":"你好"}`, "append", 200},
 		{"GET", "/api/v2/ai/conversations/" + id + "/messages?after_sequence=2&limit=10", "", "list", 200},
+		{"GET", "/api/v2/ai/conversations/" + id + "/messages?before_sequence=10000000000&limit=10", "", "list", 200},
+		{"GET", "/api/v2/ai/conversations/" + id + "/messages?before_sequence=0", "", "", 400},
+		{"GET", "/api/v2/ai/conversations/" + id + "/messages?before_sequence=2&after_sequence=0", "", "", 400},
+		{"GET", "/api/v2/ai/conversations/" + id + "/messages?before_sequence=2&before_sequence=3", "", "", 400},
 		{"POST", "/api/v2/ai/conversations/" + id + "/messages", `{"content":"x","role":"assistant"}`, "", 400},
 		{"GET", "/api/v2/ai/conversations/" + id + "/messages?limit=51", "", "", 400},
 		{"GET", "/api/v2/ai/conversations/" + id + "/messages?limit=1&limit=2", "", "", 400},
@@ -93,8 +153,23 @@ func TestAIConversationHTTPRoutes(t *testing.T) {
 			if tc.operation == "delete" && (s.actor != 42 || !strings.Contains(w.Body.String(), `"data":null`)) {
 				t.Fatal(s.actor, w.Body.String())
 			}
-			if tc.operation == "list" && (s.actor != 42 || s.after != 2 || s.limit != 10) {
-				t.Fatal(s)
+			if tc.operation == "list" {
+				after, before := int64(2), int64(0)
+				if r.URL.Query().Has("before_sequence") {
+					after, before = 0, 10000000000
+				}
+				if s.actor != 42 || s.after != after || s.before != before || s.limit != 10 {
+					t.Fatal(s)
+				}
+			}
+			if strings.HasSuffix(tc.path, "?purpose=knowledge") && s.purpose != "knowledge" {
+				t.Fatal(s.purpose)
+			}
+			if strings.HasSuffix(tc.path, "?purpose=group&group_id=7") && (s.groupID == nil || *s.groupID != 7) {
+				t.Fatal(s.groupID)
+			}
+			if tc.operation == "list-owned" && strings.Contains(tc.path, "target_id=") && s.targetTitle != "moderation:post:17" {
+				t.Fatal(s.targetTitle)
 			}
 		})
 	}

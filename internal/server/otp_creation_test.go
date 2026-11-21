@@ -21,6 +21,27 @@ type createOTPFixture struct {
 	updates int
 }
 
+type otpLimitFixture struct{ fault string }
+
+func (f otpLimitFixture) ReserveOTP(context.Context, string) (int64, error) {
+	switch f.fault {
+	case "limited":
+		return 42, nil
+	case "unavailable":
+		return 0, errOTPSendLimit
+	default:
+		return 0, nil
+	}
+}
+
+func TestOTPSendQuotaKey(t *testing.T) {
+	prefix := "neko:auth:otp-send:v1:{2ecd29ed8b5e3975d29c00aa4d3a2553bfc46f2391fc39355c23719f8c5314a9}"
+	keys := otpSendKeys("Example@Example.Test")
+	if keys[0] != prefix+":cooldown" || keys[1] != prefix+":window" {
+		t.Fatal("OTP quota key differs from the shared vector")
+	}
+}
+
 func (s *createOTPFixture) FindOTP(_ context.Context, account, kind, id string) (string, bool, error) {
 	return s.event.Hash, s.inserts == 1 && s.event.Account == account && s.event.Kind == kind && s.event.ID == id, nil
 }
@@ -71,7 +92,7 @@ func TestSharedOTPCreation(t *testing.T) {
 			Status, Inserts, Sends int
 		}
 	}
-	if err = json.Unmarshal(data, &f); err != nil || len(f.Cases) != 12 {
+	if err = json.Unmarshal(data, &f); err != nil || len(f.Cases) != 14 {
 		t.Fatal(err)
 	}
 	codec, _ := fixture(t)
@@ -80,12 +101,15 @@ func TestSharedOTPCreation(t *testing.T) {
 		t.Run(tc.ID, func(t *testing.T) {
 			store := &createOTPFixture{memorySessions: store(), fault: tc.Fault}
 			mail := &createMailFixture{store: store, fault: tc.Fault}
-			h := NewHandlerWithConfig(codec, store, CorsPolicy{}, RefreshConfig{clock: func() time.Time { return now }, otpMailer: mail})
+			h := NewHandlerWithConfig(codec, store, CorsPolicy{}, RefreshConfig{clock: func() time.Time { return now }, OTPAttemptLimiter: otpAttemptFixture{}, otpMailer: mail, OTPSendLimiter: otpLimitFixture{fault: tc.Fault}})
 			req := httptest.NewRequest("POST", "/api/v2/auth/otp", bytes.NewReader(tc.Body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Cookie", "access_token=expired")
 			res := httptest.NewRecorder()
 			h.ServeHTTP(res, req)
+			if tc.Status == 429 && res.Header().Get("Retry-After") != "42" {
+				t.Fatal("missing retry delay")
+			}
 			if res.Code != tc.Status || store.inserts != tc.Inserts || mail.sends != tc.Sends || strings.Contains(res.Body.String(), "otp-private-fixture") || len(res.Result().Cookies()) != 0 {
 				t.Fatalf("status=%d inserts=%d sends=%d body=%s", res.Code, store.inserts, mail.sends, res.Body.String())
 			}

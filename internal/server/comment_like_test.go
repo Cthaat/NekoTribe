@@ -128,25 +128,35 @@ func TestCommentLikeRepository(t *testing.T) {
 			}
 			writes := 0
 			for _, call := range tc.s.calls {
+				assertCommentLikeScope(t, call.sql)
 				if strings.HasPrefix(call.sql, "INSERT") || strings.HasPrefix(call.sql, "DELETE") {
 					writes++
-					for _, s := range []string{"c.is_deleted=0", "p.is_deleted=0", "fn_can_view_post(:user_id,c.post_id)=1"} {
-						if !strings.Contains(call.sql, s) {
-							t.Fatal(call.sql)
-						}
-					}
-					m := map[string]any{}
-					for _, a := range call.args {
-						m[a.Name] = a.Value
-					}
-					if m["user_id"] != int64(42) || m["comment_id"] != int64(20) {
-						t.Fatal(m)
-					}
+				}
+				m := map[string]any{}
+				for _, a := range call.args {
+					m[a.Name] = a.Value
+				}
+				if m["viewer_id"] != int64(42) || m["comment_id"] != int64(20) {
+					t.Fatal(m)
 				}
 			}
 			if writes != tc.writes {
 				t.Fatal(writes)
 			}
 		})
+	}
+}
+
+func assertCommentLikeScope(t *testing.T, query string) {
+	t.Helper()
+	for _, part := range []string{
+		"c.is_deleted=0", "p.is_deleted=0", "fn_can_view_post(:viewer_id,c.post_id)=1",
+		"post_author.is_active=1", "comment_author.is_active=1",
+		"b.user_id=:viewer_id AND b.target_user_id=c.user_id",
+		"b.target_user_id=:viewer_id AND b.user_id=c.user_id",
+	} {
+		if !strings.Contains(query, part) {
+			t.Fatalf("missing %q in %s", part, query)
+		}
 	}
 }

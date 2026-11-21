@@ -22,11 +22,36 @@ type factorFixture struct {
 	challenge                       LoginChallenge
 	factor                          FactorSecret
 	consumed, trusted, recoveryUsed bool
+	resetBeforeTrust                bool
+	trustedKey                      string
 	codes                           []RecoveryCode
 }
 
-func (s *factorFixture) UseTrustedDevice(context.Context, int64, string, string, string, string) (bool, error) {
-	return s.trusted, nil
+func (s *factorFixture) InsertLoginSession(ctx context.Context, session LoginSession) error {
+	if session.trustedDeviceKey != "" && (!s.trusted || s.trustedKey != session.trustedDeviceKey) {
+		return errTrustedDeviceUnavailable
+	}
+	completion := session.factorCompletion
+	if completion != nil {
+		if s.consumed || s.challenge.ID != completion.challenge.ID || (completion.recoveryCodeID != nil && s.recoveryUsed) {
+			return errFactorCompletionUnavailable
+		}
+		if completion.trustedKey != "" && s.resetBeforeTrust {
+			return errLoginCredentialsChanged
+		}
+	}
+	if err := s.loginFixtureStore.InsertLoginSession(ctx, session); err != nil {
+		return err
+	}
+	if completion != nil {
+		s.consumed = true
+		s.recoveryUsed = s.recoveryUsed || completion.recoveryCodeID != nil
+		if completion.trustedKey != "" {
+			s.trusted = true
+			s.trustedKey = completion.trustedKey
+		}
+	}
+	return nil
 }
 func (s *factorFixture) CreateLoginChallenge(_ context.Context, c LoginChallenge) error {
 	s.challenge = c
@@ -44,23 +69,18 @@ func (s *factorFixture) FindRecoveryCodes(context.Context, int64) ([]RecoveryCod
 	}
 	return s.codes, nil
 }
-func (s *factorFixture) ConsumeRecoveryCode(context.Context, int64) (bool, error) {
-	if s.recoveryUsed {
-		return false, nil
+func TestTwoFactorCompletionCannotRecreateTrustAfterReset(t *testing.T) {
+	store, handler := challengeFixture(t)
+	if loginRequest(handler, `{"account":"tester","password":"synthetic-password","remember_me":true}`).Code != http.StatusOK {
+		t.Fatal("challenge not created")
 	}
-	s.recoveryUsed = true
-	return true, nil
-}
-func (s *factorFixture) ConsumeLoginChallenge(_ context.Context, id string) (bool, error) {
-	if s.consumed || s.challenge.ID != id {
-		return false, nil
+	store.challenge.Fingerprint = "old-device"
+	store.resetBeforeTrust = true
+	result := factorRequestForDevice(handler, fmt.Sprintf(`{"challenge_id":%q,"code":"287082"}`, store.challenge.ID), "old-device")
+	if result.Code != http.StatusUnauthorized || len(result.Result().Cookies()) != 0 ||
+		len(store.inserted) != 0 || store.trusted || store.consumed {
+		t.Fatalf("unexpected completion after reset: status=%d", result.Code)
 	}
-	s.consumed = true
-	return true, nil
-}
-func (s *factorFixture) TrustLoginDevice(context.Context, LoginChallenge, time.Time) error {
-	s.trusted = true
-	return nil
 }
 
 func factorSecretForTest(t *testing.T, secret string) FactorSecret {
@@ -88,8 +108,14 @@ func challengeFixture(t *testing.T) (*factorFixture, http.Handler) {
 	return factor, h
 }
 func factorRequest(h http.Handler, body string) *httptest.ResponseRecorder {
+	return factorRequestForDevice(h, body, "")
+}
+func factorRequestForDevice(h http.Handler, body, fingerprint string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest("POST", "/api/v2/auth/two-factor/challenges", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
+	if fingerprint != "" {
+		r.Header.Set("X-Device-Fingerprint", fingerprint)
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
@@ -141,7 +167,7 @@ func TestTwoFactorInvalidSecretDistinguishesTotpAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.codes = []RecoveryCode{{ID: 1, Hash: string(hash)}}
+	s.codes = []RecoveryCode{{ID: 0, Hash: string(hash)}}
 	response = factorRequest(h, fmt.Sprintf(`{"challenge_id":%q,"code":"abcde-12345"}`, s.challenge.ID))
 	if response.Code != 200 || !s.recoveryUsed || !s.consumed {
 		t.Fatal("non-six-digit recovery should not decode the TOTP secret")
@@ -159,13 +185,23 @@ func TestTwoFactorChallengeCompletionAndReplay(t *testing.T) {
 		t.Fatal("challenge did not precede session")
 	}
 	body := fmt.Sprintf(`{"challenge_id":%q,"code":"287082"}`, s.challenge.ID)
-	bad := factorRequest(h, fmt.Sprintf(`{"challenge_id":%q,"code":"287083"}`, s.challenge.ID))
+	wrongDevice := factorRequestForDevice(h, body, "other-device")
+	if wrongDevice.Code != 401 || s.consumed || s.trusted || len(s.inserted) != 0 ||
+		len(wrongDevice.Result().Cookies()) != 0 || !strings.Contains(wrongDevice.Body.String(), factorChallengeExpired) {
+		t.Fatal("wrong device completed or consumed a challenge")
+	}
+	bad := factorRequestForDevice(h, fmt.Sprintf(`{"challenge_id":%q,"code":"287083"}`, s.challenge.ID), "fixture-device")
 	if bad.Code != 401 || s.consumed {
 		t.Fatal("invalid factor consumed challenge")
 	}
-	ok := factorRequest(h, body)
-	if ok.Code != 200 || len(ok.Result().Cookies()) != 2 || !s.consumed || !s.trusted || len(s.inserted) != 1 {
+	ok := factorRequestForDevice(h, body, "fixture-device")
+	if ok.Code != 200 || len(ok.Result().Cookies()) != 3 || !s.consumed || !s.trusted || len(s.inserted) != 1 {
 		t.Fatalf("completion status %d", ok.Code)
+	}
+	proof := ok.Result().Cookies()[2]
+	if proof.Name != trustedDeviceCookie || !proof.HttpOnly || proof.SameSite != http.SameSiteLaxMode ||
+		s.trustedKey != "td1_"+refreshHash(proof.Value) || strings.Contains(ok.Body.String(), proof.Value) {
+		t.Fatal("trusted device proof format or storage did not match")
 	}
 	var payload struct {
 		Message string `json:"message"`
@@ -176,7 +212,7 @@ func TestTwoFactorChallengeCompletionAndReplay(t *testing.T) {
 	if json.Unmarshal(ok.Body.Bytes(), &payload) != nil || payload.Message != "login success" || payload.Data.TwoFactorRequired {
 		t.Fatal("bad login response")
 	}
-	replay := factorRequest(h, body)
+	replay := factorRequestForDevice(h, body, "fixture-device")
 	if replay.Code != 401 || len(s.inserted) != 1 {
 		t.Fatal("replayed challenge")
 	}
@@ -215,13 +251,25 @@ func TestTwoFactorPathIDTakesPrecedence(t *testing.T) {
 func TestTwoFactorTrustedDeviceAndBadCiphertext(t *testing.T) {
 	s, h := challengeFixture(t)
 	s.trusted = true
+	proof := "td1_" + strings.Repeat("a", 64)
+	s.trustedKey = "td1_" + refreshHash(proof)
 	r := httptest.NewRequest("POST", "/api/v2/auth/tokens", strings.NewReader(`{"account":"tester","password":"synthetic-password"}`))
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("X-Device-Fingerprint", "fixture-device")
+	r.AddCookie(&http.Cookie{Name: trustedDeviceCookie, Value: proof})
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	if w.Code != 200 || len(w.Result().Cookies()) != 2 || len(s.inserted) != 1 || s.challenge.ID != "" {
 		t.Fatal("trusted device did not issue session")
+	}
+	s.trusted = false
+	r = httptest.NewRequest("POST", "/api/v2/auth/tokens", strings.NewReader(`{"account":"tester","password":"synthetic-password"}`))
+	r.Header.Set("Content-Type", "application/json")
+	r.AddCookie(&http.Cookie{Name: trustedDeviceCookie, Value: proof})
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 200 || len(w.Result().Cookies()) != 0 || len(s.inserted) != 1 || s.challenge.ID == "" {
+		t.Fatal("revoked trusted device did not restart second-factor challenge")
 	}
 	s, h = challengeFixture(t)
 	if loginRequest(h, `{"account":"tester","password":"synthetic-password"}`).Code != 200 {

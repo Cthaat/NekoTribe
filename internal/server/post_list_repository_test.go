@@ -28,11 +28,34 @@ func (c postListConnector) Connect(context.Context) (driver.Conn, error) {
 func (c postListConnector) Driver() driver.Driver { return testDriver{} }
 func (c *postListConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	*c.calls = append(*c.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	if query == recommendationFeedbackSQL.Schema {
+		return &alertRows{values: []driver.Value{"N_RECOMMENDATION_FEEDBACK"}}, nil
+	}
 	if strings.HasPrefix(query, "SELECT COUNT(*)") {
 		return &alertRows{values: []driver.Value{int64(3)}}, nil
 	}
 	at := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	return &alertRows{values: []driver.Value{int64(1), int64(7), "synthetic post", "original", "public", "zh", nil, nil, nil, nil, int64(2), int64(3), int64(1), int64(0), int64(10), float64(12.5), int64(0), int64(0), at, at, int64(1)}}, nil
+}
+
+func TestSignedInFeedUsesSharedFeedbackFilters(t *testing.T) {
+	var calls []listQueryCall
+	db := sql.OpenDB(postListConnector{&calls, &driverState{}})
+	defer db.Close()
+	repo := OracleSessions{db}
+	query := parsePostListQuery("timeline=home")
+	query.Mode = "all"
+	viewer := int64(42)
+	if _, _, err := repo.ListVisiblePosts(context.Background(), &viewer, query); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 3 || calls[0].sql != recommendationFeedbackSQL.Schema ||
+		!strings.Contains(calls[1].sql, recommendationFeedbackSQL.FeedFilter) ||
+		!strings.Contains(calls[2].sql, recommendationFeedbackSQL.FeedFilter) ||
+		!strings.Contains(calls[2].sql, recommendationFeedbackSQL.FeedOrder) ||
+		calls[1].args[0].Value != viewer || calls[2].args[0].Value != viewer {
+		t.Fatal(calls)
+	}
 }
 func TestPostListRepositoryUsesMatchingFiltersAndBinds(t *testing.T) {
 	var calls []listQueryCall
@@ -77,7 +100,7 @@ func TestPostListModeSQLIsScopedAndSorted(t *testing.T) {
 	} {
 		query := parsePostListQuery("timeline=mentions&q=cat")
 		query.Mode, query.Sort = tc.mode, tc.sort
-		count, rows, args, _ := postListSQL(&viewer, query)
+		count, rows, args, _ := postListSQL(&viewer, query, false)
 		if !strings.Contains(count, tc.filter) || !strings.Contains(rows, tc.order) || !strings.Contains(count, "pm.mentioned_user_id=:viewer_id") || !strings.Contains(count, "t.name_lower LIKE :tag_q") || args[0].(sql.NamedArg).Value != viewer {
 			t.Fatalf("mode %s: %s %s %#v", tc.mode, count, rows, args)
 		}
@@ -100,7 +123,7 @@ func TestScopedPostListSQLBindsTargets(t *testing.T) {
 		q.Mode = tc.mode
 		q.TargetID = tc.id
 		q.TagName = "C# cats"
-		count, page, args, _ := postListSQL(&viewer, q)
+		count, page, args, _ := postListSQL(&viewer, q, false)
 		if !strings.Contains(count, tc.filter) || !strings.Contains(page, tc.filter) || strings.Contains(page, "C# cats") {
 			t.Fatal(tc.mode, count, page)
 		}

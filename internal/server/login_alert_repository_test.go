@@ -35,7 +35,10 @@ func (c *alertConn) QueryContext(_ context.Context, q string, args []driver.Name
 	case strings.Contains(q, "SELECT COUNT(*)"):
 		return &alertRows{values: []driver.Value{c.state.known}}, nil
 	case strings.Contains(q, "NVL(us.login_alerts"):
-		return &alertRows{values: []driver.Value{c.state.alerts, c.state.email}}, nil
+		if c.state.inactive {
+			return &alertRows{}, nil
+		}
+		return &alertRows{values: []driver.Value{c.state.alerts, c.state.email, "recipient@example.test"}}, nil
 	case strings.Contains(q, "NVL(us.push_notification_enabled"):
 		if c.state.inactive {
 			return emptyRows{&c.state.driverState}, nil
@@ -76,8 +79,15 @@ func TestLoginAlertHonorsSettingsAndPersists(t *testing.T) {
 			defer db.Close()
 			s := OracleSessions{db}
 			v := LoginSession{UserID: 42, SessionID: "sess-id", DeviceInfo: "test-device", DeviceFingerprint: "fingerprint", IPAddress: "synthetic-ip", UserAgent: "synthetic-agent"}
-			if err := s.RecordLoginAlert(context.Background(), v); err != nil {
+			delivery, err := s.RecordLoginAlert(context.Background(), v)
+			if err != nil {
 				t.Fatal(err)
+			}
+			if got := delivery.Email != ""; got != (tc.alerts != 0 && tc.email != 0) {
+				t.Errorf("email enabled=%v", got)
+			}
+			if got := delivery.NotificationID == 44; got != (tc.stored && tc.push != 0) {
+				t.Errorf("push enabled=%v", got)
 			}
 			if (state.commits == 1) != tc.stored {
 				t.Fatalf("stored=%v commits=%d", tc.stored, state.commits)

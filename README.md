@@ -1,6 +1,8 @@
 # NekoTribe Go 后端（原生业务开发中）
 
-原生本地媒体上传、公开文件读取和删除路径已接入，仍需真实 Oracle、共享对象及私密附件权限验收。图片尺寸使用本地解析；音视频通过 `FFPROBE_PATH` 指定的程序或 PATH 中的 `ffprobe` 尝试提取时长和尺寸。探测失败时，标准 PCM WAV 可通过文件头补算时长，其他无法解析的元数据为空。Linux 使用可寻址文件句柄，Windows 使用管道；Windows PCM WAV 上传已隔离验证，更多格式仍需验证。S3 尚未实现，见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。
+公开媒体和头像已接入 `STORAGE_TYPE=s3`，支持上传、文件读取和删除。真实 S3、Oracle 及跨后端共享对象待统一验收。当前边界见 [媒体存储契约](contracts/requirements/media-upload.md)。
+
+原生本地媒体上传、公开文件读取和删除路径已接入，仍需真实 Oracle、共享对象及私密附件权限验收。图片尺寸使用本地解析。音视频由 `FFPROBE_PATH` 指定的程序或 PATH 中的 `ffprobe` 提取时长和尺寸，源码镜像包含工具。探测失败时，标准 PCM WAV 可通过文件头补算时长，其他无法解析的元数据为空。Linux 使用可寻址文件句柄，Windows 使用上传暂存文件。Windows 的 PCM WAV 和末尾索引 MP4 已通过定向上传测试。存储和上传规则见 `contracts/requirements/storage-local-files.md` 和 `media-upload.md`。
 
 AVIF 尺寸从最多 4 MiB 的文件前缀读取，按主图关联的 `ispe` 属性选择，遇到不支持或损坏的结构返回空值；多种属性关联和旋转等变换尚需更多真实样例验证。
 
@@ -24,6 +26,8 @@ AVIF 尺寸从最多 4 MiB 的文件前缀读取，按主图关联的 `ispe` 属
 
 原生 `GET /api/v2/users/{id}` 已接入公开资料、关系和在线状态隐私；共同隔离场景通过，真实 Oracle、时区和客户端联调仍待验收。
 
+原生 `GET /api/v2/users` 和 `GET /api/v2/users/recommendations` 共用搜索、推荐与分页契约。真实 Oracle 和客户端联调待验收。
+
 原生 `GET /api/v2/users/me` 已复用会话验证、自身资料查询和公共头像地址映射；当前只经过合成场景及替身检查，实际 Oracle 视图、跨后端数据更新和两个客户端仍待联测。
 
 密码重置已接入独立路由与 Oracle repository，复用现有 OTP 校验和 bcrypt。17 条合成场景及模拟数据库绑定检查不等于真实 Oracle 或跨后端验收；同一事务消费验证码、更新密码并撤销已存在的会话；旧密码并发登录、双因素挑战及已建立的实时连接仍需处理。
@@ -33,6 +37,8 @@ AVIF 尺寸从最多 4 MiB 的文件前缀读取，按主图关联的 `ispe` 属
 验证码邮件使用 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER` 和 `SMTP_PASS`，以隐式 TLS 验证服务器证书；`NUXT_SMTP_*` 变量优先。配置可以留空让服务启动，但邮件发送会失败。短信验证码当前返回 501。真实邮件服务器、Oracle 和跨后端流程仍需联测；登录提醒邮件另待实现。
 
 ## 当前构建与验证
+
+Docker 独立部署使用本工作树的 `compose.yaml`，从 `env.example` 准备私有 `.env.go` 后执行 `docker compose up -d --build`。默认宿主机地址为 `http://127.0.0.1:30006`，须提供可访问的 Oracle 和 Redis。跨机配置见同级 Nuxt 工作树的部署指南。
 
 使用 Go 1.26.9 以上；本轮 Windows 实测 Go 1.27.3，SDK 从 Go 官方下载页取得并核对官方 SHA-256，未修改系统 PATH。固定依赖 `github.com/golang-jwt/jwt/v5 v5.3.1`，采用其验签与签发 API；算法白名单、JSON Number 和时钟行为依据[固定版本源码](https://github.com/golang-jwt/jwt/blob/v5.3.1/parser_option.go)。Oracle 使用官方纯 Go `github.com/oracle/go-oracledb/v26 v26.4.0` 公共连接器与 database/sql，不需要 C++ 或 Oracle Instant Client；隔离测试不需要真实数据库。
 
@@ -50,6 +56,14 @@ go build ./...
 ## 独立会话服务
 
 把 `env.example` 的变量显式注入进程，然后运行 `go run ./cmd/server`；进程不加载本地或父目录 `.env`。HOST 默认 `127.0.0.1`，`GO_BACKEND_PORT` 优先 `PORT`，默认 `30006`。两类签名 key 和 Oracle host/service/user/password 必须非空；端口与池范围严格校验。监听前执行只读 session 列预检，不创建或迁移数据。启动需要显式配置的真实 Oracle，隔离测试只使用 loopback HTTP 与测试存储。
+
+在 Go 工作树根目录可运行 `node scripts/start-native.mjs go --env-file .env.go`。追加 `--check` 只检查配置，传入 `--binary PATH` 可启动预编译程序。从同一目录运行 `node scripts/package-native.mjs go --build --out native-go-release` 可独立编译和打包。也可在四工作树的父目录通过 `nuxt/scripts/` 调用同一套工具。
+
+从 `env.example` 准备本目录的私有 `.env.go` 后，Windows 可双击 `start.cmd`，Linux 可运行 `sh start.sh`。追加 `--check` 可在启动前离线检查配置，追加 `--env-file PATH` 选择其他配置文件。进程环境仍然优先。
+
+使用预编译发布包时，在包目录准备私有 `.env.go`，然后运行 `node start-native.mjs --check` 和 `node start-native.mjs`。启动器会从同目录的清单读取平台和程序名。
+
+共用 Oracle schema 由同一套显式迁移工具维护。可以在 Nuxt 部署包中执行迁移命令，Go 的启动不依赖 Nuxt 进程。[Oracle 迁移命令](../nuxt/docs/deployment.md#nuxt-独立-node-部署包)
 
 `DELETE /api/v2/auth/sessions/{id}` 与 `/others` 每次先验 access token，再直接 touch Oracle 会话，成功后独立提交撤销。`id` 保留原始百分号编码，`others` 字面优先；当前会话撤销成功清两类 Cookie，随后请求被数据库拒绝。错误返回安全 v2 envelope；原生 CORS 先处理 OPTIONS，精确来源及 Flutter 头策略与共同规范一致。未实现路由、存储、WebSocket 均不代理 Nuxt。`GET /api/health` 仅表示进程存活。
 

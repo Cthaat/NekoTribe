@@ -6,6 +6,8 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -23,6 +25,9 @@ func (c serviceConnector) Connect(context.Context) (driver.Conn, error) {
 }
 func (serviceConnector) Driver() driver.Driver { return testDriver{} }
 func (c *serviceConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if strings.Contains(query, "FROM n_group_") {
+		return &sharedGroupDiscoveryRows{}, nil
+	}
 	if strings.Contains(query, "n_comments") {
 		return &alertRows{values: []driver.Value{int64(21), int64(11), "评论猫"}}, nil
 	}
@@ -65,6 +70,48 @@ func TestKnowledgeServiceReleasesOracleConnectionBeforeInference(t *testing.T) {
 	result, err := generateKnowledgeWithTransport(context.Background(), OracleSessions{db}, 42, "猫", selection, serviceDBTransport{db, t})
 	if err != nil || result.Answer == nil || len(result.Sources) != 2 || db.Stats().InUse != 0 {
 		t.Fatal(result, err, db.Stats())
+	}
+}
+
+func TestKnowledgeServiceRefreshesAnObsoleteIndexHitOnlyWhenEnabled(t *testing.T) {
+	for _, item := range []struct {
+		name, fallback              string
+		empty, invalidChunk, answer bool
+	}{
+		{"obsolete with fallback", "lexical", false, false, true},
+		{"obsolete without fallback", "", false, false, false},
+		{"empty with fallback", "lexical", true, false, false},
+		{"out of bounds chunk with fallback", "lexical", false, true, true},
+		{"out of bounds chunk without fallback", "", false, true, false},
+	} {
+		t.Run(item.name, func(t *testing.T) {
+			index := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				candidates := []map[string]any{}
+				if !item.empty {
+					hit := map[string]any{"kind": "post", "id": 11, "version": strings.Repeat("a", 64)}
+					if item.invalidChunk {
+						hit["version"] = knowledgeSourceVersion("post", 11, 11, "帖子猫")
+						hit["chunk"] = 1
+					}
+					candidates = append(candidates, hit)
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"version": 1, "candidates": candidates})
+			}))
+			defer index.Close()
+			t.Setenv("AI_KNOWLEDGE_INDEX_URL", index.URL)
+			t.Setenv("AI_INDEX_SERVICE_TOKEN", strings.Repeat("x", 32))
+			t.Setenv("AI_KNOWLEDGE_INDEX_FALLBACK", item.fallback)
+			db := sql.OpenDB(serviceConnector{&knowledgeDB{}})
+			defer db.Close()
+			selection := ai.Selection{Role: "knowledge", ContextWindowTokens: 8192, MaxOutputTokens: 512}
+			result, err := generateKnowledgeWithTransport(context.Background(), OracleSessions{db}, 42, "猫", selection, serviceDBTransport{db, t})
+			if err != nil || (result.Answer != nil) != item.answer {
+				t.Fatal(result, err)
+			}
+			if item.answer && (len(result.Sources) != 2 || result.Sources[0].Version != knowledgeSourceVersion("post", 11, 11, "帖子猫")) {
+				t.Fatal("answer did not use the current Oracle version", result.Sources)
+			}
+		})
 	}
 }
 
@@ -194,7 +241,9 @@ func TestKnowledgeServiceRejectsOversizeAndRevokedSources(t *testing.T) {
 	store := &knowledgeServiceFake{rows: []knowledgeSource{source}}
 	transport := &knowledgeTransportFake{store: store}
 	selection := ai.Selection{Role: "knowledge", ContextWindowTokens: 8192, MaxOutputTokens: 512}
-	if _, err := generateKnowledgeWithTransport(context.Background(), store, 42, "猫", selection, transport); !errors.Is(err, errKnowledgeContextTooLarge) {
+	tooSmall := selection
+	tooSmall.ContextWindowTokens = tooSmall.MaxOutputTokens + 512
+	if _, err := generateKnowledgeWithTransport(context.Background(), store, 42, "猫", tooSmall, transport); !errors.Is(err, errKnowledgeContextTooLarge) {
 		t.Fatal(err)
 	}
 	if strings.Contains(strings.Join(store.events, ","), "infer") {

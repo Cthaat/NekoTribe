@@ -70,7 +70,10 @@ func (s *registrationFixture) NextRegistrationID(context.Context) (int64, error)
 	}
 	return 123, nil
 }
-func (s *registrationFixture) InsertRegistration(_ context.Context, r RegistrationRecord) error {
+func (s *registrationFixture) InsertRegistration(_ context.Context, r RegistrationRecord, _ string) error {
+	if s.fault == "consumed" {
+		return errRegistrationOTPMissing
+	}
 	if s.fault == "insert" {
 		return errors.New("registration-internal-fixture")
 	}
@@ -108,8 +111,11 @@ func TestSharedRegistration(t *testing.T) {
 			Status, Inserts int
 		}
 	}
-	if err = json.Unmarshal(raw, &f); err != nil || len(f.Cases) != 29 {
+	if err = json.Unmarshal(raw, &f); err != nil {
 		t.Fatal(err)
+	}
+	if len(f.Cases) != 30 {
+		t.Fatalf("expected 30 registration cases, got %d", len(f.Cases))
 	}
 	codec, _ := fixture(t)
 	if len(f.HashInterop.Hashes) != 2 {
@@ -198,7 +204,7 @@ func TestOTPToRegistrationFlow(t *testing.T) {
 	codec, _ := fixture(t)
 	store := &registrationFixture{memorySessions: store(), profile: f.Profile, flow: true}
 	mailer := &registrationFlowMailer{}
-	h := NewHandlerWithConfig(codec, store, CorsPolicy{}, RefreshConfig{clock: func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }, otpMailer: mailer})
+	h := NewHandlerWithConfig(codec, store, CorsPolicy{}, RefreshConfig{clock: func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }, OTPAttemptLimiter: otpAttemptFixture{}, otpMailer: mailer, OTPSendLimiter: otpLimitFixture{}})
 	post := func(path string, body interface{}) *httptest.ResponseRecorder {
 		data, _ := json.Marshal(body)
 		r := httptest.NewRequest("POST", path, bytes.NewReader(data))

@@ -12,10 +12,10 @@ import (
 
 type createCommentState struct {
 	driverState
-	hidden, parentMissing, loseVisibility, loseParent, failRead bool
-	visibilityChecks                                            int
-	writes                                                      []listQueryCall
-	queries                                                     []listQueryCall
+	hidden, parentMissing, loseVisibility, loseParent, failRead, muted bool
+	visibilityChecks                                                   int
+	writes                                                             []listQueryCall
+	queries                                                            []listQueryCall
 }
 type createCommentConnector struct{ state *createCommentState }
 type createCommentConn struct {
@@ -29,6 +29,16 @@ func (c createCommentConnector) Connect(context.Context) (driver.Conn, error) {
 func (c createCommentConnector) Driver() driver.Driver { return testDriver{} }
 func (c *createCommentConn) QueryContext(_ context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	c.owner.queries = append(c.owner.queries, listQueryCall{q, append([]driver.NamedValue(nil), args...)})
+	if q == publishPolicy.SQL["lock"] {
+		return &alertRows{values: []driver.Value{int64(42)}}, nil
+	}
+	if q == publishPolicy.SQL["allowed"] {
+		allowed := int64(1)
+		if c.owner.muted {
+			allowed = 0
+		}
+		return &alertRows{values: []driver.Value{allowed}}, nil
+	}
 	switch {
 	case strings.Contains(q, "FROM n_posts p"):
 		c.owner.visibilityChecks++
@@ -38,7 +48,7 @@ func (c *createCommentConn) QueryContext(_ context.Context, q string, args []dri
 		return &alertRows{values: []driver.Value{int64(1)}}, nil
 	case strings.Contains(q, "seq_comment_id.NEXTVAL"):
 		return &alertRows{values: []driver.Value{int64(100)}}, nil
-	case strings.Contains(q, "NVL(root_comment_id"):
+	case strings.Contains(q, "NVL(c.root_comment_id"):
 		if c.owner.parentMissing {
 			return emptyRows{&c.owner.driverState}, nil
 		}
@@ -82,6 +92,7 @@ func TestCreatePostCommentRepository(t *testing.T) {
 		writes, commits int
 		root            int64
 	}{
+		{"muted", createCommentState{muted: true}, nil, errPublishForbidden, 0, 0, 0},
 		{"hidden", createCommentState{hidden: true}, nil, errCommentPostUnavailable, 0, 0, 0},
 		{"missing parent", createCommentState{parentMissing: true}, &parent, errCommentParentUnavailable, 0, 0, 0},
 		{"visibility race", createCommentState{loseVisibility: true}, nil, errCommentPostUnavailable, 1, 1, 0},
@@ -97,12 +108,16 @@ func TestCreatePostCommentRepository(t *testing.T) {
 			if !errors.Is(err, tc.want) || len(tc.state.writes) != tc.writes || tc.state.commits != tc.commits {
 				t.Fatalf("result=%+v err=%v writes=%d commits=%d", result, err, len(tc.state.writes), tc.state.commits)
 			}
+			if tc.state.muted && tc.state.rollbacks != 1 {
+				t.Fatal("expected rollback", tc.state.rollbacks)
+			}
 			if tc.want == nil && (result.ID != 100 || result.AuthorID != 42 || result.RootID == nil || *result.RootID != tc.root || result.Content != "hello") {
 				t.Fatal(result)
 			}
 			if len(tc.state.writes) > 0 {
 				write := tc.state.writes[0]
-				for _, fragment := range []string{"fn_can_view_post(:user_id,:post_id)=1", "parent.comment_id=:parent_comment_id", "parent.post_id=:post_id", "parent.is_deleted=0"} {
+				assertCommentLikeScope(t, write.sql)
+				for _, fragment := range []string{"fn_can_view_post(:viewer_id,:post_id)=1", "c.comment_id=:parent_comment_id", "c.post_id=:post_id"} {
 					if !strings.Contains(write.sql, fragment) {
 						t.Fatal(write.sql)
 					}
@@ -111,11 +126,14 @@ func TestCreatePostCommentRepository(t *testing.T) {
 				for _, arg := range write.args {
 					binds[arg.Name] = arg.Value
 				}
-				if binds["user_id"] != int64(42) || binds["post_id"] != int64(1) || binds["comment_id"] != int64(100) {
+				if binds["viewer_id"] != int64(42) || binds["post_id"] != int64(1) || binds["comment_id"] != int64(100) {
 					t.Fatal(binds)
 				}
 			}
 			for _, query := range tc.state.queries {
+				if strings.Contains(query.sql, "NVL(c.root_comment_id") {
+					assertCommentLikeScope(t, query.sql)
+				}
 				if strings.Contains(query.sql, "FROM v_post_comment_list_item") && (!strings.Contains(query.sql, "c.user_id=:viewer_id") || !strings.Contains(query.sql, "fn_can_view_post(:viewer_id,c.post_id)=1")) {
 					t.Fatal(query.sql)
 				}

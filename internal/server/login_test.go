@@ -22,7 +22,9 @@ type loginFixtureStore struct {
 	updateCount                                                       int
 	known, alertFail                                                  bool
 	alertCount                                                        int
+	alertDelivery                                                     LoginAlertDelivery
 	avatar                                                            string
+	changedCredentials                                                bool
 }
 
 func (s *loginFixtureStore) LookupLogin(_ context.Context, account string) (LoginAccount, bool, error) {
@@ -38,11 +40,24 @@ func (s *loginFixtureStore) CheckTwoFactorSchema(context.Context) error {
 	return nil
 }
 func (s *loginFixtureStore) InsertLoginSession(_ context.Context, v LoginSession) error {
+	if s.changedCredentials && v.verifiedPasswordHash != "" {
+		return errLoginCredentialsChanged
+	}
 	if s.insertFail {
 		return errSessionStore
 	}
 	s.inserted = append(s.inserted, v)
 	return nil
+}
+
+func TestChangedPasswordBeforeLoginIssuanceReturnsNoCredentials(t *testing.T) {
+	store, handler, _ := newLoginFixture(t)
+	store.changedCredentials = true
+	result := loginRequest(handler, `{"account":"tester","password":"synthetic-password"}`)
+	if result.Code != http.StatusUnauthorized || len(result.Result().Cookies()) != 0 ||
+		len(store.inserted) != 0 || store.updateCount != 0 || store.alertCount != 0 {
+		t.Fatalf("unexpected result after password changed: status=%d", result.Code)
+	}
 }
 func (s *loginFixtureStore) UpdateLastLogin(context.Context, int64) error {
 	s.updateCount++
@@ -57,12 +72,18 @@ func (s *loginFixtureStore) SelfProfile(context.Context, int64) (SelfUser, bool,
 func (s *loginFixtureStore) KnownLoginDevice(context.Context, int64, string) (bool, error) {
 	return s.known, nil
 }
-func (s *loginFixtureStore) RecordLoginAlert(context.Context, LoginSession) error {
+func (s *loginFixtureStore) RecordLoginAlert(context.Context, LoginSession) (LoginAlertDelivery, error) {
 	s.alertCount++
 	if s.alertFail {
-		return errSessionStore
+		return LoginAlertDelivery{}, errSessionStore
 	}
-	return nil
+	return s.alertDelivery, nil
+}
+func (s *loginFixtureStore) NotificationByID(_ context.Context, user, id int64) (NotificationItem, bool, error) {
+	if user != s.account.UserID || id != s.alertDelivery.NotificationID {
+		return NotificationItem{}, false, errSessionStore
+	}
+	return NotificationItem{ID: id, Type: "login_alert"}, true, nil
 }
 
 func newLoginFixture(t *testing.T) (*loginFixtureStore, http.Handler, *auth.TokenManager) {
@@ -190,6 +211,38 @@ func TestLoginAlertIsBestEffortAndOnlyForNewDevice(t *testing.T) {
 				t.Fatal("login alert changed authentication outcome")
 			}
 		})
+	}
+}
+
+type loginAlertMailFixture struct {
+	recipient string
+}
+
+func (*loginAlertMailFixture) SendOTP(context.Context, string, string) error {
+	return errMailDelivery
+}
+
+func (m *loginAlertMailFixture) SendLoginAlert(_ context.Context, to, _, _, _ string) error {
+	m.recipient = to
+	return errMailDelivery
+}
+
+func TestLoginAlertPushFailureStillAttemptsEmail(t *testing.T) {
+	store, _, codec := newLoginFixture(t)
+	store.alertDelivery = LoginAlertDelivery{Email: "recipient@example.test", NotificationID: 44}
+	publisher := &likePublisher{fail: true}
+	mailer := &loginAlertMailFixture{}
+	handler := NewHandlerWithConfig(codec, store, CorsPolicy{}, RefreshConfig{
+		AccessSeconds: 900, RefreshSeconds: 3600, NotificationPublisher: publisher, otpMailer: mailer,
+		clock: func() time.Time { return time.Unix(1700000000, 123000000) },
+	})
+	response := loginRequest(handler, `{"account":"tester","password":"synthetic-password"}`)
+	if response.Code != 200 || len(response.Result().Cookies()) != 2 {
+		t.Fatal("delivery failures changed the login result")
+	}
+	if publisher.calls != 1 || publisher.user != 42 || publisher.kind != "notification_created" ||
+		publisher.data["notification_type"] != "login_alert" || mailer.recipient != store.alertDelivery.Email {
+		t.Fatal("expected recipient-scoped notification and email attempts")
 	}
 }
 

@@ -77,6 +77,13 @@ func TestPostCommentsRepositoryFiltersAndMaps(t *testing.T) {
 		if !strings.Contains(calls[2].sql, "ORDER BY "+tc.order) {
 			t.Fatal(calls[2].sql)
 		}
+		for _, call := range calls[1:] {
+			for _, part := range []string{"post_author.is_active=1", "comment_author.is_active=1", "b.user_id=:viewer_id AND b.target_user_id=c.user_id", "b.target_user_id=:viewer_id AND b.user_id=c.user_id"} {
+				if !strings.Contains(call.sql, part) {
+					t.Fatal(call.sql)
+				}
+			}
+		}
 	}
 	var calls []listQueryCall
 	db := sql.OpenDB(commentsConnector{&calls, true, &driverState{}})
@@ -84,6 +91,31 @@ func TestPostCommentsRepositoryFiltersAndMaps(t *testing.T) {
 	_, _, visible, err := (OracleSessions{db}).ListPostComments(context.Background(), 42, 2, CommentListQuery{})
 	if err != nil || visible || len(calls) != 1 {
 		t.Fatal(visible, err, calls)
+	}
+}
+
+func TestPostCommentsRepositoryTargetsTheAuthorizedPost(t *testing.T) {
+	var calls []listQueryCall
+	db := sql.OpenDB(commentsConnector{&calls, false, &driverState{}})
+	defer db.Close()
+	query := CommentListQuery{CommentID: 9, Page: SessionPage{Page: 1, PageSize: 1, Start: 1, End: 1}}
+	items, total, visible, err := (OracleSessions{db}).ListPostComments(context.Background(), 42, 1, query)
+	if err != nil || !visible || len(items) != 1 || total != 1 || len(calls) != 2 {
+		t.Fatal(items, total, visible, err, calls)
+	}
+	lookup := calls[1]
+	if !strings.Contains(lookup.sql, "c.comment_id=:comment_id") ||
+		!strings.Contains(lookup.sql, "fn_can_view_post(:viewer_id,c.post_id)=1") ||
+		!strings.Contains(lookup.sql, "comment_author.is_active=1") ||
+		!strings.Contains(lookup.sql, "FROM n_user_blocks") {
+		t.Fatal(lookup.sql)
+	}
+	params := map[string]any{}
+	for _, arg := range lookup.args {
+		params[arg.Name] = arg.Value
+	}
+	if params["comment_id"] != int64(9) || params["post_id"] != int64(1) || params["viewer_id"] != int64(42) {
+		t.Fatal(params)
 	}
 }
 
@@ -144,6 +176,8 @@ func TestPostCommentsRoute(t *testing.T) {
 		{"database error", "/api/v2/posts/1/comments", tokens["access-hs256"], true, true, false, 500, 1},
 		{"author missing", "/api/v2/posts/1/comments", tokens["access-hs256"], true, false, true, 404, 1},
 		{"visible", "/api/v2/posts/1/comments?sort=popular&page=2&page_size=3&viewer_id=99", tokens["access-hs256"], true, false, false, 200, 1},
+		{"targeted", "/api/v2/posts/1/comments?comment_id=9&page=2", tokens["access-hs256"], true, false, false, 200, 1},
+		{"duplicate selector", "/api/v2/posts/1/comments?comment_id=9&comment_id=9", tokens["access-hs256"], true, false, false, 400, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &commentsFixture{memorySessions: store(), visible: tc.visible, fail: tc.fail, missingAuthor: tc.missing}
@@ -175,8 +209,15 @@ func TestPostCommentsRoute(t *testing.T) {
 					} `json:"data"`
 					Meta map[string]any `json:"meta"`
 				}
-				if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || len(result.Data) != 1 || result.Data[0].ID != 9 || result.Data[0].Author.UserID != 7 || !result.Data[0].ViewerState.Liked || result.Data[0].ViewerState.CanDelete || result.Meta["page"] != float64(2) || s.query.Sort != "popular" {
+				if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || len(result.Data) != 1 || result.Data[0].ID != 9 || result.Data[0].Author.UserID != 7 || !result.Data[0].ViewerState.Liked || result.Data[0].ViewerState.CanDelete {
 					t.Fatal(result, err, s.query)
+				}
+				if tc.name == "targeted" {
+					if s.query.CommentID != 9 || s.query.Page != (SessionPage{Page: 1, PageSize: 1, Start: 1, End: 1}) {
+						t.Fatal(s.query)
+					}
+				} else if result.Meta["page"] != float64(2) || s.query.Sort != "popular" {
+					t.Fatal(result, s.query)
 				}
 			}
 		})

@@ -25,6 +25,44 @@ type scenario struct {
 	ExpectedError        string          `json:"expectedError"`
 }
 
+func TestRawModelConfigurationScenarios(t *testing.T) {
+	data, err := os.ReadFile("../../contracts/scenarios/ai-model-config.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var suite struct {
+		Cases    []scenario `json:"cases"`
+		RawCases []struct {
+			ID, Before, After, ExpectedError, ExpectedModel string
+		} `json:"rawCases"`
+	}
+	if err := json.Unmarshal(data, &suite); err != nil {
+		t.Fatal(err)
+	}
+	base := string(suite.Cases[0].Config)
+	for _, item := range suite.RawCases {
+		t.Run(item.ID, func(t *testing.T) {
+			if !strings.Contains(base, item.Before) {
+				t.Fatal("raw fixture anchor is missing")
+			}
+			router, err := NewModelRouter([]byte(strings.Replace(base, item.Before, item.After, 1)))
+			if item.ExpectedError != "" {
+				if err == nil || err.Error() != item.ExpectedError {
+					t.Fatalf("unexpected validation result: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			selected, err := router.Select("knowledge", nil)
+			if err != nil || selected.Model != item.ExpectedModel {
+				t.Fatal("valid model did not survive JSON decoding")
+			}
+		})
+	}
+}
+
 func TestRejectMalformedConfiguration(t *testing.T) {
 	base := string(scenarios(t)[0].Config)
 	changes := []struct{ name, old, next string }{
@@ -224,7 +262,7 @@ func scenarios(t *testing.T) []scenario {
 	if err := json.Unmarshal(data, &suite); err != nil {
 		t.Fatal(err)
 	}
-	if len(suite.Cases) != 52 {
+	if len(suite.Cases) != 61 {
 		t.Fatalf("want 52 portable cases, got %d", len(suite.Cases))
 	}
 	return suite.Cases

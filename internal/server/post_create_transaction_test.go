@@ -11,9 +11,11 @@ import (
 
 type createPostState struct {
 	driverState
-	hidden, race, badMedia bool
-	failAt                 string
-	calls                  []listQueryCall
+	hidden, race, badMedia, muted bool
+	failAt                        string
+	calls                         []listQueryCall
+	mediaKeys                     map[float64]string
+	privateDenied                 bool
 }
 type createPostConnector struct{ s *createPostState }
 type createPostConn struct {
@@ -44,8 +46,28 @@ func (c createPostConnector) Connect(context.Context) (driver.Conn, error) {
 func (c createPostConnector) Driver() driver.Driver { return testDriver{} }
 func (c *createPostConn) QueryContext(_ context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	c.s.calls = append(c.s.calls, listQueryCall{q, append([]driver.NamedValue(nil), args...)})
+	if q == publishPolicy.SQL["lock"] {
+		return &alertRows{values: []driver.Value{int64(42)}}, nil
+	}
+	if q == publishPolicy.SQL["allowed"] {
+		allowed := int64(1)
+		if c.s.muted {
+			allowed = 0
+		}
+		return &alertRows{values: []driver.Value{allowed}}, nil
+	}
 	if strings.Contains(q, "seq_post_id.NEXTVAL") {
 		return &alertRows{values: []driver.Value{int64(100)}}, nil
+	}
+	if q == lockPostMediaSQL {
+		id := args[0].Value.(float64)
+		return &alertRows{values: []driver.Value{int64(id), c.s.mediaKeys[id]}}, nil
+	}
+	if q == privateMediaBinding.Post {
+		if c.s.privateDenied {
+			return emptyRows{&c.s.driverState}, nil
+		}
+		return &alertRows{values: []driver.Value{int64(1)}}, nil
 	}
 	if strings.Contains(q, "FROM n_posts p") {
 		if c.s.hidden {
@@ -73,7 +95,7 @@ func TestCreatePostAtomic(t *testing.T) {
 		s                  createPostState
 		want               error
 		commits, rollbacks int
-	}{{"hidden", createPostState{hidden: true}, errPostReferenceUnavailable, 0, 0}, {"race", createPostState{race: true}, errPostReferenceUnavailable, 0, 1}, {"bad media", createPostState{badMedia: true}, errPostMediaUnavailable, 0, 1}, {"tag failure", createPostState{failAt: "INSERT INTO n_post_tags"}, errSessionStore, 0, 1}, {"mention failure", createPostState{failAt: "INSERT INTO n_post_mentions"}, errSessionStore, 0, 1}, {"commit failure", createPostState{driverState: driverState{fail: "commit"}}, errSessionStore, 1, 0}, {"success", createPostState{}, nil, 1, 0}} {
+	}{{"hidden", createPostState{hidden: true}, errPostReferenceUnavailable, 0, 0}, {"muted", createPostState{muted: true}, errPublishForbidden, 0, 1}, {"race", createPostState{race: true}, errPostReferenceUnavailable, 0, 1}, {"bad media", createPostState{badMedia: true}, errPostMediaUnavailable, 0, 1}, {"tag failure", createPostState{failAt: "INSERT INTO n_post_tags"}, errSessionStore, 0, 1}, {"mention failure", createPostState{failAt: "INSERT INTO n_post_mentions"}, errSessionStore, 0, 1}, {"commit failure", createPostState{driverState: driverState{fail: "commit"}}, errSessionStore, 1, 0}, {"success", createPostState{}, nil, 1, 0}} {
 		t.Run(tc.name, func(t *testing.T) {
 			db := sql.OpenDB(createPostConnector{&tc.s})
 			defer db.Close()
@@ -83,6 +105,13 @@ func TestCreatePostAtomic(t *testing.T) {
 			}
 			if err == nil && id != 100 {
 				t.Fatal(id)
+			}
+			if tc.s.muted {
+				for _, call := range tc.s.calls {
+					if !strings.HasPrefix(call.sql, "SELECT ") {
+						t.Fatal("write after moderation denial", call.sql)
+					}
+				}
 			}
 			var media, tags, mentions int
 			for _, call := range tc.s.calls {

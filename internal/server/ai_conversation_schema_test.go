@@ -26,7 +26,7 @@ func TestSharedAIConversationReadiness(t *testing.T) {
 			} `json:"mutations"`
 		} `json:"cases"`
 	}
-	if json.Unmarshal(data, &fixture) != nil || fixture.ID != "AI-CONVERSATION-READINESS" || len(fixture.Cases) != 8 {
+	if json.Unmarshal(data, &fixture) != nil || fixture.ID != "AI-CONVERSATION-READINESS" || len(fixture.Cases) != 10 {
 		t.Fatal("invalid fixture")
 	}
 	for _, tc := range fixture.Cases {

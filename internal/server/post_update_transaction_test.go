@@ -36,6 +36,10 @@ type updatePostState struct {
 	owner          int64
 	active         bool
 	calls          []listQueryCall
+	visibility     string
+	mediaKey       string
+	retainsPrivate bool
+	privateDenied  bool
 }
 type updatePostConnector struct{ s *updatePostState }
 type updatePostConn struct {
@@ -102,6 +106,31 @@ func (c *updatePostConn) QueryContext(_ context.Context, q string, args []driver
 	if c.s.mode == "read" {
 		return nil, errors.New("private query")
 	}
+	if q == publishPolicy.SQL["lock"] {
+		return &updatePostRows{values: []driver.Value{int64(42)}}, nil
+	}
+	if q == publishPolicy.SQL["allowed"] {
+		allowed := int64(1)
+		if c.s.mode == "muted" {
+			allowed = 0
+		}
+		return &updatePostRows{values: []driver.Value{allowed}}, nil
+	}
+	if q == lockPostMediaSQL {
+		return &updatePostRows{values: []driver.Value{int64(1), c.s.mediaKey}}, nil
+	}
+	if q == privateMediaBinding.Post {
+		if c.s.privateDenied {
+			return emptyRows{&c.s.driverState}, nil
+		}
+		return &updatePostRows{values: []driver.Value{int64(1)}}, nil
+	}
+	if q == privateMediaBinding.Retained {
+		if c.s.retainsPrivate {
+			return &updatePostRows{values: []driver.Value{int64(1)}}, nil
+		}
+		return emptyRows{&c.s.driverState}, nil
+	}
 	if strings.Contains(q, "FOR UPDATE") {
 		if c.s.mode == "missing" {
 			return emptyRows{&c.s.driverState}, nil
@@ -114,7 +143,7 @@ func (c *updatePostConn) QueryContext(_ context.Context, q string, args []driver
 		if c.s.mode == "deleted" {
 			deleted = 1
 		}
-		return &updatePostRows{values: []driver.Value{c.s.owner, deleted, kind, c.s.saved.Content}}, nil
+		return &updatePostRows{values: []driver.Value{c.s.owner, deleted, kind, c.s.saved.Content, c.s.visibility}}, nil
 	}
 	if strings.Contains(q, "COUNT(*)") {
 		return &updatePostRows{values: []driver.Value{int64(len(c.s.pending.Media))}}, nil
@@ -179,7 +208,7 @@ func updatePostInput() PostUpdateInput {
 	return PostUpdateInput{Content: &content, MediaIDs: &media, Tags: &tags, Mentions: &mentions}
 }
 func TestPostUpdateAtomic(t *testing.T) {
-	for _, mode := range []string{"success", "missing", "deleted", "other", "race", "read", "UPDATE n_posts", "DELETE FROM n_post_media", "INSERT INTO n_post_media", "DELETE FROM n_post_tags", "MERGE INTO n_tags", "INSERT INTO n_post_tags", "DELETE FROM n_post_mentions", "INSERT INTO n_post_mentions", "commit", "commit-applied", "bad-media", "empty", "noop", "clear"} {
+	for _, mode := range []string{"success", "muted", "missing", "deleted", "other", "race", "read", "UPDATE n_posts", "DELETE FROM n_post_media", "INSERT INTO n_post_media", "DELETE FROM n_post_tags", "MERGE INTO n_tags", "INSERT INTO n_post_tags", "DELETE FROM n_post_mentions", "INSERT INTO n_post_mentions", "commit", "commit-applied", "bad-media", "empty", "noop", "clear"} {
 		t.Run(mode, func(t *testing.T) {
 			state := &updatePostState{saved: updatePostInitial(), mode: mode, owner: 42}
 			if mode == "other" {
@@ -210,6 +239,9 @@ func TestPostUpdateAtomic(t *testing.T) {
 				input.Mentions = &ids
 			}
 			err := (OracleSessions{db}).UpdatePostAtomic(context.Background(), 42, 20, input)
+			if mode == "muted" && (!errors.Is(err, errPublishForbidden) || len(state.calls) != 2) {
+				t.Fatal("expected moderation denial before post access", err, state.calls)
+			}
 			success := mode == "success" || mode == "noop" || mode == "clear"
 			if success != (err == nil) {
 				t.Fatalf("mode=%s err=%v", mode, err)

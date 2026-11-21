@@ -51,6 +51,32 @@ func TestRefreshConfigRedactsSMTPSecrets(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigAcceptsSharedNuxtVariables(t *testing.T) {
+	env := validEnv()
+	for key, value := range validEnv() {
+		env["NUXT_"+key] = value
+	}
+	env["ORACLE_HOST"] = "different.example"
+	delete(env, "ACCESS_SECRET")
+	env["NUXT_ORACLE_PORT"] = "1522"
+	env["NUXT_COOKIE_SECURE"] = "true"
+	lookup := func(key string) (string, bool) { value, exists := env[key]; return value, exists }
+	config, err := LoadConfig(lookup)
+	if err != nil || config.OracleHost != "db.example" || config.OraclePort != 1522 ||
+		config.AccessKey != "secret-a" || !config.Refresh.CookieSecure {
+		t.Fatal("shared native configuration did not resolve", err)
+	}
+	maintenance, err := skillOracleConfig(lookup)
+	if err != nil || maintenance.OracleHost != config.OracleHost || maintenance.OraclePort != config.OraclePort {
+		t.Fatal("maintenance resolved a different Oracle address", err)
+	}
+	env["NUXT_ORACLE_PASSWORD"] = ""
+	if _, err := LoadConfig(lookup); err == nil {
+		t.Fatal("empty prefixed credential incorrectly used the legacy fallback")
+	}
+}
+
 func TestConfigRejectsInvalid(t *testing.T) {
 	for _, tc := range []struct{ key, value string }{{"ACCESS_SECRET", ""}, {"REFRESH_SECRET", ""}, {"GO_BACKEND_PORT", "0"}, {"PORT", "65536"}, {"ORACLE_PORT", "-1"}, {"ORACLE_HOST", ""}, {"ORACLE_SERVICE_NAME", ""}, {"ORACLE_USER", ""}, {"ORACLE_PASSWORD", ""}, {"ORACLE_POOL_MIN", "x"}, {"ORACLE_POOL_MIN", "11"}, {"ORACLE_POOL_MAX", "0"}, {"ACCESS_EXPIRES_IN", "0"}, {"REFRESH_EXPIRES_IN", "-1"}, {"NUXT_ACCESS_EXPIRES_IN", "invalid"}, {"REFRESH_EXPIRES_IN", "2147483648"}} {
 		t.Run(tc.key+tc.value, func(t *testing.T) {
@@ -122,6 +148,9 @@ func TestRefreshTTLRelationAndDurationBoundary(t *testing.T) {
 		{"equal", "300", "300", false},
 		{"refresh shorter", "301", "300", false},
 		{"refresh longer", "300", "301", true},
+		{"ASCII whitespace and decimal prefix", " +030 ", " 60 ", true},
+		{"explicit blank", "300", "", false},
+		{"non-decimal", "1e2", "301", false},
 		{"maximum duration", "2147483646", "2147483647", true},
 		{"over maximum", "1", "2147483648", false},
 	} {
@@ -136,5 +165,10 @@ func TestRefreshTTLRelationAndDurationBoundary(t *testing.T) {
 				t.Fatal("duration overflow")
 			}
 		})
+	}
+	env := validEnv()
+	env["ACCESS_EXPIRES_IN"], env["NUXT_ACCESS_EXPIRES_IN"] = "30", ""
+	if _, err := LoadConfig(func(k string) (string, bool) { v, ok := env[k]; return v, ok }); err == nil {
+		t.Fatal("explicitly empty canonical lifetime fell back to the legacy alias")
 	}
 }
