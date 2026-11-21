@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
+import { sessionLifetimes } from '../../../../scripts/runtime-env.mjs';
 
 const runtimeConfig = useRuntimeConfig();
+const { accessSeconds, refreshSeconds } = sessionLifetimes(process.env, runtimeConfig);
 
 export default defineEventHandler(async event => {
   // 获取refresh token
@@ -139,7 +141,7 @@ export default defineEventHandler(async event => {
         type: 'access'
       },
       runtimeConfig.accessSecret,
-      { expiresIn: Number(runtimeConfig.accessExpiresIn) }
+      { expiresIn: accessSeconds }
     );
 
     const newRefreshToken = jwt.sign(
@@ -148,7 +150,7 @@ export default defineEventHandler(async event => {
         type: 'refresh'
       },
       runtimeConfig.refreshSecret,
-      { expiresIn: Number(runtimeConfig.refreshExpiresIn) } // 30天过期
+      { expiresIn: refreshSeconds }
     );
 
     // 设置新的access token cookie
@@ -189,11 +191,11 @@ export default defineEventHandler(async event => {
         sessionId: sessionResultRow[1],
         accessTokenExpiresAt: new Date(
           Date.now() +
-            Number(runtimeConfig.accessExpiresIn) * 1000
+            accessSeconds * 1000
         ),
         refreshTokenExpiresAt: new Date(
           Date.now() +
-            Number(runtimeConfig.refreshExpiresIn) * 1000
+            refreshSeconds * 1000
         )
       },
       { autoCommit: true }

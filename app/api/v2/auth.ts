@@ -1,3 +1,4 @@
+import { authMutation } from './auth-mutation';
 import {
   toV2PagedResult,
   v2Request,
@@ -60,41 +61,43 @@ export async function v2Register(
 export async function v2Login(
   payload: V2LoginPayload
 ): Promise<V2LoginData> {
-  return await v2RequestData<V2LoginData, V2LoginPayload>(
+  const body = { ...payload };
+  return await authMutation(() => v2RequestData<V2LoginData, V2LoginPayload>(
     '/api/v2/auth/tokens',
     {
       method: 'POST',
-      body: payload
+      body
     }
-  );
+  ), true);
 }
 
 export async function v2CompleteTwoFactorLogin(
   challengeId: string,
   payload: V2TwoFactorLoginPayload
 ): Promise<V2LoginData> {
-  return await v2RequestData<
+  const body = { ...payload };
+  return await authMutation(() => v2RequestData<
     V2LoginData,
     V2TwoFactorLoginPayload
   >(`/api/v2/auth/two-factor/challenges/${challengeId}`, {
     method: 'POST',
-    body: payload
-  });
+    body
+  }), true);
 }
 
 export async function v2RefreshCurrentToken(): Promise<V2TokenData> {
-  return await v2RequestData<V2TokenData>(
+  return await authMutation(() => v2RequestData<V2TokenData>(
     '/api/v2/auth/tokens/current',
     {
       method: 'PATCH'
     }
-  );
+  ));
 }
 
 export async function v2LogoutCurrent(): Promise<void> {
-  await v2RequestData<null>('/api/v2/auth/tokens/current', {
+  await authMutation(() => v2RequestData<null>('/api/v2/auth/tokens/current', {
     method: 'DELETE'
-  });
+  }), true);
 }
 
 export async function v2PasswordReset(

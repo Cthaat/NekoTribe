@@ -1,6 +1,7 @@
 // middleware/auth.ts
 import { usePreferenceStore } from '~/stores/user';
 import { toast } from 'vue-sonner';
+import { normalizeGroupInviteCode } from '~/utils/group-invite';
 
 export default defineNuxtRouteMiddleware((to, from) => {
   const preferenceStore = usePreferenceStore();
@@ -43,6 +44,10 @@ export default defineNuxtRouteMiddleware((to, from) => {
     // ✨ 3. 增加一个判断，避免在已经前往登录页时再次重定向
     //    这是一个额外的保险措施。
     if (to.fullPath !== loginPath) {
+      const invite = String(to.name ?? '').startsWith('groups-invite-code')
+        ? normalizeGroupInviteCode(to.params.code)
+        : null;
+      if (invite) return navigateTo({ path: loginPath, query: { code: invite } }, { replace: true });
       return navigateTo(loginPath, { replace: true });
     }
   }

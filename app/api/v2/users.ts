@@ -31,14 +31,29 @@ import type {
   V2UserSearchQuery,
   V2UserSettings
 } from '@/types/v2';
+import { decodeEmailChangeResponse } from './email-change-response';
+import { currentSessionMutation } from './auth-mutation';
+import { decodeSettingsResponse } from './settings-response';
+import {
+  decodeAccountDeletionResponse,
+  decodeFactorConfirmResponse,
+  decodeFactorDisableResponse,
+  decodeFactorSetupResponse
+} from './security-response';
 
 export async function v2GetMe(): Promise<V2SelfUser> {
-  return await v2RequestData<V2SelfUser>(
-    '/api/v2/users/me',
-    {
-      method: 'GET'
-    }
-  );
+  const response = await v2Request<V2SelfUser>('/api/v2/users/me', {
+    method: 'GET'
+  });
+  const data = response?.data;
+  if (
+    response?.code !== 200 || response.message !== 'success' ||
+    response.meta !== null || !data ||
+    !Number.isSafeInteger(data.user_id) || data.user_id <= 0
+  ) {
+    throw new Error('Invalid current user profile response');
+  }
+  return data;
 }
 
 export async function v2PatchMe(
@@ -56,25 +71,29 @@ export async function v2PatchMe(
 export async function v2DeleteMe(
   payload: V2AccountDeletionPayload
 ): Promise<V2AccountDeletionData> {
-  return await v2RequestData<
-    V2AccountDeletionData,
+  const submitted = { ...payload };
+  const response = await currentSessionMutation(() => v2Request<
+    unknown,
     V2AccountDeletionPayload
   >('/api/v2/users/me', {
     method: 'DELETE',
-    body: payload
-  });
+    body: submitted
+  }));
+  return decodeAccountDeletionResponse(response);
 }
 
 export async function v2ChangeEmail(
   payload: V2ChangeEmailPayload
 ): Promise<V2ChangeEmailData> {
-  return await v2RequestData<
-    V2ChangeEmailData,
+  const submitted = { ...payload };
+  const response = await v2Request<
+    unknown,
     V2ChangeEmailPayload
   >('/api/v2/users/me/email', {
     method: 'PATCH',
-    body: payload
+    body: submitted
   });
+  return decodeEmailChangeResponse(response, submitted.new_email);
 }
 
 export async function v2UpdateAvatar(
@@ -90,60 +109,63 @@ export async function v2UpdateAvatar(
 }
 
 export async function v2GetSettings(): Promise<V2UserSettings> {
-  return await v2RequestData<V2UserSettings>(
+  return decodeSettingsResponse(await v2Request<unknown>(
     '/api/v2/users/me/settings',
     {
       method: 'GET'
     }
-  );
+  ));
 }
 
 export async function v2PatchSettings(
   payload: V2UpdateSettingsPayload
 ): Promise<V2UserSettings> {
-  return await v2RequestData<
-    V2UserSettings,
+  return decodeSettingsResponse(await v2Request<
+    unknown,
     V2UpdateSettingsPayload
   >('/api/v2/users/me/settings', {
     method: 'PATCH',
     body: payload
-  });
+  }));
 }
 
 export async function v2StartTwoFactorSetup(
   payload: V2TwoFactorSetupPayload
 ): Promise<V2TwoFactorSetupData> {
-  return await v2RequestData<
-    V2TwoFactorSetupData,
+  const response = await v2Request<
+    unknown,
     V2TwoFactorSetupPayload
   >('/api/v2/users/me/two-factor/setup', {
     method: 'POST',
     body: payload
   });
+  return decodeFactorSetupResponse(response);
 }
 
 export async function v2ConfirmTwoFactorSetup(
   payload: V2TwoFactorConfirmPayload
 ): Promise<V2TwoFactorConfirmData> {
-  return await v2RequestData<
-    V2TwoFactorConfirmData,
+  const response = await v2Request<
+    unknown,
     V2TwoFactorConfirmPayload
   >('/api/v2/users/me/two-factor/confirm', {
     method: 'POST',
     body: payload
   });
+  return decodeFactorConfirmResponse(response);
 }
 
 export async function v2DisableTwoFactor(
   payload: V2TwoFactorDisablePayload
 ): Promise<V2TwoFactorStatusData> {
-  return await v2RequestData<
-    V2TwoFactorStatusData,
+  const response = await v2Request<
+    unknown,
     V2TwoFactorDisablePayload
   >('/api/v2/users/me/two-factor', {
     method: 'DELETE',
     body: payload
   });
+  return decodeFactorDisableResponse(response);
 }
 
 export async function v2ListAccountStatements(
@@ -169,20 +191,20 @@ export async function v2PatchAccountStatement(
   statementId: number,
   payload: V2UpdateStatementPayload
 ): Promise<V2StatementStatusData> {
-  return await v2RequestData<
+  return await currentSessionMutation(() => v2RequestData<
     V2StatementStatusData,
     V2UpdateStatementPayload
   >(`/api/v2/users/me/account-statements/${statementId}`, {
     method: 'PATCH',
     body: payload
-  });
+  }));
 }
 
 export async function v2CreateStatementAppeal(
   statementId: number,
   payload: V2StatementAppealPayload
 ): Promise<V2StatementAppealData> {
-  return await v2RequestData<
+  return await currentSessionMutation(() => v2RequestData<
     V2StatementAppealData,
     V2StatementAppealPayload
   >(
@@ -191,11 +213,12 @@ export async function v2CreateStatementAppeal(
       method: 'POST',
       body: payload
     }
-  );
+  ));
 }
 
 export async function v2SearchUsers(
-  query: V2UserSearchQuery
+  query: V2UserSearchQuery,
+  signal?: AbortSignal
 ): Promise<V2PagedResult<V2PublicUser>> {
   const response = await v2Request<
     V2PublicUser[],
@@ -209,6 +232,7 @@ export async function v2SearchUsers(
     }
   >('/api/v2/users', {
     method: 'GET',
+    signal,
     query: {
       q: query.q,
       verified:
@@ -228,11 +252,22 @@ export async function v2SearchUsers(
 export async function v2GetUserById(
   userId: number
 ): Promise<V2PublicUser> {
-  return await v2RequestData<V2PublicUser>(
+  const user = await v2RequestData<V2PublicUser>(
     `/api/v2/users/${userId}`,
     {
       method: 'GET'
     }
+  );
+  if (!user || !Number.isSafeInteger(user.user_id) || user.user_id <= 0 || user.user_id !== userId) {
+    throw new Error('Invalid public profile response');
+  }
+  return user;
+}
+
+export function v2RecommendedUsers(limit: number): Promise<V2PublicUser[]> {
+  return v2RequestData<V2PublicUser[], undefined, { limit: number }>(
+    '/api/v2/users/recommendations',
+    { method: 'GET', query: { limit } }
   );
 }
 
@@ -251,13 +286,15 @@ export async function v2GetUserDailyAnalytics(
   userId: number,
   query: {
     days?: number;
-  } = {}
+  } = {},
+  signal?: AbortSignal
 ): Promise<V2UserDailyAnalytics[]> {
   return await v2RequestData<V2UserDailyAnalytics[]>(
     `/api/v2/users/${userId}/analytics/daily`,
     {
       method: 'GET',
-      query
+      query,
+      signal
     }
   );
 }

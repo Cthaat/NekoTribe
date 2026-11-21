@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import {
   Inbox,
   Loader2,
@@ -15,6 +15,7 @@ import {
   type SessionVM
 } from '@/services';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -24,44 +25,81 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { toast } from 'vue-sonner';
+import { authQueueFor } from '@/services/auth-request-queue';
 
 const { t } = useAppLocale();
+const app = useNuxtApp();
+const auth = authQueueFor(app);
+let unsubscribe: (() => void) | undefined;
+let mounted = false;
+let request = 0;
+const current = (revision: number) => mounted && revision === auth.revision && !auth.isIdentityChanging;
 
 const PILL_BASE =
   'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium';
 
 const loading = ref(false);
 const sessions = ref<SessionVM[]>([]);
+const page = ref(1);
+const hasNext = ref(false);
+const total = ref(0);
+const changing = ref(false);
+const confirmRevision = ref<number | null>(null);
 
-async function load(): Promise<void> {
+async function load(target = 1): Promise<void> {
+  const revision = auth.revision;
+  if (!current(revision)) return;
+  const id = ++request;
+  const valid = () => current(revision) && id === request;
   loading.value = true;
   try {
-    const result = await v2ListSessions();
+    let result = await app.runWithContext(() => v2ListSessions(target));
+    if (!valid()) return;
+    if (target > 1 && !result.items.length) {
+      result = await app.runWithContext(() => v2ListSessions(1));
+      if (!valid()) return;
+    }
     sessions.value = result.items;
+    page.value = result.page;
+    total.value = result.total;
+    hasNext.value = result.hasNext;
   } catch {
-    toast.error(t('account.active.feedback.loadFailed'));
+    if (valid()) toast.error(t('account.active.feedback.loadFailed'));
   } finally {
-    loading.value = false;
+    if (valid()) loading.value = false;
   }
 }
 
 async function revoke(id: string): Promise<void> {
-  try {
-    await v2RevokeSession(id);
-    toast.success(t('account.active.feedback.revoked'));
-    await load();
-  } catch {
-    toast.error(t('account.active.feedback.operationFailed'));
-  }
+  if (!sessions.value.some(session => session.id === id && !session.current)) return;
+  await change(() => v2RevokeSession(id), id);
+}
+
+function askRevokeOthers(): void {
+  if (loading.value || changing.value || !current(auth.revision)) return;
+  confirmRevision.value = auth.revision;
 }
 
 async function revokeOthers(): Promise<void> {
+  const revision = confirmRevision.value;
+  confirmRevision.value = null;
+  if (revision !== null && current(revision)) await change(v2RevokeOtherSessions);
+}
+
+async function change(action: () => Promise<unknown>, id?: string): Promise<void> {
+  const revision = auth.revision;
+  if (loading.value || changing.value || !current(revision)) return;
+  changing.value = true;
   try {
-    await v2RevokeOtherSessions();
-    toast.success(t('account.active.feedback.othersRevoked'));
-    await load();
+    await app.runWithContext(action);
+    if (!current(revision)) return;
+    sessions.value = sessions.value.filter(session => id ? session.id !== id : session.current);
+    toast.success(t(id ? 'account.active.feedback.revoked' : 'account.active.feedback.othersRevoked'));
+    await load(id ? page.value : 1);
   } catch {
-    toast.error(t('account.active.feedback.operationFailed'));
+    if (current(revision)) toast.error(t('account.active.feedback.operationFailed'));
+  } finally {
+    if (current(revision)) changing.value = false;
   }
 }
 
@@ -75,7 +113,19 @@ function isMobileDevice(info: string): boolean {
   );
 }
 
-onMounted(load);
+onMounted(() => {
+  mounted = true;
+  unsubscribe = auth.subscribe(() => {
+    request++;
+    sessions.value = [];
+    loading.value = changing.value = hasNext.value = false;
+    page.value = 1;
+    total.value = 0;
+    confirmRevision.value = null;
+  });
+  void load();
+});
+onBeforeUnmount(() => { mounted = false; unsubscribe?.(); });
 </script>
 
 <template>
@@ -105,8 +155,8 @@ onMounted(load);
           <Button
             variant="outline"
             class="h-9 rounded-md shadow-xs"
-            :disabled="loading"
-            @click="load()"
+            :disabled="loading || changing"
+            @click="load(page)"
           >
             <Loader2 v-if="loading" class="h-3.5 w-3.5 animate-spin" />
             <RefreshCw v-else class="h-3.5 w-3.5" />
@@ -115,8 +165,8 @@ onMounted(load);
           <Button
             variant="destructive"
             class="h-9 rounded-md shadow-xs"
-            :disabled="loading || !sessions.length"
-            @click="revokeOthers()"
+            :disabled="loading || changing || (total <= 1 && !sessions.some(session => !session.current))"
+            @click="askRevokeOthers()"
           >
             <ShieldOff class="h-3.5 w-3.5" />
             {{ t('account.active.revokeOthers') }}
@@ -124,6 +174,18 @@ onMounted(load);
         </div>
       </header>
     </section>
+    <Dialog :open="confirmRevision !== null" @update:open="open => { if (!open) confirmRevision = null }">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{{ t('account.active.revokeOthers') }}</DialogTitle>
+          <DialogDescription>{{ t('account.active.confirmRevokeOthers') }}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" @click="confirmRevision = null">{{ t('common.cancel') }}</Button>
+          <Button variant="destructive" @click="revokeOthers()">{{ t('account.active.revokeOthers') }}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <div
       v-if="!sessions.length"
@@ -153,7 +215,7 @@ onMounted(load);
               {{ t('account.active.description') }}
             </TableHead>
             <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
-              Session
+              {{ t('account.active.sessionId') }}
             </TableHead>
             <TableHead class="h-9 text-right text-[11px] uppercase tracking-wider text-muted-foreground">
               {{ t('account.active.revoke') }}
@@ -216,7 +278,7 @@ onMounted(load);
                 size="sm"
                 variant="outline"
                 class="h-8 rounded-md shadow-xs"
-                :disabled="s.current || loading"
+                :disabled="s.current || loading || changing"
                 @click="revoke(s.id)"
               >
                 {{ t('account.active.revoke') }}
@@ -226,5 +288,9 @@ onMounted(load);
         </TableBody>
       </Table>
     </section>
+    <div v-if="page > 1 || hasNext" class="flex gap-2">
+      <Button v-if="page > 1" variant="outline" :disabled="loading || changing" @click="load(page - 1)">{{ t('account.active.previousPage') }}</Button>
+      <Button v-if="hasNext" variant="outline" :disabled="loading || changing" @click="load(page + 1)">{{ t('account.active.nextPage') }}</Button>
+    </div>
   </div>
 </template>

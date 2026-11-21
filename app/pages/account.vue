@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { useNuxtApp } from '#app';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,6 +21,8 @@ import {
   v2GetUserAnalytics
 } from '@/services';
 import type { CreateGroupData } from '@/types/groups';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { usePreferenceStore } from '@/stores/user';
 import {
   ChevronDown,
   Filter,
@@ -34,6 +37,9 @@ import {
 import { toast } from 'vue-sonner';
 
 const { t } = useAppLocale();
+const app = useNuxtApp();
+const auth = authQueueFor(app);
+const preferences = usePreferenceStore();
 
 const localePath = useLocalePath();
 const filterDialogOpen = ref(false);
@@ -57,7 +63,7 @@ interface AccountHeaderUser {
   lastSeenAt: string | null;
 }
 
-const user = ref<AccountHeaderUser>({
+const emptyAccount = (): AccountHeaderUser => ({
   id: 0,
   name: '',
   title: '',
@@ -74,6 +80,10 @@ const user = ref<AccountHeaderUser>({
   onlineStatus: 'hidden',
   lastSeenAt: null
 });
+const user = ref(emptyAccount());
+const loadFailed = ref(false);
+let request = 0;
+let unsubscribe: (() => void) | undefined;
 
 const baseAccountTabs = [
   {
@@ -103,6 +113,10 @@ const baseAccountTabs = [
   {
     labelKey: 'account.tabs.likes',
     to: 'account-likes'
+  },
+  {
+    labelKey: 'account.tabs.bookmarks',
+    to: 'account-bookmarks'
   },
   {
     labelKey: 'account.tabs.appearance',
@@ -137,23 +151,41 @@ function updateActiveTabFromRoute(): void {
 }
 
 async function loadAccount(): Promise<void> {
+  if (auth.isIdentityChanging || !preferences.isLoggedIn) return;
+  const currentRequest = ++request;
+  const revision = auth.revision;
+  const isCurrent = () =>
+    request === currentRequest && auth.revision === revision && !auth.isIdentityChanging;
+  loadFailed.value = false;
+  let me: Awaited<ReturnType<typeof v2GetMe>>;
   try {
-    const me = await v2GetMe();
-    user.value.id = me.id;
-    user.value.name = me.username;
-    user.value.title = me.name;
-    user.value.location = me.location;
-    user.value.email = me.email;
-    user.value.avatar = me.avatarUrl;
-    user.value.onlineStatus = me.onlineStatus;
-    user.value.lastSeenAt = me.lastSeenAt;
-    user.value.stats.followersCount = me.followersCount;
-    user.value.stats.followingCount = me.followingCount;
-    user.value.stats.likesCount = me.likesCount;
-    const analytics = await v2GetUserAnalytics(me.id);
-    user.value.point = analytics.engagementScore;
+    me = await app.runWithContext(v2GetMe);
   } catch {
-    toast.error(t('account.errors.loadUser'));
+    if (isCurrent()) loadFailed.value = true;
+    return;
+  }
+  if (!isCurrent()) return;
+  user.value = {
+    ...emptyAccount(),
+    id: me.id,
+    name: me.username,
+    title: me.name,
+    location: me.location,
+    email: me.email,
+    avatar: me.avatarUrl,
+    onlineStatus: me.onlineStatus,
+    lastSeenAt: me.lastSeenAt,
+    stats: {
+      followersCount: me.followersCount,
+      followingCount: me.followingCount,
+      likesCount: me.likesCount
+    }
+  };
+  try {
+    const analytics = await app.runWithContext(() => v2GetUserAnalytics(me.id));
+    if (isCurrent()) user.value.point = analytics.engagementScore;
+  } catch {
+    // Analytics is optional for the account header.
   }
 }
 
@@ -188,7 +220,28 @@ async function handleCreateGroup(
 
 onMounted(() => {
   updateActiveTabFromRoute();
+  let revision = auth.revision;
+  let changing = auth.isIdentityChanging;
+  unsubscribe = auth.subscribe(() => {
+    if (revision === auth.revision && changing === auth.isIdentityChanging) return;
+    revision = auth.revision;
+    changing = auth.isIdentityChanging;
+    request++;
+    user.value = emptyAccount();
+    loadFailed.value = false;
+    if (!changing) {
+      const settledRequest = request;
+      queueMicrotask(() => {
+        if (request === settledRequest) void loadAccount();
+      });
+    }
+  });
   void loadAccount();
+});
+
+onUnmounted(() => {
+  request++;
+  unsubscribe?.();
 });
 
 watch(
@@ -268,7 +321,12 @@ watch(
     </div>
 
     <div class="min-w-0">
+      <div v-if="loadFailed" class="mb-3 flex flex-wrap items-center gap-2">
+        <p role="alert" class="text-sm text-muted-foreground">{{ t('account.errors.loadUser') }}</p>
+        <Button variant="outline" size="sm" @click="loadAccount">{{ t('common.retry') }}</Button>
+      </div>
       <AccountHeaderCard
+        :key="user.id"
         :user="user"
         :account-tabs="localizedAccountTabs"
         v-model="activeTab"

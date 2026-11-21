@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useNuxtApp } from '#app';
+import { authQueueFor } from '@/services/auth-request-queue';
 import {
   AlertTriangle,
   FileWarning,
@@ -56,6 +58,12 @@ type StatementStatus =
   | 'appealed';
 
 const { t } = useAppLocale();
+const queue = authQueueFor(useNuxtApp());
+let owner = queue.revision;
+let displayedRequest = 0;
+let disposed = false;
+const expired = ref(queue.isIdentityChanging);
+const changing = ref(queue.isIdentityChanging);
 
 const loading = ref(false);
 const page = ref(1);
@@ -126,6 +134,9 @@ const totalPages = computed(() =>
 );
 
 async function load(): Promise<void> {
+  if (!isCurrent()) return;
+  const request = ++displayedRequest;
+  const current = () => isCurrent() && request === displayedRequest;
   loading.value = true;
   try {
     const result = await v2ListAccountStatements({
@@ -140,12 +151,13 @@ async function load(): Promise<void> {
           ? undefined
           : typeFilter.value
     });
+    if (!current()) return;
     items.value = result.items;
     total.value = result.total;
   } catch {
-    toast.error(t('common.networkError'));
+    if (current()) toast.error(t('common.networkError'));
   } finally {
-    loading.value = false;
+    if (current()) loading.value = false;
   }
 }
 
@@ -157,14 +169,20 @@ async function actMark(
     | 'resolve'
     | 'dismiss'
 ): Promise<void> {
+  if (!isCurrent() || loading.value || submitting.value) return;
+  const revision = owner;
+  submitting.value = true;
   try {
     await v2PatchAccountStatement(Number(id), {
       action
     });
+    if (!isCurrent() || owner !== revision) return;
     toast.success(t('account.statements.actionSuccess'));
     await load();
   } catch {
-    toast.error(t('account.statements.actionFailed'));
+    if (isCurrent() && owner === revision) toast.error(t('account.statements.actionFailed'));
+  } finally {
+    if (isCurrent() && owner === revision) submitting.value = false;
   }
 }
 
@@ -192,25 +210,31 @@ function closeAppealDialog(): void {
 }
 
 async function submitAppeal(id: string): Promise<void> {
-  if (
-    !appealMsg.value ||
-    appealMsg.value.trim().length < 10
-  ) {
-    toast.error(t('account.statements.appealTooShort'));
+  if (!isCurrent() || submitting.value) return;
+  const revision = owner;
+  const message = appealMsg.value.trim();
+  if (!message) return;
+  if (new TextEncoder().encode(message).length > 2000) {
+    toast.error(t('account.statements.appealTooLong'));
     return;
   }
   submitting.value = true;
   try {
     await v2CreateStatementAppeal(Number(id), {
-      appealMessage: appealMsg.value.trim()
+      appealMessage: message
     });
+    if (!isCurrent() || owner !== revision) return;
     toast.success(t('account.statements.appealSubmitted'));
     closeAppealDialog();
     await load();
-  } catch {
-    toast.error(t('account.statements.appealFailed'));
+  } catch (error) {
+    if (isCurrent() && owner === revision) {
+      const pending = typeof error === 'object' && error !== null &&
+        'statusCode' in error && error.statusCode === 409;
+      toast.error(t(pending ? 'account.statements.appealPending' : 'account.statements.appealFailed'));
+    }
   } finally {
-    submitting.value = false;
+    if (isCurrent() && owner === revision) submitting.value = false;
   }
 }
 
@@ -219,11 +243,38 @@ async function submitCurrentAppeal(): Promise<void> {
   await submitAppeal(showAppeal.value);
 }
 
+function isCurrent(): boolean {
+  return !disposed && !expired.value && !queue.isIdentityChanging && queue.revision === owner;
+}
+
+function reopen(): void {
+  if (queue.isIdentityChanging) return;
+  owner = queue.revision;
+  expired.value = false;
+  reloadFromFirstPage();
+}
+
+const stop = queue.subscribe(() => {
+  changing.value = queue.isIdentityChanging;
+  if (!changing.value && queue.revision === owner) return;
+  displayedRequest++;
+  items.value = [];
+  total.value = 0;
+  loading.value = false;
+  submitting.value = false;
+  expired.value = true;
+  closeAppealDialog();
+});
 onMounted(load);
+onUnmounted(() => { disposed = true; stop(); });
 </script>
 
 <template>
-  <div class="grid gap-4">
+  <div v-if="expired" role="status" class="grid gap-3 rounded-xl border border-border/60 bg-card p-5">
+    <p>{{ t('account.settings.sessionChanged') }}</p>
+    <Button :disabled="changing" class="w-fit" @click="reopen">{{ t('account.settings.reopen') }}</Button>
+  </div>
+  <div v-else class="grid gap-4">
     <section
       class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
     >
@@ -408,7 +459,7 @@ onMounted(load);
             size="sm"
             variant="ghost"
             class="h-8 rounded-md"
-            :disabled="loading"
+            :disabled="loading || submitting"
             @click="
               actMark(
                 it.id,
@@ -428,7 +479,7 @@ onMounted(load);
             size="sm"
             variant="outline"
             class="h-8 rounded-md shadow-xs"
-            :disabled="loading"
+            :disabled="loading || submitting"
             @click="actMark(it.id, 'resolve')"
           >
             {{ t('account.statements.actions.resolve') }}
@@ -437,7 +488,7 @@ onMounted(load);
             size="sm"
             variant="outline"
             class="h-8 rounded-md shadow-xs"
-            :disabled="loading"
+            :disabled="loading || submitting"
             @click="actMark(it.id, 'dismiss')"
           >
             {{ t('account.statements.actions.dismiss') }}
@@ -445,7 +496,7 @@ onMounted(load);
           <Button
             size="sm"
             class="h-8 rounded-md shadow-xs"
-            :disabled="loading"
+            :disabled="loading || submitting"
             @click="showAppeal = it.id"
           >
             {{ t('account.statements.actions.appeal') }}
@@ -542,7 +593,7 @@ onMounted(load);
           </Button>
           <Button
             class="h-9 w-full rounded-md shadow-xs sm:w-auto"
-            :disabled="submitting"
+            :disabled="submitting || !appealMsg.trim()"
             @click="submitCurrentAppeal"
           >
             <Loader2 v-if="submitting" class="h-3.5 w-3.5 animate-spin" />

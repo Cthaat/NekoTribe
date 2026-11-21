@@ -8,6 +8,7 @@ import {
   v2ListUserFollowers as apiListUserFollowers,
   v2ListUserFollowing as apiListUserFollowing,
   v2PatchMe as apiPatchMe,
+  v2RecommendedUsers as apiRecommendedUsers,
   v2SearchUsers as apiSearchUsers,
   v2UnfollowUser as apiUnfollowUser,
   v2UpdateAvatar as apiUpdateAvatar
@@ -194,7 +195,8 @@ export async function v2UpdateAvatar(
 }
 
 export async function v2SearchUsers(
-  query: UserSearchRequestVM
+  query: UserSearchRequestVM,
+  signal?: AbortSignal
 ): Promise<UserSearchPageVM> {
   const result = await apiSearchUsers({
     q: query.q,
@@ -202,7 +204,7 @@ export async function v2SearchUsers(
     sort: query.sort,
     page: query.page,
     page_size: query.pageSize
-  });
+  }, signal);
   return mapPageMeta(result, result.items.map(mapPublicUser));
 }
 
@@ -210,6 +212,10 @@ export async function v2GetUserById(
   userId: number
 ): Promise<PublicUserVM> {
   return mapPublicUser(await apiGetUserById(userId));
+}
+
+export async function v2RecommendedUsers(limit: number): Promise<PublicUserVM[]> {
+  return (await apiRecommendedUsers(limit)).map(mapPublicUser);
 }
 
 export async function v2GetUserAnalytics(
@@ -222,10 +228,11 @@ export async function v2GetUserDailyAnalytics(
   userId: number,
   query: {
     days?: number;
-  } = {}
+  } = {},
+  signal?: AbortSignal
 ): Promise<UserDailyAnalyticsVM[]> {
   return (
-    await apiGetUserDailyAnalytics(userId, query)
+    await apiGetUserDailyAnalytics(userId, query, signal)
   ).map(mapDailyAnalytics);
 }
 

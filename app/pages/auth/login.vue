@@ -40,10 +40,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Cat, Eye, EyeOff, ShieldCheck } from 'lucide-vue-next';
 import { navigateTo } from '#app';
+import { normalizeGroupInviteCode } from '~/utils/group-invite';
 
 const { t } = useAppLocale();
 
 const localePath = useLocalePath();
+const route = useRoute();
 
 const preferenceStore = usePreferenceStore();
 
@@ -52,6 +54,7 @@ const description = t('auth.login.description');
 useHead({
   title: t('auth.login.title'),
   meta: [
+    { name: 'referrer', content: 'no-referrer' },
     {
       name: 'description',
       content: description
@@ -66,8 +69,8 @@ const loginFormSchema = z.object({
     .min(1, { message: t('auth.login.accountRequired') }),
   password: z
     .string()
+    .trim()
     .min(1, { message: t('auth.login.passwordRequired') })
-    .min(6, { message: t('auth.login.passwordTooShort') })
 });
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
@@ -100,19 +103,25 @@ async function completeLogin(response: LoginVM): Promise<void> {
       t('auth.login.welcomeBack') +
       ` ${response.user.name || t('nav.user.fallbackName')}`
   });
-  await navigateTo(localePath('/'));
+  const invite = normalizeGroupInviteCode(route.query.code);
+  await navigateTo(localePath(invite ? `/groups/invite/${invite}` : '/'));
 }
 
 async function onValidSubmit(
   values: LoginFormValues
 ): Promise<void> {
+  if (isLoading.value) return;
   isLoading.value = true;
+  let revision = preferenceStore.authRevision();
 
   try {
-    const response = await v2Login({
+    const request = v2Login({
       ...values,
       rememberMe: trustDevice.value
     });
+    revision = preferenceStore.authRevision();
+    const response = await request;
+    if (!preferenceStore.isAuthCurrent(revision)) return;
     if (isTwoFactorChallenge(response)) {
       twoFactorChallenge.value = response;
       twoFactorCode.value = '';
@@ -121,6 +130,7 @@ async function onValidSubmit(
     }
     await completeLogin(response);
   } catch (error) {
+    if (!preferenceStore.isAuthCurrent(revision)) return;
     const message =
       error instanceof Error
         ? error.message
@@ -134,6 +144,7 @@ async function onValidSubmit(
 }
 
 async function handleTwoFactorSubmit(): Promise<void> {
+  if (isLoading.value) return;
   const challenge = twoFactorChallenge.value;
   const code = twoFactorCode.value.trim();
   if (!challenge || !code) {
@@ -142,13 +153,18 @@ async function handleTwoFactorSubmit(): Promise<void> {
   }
 
   isLoading.value = true;
+  let revision = preferenceStore.authRevision();
   try {
-    const response = await v2CompleteTwoFactorLogin({
+    const request = v2CompleteTwoFactorLogin({
       challengeId: challenge.challengeId,
       code
     });
+    revision = preferenceStore.authRevision();
+    const response = await request;
+    if (!preferenceStore.isAuthCurrent(revision)) return;
     await completeLogin(response);
   } catch (error) {
+    if (!preferenceStore.isAuthCurrent(revision)) return;
     const message =
       error instanceof Error
         ? error.message

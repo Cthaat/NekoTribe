@@ -16,8 +16,15 @@ import {
   AccordionTrigger
 } from '@/components/ui/accordion';
 import { AlertTriangle, FileText } from 'lucide-vue-next';
+import { resolvePublicTermsReference } from '@/utils/public-terms-reference';
 
-const { t } = useAppLocale();
+const { t, locale } = useAppLocale();
+const route = useRoute();
+const { publicTermsReferences } = useAppConfig();
+const citing = computed(() => Object.hasOwn(route.query, 'citation'));
+const citedSection = computed(() => resolvePublicTermsReference(
+  publicTermsReferences, route.query.citation, locale.value
+));
 
 // 2. 使用 useLocalePath 来处理路由
 const localePath = useLocalePath();
@@ -64,7 +71,18 @@ const faqItems = [
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-4xl overflow-x-clip p-3 sm:p-4 md:p-8">
+  <main v-if="citing" class="mx-auto w-full max-w-4xl p-4 sm:p-8">
+    <article v-if="citedSection" :id="citedSection.href.split('#')[1]" class="grid gap-4 rounded-xl border bg-card p-4 sm:p-8">
+      <h1 class="text-2xl font-semibold">{{ citedSection.title }}</h1>
+      <p v-for="(block, index) in citedSection.blocks" :key="index" class="text-sm leading-relaxed">
+        {{ block }}
+      </p>
+    </article>
+    <p v-else role="status" class="rounded-xl border bg-card p-4 sm:p-8">
+      {{ t('auth.terms.citationUnavailable') }}
+    </p>
+  </main>
+  <div v-else class="mx-auto w-full max-w-4xl overflow-x-clip p-3 sm:p-4 md:p-8">
     <article
       class="rounded-xl border border-border/60 bg-card shadow-none"
     >

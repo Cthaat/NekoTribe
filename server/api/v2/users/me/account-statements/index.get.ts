@@ -1,4 +1,5 @@
-import { v2ListAccountStatements } from '~/server/services/v2/users';
+import { v2ListAccountStatements } from '~/server/services/v2/account-statements';
+import { safeAuthEntry } from '~/server/utils/auth-entry-errors';
 import { defineV2Handler } from '~/server/utils/v2';
 
-export default defineV2Handler(v2ListAccountStatements);
+export default defineV2Handler(safeAuthEntry(v2ListAccountStatements));

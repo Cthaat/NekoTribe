@@ -73,20 +73,20 @@ function mapPageMeta<TDto, TViewModel>(
 function mapSettings(dto: V2UserSettings): AccountSettingsVM {
   return {
     userId: dto.user_id,
-    twoFactorEnabled: !!dto.two_factor_enabled,
+    twoFactorEnabled: dto.two_factor_enabled,
     loginAlerts: dto.login_alerts,
     profileVisibility: dto.profile_visibility,
-    showOnlineStatus: !!dto.show_online_status,
-    allowDmFromStrangers: !!dto.allow_dm_from_strangers,
-    pushNotificationEnabled: !!dto.push_notification_enabled,
-    emailNotificationEnabled: !!dto.email_notification_enabled,
-    aiSentimentEnabled: !!dto.ai_sentiment_enabled,
-    aiSentimentModelId: dto.ai_sentiment_model_id ?? null,
+    showOnlineStatus: dto.show_online_status,
+    allowDmFromStrangers: dto.allow_dm_from_strangers,
+    pushNotificationEnabled: dto.push_notification_enabled,
+    emailNotificationEnabled: dto.email_notification_enabled,
+    aiSentimentEnabled: dto.ai_sentiment_enabled,
+    aiSentimentModelId: dto.ai_sentiment_model_id,
     aiSentimentReturnProbabilities:
-      dto.ai_sentiment_return_probabilities ?? true,
+      dto.ai_sentiment_return_probabilities,
     aiSentimentIncludeMetadata:
-      !!dto.ai_sentiment_include_metadata,
-    aiSentimentTopK: dto.ai_sentiment_top_k ?? 3,
+      dto.ai_sentiment_include_metadata,
+    aiSentimentTopK: dto.ai_sentiment_top_k,
     updatedAt: dto.updated_at
   };
 }
@@ -306,8 +306,8 @@ export async function v2CreateStatementAppeal(
   );
 }
 
-export async function v2ListSessions(): Promise<SessionPageVM> {
-  const result = await apiListSessions();
+export async function v2ListSessions(page = 1): Promise<SessionPageVM> {
+  const result = await apiListSessions({ page, page_size: 20 });
   return mapPageMeta(result, result.items.map(mapSession));
 }
 

@@ -1,4 +1,7 @@
 import { defineStore } from 'pinia';
+import { useNuxtApp } from '#app';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { invalidAuthResponse } from '@/services/auth-response';
 import { computed } from 'vue';
 import type {
   UserPreference,
@@ -7,6 +10,7 @@ import type {
 } from './type';
 import {
   v2RefreshCurrentToken,
+  v2LogoutCurrent,
   type AuthSessionVM,
   type CurrentUserVM
 } from '@/services';
@@ -15,6 +19,9 @@ import { normalizeAvatarUrl } from '@/utils/assets';
 interface ClearAuthStateOptions {
   redirect?: boolean;
 }
+
+type LogoutResult = { revision: number; ok: true }
+  | { revision: number; ok: false; error: unknown };
 
 function createEmptyUser(): CurrentUserVM {
   return {
@@ -144,12 +151,16 @@ function redirectToLogin(): void {
 export const usePreferenceStore = defineStore(
   'preferences',
   () => {
+    const authApp = useNuxtApp();
+    const authQueue = authQueueFor(authApp);
+    const authRevision = (): number => authQueue.revision;
+    const isAuthCurrent = (revision: number): boolean => authRevision() === revision;
     // 1. 状态 (State):
     // 【修改点 1】: 为这个 Cookie 添加更安全的选项
     const preferences = useCookie<UserPreference>(
       'user-preferences-and-auth', // 建议改个名以反映其新职责
       {
-        default: () => defaultPreferences,
+        default: () => structuredClone(defaultPreferences),
         // 【新增】: 推荐为包含认证信息的 Cookie 添加这些选项
         maxAge: 30 * 24 * 60 * 60, // Cookie 的最长有效期（例如30天）
         sameSite: 'lax' // 防范 CSRF 攻击
@@ -202,36 +213,40 @@ export const usePreferenceStore = defineStore(
 
     // 用于防止重复刷新的Promise缓存
     let refreshPromise: Promise<void> | null = null;
+    let refreshRevision = -1;
     // 标记是否正在刷新token
     const isRefreshingToken = ref(false);
 
     async function refreshAccessToken() {
+      const revision = authRevision();
+      const previousSessionId = preferences.value.authSession?.sessionId;
       // 如果已经有一个刷新请求在进行中，直接返回该Promise
-      if (refreshPromise) {
+      if (refreshPromise && refreshRevision === revision) {
         return refreshPromise;
       }
       isRefreshingToken.value = true;
 
       // 创建刷新Promise
-      refreshPromise = (async () => {
+      const pending: Promise<void> = (async () => {
         try {
-          const session = await v2RefreshCurrentToken();
+          const session = await authApp.runWithContext(async () => v2RefreshCurrentToken());
+          if (!isAuthCurrent(revision)) throw new Error('Authentication action superseded');
+          if (previousSessionId !== undefined && session.sessionId !== previousSessionId) throw invalidAuthResponse();
           setCurrentSession(session);
         } catch (error) {
-          console.error(
-            '[PreferenceStore] Token刷新失败:',
-            error
-          );
-          clearAuthState();
+          if (isAuthCurrent(revision)) clearAuthState();
           throw error;
-        } finally {
-          // 清除Promise缓存，允许下次刷新
+        }
+      })().finally(() => {
+        // 仅本次操作仍拥有缓存时清理，不能影响新会话的刷新。
+        if (refreshPromise === pending) {
           refreshPromise = null;
           isRefreshingToken.value = false;
         }
-      })();
-
-      return refreshPromise;
+      });
+      refreshPromise = pending;
+      refreshRevision = revision;
+      return pending;
     }
 
     /**
@@ -240,6 +255,7 @@ export const usePreferenceStore = defineStore(
     function clearAuthState(
       options: ClearAuthStateOptions = {}
     ) {
+      authQueue.beginIdentityChange();
       updatePreference('user', createEmptyUser());
       updatePreference('authSession', null);
       if (options.redirect ?? true) {
@@ -265,15 +281,27 @@ export const usePreferenceStore = defineStore(
      * 如果选择只清除令牌，这个函数保持原样。
      */
     function resetToDefaults() {
+      authQueue.beginIdentityChange();
       const language = normalizeStoredLanguage(
         preferences.value.language
       );
-      preferences.value = defaultPreferences;
+      preferences.value = structuredClone(defaultPreferences);
       updatePreference('language', language);
     }
 
+    async function logoutCurrentSession(expectedRevision = authRevision()): Promise<LogoutResult | null> {
+      if (!isAuthCurrent(expectedRevision)) return null;
+      const request = authApp.runWithContext(v2LogoutCurrent);
+      const revision = authRevision();
+      let outcome: { ok: true } | { ok: false; error: unknown } = { ok: true };
+      try { await request; } catch (error) { outcome = { ok: false, error }; }
+      if (!isAuthCurrent(revision)) return null;
+      resetToDefaults();
+      return { revision: authRevision(), ...outcome };
+    }
+
     if (preferences.value.user.id === undefined) {
-      preferences.value = defaultPreferences;
+      preferences.value = structuredClone(defaultPreferences);
     }
     preferences.value.user = normalizeStoredUser(
       preferences.value.user
@@ -292,6 +320,9 @@ export const usePreferenceStore = defineStore(
       setTheme,
       toggleCompactMode,
       resetToDefaults,
+      authRevision,
+      isAuthCurrent,
+      logoutCurrentSession,
       setCurrentUser,
       setCurrentSession,
       refreshAccessToken,

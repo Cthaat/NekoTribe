@@ -1,4 +1,4 @@
-import { v2UpdateAvatar } from '~/server/services/v2/users';
+import { v2UpdateAvatar } from '~/server/services/v2/user-avatar';
 import { defineV2Handler } from '~/server/utils/v2';
 
 export default defineV2Handler(v2UpdateAvatar);

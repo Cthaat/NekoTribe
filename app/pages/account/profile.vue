@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { UserCog } from 'lucide-vue-next';
 import ProfileForm from '@/components/ProfileForm.vue';
+import AccountSessionGate from '@/components/AccountSessionGate.vue';
 
 const { t } = useAppLocale();
 </script>
@@ -27,6 +28,8 @@ const { t } = useAppLocale();
       </header>
     </section>
 
-    <ProfileForm />
+    <AccountSessionGate>
+      <ProfileForm />
+    </AccountSessionGate>
   </div>
 </template>

@@ -9,9 +9,7 @@ import {
   v2VerifyOtp as apiVerifyOtp
 } from '@/api/v2/auth';
 import type {
-  V2AuthOtpData,
   V2AuthOtpPayload,
-  V2AuthOtpVerificationData,
   V2AuthOtpVerificationPayload,
   V2LoginData,
   V2LoginPayload,
@@ -34,6 +32,7 @@ import type {
   TwoFactorLoginFormVM
 } from '@/types/auth';
 import { mapCurrentUser } from './users';
+import { decodeAuthSession, decodeAuthOtp, decodeOtpVerification, invalidAuthResponse, validateLoginResponse, validateRegistrationResponse } from './auth-response';
 
 export {
   v2LogoutCurrent
@@ -47,14 +46,6 @@ function mapOtpForm(form: AuthOtpFormVM): V2AuthOtpPayload {
   };
 }
 
-function mapOtp(dto: V2AuthOtpData): AuthOtpVM {
-  return {
-    account: dto.account,
-    verificationId: dto.verification_id,
-    expiresAt: dto.expires_at
-  };
-}
-
 function mapVerifyOtpForm(
   form: AuthOtpVerificationFormVM
 ): V2AuthOtpVerificationPayload {
@@ -63,16 +54,6 @@ function mapVerifyOtpForm(
     type: form.type,
     verification_id: form.verificationId,
     code: form.code
-  };
-}
-
-function mapVerifyOtp(
-  dto: V2AuthOtpVerificationData
-): AuthOtpVerificationVM {
-  return {
-    account: dto.account,
-    verified: dto.verified,
-    verifiedAt: dto.verified_at
   };
 }
 
@@ -103,21 +84,18 @@ function mapLoginForm(form: LoginFormVM): V2LoginPayload {
 }
 
 function mapSession(dto: V2TokenData): AuthSessionVM {
-  return {
-    sessionId: dto.session_id,
-    accessTokenExpiresAt: dto.access_token_expires_at,
-    refreshTokenExpiresAt: dto.refresh_token_expires_at
-  };
+  return decodeAuthSession(dto);
 }
 
 function mapLogin(dto: V2LoginData): LoginVM {
   if ('two_factor_required' in dto && dto.two_factor_required) {
     throw new Error('two-factor challenge cannot be mapped as login');
   }
-  return {
-    user: mapCurrentUser(dto.user),
-    tokens: mapSession(dto.tokens)
-  };
+  try {
+    return { user: mapCurrentUser(dto.user), tokens: mapSession(dto.tokens) };
+  } catch {
+    throw invalidAuthResponse();
+  }
 }
 
 function mapTwoFactorChallenge(
@@ -148,28 +126,32 @@ function mapPasswordResetForm(
 export async function v2CreateOtp(
   form: AuthOtpFormVM
 ): Promise<AuthOtpVM> {
-  return mapOtp(await apiCreateOtp(mapOtpForm(form)));
+  const payload = mapOtpForm(form);
+  return decodeAuthOtp(await apiCreateOtp(payload), payload.account);
 }
 
 export async function v2VerifyOtp(
   form: AuthOtpVerificationFormVM
 ): Promise<AuthOtpVerificationVM> {
-  return mapVerifyOtp(await apiVerifyOtp(mapVerifyOtpForm(form)));
+  const payload = mapVerifyOtpForm(form);
+  return decodeOtpVerification(await apiVerifyOtp(payload), payload.account);
 }
 
 export async function v2Register(
   form: RegistrationFormVM
 ): Promise<{ user: LoginVM['user'] }> {
-  const result = await apiRegister(mapRegistrationForm(form));
-  return {
-    user: mapCurrentUser(result.user)
-  };
+  const payload = mapRegistrationForm(form);
+  const result = await apiRegister(payload);
+  validateRegistrationResponse(result, payload.email, payload.username);
+  try { return { user: mapCurrentUser(result.user) }; }
+  catch { throw invalidAuthResponse(); }
 }
 
 export async function v2Login(
   form: LoginFormVM
 ): Promise<LoginResultVM> {
   const result = await apiLogin(mapLoginForm(form));
+  validateLoginResponse(result);
   return mapTwoFactorChallenge(result) ?? mapLogin(result);
 }
 
@@ -183,6 +165,7 @@ export async function v2CompleteTwoFactorLogin(
       code: form.code
     }
   );
+  validateLoginResponse(result, true);
   return mapLogin(result);
 }
 

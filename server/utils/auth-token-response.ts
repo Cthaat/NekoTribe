@@ -17,18 +17,3 @@ export function buildV2TokenData(
     refresh_token_expires_at: input.refreshExpiresAt.toISOString()
   };
 }
-
-export function resolveV2RefreshToken(
-  cookieToken: string | null | undefined,
-  body: Record<string, unknown>
-): string | null {
-  const cookieValue = normalizeToken(cookieToken);
-  if (cookieValue) return cookieValue;
-  return normalizeToken(body.refresh_token);
-}
-
-function normalizeToken(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const token = value.trim();
-  return token.length > 0 ? token : null;
-}

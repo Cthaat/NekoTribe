@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   BarChart3,
   Eye,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
+import PrivateMediaDownload from '@/components/PrivateMediaDownload.vue';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -55,24 +56,32 @@ import type {
   V2PostVisibility
 } from '@/types/v2';
 import {
+  UnconfirmedPostUpdateError,
   v2DeletePost,
+  v2GetPost,
   v2GetPostAnalytics,
   v2ListMyPosts,
   v2UpdatePost
 } from '@/services/posts';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { usePreferenceStore } from '@/stores/user';
+import { postEditMediaIds, postEditOwned, postEditPatch, postEditTarget, type PostEditForm } from '@/utils/post-edit';
 
 const { t, locale } = useAppLocale();
 const localePath = useLocalePath();
+const route = useRoute();
+const app = useNuxtApp();
+const auth = authQueueFor(app);
+const account = usePreferenceStore();
+const targetId = computed(() => postEditTarget(route.query.edit));
+let mounted = false;
+let stopAuth: (() => void) | undefined;
+let linkRequest: AbortController | undefined;
+let saveRequest: AbortController | undefined;
+let listRequest = 0;
+const currentSession = (revision: number) => mounted && revision === auth.revision && !auth.isIdentityChanging;
 
 type VisibilityFilter = V2PostVisibility | 'all';
-
-interface EditForm {
-  content: string;
-  visibility: V2PostVisibility;
-  language: string;
-  location: string;
-  tags: string;
-}
 
 const PILL_BASE =
   'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium';
@@ -91,17 +100,47 @@ const hasNext = ref(false);
 const pageSize = 12;
 
 const search = ref('');
+const submittedSearch = ref('');
 const sort = ref<V2PostSort>('newest');
 const visibilityFilter = ref<VisibilityFilter>('all');
 const deleteDialogOpen = ref(false);
 const postToDelete = ref<PostVM | null>(null);
 
-const editForm = ref<EditForm>({
+const emptyForm = (): PostEditForm => ({
   content: '',
   visibility: 'public',
   language: 'zh',
   location: '',
   tags: ''
+});
+const editForm = ref(emptyForm());
+const removedMediaIds = ref(new Set<number>());
+const removePrivateAttachments = ref(false);
+const privateAttachments = computed(() =>
+  selectedPost.value?.media.filter(media =>
+    media.privateFileName !== undefined && !removedMediaIds.value.has(media.id)) ?? []);
+const isPublishingPrivateMedia = computed(() => editForm.value.visibility === 'public' &&
+  privateAttachments.value.length > 0);
+
+function editPatchFor(post: PostVM) {
+  const patch = postEditPatch(editFormFor(post), editForm.value);
+  const mediaIds = postEditMediaIds(
+    post.media, removedMediaIds.value, isPublishingPrivateMedia.value && removePrivateAttachments.value);
+  if (mediaIds !== undefined) patch.mediaIds = mediaIds;
+  return patch;
+}
+
+function updateAttachmentSelection(id: number, event: Event) {
+  if (saving.value || !(event.target instanceof HTMLInputElement)) return;
+  if (event.target.checked) removedMediaIds.value.delete(id);
+  else removedMediaIds.value.add(id);
+  removePrivateAttachments.value = false;
+}
+
+const canSaveEdit = computed(() => {
+  const selected = selectedPost.value;
+  return !!selected && (!isPublishingPrivateMedia.value || removePrivateAttachments.value) &&
+    Object.keys(editPatchFor(selected)).length > 0;
 });
 
 const visibilityOptions: Array<{
@@ -216,8 +255,8 @@ function formatDate(value: string): string {
   });
 }
 
-function syncEditForm(post: PostVM): void {
-  editForm.value = {
+function editFormFor(post: PostVM): PostEditForm {
+  return {
     content: post.content,
     visibility: normalizeVisibility(post.visibility),
     language: post.language || 'zh',
@@ -227,13 +266,15 @@ function syncEditForm(post: PostVM): void {
 }
 
 async function loadAnalytics(postId: number): Promise<void> {
+  const revision = auth.revision;
   if (analyticsCache.value[postId]) {
     selectedAnalytics.value = analyticsCache.value[postId];
     return;
   }
   analyticsLoading.value = true;
   try {
-    const analytics = await v2GetPostAnalytics(postId);
+    const analytics = await app.runWithContext(() => v2GetPostAnalytics(postId));
+    if (!currentSession(revision)) return;
     analyticsCache.value = {
       ...analyticsCache.value,
       [postId]: analytics
@@ -242,32 +283,76 @@ async function loadAnalytics(postId: number): Promise<void> {
       selectedAnalytics.value = analytics;
     }
   } catch (error) {
+    if (!currentSession(revision)) return;
     toast.error(t('account.posts.feedback.analyticsFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    analyticsLoading.value = false;
+    if (currentSession(revision) && selectedPost.value?.id === postId) analyticsLoading.value = false;
   }
 }
 
 function selectPost(post: PostVM): void {
+  linkRequest?.abort();
   selectedPost.value = post;
   selectedAnalytics.value = null;
-  syncEditForm(post);
+  editForm.value = editFormFor(post);
+  removedMediaIds.value.clear();
+  removePrivateAttachments.value = false;
+  analyticsLoading.value = false;
   void loadAnalytics(post.id);
 }
 
+async function loadLinkedPost() {
+  linkRequest?.abort();
+  const postId = targetId.value;
+  if (!postId || !account.isLoggedIn || auth.isIdentityChanging) return;
+  const request = new AbortController();
+  linkRequest = request;
+  selectedPost.value = null;
+  selectedAnalytics.value = null;
+  editForm.value = emptyForm();
+  removedMediaIds.value.clear();
+  removePrivateAttachments.value = false;
+  const revision = auth.revision;
+  const ownerId = account.preferences.user.id;
+  try {
+    const post = await app.runWithContext(() => v2GetPost(postId, request.signal));
+    if (!currentSession(revision) || request.signal.aborted) return;
+    if (!postEditOwned(post, postId, ownerId)) throw Error('POST_EDIT_UNAVAILABLE');
+    app.runWithContext(() => selectPost(post));
+    await nextTick();
+    app.runWithContext(() => {
+      if (currentSession(revision) && selectedPost.value?.id === postId) {
+        document.getElementById('managed-post-content')?.focus();
+      }
+    });
+  } catch {
+    if (currentSession(revision) && !request.signal.aborted) toast.error(t('account.posts.feedback.loadFailed'));
+  }
+}
+
 async function loadPosts(reset = true): Promise<void> {
+  const revision = auth.revision;
+  const request = ++listRequest;
+  const current = () => currentSession(revision) && request === listRequest;
   loading.value = true;
+  if (reset) {
+    posts.value = [];
+    page.value = 1;
+    total.value = 0;
+    hasNext.value = false;
+  }
   try {
     const nextPage = reset ? 1 : page.value + 1;
     const result = await v2ListMyPosts({
       page: nextPage,
       pageSize,
       sort: sort.value,
-      q: search.value.trim() || undefined
+      q: submittedSearch.value || undefined
     });
+    if (!current()) return;
     posts.value = reset
       ? result.items
       : [...posts.value, ...result.items];
@@ -278,48 +363,60 @@ async function loadPosts(reset = true): Promise<void> {
     const selectedStillExists =
       selectedPost.value &&
       posts.value.some(post => post.id === selectedPost.value?.id);
-    if (!selectedStillExists && filteredPosts.value[0]) {
-      selectPost(filteredPosts.value[0]);
-    } else if (!selectedPost.value && filteredPosts.value[0]) {
+    if (!targetId.value && !selectedStillExists && filteredPosts.value[0]) {
       selectPost(filteredPosts.value[0]);
     }
   } catch (error) {
+    if (!current()) return;
     toast.error(t('account.posts.feedback.loadFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    loading.value = false;
+    if (current()) loading.value = false;
   }
 }
 
+function submitSearch(): void {
+  submittedSearch.value = search.value.trim();
+  void loadPosts();
+}
+
 async function saveSelectedPost(): Promise<void> {
-  if (!selectedPost.value) return;
+  const post = selectedPost.value;
+  if (!post || saving.value || !canSaveEdit.value || auth.isIdentityChanging ||
+      !postEditOwned(post, post.id, account.preferences.user.id)) return;
+  const patch = editPatchFor(post);
+  if (!Object.keys(patch).length) return;
+  const revision = auth.revision;
+  const request = new AbortController();
+  saveRequest = request;
   saving.value = true;
   try {
-    const tagNames = editForm.value.tags
-      .split(',')
-      .map(tag => tag.replace(/^#/, '').trim())
-      .filter(Boolean);
-    const updated = await v2UpdatePost(selectedPost.value.id, {
-      content: editForm.value.content,
-      visibility: editForm.value.visibility,
-      language: editForm.value.language,
-      location: editForm.value.location || null,
-      tagNames
-    });
+    const updated = await v2UpdatePost(post.id, patch, request.signal);
+    if (!currentSession(revision)) return;
+    if (!postEditOwned(updated, post.id, post.author.id)) throw new UnconfirmedPostUpdateError();
     posts.value = posts.value.map(post =>
       post.id === updated.id ? updated : post
     );
-    selectPost(updated);
+    if (selectedPost.value === post) app.runWithContext(() => selectPost(updated));
     toast.success(t('account.posts.feedback.saved'));
+    void loadPosts();
   } catch (error) {
+    if (!currentSession(revision)) return;
+    if (error instanceof UnconfirmedPostUpdateError) {
+      toast.error(t('account.posts.feedback.saveUnconfirmed'));
+      return;
+    }
     toast.error(t('account.posts.feedback.saveFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    saving.value = false;
+    if (saveRequest === request) {
+      saveRequest = undefined;
+      saving.value = false;
+    }
   }
 }
 
@@ -329,11 +426,13 @@ function askDelete(post: PostVM): void {
 }
 
 async function confirmDelete(): Promise<void> {
-  if (!postToDelete.value) return;
+  if (!postToDelete.value || deleting.value || auth.isIdentityChanging) return;
+  const revision = auth.revision;
   deleting.value = true;
   try {
     const postId = postToDelete.value.id;
     await v2DeletePost(postId);
+    if (!currentSession(revision)) return;
     posts.value = posts.value.filter(post => post.id !== postId);
     total.value = Math.max(0, total.value - 1);
     if (selectedPost.value?.id === postId) {
@@ -344,13 +443,15 @@ async function confirmDelete(): Promise<void> {
     toast.success(t('post.feedback.deleted'));
     deleteDialogOpen.value = false;
     postToDelete.value = null;
+    void loadPosts();
   } catch (error) {
+    if (!currentSession(revision)) return;
     toast.error(t('post.feedback.deleteFailed'), {
       description:
         error instanceof Error ? error.message : undefined
     });
   } finally {
-    deleting.value = false;
+    if (currentSession(revision)) deleting.value = false;
   }
 }
 
@@ -373,8 +474,37 @@ watch(visibilityFilter, () => {
   }
 });
 
+watch(targetId, () => { if (mounted) void loadLinkedPost(); });
+watch(() => editForm.value.visibility, () => { removePrivateAttachments.value = false; });
 onMounted(() => {
+  mounted = true;
+  stopAuth = auth.subscribe(() => {
+    linkRequest?.abort();
+    saveRequest?.abort();
+    saveRequest = undefined;
+    search.value = '';
+    submittedSearch.value = '';
+    posts.value = [];
+    selectedPost.value = null;
+    selectedAnalytics.value = null;
+    analyticsCache.value = {};
+    editForm.value = emptyForm();
+    removedMediaIds.value.clear();
+    removePrivateAttachments.value = false;
+    postToDelete.value = null;
+    deleteDialogOpen.value = false;
+    loading.value = analyticsLoading.value = saving.value = deleting.value = false;
+    total.value = 0;
+    hasNext.value = false;
+  });
   void loadPosts(true);
+  void loadLinkedPost();
+});
+onBeforeUnmount(() => {
+  mounted = false;
+  stopAuth?.();
+  linkRequest?.abort();
+  saveRequest?.abort();
 });
 </script>
 
@@ -476,7 +606,7 @@ onMounted(() => {
           v-model="search"
           class="h-9 pl-9 shadow-xs"
           :placeholder="t('account.posts.searchPlaceholder')"
-          @keyup.enter="loadPosts(true)"
+          @keyup.enter="submitSearch"
         />
       </div>
       <Select v-model="sort" @update:model-value="loadPosts(true)">
@@ -515,7 +645,7 @@ onMounted(() => {
       <Button
         variant="secondary"
         class="h-9 rounded-md shadow-xs"
-        @click="loadPosts(true)"
+        @click="submitSearch"
       >
         {{ t('common.search') }}
       </Button>
@@ -630,7 +760,7 @@ onMounted(() => {
                     <TableCell>
                       <div class="flex items-start gap-3">
                         <div
-                          v-if="post.media.length > 0"
+                          v-if="post.media[0]?.thumbnailUrl"
                           class="hidden h-16 w-20 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted sm:block"
                         >
                           <img
@@ -833,6 +963,7 @@ onMounted(() => {
               <Textarea
                 id="managed-post-content"
                 v-model="editForm.content"
+                :disabled="saving"
                 rows="7"
                 class="resize-none shadow-xs"
               />
@@ -843,7 +974,7 @@ onMounted(() => {
                 <Label class="text-xs font-medium">
                   {{ t('account.posts.form.visibility') }}
                 </Label>
-                <Select v-model="editForm.visibility">
+                <Select v-model="editForm.visibility" :disabled="saving">
                   <SelectTrigger class="h-9 rounded-md shadow-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -863,7 +994,7 @@ onMounted(() => {
                 <Label class="text-xs font-medium">
                   {{ t('account.posts.form.language') }}
                 </Label>
-                <Select v-model="editForm.language">
+                <Select v-model="editForm.language" :disabled="saving">
                   <SelectTrigger class="h-9 rounded-md shadow-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -880,6 +1011,30 @@ onMounted(() => {
               </div>
             </div>
 
+            <fieldset v-if="selectedPost.media.length" class="grid gap-2">
+              <legend class="mb-2 text-xs font-medium">{{ t('media.keepAttachments') }}</legend>
+              <div v-for="(item, index) in selectedPost.media" :key="item.id" class="flex flex-wrap items-center gap-2">
+                <label class="flex min-w-0 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    :checked="!removedMediaIds.has(item.id)"
+                    :disabled="saving"
+                    @change="updateAttachmentSelection(item.id, $event)"
+                  />
+                  <span class="break-all">{{ item.fileName || item.altText || t('media.attachmentNumber', { number: index + 1 }) }}</span>
+                </label>
+                <PrivateMediaDownload
+                  v-if="item.privateFileName !== undefined && !removedMediaIds.has(item.id)"
+                  :media-id="item.id"
+                  :file-name="item.privateFileName"
+                />
+              </div>
+            </fieldset>
+            <label v-if="isPublishingPrivateMedia" class="flex items-center gap-2 text-sm">
+              <input v-model="removePrivateAttachments" type="checkbox" :disabled="saving" />
+              {{ t('media.removePrivateToPublish') }}
+            </label>
+
             <div class="grid gap-2">
               <Label for="managed-post-location" class="text-xs font-medium">
                 {{ t('account.posts.form.location') }}
@@ -887,6 +1042,7 @@ onMounted(() => {
               <Input
                 id="managed-post-location"
                 v-model="editForm.location"
+                :disabled="saving"
                 class="h-9 shadow-xs"
                 :placeholder="t('post.composer.locationPlaceholder')"
               />
@@ -899,6 +1055,7 @@ onMounted(() => {
               <Input
                 id="managed-post-tags"
                 v-model="editForm.tags"
+                :disabled="saving"
                 class="h-9 shadow-xs"
                 :placeholder="t('account.posts.form.tagsPlaceholder')"
               />
@@ -924,7 +1081,7 @@ onMounted(() => {
                 </Button>
                 <Button
                   class="h-9 rounded-md shadow-xs"
-                  :disabled="saving"
+                  :disabled="saving || !canSaveEdit"
                   @click="saveSelectedPost"
                 >
                   <Loader2 v-if="saving" class="h-3.5 w-3.5 animate-spin" />

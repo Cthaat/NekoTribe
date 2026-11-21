@@ -1,16 +1,22 @@
 import { requireFeatureSchema } from '~/server/database/readiness';
+import { restoreExpiredBan } from './moderation-ban-expiry';
+import { validNewEmail, validRegistrationName } from '../../../shared/utils/account-input';
+import { sessionLifetimes } from '../../../scripts/runtime-env.mjs';
+import { ACTIVE_SESSION_ACCOUNT_SQL } from '../../utils/auth-session';
+import { verifyV2SessionToken } from '../../utils/auth-session-token';
 import type { H3Event } from 'h3';
 import {
+  createError,
   deleteCookie,
   getCookie,
   getHeader,
+  setResponseHeader,
   setCookie
 } from 'h3';
 import { useRuntimeConfig } from '#imports';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import type { JwtPayload } from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import type oracledb from 'oracledb';
 import {
@@ -41,12 +47,12 @@ import {
   v2Unprocessable,
   v2UserAgent
 } from '~/server/utils/v2';
-import {
-  buildV2TokenData,
-  resolveV2RefreshToken
-} from '~/server/utils/auth-token-response';
+import { buildV2TokenData } from '~/server/utils/auth-token-response';
+import { readRefreshCredential } from '../../utils/auth-refresh-request';
 import { v2RequireSelfUser } from '~/server/models/v2';
 import { v2CreateNotification } from './notifications';
+import { reserveOtpSend } from '~/server/utils/otp-send-limit';
+import { requireOtpAttempt } from '~/server/utils/otp-attempt-limit';
 
 const OTP_EXPIRES_SECONDS = 300;
 const TWO_FACTOR_CHALLENGE_EXPIRES_SECONDS = 300;
@@ -54,6 +60,8 @@ const TOTP_PERIOD_SECONDS = 30;
 const TOTP_DIGITS = 6;
 const TOTP_ALLOWED_DRIFT_STEPS = 1;
 const TWO_FACTOR_TRUSTED_DEVICE_DAYS = 30;
+const TRUSTED_DEVICE_COOKIE = 'nekotribe_trusted_device';
+const TRUSTED_DEVICE_UNAVAILABLE = Symbol('trusted device unavailable');
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 interface V2MailOptions {
@@ -122,10 +130,11 @@ async function v2SendLoginAlert(
     FROM n_users u
     LEFT JOIN n_user_settings us ON us.user_id = u.user_id
     WHERE u.user_id = :user_id
+      AND u.is_active = 1
     `,
     { user_id: userId }
   );
-  if (!v2Boolean(row?.LOGIN_ALERTS ?? 1)) return;
+  if (!row || !v2Boolean(row.LOGIN_ALERTS ?? 1)) return;
 
   const ipAddress = v2RequestIp(event);
   const userAgent = v2UserAgent(event);
@@ -370,14 +379,11 @@ async function v2EnsureTwoFactorSchema(
 }
 
 function v2AccessExpiresSeconds(): number {
-  return Number(useRuntimeConfig().accessExpiresIn) || 900;
+  return sessionLifetimes(process.env, useRuntimeConfig()).accessSeconds;
 }
 
 function v2RefreshExpiresSeconds(): number {
-  return (
-    Number(useRuntimeConfig().refreshExpiresIn) ||
-    30 * 24 * 60 * 60
-  );
+  return sessionLifetimes(process.env, useRuntimeConfig()).refreshSeconds;
 }
 
 function v2CookieSecure(): boolean {
@@ -409,18 +415,6 @@ function v2SetAuthCookies(
 export function v2ClearAuthCookies(event: H3Event): void {
   deleteCookie(event, 'access_token', { path: '/' });
   deleteCookie(event, 'refresh_token', { path: '/' });
-}
-
-function v2IsAuthPayload(
-  value: unknown
-): value is V2AuthPayload {
-  if (!value || typeof value !== 'object') return false;
-  const payload = value as Record<string, unknown>;
-  return (
-    typeof payload.userId === 'number' &&
-    (payload.type === 'access' ||
-      payload.type === 'refresh')
-  );
 }
 
 function v2SignAccessToken(
@@ -463,42 +457,15 @@ function v2SignRefreshToken(
 export function v2VerifyAccessToken(
   token: string
 ): V2AuthPayload | null {
-  try {
-    const decoded = jwt.verify(
-      token,
-      String(useRuntimeConfig().accessSecret)
-    ) as JwtPayload;
-    const payload = {
-      userId: v2Number(decoded.userId),
-      userName: v2String(decoded.userName),
-      sessionId: v2String(decoded.sessionId),
-      jti: v2String(decoded.jti),
-      type: decoded.type
-    };
-    return v2IsAuthPayload(payload) ? payload : null;
-  } catch {
-    return null;
-  }
+  return verifyV2SessionToken(token, String(useRuntimeConfig().accessSecret ?? ''), 'access');
 }
 
 function v2VerifyRefreshToken(
   token: string
 ): V2AuthPayload | null {
-  try {
-    const decoded = jwt.verify(
-      token,
-      String(useRuntimeConfig().refreshSecret)
-    ) as JwtPayload;
-    const payload = {
-      userId: v2Number(decoded.userId),
-      userName: v2String(decoded.userName),
-      sessionId: v2String(decoded.sessionId),
-      type: decoded.type
-    };
-    return v2IsAuthPayload(payload) ? payload : null;
-  } catch {
-    return null;
-  }
+  return verifyV2SessionToken(token, String(useRuntimeConfig().refreshSecret ?? ''), 'refresh', {
+    allowLegacyRefresh: true
+  });
 }
 
 function v2OtpType(
@@ -538,6 +505,21 @@ export async function v2CreateOtp(
 ): Promise<V2Response<V2AuthOtpData>> {
   const payload = await v2ParseOtpPayload(event);
   if (payload.channel === 'sms') v2Throw(501, '短信验证码暂不可用');
+  if (payload.type !== 'password_reset' && !validNewEmail(payload.account)) v2BadRequest('邮箱格式错误');
+  let retry: number;
+  try {
+    retry = await reserveOtpSend(event.context.redis, payload.account);
+  } catch {
+    throw createError({
+      statusCode: 503,
+      statusMessage: 'Service temporarily unavailable',
+      data: { code: 50301, message: '服务暂不可用，请稍后重试。', data: null, meta: null }
+    });
+  }
+  if (retry > 0) {
+    setResponseHeader(event, 'Retry-After', retry);
+    v2Throw(429, '验证码发送过于频繁，请稍后重试');
+  }
   const code = v2RandomCode();
   const verificationId = `otp_${crypto.randomUUID()}`;
   const expiresAt = new Date(
@@ -600,7 +582,8 @@ export async function v2CreateOtp(
   });
 }
 
-export async function v2VerifyOtpCode(
+async function v2VerifyOtpCode(
+  event: H3Event,
   connection: oracledb.Connection,
   account: string,
   type: V2AuthOtpPayload['type'],
@@ -627,6 +610,7 @@ export async function v2VerifyOtpCode(
   );
 
   if (!row) v2BadRequest('验证码不存在或已过期');
+  await requireOtpAttempt(event, verificationId);
   const matched = await bcrypt.compare(
     code,
     v2String(row.VERIFICATION_CODE_HASH)
@@ -658,31 +642,11 @@ export async function v2VerifyOtpCode(
   );
 }
 
-async function v2EnsureVerifiedOtp(
-  connection: oracledb.Connection,
-  account: string,
-  type: V2AuthOtpPayload['type'],
-  verificationId: string
-): Promise<void> {
-  const row = await v2One(
-    connection,
-    `
-    SELECT verified_at
-    FROM n_auth_otp_events
-    WHERE account = :account
-      AND otp_type = :otp_type
-      AND verification_id = :verification_id
-      AND expires_at > CURRENT_TIMESTAMP
-      AND verified_at IS NOT NULL
-    `,
-    {
-      account,
-      otp_type: type,
-      verification_id: verificationId
-    }
-  );
-  if (!row) v2Unprocessable('请先完成验证码校验');
-}
+const registrationOtpMatchSql = `WHERE account = :account AND otp_type = 'register' AND verification_id = :verification_id
+  AND expires_at > CURRENT_TIMESTAMP AND expires_at > created_at AND verified_at IS NOT NULL`;
+const claimRegistrationOtpSql = `UPDATE n_auth_otp_events SET expires_at = created_at ${registrationOtpMatchSql}`;
+const registrationExistsSql = `SELECT COUNT(*) AS total FROM n_users WHERE email = :email OR username = :username`;
+
 
 export async function v2VerifyOtp(
   event: H3Event,
@@ -697,6 +661,7 @@ export async function v2VerifyOtp(
   );
   const code = v2RequiredString(body, 'code');
   const verifiedAt = await v2VerifyOtpCode(
+    event,
     connection,
     account,
     type,
@@ -715,7 +680,7 @@ export async function v2VerifyUserPassword(
   connection: oracledb.Connection,
   userId: number,
   password: string
-): Promise<void> {
+): Promise<string> {
   const row = await v2One(
     connection,
     `
@@ -737,6 +702,7 @@ export async function v2VerifyUserPassword(
     v2String(row.PASSWORD_HASH)
   );
   if (!matched) v2Unauthorized('密码错误');
+  return v2String(row.PASSWORD_HASH);
 }
 
 async function v2TwoFactorSecretRow(
@@ -755,17 +721,17 @@ async function v2TwoFactorSecretRow(
   );
 }
 
-async function v2ConsumeRecoveryCode(
+async function v2FindRecoveryCode(
   connection: oracledb.Connection,
   userId: number,
   code: string
-): Promise<boolean> {
+): Promise<number | undefined> {
   const candidates = v2RecoveryCodeCandidates(code);
   if (
     candidates.length === 0 ||
     candidates.some(candidate => /^\d{6}$/u.test(candidate))
   ) {
-    return false;
+    return undefined;
   }
 
   const rows = await v2Rows(
@@ -791,28 +757,17 @@ async function v2ConsumeRecoveryCode(
     }
     if (!matched) continue;
 
-    const consumed = await v2Execute(
-      connection,
-      `
-      UPDATE n_user_two_factor_recovery_codes
-      SET used_at = CURRENT_TIMESTAMP
-      WHERE recovery_code_id = :recovery_code_id
-        AND used_at IS NULL
-      `,
-      { recovery_code_id: v2Number(row.RECOVERY_CODE_ID) }
-    );
-    return consumed === 1;
+    return v2Number(row.RECOVERY_CODE_ID);
   }
 
-  return false;
+  return undefined;
 }
 
 async function v2VerifyTwoFactorCode(
   connection: oracledb.Connection,
   userId: number,
-  code: string,
-  options: { allowRecoveryCode: boolean }
-): Promise<void> {
+  code: string
+): Promise<{ secret: Record<string, unknown>; recoveryId?: number }> {
   const row = await v2TwoFactorSecretRow(connection, userId);
   if (!row || !row.ENABLED_AT) {
     v2Unprocessable('双因素认证尚未启用');
@@ -820,27 +775,37 @@ async function v2VerifyTwoFactorCode(
 
   const normalizedCode = v2NormalizeTwoFactorCode(code);
   const secret = v2DecryptTwoFactorSecret(row);
-  if (v2VerifyTotpCode(secret, normalizedCode)) return;
+  if (v2VerifyTotpCode(secret, normalizedCode)) return { secret: row };
 
-  if (
-    options.allowRecoveryCode &&
-    (await v2ConsumeRecoveryCode(
-      connection,
-      userId,
-      normalizedCode
-    ))
-  ) {
-    return;
-  }
+  const recoveryId = await v2FindRecoveryCode(connection, userId, normalizedCode);
+  if (recoveryId !== undefined) return { secret: row, recoveryId };
 
   v2Unauthorized('双因素验证码错误');
 }
 
+async function v2LockVerifiedLoginFactor(
+  connection: oracledb.Connection,
+  userId: number,
+  expected: Record<string, unknown>
+): Promise<void> {
+  const user = { user_id: userId };
+  const locked = await v2One(connection,
+    'SELECT user_id FROM n_user_two_factor_secrets WHERE user_id = :user_id FOR UPDATE', user);
+  if (!locked) v2Unauthorized(TWO_FACTOR_CHALLENGE_EXPIRED);
+  const current = await v2One(connection, `
+    SELECT user_id FROM n_user_two_factor_secrets
+    WHERE user_id = :user_id AND enabled_at IS NOT NULL
+      AND secret_encrypted = :old_encrypted AND secret_iv = :old_iv AND secret_auth_tag = :old_tag
+  `, {
+    ...user, old_encrypted: v2String(expected.SECRET_ENCRYPTED),
+    old_iv: v2String(expected.SECRET_IV), old_tag: v2String(expected.SECRET_AUTH_TAG)
+  });
+  if (!current) v2Unauthorized(TWO_FACTOR_CHALLENGE_EXPIRED);
+}
+
 function v2RequestDeviceFingerprint(event: H3Event): string {
-  return v2String(
-    getHeader(event, 'x-device-fingerprint'),
-    'unknown'
-  ).slice(0, 200);
+  const value = getHeader(event, 'x-device-fingerprint') || 'unknown';
+  return Array.from(value).slice(0, 200).join('');
 }
 
 function v2RequestDeviceInfo(event: H3Event): string {
@@ -850,35 +815,20 @@ function v2RequestDeviceInfo(event: H3Event): string {
   ).slice(0, 200);
 }
 
-async function v2UseTrustedTwoFactorDevice(
+function v2TrustedDeviceKey(event: H3Event): string | undefined {
+  const proof = getCookie(event, TRUSTED_DEVICE_COOKIE);
+  return proof?.length === 68 && /^td1_[0-9a-f]{64}$/.test(proof)
+    ? `td1_${v2HashToken(proof)}`
+    : undefined;
+}
+
+async function v2ClaimTrustedDevice(
   event: H3Event,
   connection: oracledb.Connection,
-  userId: number
-): Promise<boolean> {
-  const deviceFingerprint = v2RequestDeviceFingerprint(event);
-  if (!deviceFingerprint || deviceFingerprint === 'unknown') {
-    return false;
-  }
-
-  const row = await v2One(
-    connection,
-    `
-    SELECT trusted_device_id
-    FROM n_user_two_factor_trusted_devices
-    WHERE user_id = :user_id
-      AND device_fingerprint = :device_fingerprint
-      AND expires_at > CURRENT_TIMESTAMP
-      AND revoked_at IS NULL
-    FETCH FIRST 1 ROWS ONLY
-    `,
-    {
-      user_id: userId,
-      device_fingerprint: deviceFingerprint
-    }
-  );
-  if (!row) return false;
-
-  await v2Execute(
+  userId: number,
+  deviceKey: string
+): Promise<void> {
+  const touched = await v2Execute(
     connection,
     `
     UPDATE n_user_two_factor_trusted_devices
@@ -886,30 +836,34 @@ async function v2UseTrustedTwoFactorDevice(
         device_info = :device_info,
         ip_address = :ip_address,
         user_agent = :user_agent
-    WHERE trusted_device_id = :trusted_device_id
+    WHERE user_id = :user_id
+      AND device_fingerprint = :device_fingerprint
+      AND expires_at > CURRENT_TIMESTAMP
+      AND revoked_at IS NULL
     `,
     {
-      trusted_device_id: v2Number(row.TRUSTED_DEVICE_ID),
+      user_id: userId,
+      device_fingerprint: deviceKey,
       device_info: v2RequestDeviceInfo(event),
       ip_address: v2RequestIp(event),
       user_agent: v2UserAgent(event)
-    }
+    },
+    false
   );
 
-  return true;
+  if (touched === 0) throw TRUSTED_DEVICE_UNAVAILABLE;
+  if (touched !== 1) v2ServerError();
 }
 
-async function v2TrustTwoFactorDevice(
+async function v2PrepareTrustedDevice(
   connection: oracledb.Connection,
   row: Record<string, unknown>
-): Promise<void> {
-  const deviceFingerprint = v2String(row.DEVICE_FINGERPRINT).slice(
-    0,
-    200
-  );
-  if (!deviceFingerprint || deviceFingerprint === 'unknown') {
-    return;
+): Promise<{proof: string; write: () => Promise<void>} | undefined> {
+  const fingerprint = v2String(row.DEVICE_FINGERPRINT);
+  if (!fingerprint || fingerprint === 'unknown') {
+    return undefined;
   }
+  const proof = `td1_${crypto.randomBytes(32).toString('hex')}`;
 
   const trustedDeviceId = await v2NextId(
     connection,
@@ -920,54 +874,67 @@ async function v2TrustTwoFactorDevice(
       TWO_FACTOR_TRUSTED_DEVICE_DAYS * 24 * 60 * 60 * 1000
   );
 
-  await v2Execute(
-    connection,
-    `
-    MERGE INTO n_user_two_factor_trusted_devices target
-    USING (
-      SELECT :user_id AS user_id,
-             :device_fingerprint AS device_fingerprint
-      FROM dual
-    ) src
-    ON (
-      target.user_id = src.user_id
-      AND target.device_fingerprint = src.device_fingerprint
-    )
-    WHEN MATCHED THEN UPDATE SET
-      device_info = :device_info,
-      ip_address = :ip_address,
-      user_agent = :user_agent,
-      expires_at = :expires_at,
-      revoked_at = NULL,
-      last_used_at = CURRENT_TIMESTAMP
-    WHEN NOT MATCHED THEN INSERT (
-      trusted_device_id,
-      user_id,
-      device_fingerprint,
-      device_info,
-      ip_address,
-      user_agent,
-      expires_at
-    ) VALUES (
-      :trusted_device_id,
-      :user_id,
-      :device_fingerprint,
-      :device_info,
-      :ip_address,
-      :user_agent,
-      :expires_at
-    )
-    `,
-    {
-      trusted_device_id: trustedDeviceId,
-      user_id: v2Number(row.USER_ID),
-      device_fingerprint: deviceFingerprint,
-      device_info: v2StringOrNull(row.DEVICE_INFO),
-      ip_address: v2StringOrNull(row.IP_ADDRESS),
-      user_agent: v2StringOrNull(row.USER_AGENT),
-      expires_at: expiresAt
+  return {
+    proof,
+    write: async () => {
+      if (await v2Execute(connection, `
+        INSERT INTO n_user_two_factor_trusted_devices (
+          trusted_device_id,user_id,device_fingerprint,device_info,ip_address,user_agent,expires_at
+        ) VALUES (
+          :trusted_device_id,:user_id,:device_fingerprint,:device_info,:ip_address,:user_agent,:expires_at
+        )
+        `, {
+          trusted_device_id: trustedDeviceId,
+          user_id: v2Number(row.USER_ID),
+          device_fingerprint: `td1_${v2HashToken(proof)}`,
+          device_info: v2StringOrNull(row.DEVICE_INFO),
+          ip_address: v2StringOrNull(row.IP_ADDRESS),
+          user_agent: v2StringOrNull(row.USER_AGENT),
+          expires_at: expiresAt
+        }, false) !== 1) v2ServerError();
     }
-  );
+  };
+}
+
+const TWO_FACTOR_CHALLENGE_EXPIRED = '双因素验证已过期，请重新登录';
+
+async function v2WithVerifiedPassword<T>(
+  connection: oracledb.Connection,
+  userId: number,
+  verifiedPasswordHash: string,
+  staleMessage: string,
+  write: () => Promise<T>
+): Promise<T> {
+  try {
+    const user = { user_id: userId };
+    const locked = await v2One(connection,
+      'SELECT user_id FROM n_users WHERE user_id = :user_id FOR UPDATE', user);
+    if (!locked) v2Unauthorized(staleMessage);
+    const current = await v2One(connection,
+      "SELECT password_hash FROM n_users WHERE user_id = :user_id AND is_active = 1 AND status = 'active'", user);
+    if (!verifiedPasswordHash || current?.PASSWORD_HASH !== verifiedPasswordHash) v2Unauthorized(staleMessage);
+    const result = await write();
+    await connection.commit();
+    return result;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
+}
+
+async function v2CommitLoginWrite(
+  connection: oracledb.Connection,
+  userId: number,
+  verifiedPasswordHash: string,
+  statement: string,
+  binds: oracledb.BindParameters,
+  staleMessage = '账号或密码错误',
+  beforeWrite?: () => Promise<void>
+): Promise<void> {
+  await v2WithVerifiedPassword(connection, userId, verifiedPasswordHash, staleMessage, async () => {
+    await beforeWrite?.();
+    if (await v2Execute(connection, statement, binds, false) !== 1) v2ServerError();
+  });
 }
 
 async function v2CreateTwoFactorChallenge(
@@ -975,7 +942,8 @@ async function v2CreateTwoFactorChallenge(
   connection: oracledb.Connection,
   userId: number,
   account: string,
-  rememberMe: boolean
+  rememberMe: boolean,
+  verifiedPasswordHash: string
 ): Promise<V2TwoFactorLoginChallengeData> {
   await v2EnsureTwoFactorSchema(connection);
   const challengeId = `2fa_${crypto.randomUUID()}`;
@@ -983,8 +951,10 @@ async function v2CreateTwoFactorChallenge(
     Date.now() + TWO_FACTOR_CHALLENGE_EXPIRES_SECONDS * 1000
   );
 
-  await v2Execute(
+  await v2CommitLoginWrite(
     connection,
+    userId,
+    verifiedPasswordHash,
     `
     INSERT INTO n_auth_two_factor_challenges (
       challenge_id,
@@ -1030,7 +1000,9 @@ async function v2IssueLoginSession(
   event: H3Event,
   connection: oracledb.Connection,
   userId: number,
-  username: string
+  username: string,
+  verifiedPasswordHash: string,
+  options: { staleMessage?: string; beforeSession?: () => Promise<void> } = {}
 ): Promise<V2LoginSuccessData> {
   const sessionId = `sess_${crypto.randomUUID()}`;
   const accessJti = crypto.randomUUID();
@@ -1072,8 +1044,10 @@ async function v2IssueLoginSession(
     }
   );
 
-  await v2Execute(
+  await v2CommitLoginWrite(
     connection,
+    userId,
+    verifiedPasswordHash,
     `
     INSERT INTO n_auth_sessions (
       session_id,
@@ -1110,7 +1084,9 @@ async function v2IssueLoginSession(
       user_agent: v2UserAgent(event),
       access_token_expires_at: accessExpiresAt,
       refresh_token_expires_at: refreshExpiresAt
-    }
+    },
+    options.staleMessage,
+    options.beforeSession
   );
 
   await v2Execute(
@@ -1153,255 +1129,112 @@ async function v2IssueLoginSession(
   };
 }
 
-export async function v2StartTwoFactorSetup(
-  event: H3Event,
-  connection: oracledb.Connection
-): Promise<V2Response<V2TwoFactorSetupData>> {
-  const auth = v2Auth(event);
-  const body = await v2Body(event);
-  await v2VerifyUserPassword(
-    connection,
-    auth.userId,
-    v2RequiredString(body, 'password')
-  );
-  await v2EnsureTwoFactorSchema(connection);
-  const existingSecret = await v2TwoFactorSecretRow(
-    connection,
-    auth.userId
-  );
-  if (existingSecret?.ENABLED_AT) {
-    v2Unprocessable('双因素认证已启用，请先关闭后再重新设置');
-  }
-
-  const user = await v2RequireSelfUser(connection, auth.userId);
-  const secret = v2Base32Encode(crypto.randomBytes(20));
-  const encrypted = v2EncryptTwoFactorSecret(secret);
-
-  await v2Execute(
-    connection,
-    `
-    MERGE INTO n_user_two_factor_secrets target
-    USING (SELECT :user_id AS user_id FROM dual) src
-    ON (target.user_id = src.user_id)
-    WHEN MATCHED THEN UPDATE SET
-      secret_encrypted = :secret_encrypted,
-      secret_iv = :secret_iv,
-      secret_auth_tag = :secret_auth_tag,
-      confirmed_at = NULL,
-      enabled_at = NULL,
-      updated_at = CURRENT_TIMESTAMP
-    WHEN NOT MATCHED THEN INSERT (
-      user_id,
-      secret_encrypted,
-      secret_iv,
-      secret_auth_tag
-    ) VALUES (
-      :user_id,
-      :secret_encrypted,
-      :secret_iv,
-      :secret_auth_tag
-    )
-    `,
-    {
-      user_id: auth.userId,
-      secret_encrypted: encrypted.encrypted,
-      secret_iv: encrypted.iv,
-      secret_auth_tag: encrypted.tag
-    }
-  );
-
-  await v2Execute(
-    connection,
-    `
-    DELETE FROM n_user_two_factor_recovery_codes
-    WHERE user_id = :user_id
-    `,
-    { user_id: auth.userId }
-  );
-  await v2Execute(
-    connection,
-    `
-    DELETE FROM n_user_two_factor_trusted_devices
-    WHERE user_id = :user_id
-    `,
-    { user_id: auth.userId }
-  );
-
-  await v2Execute(
-    connection,
-    `
-    MERGE INTO n_user_settings target
-    USING (SELECT :user_id AS user_id FROM dual) src
-    ON (target.user_id = src.user_id)
-    WHEN MATCHED THEN UPDATE SET
-      two_factor_enabled = 0,
-      updated_at = CURRENT_TIMESTAMP
-    WHEN NOT MATCHED THEN INSERT (
-      user_id,
-      two_factor_enabled
-    ) VALUES (
-      :user_id,
-      0
-    )
-    `,
-    { user_id: auth.userId }
-  );
-
-  return v2Ok({
-    secret,
-    otpauth_url: v2TwoFactorUri(user.email || user.username, secret)
-  });
+interface FactorWrite {
+  sql: string;
+  binds: oracledb.BindParameters;
+  guard?: 'secret' | 'recovery' | 'write';
 }
-
-export async function v2ConfirmTwoFactorSetup(
-  event: H3Event,
-  connection: oracledb.Connection
-): Promise<V2Response<V2TwoFactorConfirmData>> {
-  const auth = v2Auth(event);
-  const body = await v2Body(event);
-  const code = v2NormalizeTwoFactorCode(body.code);
-  const row = await v2TwoFactorSecretRow(connection, auth.userId);
-  if (!row) v2Unprocessable('请先生成双因素认证密钥');
-
-  const secret = v2DecryptTwoFactorSecret(row);
-  if (!v2VerifyTotpCode(secret, code)) {
-    v2Unauthorized('双因素验证码错误');
-  }
-
-  const recoveryCodes = Array.from({ length: 10 }, () =>
-    v2RandomRecoveryCode()
-  );
-
-  await v2Execute(
-    connection,
-    `
-    DELETE FROM n_user_two_factor_recovery_codes
-    WHERE user_id = :user_id
-    `,
-    { user_id: auth.userId }
-  );
-
-  for (const recoveryCode of recoveryCodes) {
-    await v2Execute(
-      connection,
-      `
-      INSERT INTO n_user_two_factor_recovery_codes (
-        recovery_code_id,
-        user_id,
-        code_hash
-      ) VALUES (
-        :recovery_code_id,
-        :user_id,
-        :code_hash
-      )
-      `,
-      {
-        recovery_code_id: await v2NextId(
-          connection,
-          'seq_2fa_recovery_code_id'
-        ),
-        user_id: auth.userId,
-        code_hash: await bcrypt.hash(
-          v2NormalizeTwoFactorCode(recoveryCode),
-          10
-        )
+async function v2WriteFactorChanges(connection: oracledb.Connection, writes: FactorWrite[]): Promise<void> {
+  try {
+    for (const write of writes) {
+      const count = await v2Execute(connection, write.sql, write.binds, false);
+      if (write.guard && count === 0) {
+        if (write.guard === 'secret')
+          v2Conflict('双因素设置已变更，请重试');
+        if (write.guard === 'recovery')
+          v2Unauthorized('双因素验证码错误');
       }
-    );
+      if (write.guard && count !== 1)
+        v2ServerError();
+    }
+    await connection.commit();
   }
-
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_user_two_factor_secrets
-    SET confirmed_at = CURRENT_TIMESTAMP,
-        enabled_at = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE user_id = :user_id
-    `,
-    { user_id: auth.userId }
-  );
-  await v2Execute(
-    connection,
-    `
-    MERGE INTO n_user_settings target
-    USING (SELECT :user_id AS user_id FROM dual) src
-    ON (target.user_id = src.user_id)
-    WHEN MATCHED THEN UPDATE SET
-      two_factor_enabled = 1,
-      updated_at = CURRENT_TIMESTAMP
-    WHEN NOT MATCHED THEN INSERT (
-      user_id,
-      two_factor_enabled
-    ) VALUES (
-      :user_id,
-      1
-    )
-    `,
-    { user_id: auth.userId }
-  );
-
-  return v2Ok({
-    enabled: true,
-    recovery_codes: recoveryCodes
-  });
+  catch (error) {
+    await connection.rollback();
+    throw error;
+  }
+}
+function v2FactorSettingsWrite(userId: number, enabled: number): FactorWrite {
+  return { sql: 'MERGE INTO n_user_settings target USING (SELECT :user_id AS user_id FROM dual) src ON (target.user_id = src.user_id) WHEN MATCHED THEN UPDATE SET two_factor_enabled = :enabled, updated_at = CURRENT_TIMESTAMP WHEN NOT MATCHED THEN INSERT (user_id, two_factor_enabled) VALUES (:user_id, :enabled)', binds: { user_id: userId, enabled }, guard: 'write' };
+}
+function v2FactorClearCodes(userId: number): FactorWrite {
+  return { sql: 'DELETE FROM n_user_two_factor_recovery_codes WHERE user_id = :user_id', binds: { user_id: userId } };
+}
+function v2FactorClearDevices(userId: number): FactorWrite {
+  return { sql: 'DELETE FROM n_user_two_factor_trusted_devices WHERE user_id = :user_id', binds: { user_id: userId } };
+}
+function v2FactorConditionalWrite(userId: number, row: Record<string, unknown>, enable: boolean): FactorWrite {
+  return { sql: enable
+      ? 'UPDATE n_user_two_factor_secrets SET confirmed_at = CURRENT_TIMESTAMP, enabled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND secret_encrypted = :old_encrypted AND secret_iv = :old_iv AND secret_auth_tag = :old_tag AND enabled_at IS NULL'
+      : 'UPDATE n_user_two_factor_secrets SET enabled_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND secret_encrypted = :old_encrypted AND secret_iv = :old_iv AND secret_auth_tag = :old_tag AND enabled_at IS NOT NULL',
+    binds: { user_id: userId, old_encrypted: v2String(row.SECRET_ENCRYPTED), old_iv: v2String(row.SECRET_IV), old_tag: v2String(row.SECRET_AUTH_TAG) }, guard: 'secret' };
+}
+export async function v2StartTwoFactorSetup(event: H3Event, connection: oracledb.Connection): Promise<V2Response<V2TwoFactorSetupData>> {
+  setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  const auth = v2Auth(event), body = await v2Body(event);
+  await v2VerifyUserPassword(connection, auth.userId, v2RequiredString(body, 'password'));
+  const row = await v2TwoFactorSecretRow(connection, auth.userId);
+  if (row?.ENABLED_AT)
+    v2Unprocessable('双因素认证已启用，请先关闭后再重新设置');
+  const user = await v2RequireSelfUser(connection, auth.userId);
+  const secret = v2Base32Encode(crypto.randomBytes(20)), encrypted = v2EncryptTwoFactorSecret(secret);
+  await v2WriteFactorChanges(connection, [{
+      sql: 'MERGE INTO n_user_two_factor_secrets target USING (SELECT :user_id AS user_id FROM dual) src ON (target.user_id = src.user_id) WHEN MATCHED THEN UPDATE SET secret_encrypted = :secret_encrypted, secret_iv = :secret_iv, secret_auth_tag = :secret_auth_tag, confirmed_at = NULL, enabled_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE target.enabled_at IS NULL WHEN NOT MATCHED THEN INSERT (user_id, secret_encrypted, secret_iv, secret_auth_tag) VALUES (:user_id, :secret_encrypted, :secret_iv, :secret_auth_tag)',
+      binds: { user_id: auth.userId, secret_encrypted: encrypted.encrypted, secret_iv: encrypted.iv, secret_auth_tag: encrypted.tag }, guard: 'secret'
+    }, v2FactorClearCodes(auth.userId), v2FactorClearDevices(auth.userId), v2FactorSettingsWrite(auth.userId, 0)]);
+  return v2Ok({ secret, otpauth_url: v2TwoFactorUri(user.email || user.username, secret) });
+}
+export async function v2ConfirmTwoFactorSetup(event: H3Event, connection: oracledb.Connection): Promise<V2Response<V2TwoFactorConfirmData>> {
+  setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  const auth = v2Auth(event), body = await v2Body(event), code = v2NormalizeTwoFactorCode(body.code);
+  const row = await v2TwoFactorSecretRow(connection, auth.userId);
+  if (!row)
+    v2Unprocessable('请先生成双因素认证密钥');
+  if (row.ENABLED_AT)
+    v2Unprocessable('双因素认证已启用，请先关闭后再重新设置');
+  const secret = v2DecryptTwoFactorSecret(row);
+  if (!v2VerifyTotpCode(secret, code))
+    v2Unauthorized('双因素验证码错误');
+  const recoveryCodes = Array.from({ length: 10 }, () => v2RandomRecoveryCode());
+  const writes: FactorWrite[] = [v2FactorConditionalWrite(auth.userId, row, true), v2FactorClearCodes(auth.userId)];
+  for (const recoveryCode of recoveryCodes)
+    writes.push({ sql: 'INSERT INTO n_user_two_factor_recovery_codes (recovery_code_id, user_id, code_hash) VALUES (:recovery_code_id, :user_id, :code_hash)', binds: { recovery_code_id: await v2NextId(connection, 'seq_2fa_recovery_code_id'), user_id: auth.userId, code_hash: await bcrypt.hash(v2NormalizeTwoFactorCode(recoveryCode), 10) }, guard: 'write' });
+  writes.push(v2FactorSettingsWrite(auth.userId, 1));
+  await v2WriteFactorChanges(connection, writes);
+  return v2Ok({ enabled: true, recovery_codes: recoveryCodes });
+}
+export async function v2DisableTwoFactor(event: H3Event, connection: oracledb.Connection): Promise<V2Response<V2TwoFactorStatusData>> {
+  setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  const auth = v2Auth(event), body = await v2Body(event);
+  await v2VerifyUserPassword(connection, auth.userId, v2RequiredString(body, 'password'));
+  const code = v2NormalizeTwoFactorCode(v2RequiredString(body, 'code')), row = await v2TwoFactorSecretRow(connection, auth.userId);
+  if (!row || !row.ENABLED_AT)
+    v2Unprocessable('双因素认证尚未启用');
+  const secret = v2DecryptTwoFactorSecret(row);
+  let recoveryId: number | null = null;
+  if (!v2VerifyTotpCode(secret, code)) {
+    if (!/^\d{6}$/u.test(code)) {
+      const rows = await v2Rows(connection, 'SELECT recovery_code_id, code_hash FROM n_user_two_factor_recovery_codes WHERE user_id = :user_id AND used_at IS NULL ORDER BY created_at ASC', { user_id: auth.userId });
+      for (const candidate of rows) {
+        if (await bcrypt.compare(code, v2String(candidate.CODE_HASH))) {
+          recoveryId = v2Number(candidate.RECOVERY_CODE_ID);
+          break;
+        }
+      }
+    }
+    if (recoveryId === null)
+      v2Unauthorized('双因素验证码错误');
+  }
+  const writes: FactorWrite[] = [v2FactorConditionalWrite(auth.userId, row, false)];
+  if (recoveryId !== null)
+    writes.push({ sql: 'UPDATE n_user_two_factor_recovery_codes SET used_at = CURRENT_TIMESTAMP WHERE recovery_code_id = :recovery_code_id AND user_id = :user_id AND used_at IS NULL', binds: { recovery_code_id: recoveryId, user_id: auth.userId }, guard: 'recovery' });
+  writes.push(v2FactorClearCodes(auth.userId), v2FactorClearDevices(auth.userId), { sql: 'UPDATE n_user_settings SET two_factor_enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = :user_id', binds: { user_id: auth.userId } });
+  await v2WriteFactorChanges(connection, writes);
+  return v2Ok({ enabled: false });
 }
 
-export async function v2DisableTwoFactor(
-  event: H3Event,
-  connection: oracledb.Connection
-): Promise<V2Response<V2TwoFactorStatusData>> {
-  const auth = v2Auth(event);
-  const body = await v2Body(event);
-  await v2VerifyUserPassword(
-    connection,
-    auth.userId,
-    v2RequiredString(body, 'password')
-  );
-  await v2VerifyTwoFactorCode(
-    connection,
-    auth.userId,
-    v2RequiredString(body, 'code'),
-    { allowRecoveryCode: true }
-  );
-
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_user_two_factor_secrets
-    SET enabled_at = NULL,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE user_id = :user_id
-    `,
-    { user_id: auth.userId }
-  );
-  await v2Execute(
-    connection,
-    `
-    DELETE FROM n_user_two_factor_recovery_codes
-    WHERE user_id = :user_id
-    `,
-    { user_id: auth.userId }
-  );
-  await v2Execute(
-    connection,
-    `
-    DELETE FROM n_user_two_factor_trusted_devices
-    WHERE user_id = :user_id
-    `,
-    { user_id: auth.userId }
-  );
-  await v2Execute(
-    connection,
-    `
-    UPDATE n_user_settings
-    SET two_factor_enabled = 0,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE user_id = :user_id
-    `,
-    { user_id: auth.userId }
-  );
-
-  return v2Ok({ enabled: false });
+function v2RequireNewPassword(password: string): void {
+  if (password.length < 6) v2BadRequest('密码至少需要6个字符');
 }
 
 export async function v2Register(
@@ -1434,23 +1267,15 @@ export async function v2Register(
   if (payload.password !== payload.confirm_password) {
     v2BadRequest('两次输入的密码不一致');
   }
-  await v2EnsureVerifiedOtp(
-    connection,
-    payload.email,
-    'register',
-    payload.verification_id
-  );
-
-  const exists = await v2One(
-    connection,
-    `
-    SELECT COUNT(*) AS total
-    FROM n_users
-    WHERE email = :email OR username = :username
-    `,
-    { email: payload.email, username: payload.username }
-  );
-  if (v2Number(exists?.TOTAL) > 0) {
+  v2RequireNewPassword(payload.password);
+  if (!validNewEmail(payload.email)) v2BadRequest('邮箱格式错误');
+  if (!validRegistrationName(payload.username)) v2BadRequest('用户名至少需要2个字符');
+  if (!validRegistrationName(payload.display_name)) v2BadRequest('昵称至少需要2个字符');
+  const otpBinds = { account: payload.email, verification_id: payload.verification_id };
+  const verified = await v2One(connection, `SELECT verified_at FROM n_auth_otp_events ${registrationOtpMatchSql}`, otpBinds);
+  if (!verified) v2Unprocessable('请先完成验证码校验');
+  const identity = { email: payload.email, username: payload.username };
+  if (v2Number((await v2One(connection, registrationExistsSql, identity))?.TOTAL) > 0) {
     v2Conflict('邮箱或用户名已被注册');
   }
 
@@ -1462,50 +1287,63 @@ export async function v2Register(
       )
     )?.ID
   );
-  await v2Execute(
-    connection,
-    `
-    INSERT INTO n_users (
-      user_id,
-      email,
-      username,
-      password_hash,
-      display_name,
-      bio,
-      location,
-      phone,
-      birth_date,
-      email_verified_at,
-      status
-    ) VALUES (
-      :user_id,
-      :email,
-      :username,
-      :password_hash,
-      :display_name,
-      :bio,
-      :location,
-      :phone,
-      CASE WHEN :birth_date IS NULL THEN NULL ELSE TO_DATE(:birth_date, 'YYYY-MM-DD') END,
-      CURRENT_TIMESTAMP,
-      'active'
-    )
-    `,
-    {
-      user_id: userId,
-      email: payload.email,
-      username: payload.username,
-      password_hash: await bcrypt.hash(
-        payload.password,
-        10
-      ),
-      display_name: payload.display_name,
-      bio: payload.bio || null,
-      location: payload.location || null,
-      phone: payload.phone || null,
-      birth_date: payload.birth_date || null
+  if (!Number.isSafeInteger(userId) || userId < 1) v2ServerError();
+  const passwordHash = await bcrypt.hash(payload.password, 10);
+  try {
+    const claimed = await v2Execute(connection, claimRegistrationOtpSql, otpBinds, false);
+    if (claimed === 0) v2Unprocessable('请先完成验证码校验');
+    if (claimed !== 1) v2ServerError();
+    const inserted = await v2Execute(
+      connection,
+      `
+      INSERT INTO n_users (
+        user_id,
+        email,
+        username,
+        password_hash,
+        display_name,
+        bio,
+        location,
+        phone,
+        birth_date,
+        email_verified_at,
+        status
+      ) VALUES (
+        :user_id,
+        :email,
+        :username,
+        :password_hash,
+        :display_name,
+        :bio,
+        :location,
+        :phone,
+        CASE WHEN :birth_date IS NULL THEN NULL ELSE TO_DATE(:birth_date, 'YYYY-MM-DD') END,
+        CURRENT_TIMESTAMP,
+        'active'
+      )
+      `,
+      {
+        user_id: userId,
+        email: payload.email,
+        username: payload.username,
+        password_hash: passwordHash,
+        display_name: payload.display_name,
+        bio: payload.bio || null,
+        location: payload.location || null,
+        phone: payload.phone || null,
+        birth_date: payload.birth_date || null
+      }, false
+    );
+    if (inserted !== 1) v2ServerError();
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    if (typeof error === 'object' && error !== null && 'errorNum' in error && error.errorNum === 1 &&
+        v2Number((await v2One(connection, registrationExistsSql, identity))?.TOTAL) > 0) {
+      v2Conflict('邮箱或用户名已被注册');
     }
-  );
+    throw error;
+  }
 
   return v2Ok(
     {
@@ -1526,7 +1364,7 @@ export async function v2Login(
     remember_me: body.remember_me === true
   };
 
-  const row = await v2One(
+  const lookup = () => v2One(
     connection,
     `
     SELECT user_id, username, password_hash, status, is_active
@@ -1536,6 +1374,11 @@ export async function v2Login(
     `,
     { account: payload.account }
   );
+  let row = await lookup();
+  if (row?.STATUS === 'suspended' && v2Number(row.IS_ACTIVE) === 0) {
+    await restoreExpiredBan(connection, v2Number(row.USER_ID));
+    row = await lookup();
+  }
   if (!row) v2Unauthorized('账号或密码错误');
   if (
     v2Number(row.IS_ACTIVE) !== 1 ||
@@ -1544,10 +1387,8 @@ export async function v2Login(
     v2Forbidden('账号不可用');
   }
 
-  const matched = await bcrypt.compare(
-    payload.password,
-    v2String(row.PASSWORD_HASH)
-  );
+  const verifiedPasswordHash = v2String(row.PASSWORD_HASH);
+  const matched = await bcrypt.compare(payload.password, verifiedPasswordHash);
   if (!matched) v2Unauthorized('账号或密码错误');
 
   const userId = v2Number(row.USER_ID);
@@ -1571,22 +1412,18 @@ export async function v2Login(
     v2Boolean(twoFactorRow?.TWO_FACTOR_ENABLED) &&
     twoFactorRow?.ENABLED_AT
   ) {
-    if (
-      await v2UseTrustedTwoFactorDevice(
-        event,
-        connection,
-        userId
-      )
-    ) {
-      return v2Ok(
-        await v2IssueLoginSession(
-          event,
-          connection,
-          userId,
-          username
-        ),
-        'login success'
-      );
+    const deviceKey = v2TrustedDeviceKey(event);
+    if (deviceKey) {
+      try {
+        const session = await v2IssueLoginSession(
+          event, connection, userId, username, verifiedPasswordHash, {
+            beforeSession: () => v2ClaimTrustedDevice(event, connection, userId, deviceKey)
+          }
+        );
+        return v2Ok(session, 'login success');
+      } catch (error) {
+        if (error !== TRUSTED_DEVICE_UNAVAILABLE) throw error;
+      }
     }
 
     return v2Ok(
@@ -1595,14 +1432,15 @@ export async function v2Login(
         connection,
         userId,
         payload.account,
-        payload.remember_me ?? false
+        payload.remember_me ?? false,
+        verifiedPasswordHash
       ),
       'two factor required'
     );
   }
 
   return v2Ok(
-    await v2IssueLoginSession(event, connection, userId, username),
+    await v2IssueLoginSession(event, connection, userId, username, verifiedPasswordHash),
     'login success'
   );
 }
@@ -1628,7 +1466,7 @@ export async function v2CompleteTwoFactorLogin(
            c.device_fingerprint,
            c.ip_address,
            c.user_agent,
-           u.username
+           u.username, u.password_hash
     FROM n_auth_two_factor_challenges c
     JOIN n_users u ON u.user_id = c.user_id
     WHERE c.challenge_id = :challenge_id
@@ -1639,51 +1477,62 @@ export async function v2CompleteTwoFactorLogin(
     `,
     { challenge_id: normalizedChallengeId }
   );
-  if (!row) v2Unauthorized('双因素验证已过期，请重新登录');
-
-  const userId = v2Number(row.USER_ID);
-  await v2VerifyTwoFactorCode(connection, userId, code, {
-    allowRecoveryCode: true
-  });
-  const consumed = await v2Execute(
-    connection,
-    `
-    UPDATE n_auth_two_factor_challenges
-    SET consumed_at = CURRENT_TIMESTAMP
-    WHERE challenge_id = :challenge_id
-      AND consumed_at IS NULL
-      AND expires_at > CURRENT_TIMESTAMP
-    `,
-    { challenge_id: normalizedChallengeId }
-  );
-  if (consumed !== 1) v2Unauthorized('双因素验证已过期，请重新登录');
-  if (v2Boolean(row.REMEMBER_ME)) {
-    await v2TrustTwoFactorDevice(connection, row);
+  if (!row || (v2String(row.DEVICE_FINGERPRINT) || 'unknown') !== v2RequestDeviceFingerprint(event)) {
+    v2Unauthorized(TWO_FACTOR_CHALLENGE_EXPIRED);
   }
 
-  return v2Ok(
-    await v2IssueLoginSession(
-      event,
-      connection,
-      userId,
-      v2String(row.USERNAME)
-    ),
-    'login success'
+  const userId = v2Number(row.USER_ID);
+  const verifiedPasswordHash = v2String(row.PASSWORD_HASH);
+  const {secret, recoveryId} = await v2VerifyTwoFactorCode(connection, userId, code);
+  const trustedDevice = v2Boolean(row.REMEMBER_ME)
+    ? await v2PrepareTrustedDevice(connection, row)
+    : undefined;
+  const session = await v2IssueLoginSession(
+    event,
+    connection,
+    userId,
+    v2String(row.USERNAME),
+    verifiedPasswordHash,
+    {
+      staleMessage: TWO_FACTOR_CHALLENGE_EXPIRED,
+      beforeSession: async () => {
+        await v2LockVerifiedLoginFactor(connection, userId, secret);
+        const consumed = await v2Execute(connection, `
+          UPDATE n_auth_two_factor_challenges SET consumed_at = CURRENT_TIMESTAMP
+          WHERE challenge_id = :challenge_id AND user_id = :user_id
+            AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP
+          `, { challenge_id: normalizedChallengeId, user_id: userId }, false);
+        if (consumed === 0) v2Unauthorized(TWO_FACTOR_CHALLENGE_EXPIRED);
+        if (consumed !== 1) v2ServerError();
+        if (recoveryId !== undefined) {
+          const updated = await v2Execute(connection, `
+            UPDATE n_user_two_factor_recovery_codes SET used_at = CURRENT_TIMESTAMP
+            WHERE recovery_code_id = :recovery_code_id AND user_id = :user_id AND used_at IS NULL
+            `, { recovery_code_id: recoveryId, user_id: userId }, false);
+          if (updated === 0) v2Unauthorized(TWO_FACTOR_CHALLENGE_EXPIRED);
+          if (updated !== 1) v2ServerError();
+        }
+        await trustedDevice?.write();
+      }
+    }
   );
+  if (trustedDevice) {
+    setCookie(event, TRUSTED_DEVICE_COOKIE, trustedDevice.proof, {
+      path: '/',
+      httpOnly: true,
+      secure: v2CookieSecure(),
+      sameSite: 'lax',
+      maxAge: TWO_FACTOR_TRUSTED_DEVICE_DAYS * 86400
+    });
+  }
+  return v2Ok(session, 'login success');
 }
 
 export async function v2RefreshCurrentToken(
   event: H3Event,
   connection: oracledb.Connection
 ): Promise<V2Response<V2TokenData>> {
-  const refreshCookie = getCookie(event, 'refresh_token');
-  const refreshBody = refreshCookie
-    ? {}
-    : await v2Body(event).catch(() => ({}));
-  const refreshToken = resolveV2RefreshToken(
-    refreshCookie,
-    refreshBody
-  );
+  const refreshToken = await readRefreshCredential(event);
   if (!refreshToken) v2Unauthorized();
   const payload = v2VerifyRefreshToken(refreshToken);
   if (!payload?.sessionId) v2Unauthorized();
@@ -1698,6 +1547,7 @@ export async function v2RefreshCurrentToken(
       AND refresh_token_hash = :refresh_token_hash
       AND revoked_at IS NULL
       AND refresh_token_expires_at > CURRENT_TIMESTAMP
+      AND ${ACTIVE_SESSION_ACCOUNT_SQL}
     `,
     {
       session_id: payload.sessionId,
@@ -1740,6 +1590,7 @@ export async function v2RefreshCurrentToken(
       AND refresh_token_hash = :old_refresh_token_hash
       AND revoked_at IS NULL
       AND refresh_token_expires_at > CURRENT_TIMESTAMP
+      AND ${ACTIVE_SESSION_ACCOUNT_SQL}
     `,
     {
       access_jti: accessJti,
@@ -1772,9 +1623,7 @@ export async function v2LogoutCurrent(
 ): Promise<V2Response<null>> {
   // This public route does not receive middleware auth context. Resolve the
   // supplied credential here, preserving Cookie precedence for browser clients.
-  const refreshCookie = getCookie(event, 'refresh_token');
-  const refreshBody = refreshCookie ? {} : await v2Body(event).catch(() => ({}));
-  const refreshToken = resolveV2RefreshToken(refreshCookie, refreshBody);
+  const refreshToken = await readRefreshCredential(event);
   const accessToken = getCookie(event, 'access_token') ||
     getHeader(event, 'authorization')?.match(/^Bearer\s+(\S+)$/i)?.[1];
   const auth = refreshToken
@@ -1822,6 +1671,7 @@ export async function v2PasswordReset(
     code: v2RequiredString(body, 'code'),
     new_password: v2RequiredString(body, 'new_password')
   };
+  v2RequireNewPassword(payload.new_password);
   const otp = await v2One(connection, `
     SELECT verification_code_hash
     FROM n_auth_otp_events
@@ -1830,6 +1680,7 @@ export async function v2PasswordReset(
     ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY
     `, {account: payload.email, otp_type: 'password_reset', verification_id: payload.verification_id});
   if (!otp) v2BadRequest('验证码不存在或已过期');
+  await requireOtpAttempt(event, payload.verification_id);
   const codeHash = v2String(otp.VERIFICATION_CODE_HASH);
   if (!await bcrypt.compare(payload.code, codeHash)) v2Unauthorized('验证码错误');
   const passwordHash = await bcrypt.hash(payload.new_password, 10);
@@ -1853,6 +1704,14 @@ export async function v2PasswordReset(
       UPDATE n_auth_sessions SET revoked_at = CURRENT_TIMESTAMP
       WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND revoked_at IS NULL
       `, {email: payload.email}, false);
+    await v2Execute(connection, `
+      UPDATE n_auth_two_factor_challenges SET consumed_at = CURRENT_TIMESTAMP
+      WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND consumed_at IS NULL
+      `, {email: payload.email}, false);
+    await v2Execute(connection, `
+      UPDATE n_user_two_factor_trusted_devices SET revoked_at = CURRENT_TIMESTAMP
+      WHERE user_id IN (SELECT user_id FROM n_users WHERE email = :email) AND revoked_at IS NULL
+      `, {email: payload.email}, false);
     await connection.commit();
   } catch (error) {
     try { await connection.rollback(); } catch { v2ServerError(); }
@@ -1860,6 +1719,17 @@ export async function v2PasswordReset(
   }
   return v2Null('password reset success');
 }
+
+const sessionListSql = `WITH eligible AS (
+  SELECT session_id, device_info, ip_address, last_accessed_at, created_at,
+         ROW_NUMBER() OVER (ORDER BY last_accessed_at DESC, session_id ASC) AS rn
+  FROM n_auth_sessions
+  WHERE user_id = :user_id AND revoked_at IS NULL
+)
+SELECT t.total, e.session_id, e.device_info, e.ip_address, e.last_accessed_at, e.created_at
+FROM (SELECT COUNT(*) AS total FROM eligible) t
+LEFT JOIN eligible e ON e.rn BETWEEN :start_row AND :end_row
+ORDER BY e.rn`;
 
 export async function v2ListSessions(
   event: H3Event,
@@ -1869,46 +1739,14 @@ export async function v2ListSessions(
   const pageState = v2Page(event);
   const page = pageState.page;
   const pageSize = pageState.page_size;
-  const total = v2Number(
-    (
-      await v2One(
-        connection,
-        `
-        SELECT COUNT(*) AS total
-        FROM n_auth_sessions
-        WHERE user_id = :user_id
-          AND revoked_at IS NULL
-        `,
-        { user_id: auth.userId }
-      )
-    )?.TOTAL
-  );
-  const rows = await v2Rows(
-    connection,
-    `
-    SELECT *
-    FROM (
-      SELECT
-        session_id,
-        device_info,
-        ip_address,
-        last_accessed_at,
-        created_at,
-        ROW_NUMBER() OVER (ORDER BY last_accessed_at DESC) AS rn
-      FROM n_auth_sessions
-      WHERE user_id = :user_id
-        AND revoked_at IS NULL
-    )
-    WHERE rn BETWEEN :start_row AND :end_row
-    `,
-    {
-      user_id: auth.userId,
-      start_row: pageState.start,
-      end_row: pageState.end
-    }
-  );
+  const rows = await v2Rows(connection, sessionListSql, {
+    user_id: auth.userId,
+    start_row: pageState.start,
+    end_row: pageState.end
+  });
+  const total = v2Number(rows[0]?.TOTAL);
   return v2Ok(
-    rows.map(row => ({
+    rows.filter(row => row.SESSION_ID != null).map(row => ({
       session_id: v2String(row.SESSION_ID),
       device_info: v2String(row.DEVICE_INFO),
       ip_address: v2String(row.IP_ADDRESS),

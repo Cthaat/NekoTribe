@@ -11,11 +11,56 @@ const publicMessages: Record<number, ReadonlySet<string>> = {
   404: new Set(['用户不存在', '帖子不存在', '话题不存在', '通知不存在', '父评论不存在', '评论不存在', '会话不存在']),
   409: new Set(['邮箱或用户名已被注册', '会话已变更，请重试']),
   422: new Set(['双因素认证尚未启用', '请先完成验证码校验', '只能删除自己的评论', '只能删除自己的帖子', '只能修改自己的帖子']),
+  429: new Set(['验证码发送过于频繁，请稍后重试', '验证码尝试次数已用完，请重新获取验证码']),
   500: new Set(['服务器内部错误']),
   501: new Set(['短信验证码暂不可用', '媒体存储暂不可用']),
-  503: new Set(['服务暂不可用，请稍后重试。'])
+  503: new Set(['服务暂不可用，请稍后重试。', '媒体存储暂不可用'])
 };
 publicMessages[400] = new Set([...publicMessages[400]!, '会话参数错误', '会话用途错误', '群组参数错误', '会话标题错误', '会话标题过长', '消息参数错误', '消息内容错误', '分页参数错误', '写作会话上下文不可用', '知识会话上下文不可用', '知识检索参数错误']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'new_email 不能为空', 'profile_visibility 参数错误', '请通过双因素认证设置流程修改 two_factor_enabled', 'ai_sentiment_model_id 长度不能超过 128', 'ai_sentiment_top_k 必须在 1 到 10 之间']);
+publicMessages[404] = new Set([...publicMessages[404]!, '用户设置不存在']);
+publicMessages[409] = new Set([...publicMessages[409]!, '邮箱已被使用']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'confirmation 不能为空', '确认内容不匹配']);
+publicMessages[401] = new Set([...publicMessages[401]!, '密码错误']);
+publicMessages[409] = new Set([...publicMessages[409]!, '账号已变更，请重新验证']);
+publicMessages[409] = new Set([...publicMessages[409]!, '双因素设置已变更，请重试']);
+publicMessages[422] = new Set([...publicMessages[422]!, '双因素认证已启用，请先关闭后再重新设置', '请先生成双因素认证密钥']);
+publicMessages[400] = new Set([...publicMessages[400]!, '密码至少需要6个字符', '邮箱格式错误', '用户名至少需要2个字符', '昵称至少需要2个字符']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'target_id 参数错误', 'expires_at 参数错误']);
+publicMessages[400] = new Set([...publicMessages[400]!, '媒体替代文本或描述过长', '媒体访问范围无效']);
+publicMessages[422] = new Set([...publicMessages[422]!, '不能屏蔽自己', '不能静音自己']);
+publicMessages[422] = new Set([...publicMessages[422]!, '不能关注自己']);
+publicMessages[403] = new Set([...publicMessages[403]!, '无法关注该用户']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'action 参数错误', 'appeal_message 不能为空', 'appeal_message 参数错误']);
+publicMessages[404] = new Set([...publicMessages[404]!, '处置记录不存在']);
+publicMessages[409] = new Set([...publicMessages[409]!, '已有待处理申诉']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'appeal_id 参数错误', 'appeal_status 参数错误', 'admin_response 参数错误']);
+publicMessages[404] = new Set([...publicMessages[404]!, '申诉不存在']);
+publicMessages[409] = new Set([...publicMessages[409]!, '申诉已处理']);
+
+publicMessages[400] = new Set([...publicMessages[400]!, 'report_id 参数错误', 'status 参数错误']);
+publicMessages[404] = new Set([...publicMessages[404]!, '举报不存在']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'target_type 参数错误', 'reason 参数错误', 'priority 参数错误', 'description 参数错误', 'evidence_url 参数错误']);
+publicMessages[403] = new Set([...publicMessages[403]!, '不能举报自己']);
+publicMessages[404] = new Set([...publicMessages[404]!, '举报目标不存在']);
+publicMessages[409] = new Set([...publicMessages[409]!, '已有待处理举报']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'settings 参数错误']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'post_id 参数错误', 'post_ids 参数错误', 'note 参数错误', '请填写审核备注']);
+publicMessages[403] = new Set([...publicMessages[403]!, '审核领取已关闭']);
+publicMessages[409] = new Set([...publicMessages[409]!, '案件由其他审核员领取']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'user_id 参数错误', 'duration_hours 参数错误']);
+publicMessages[403] = new Set([...publicMessages[403]!, '不能处罚自己']);
+publicMessages[403] = new Set([...publicMessages[403]!, '当前账号不能发布内容']);
+publicMessages[409] = new Set([...publicMessages[409]!, '账号状态不允许此处置']);
+publicMessages[422] = new Set([...publicMessages[422]!, '只能查看自己帖子的统计']);
+publicMessages[400] = new Set([...publicMessages[400]!, '推荐反馈参数错误']);
+publicMessages[404] = new Set([...publicMessages[404]!, '反馈目标不存在']);
+publicMessages[400] = new Set([...publicMessages[400]!, '群运营草稿参数错误']);
+publicMessages[400] = new Set([...publicMessages[400]!, '审核建议参数错误']);
+publicMessages[400] = new Set([...publicMessages[400]!, '审核反馈参数错误']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'comment_id 参数错误']);
+publicMessages[429] = new Set([...publicMessages[429]!, 'AI 请求额度已用完，请稍后重试']);
+publicMessages[403] = new Set([...publicMessages[403]!, '权限不足']);
 
 function sanitizedPublicError(error: unknown): ReturnType<typeof createError> | null {
   if (!isError(error)) return null;

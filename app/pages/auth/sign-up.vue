@@ -4,6 +4,7 @@ definePageMeta({
 });
 
 import { ref, watch, onUnmounted } from 'vue';
+import { otpRetryDelay } from '~/utils/otpRetryAfter';
 import { Button } from '@/components/ui/button';
 import AppButton from '@/components/app/AppButton.vue';
 import { Input } from '@/components/ui/input';
@@ -91,10 +92,10 @@ const signUpFormSchema = z
     birthDate: z.custom<DateValue>().optional(),
     location: z.string(),
     bio: z.string(),
-    password: z.string().min(6, {
+    password: z.string().trim().min(6, {
       message: t('auth.signUp.passwordTooShort')
     }),
-    confirmPassword: z.string().min(6, {
+    confirmPassword: z.string().trim().min(6, {
       message: t('auth.signUp.passwordTooShort')
     }),
     captcha: z.string(),
@@ -134,50 +135,84 @@ const showConfirmPassword = ref(false);
 
 const value = ref<string[]>([]);
 const verificationId = ref('');
+const verificationAccount = ref('');
+let otpRequestVersion = 0;
+let otpDisposed = false;
 
 const isCaptchaSending = ref(false);
 const countdown = ref(60);
 let timer: ReturnType<typeof setInterval> | null = null;
 
-async function sendCaptcha(): Promise<void> {
-  const { valid, errors } =
-    await form.validateField('email');
-  if (!valid) {
-    toast.error(t('auth.signUp.captchaSendError'), {
-      description:
-        errors[0] || t('auth.signUp.emailInvalid')
-    });
-    return;
-  }
-  const email = form.values.email;
+function resetVerification(): void {
+  otpRequestVersion++;
+  verificationId.value = '';
+  verificationAccount.value = '';
+  value.value = [];
+  isCaptchaSending.value = false;
+  if (timer) clearInterval(timer);
+  timer = null;
+}
 
+function isOtpCurrent(version: number, account: string): boolean {
+  return !otpDisposed && version === otpRequestVersion && form.values.email.trim() === account;
+}
+
+watch(() => form.values.email.trim(), resetVerification, { flush: 'sync' });
+
+function beginOtpCooldown(seconds: number, version: number, email: string): void {
+  const endsAt = Date.now() + seconds * 1000;
+  countdown.value = seconds;
+  timer = setInterval(() => {
+    if (!isOtpCurrent(version, email)) {
+      return;
+    }
+    countdown.value = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    if (countdown.value === 0) {
+      isCaptchaSending.value = false;
+      if (timer) clearInterval(timer);
+      timer = null;
+    }
+  }, 1000);
+}
+
+async function sendCaptcha(): Promise<void> {
+  if (isCaptchaSending.value || isLoading.value || otpDisposed) return;
+  const previous = { id: verificationId.value, account: verificationAccount.value, code: [...value.value] };
+  resetVerification();
+  const version = otpRequestVersion, email = form.values.email.trim();
   isCaptchaSending.value = true;
   countdown.value = 60;
 
   try {
+    const { valid, errors } = await form.validateField('email');
+    if (!isOtpCurrent(version, email)) return;
+    if (!valid) throw new Error(errors[0] || t('auth.signUp.emailInvalid'));
     const response = await v2CreateOtp({
       account: email,
       type: 'register',
       channel: 'email'
     });
+    if (!isOtpCurrent(version, email)) return;
+    if (response.account !== email || !response.verificationId?.trim()) throw new Error(t('auth.signUp.captchaSendError'));
     verificationId.value = response.verificationId;
+    verificationAccount.value = email;
 
     toast.success(t('auth.signUp.captchaSent'), {
       description: t('auth.signUp.captchaSentDescription')
     });
 
-    timer = setInterval(() => {
-      if (countdown.value > 0) {
-        countdown.value--;
-      } else {
-        isCaptchaSending.value = false;
-        if (timer) {
-          clearInterval(timer);
-          timer = null;
-        }
-      }
-    }, 1000);
+    beginOtpCooldown(60, version, email);
   } catch (error) {
+    if (!isOtpCurrent(version, email)) return;
+    const retry = otpRetryDelay(error);
+    if (retry !== null) {
+      if (previous.id && previous.account === email) {
+        verificationId.value = previous.id;
+        verificationAccount.value = previous.account;
+        value.value = previous.code;
+      }
+      beginOtpCooldown(retry, version, email);
+    }
     const message =
       error instanceof Error
         ? error.message
@@ -185,53 +220,59 @@ async function sendCaptcha(): Promise<void> {
     toast.error(t('auth.signUp.captchaSendError'), {
       description: message
     });
+  } finally {
+    if (isOtpCurrent(version, email) && !timer) isCaptchaSending.value = false;
   }
 }
 
 onUnmounted(() => {
-  if (timer) {
-    clearInterval(timer);
-  }
+  otpDisposed = true;
+  resetVerification();
 });
 
 async function onValidSubmit(
   values: SignUpFormValues
 ): Promise<void> {
+  if (isLoading.value || otpDisposed) return;
   isLoading.value = true;
+  const snapshot = { ...values, birthDate: values.birthDate?.toString() };
+  const id = verificationId.value, code = value.value.join(''), version = otpRequestVersion;
 
   try {
-    if (!verificationId.value) {
+    if (!id || verificationAccount.value !== snapshot.email.trim()) {
       throw new Error(t('auth.signUp.captchaSendError'));
     }
 
-    await v2VerifyOtp({
-      account: values.email,
+    const verified = await v2VerifyOtp({
+      account: snapshot.email.trim(),
       type: 'register',
-      verificationId: verificationId.value,
-      code: value.value.join('')
+      verificationId: id,
+      code
     });
+    if (!isOtpCurrent(version, snapshot.email.trim())) return;
+    if (verified.verified !== true || verified.account !== snapshot.email.trim()) throw new Error(t('auth.signUp.registerFailed'));
 
     await v2Register({
-      email: values.email,
-      username: values.username,
-      password: values.password,
-      confirmPassword: values.confirmPassword,
-      displayName: values.displayName,
-      phone: values.phone.trim() || undefined,
-      birthDate: values.birthDate
-        ? values.birthDate.toString()
-        : undefined,
-      location: values.location.trim() || undefined,
-      bio: values.bio.trim() || undefined,
-      verificationId: verificationId.value,
-      agreeToTerms: values.agreeToTerms
+      email: snapshot.email.trim(),
+      username: snapshot.username,
+      password: snapshot.password,
+      confirmPassword: snapshot.confirmPassword,
+      displayName: snapshot.displayName,
+      phone: snapshot.phone.trim() || undefined,
+      birthDate: snapshot.birthDate,
+      location: snapshot.location.trim() || undefined,
+      bio: snapshot.bio.trim() || undefined,
+      verificationId: id,
+      agreeToTerms: snapshot.agreeToTerms
     });
+    if (!isOtpCurrent(version, snapshot.email.trim())) return;
 
     toast(t('auth.signUp.successRegister'), {
       description: t('auth.signUp.redirectToLogin')
     });
     await navigateTo(localePath('/auth/login'));
   } catch (error) {
+    if (!isOtpCurrent(version, snapshot.email.trim())) return;
     const message =
       error instanceof Error
         ? error.message

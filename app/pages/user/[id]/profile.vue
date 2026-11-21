@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, watch } from 'vue';
+import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
+import { useNuxtApp } from '#app';
+import { usePreferenceStore } from '@/stores/user';
+import { authQueueFor } from '@/services/auth-request-queue';
+import { setUserVisibility } from '@/api/v2/user-visibility';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import TweetList from '@/components/TweetList.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import {
@@ -29,6 +35,9 @@ import {
 const route = useRoute();
 const { t } = useAppLocale();
 const localePath = useLocalePath();
+const app = useNuxtApp();
+const queue = authQueueFor(app);
+const preferenceStore = usePreferenceStore();
 
 interface AccountHeaderUser {
   id: number;
@@ -85,17 +94,76 @@ const localizedAccountTabs = computed(() => {
 });
 const activeTab = ref('Overview');
 
-const userAnalytics = ref<UserAnalyticsData>({
-  totalTweets: 0,
-  tweetsThisWeek: 0,
-  totalLikesReceived: 0,
-  avgLikesPerTweet: 0,
-  totalLikesGiven: 0,
-  totalCommentsMade: 0,
-  engagementScore: 0
-});
+const userAnalytics = ref<UserAnalyticsData | null>(null);
 
-const userId = computed(() => Number(route.params.id || 0));
+const userId = computed(() => {
+  const raw = route.params.id;
+  if (typeof raw !== 'string' || !/^[1-9][0-9]{0,15}$/.test(raw) || raw.trim() !== raw) return 0;
+  const id = Number(raw);
+  return Number.isSafeInteger(id) ? id : 0;
+});
+const relationshipBusy = ref(false);
+const blockedByViewer = ref(false);
+const blockedByTarget = ref(false);
+const changingIdentity = ref(queue.isIdentityChanging);
+const profileLoading = ref(true);
+const profileError = ref(false);
+const profileReady = computed(() => !changingIdentity.value && user.value.id > 0 && user.value.id === userId.value);
+const visibilityEnabled = computed(() => !changingIdentity.value && user.value.id === userId.value &&
+  userId.value > 0 && preferenceStore.preferences.user.id > 0 && preferenceStore.preferences.user.id !== userId.value);
+const blockDialogOpen = ref(false);
+let blockIntent: { id: number; name: string; revision: number } | null = null;
+const blockName = ref('');
+let disposed = false;
+let profileLoad = 0;
+let analyticsLoad = 0;
+let tweetsLoad = 0;
+let relationshipIntent = 0;
+let observedRevision = queue.revision;
+const isCurrent = (id: number, revision: number) => !disposed && !queue.isIdentityChanging &&
+  userId.value === id && queue.revision === revision;
+
+function resetRelationship(): void {
+  relationshipIntent++;
+  analyticsLoad++;
+  userAnalytics.value = null;
+  user.value.point = 0;
+  relationshipBusy.value = false;
+  user.value.id = 0;
+  blockedByViewer.value = false;
+  blockedByTarget.value = false;
+  blockDialogOpen.value = false;
+  blockIntent = null;
+  profileLoading.value = true;
+  profileError.value = false;
+  tweetsLoad++;
+  tweetsLoading.value = false;
+  tweetsError.value = null;
+  fullTweets.value = [];
+  totalTweetsCount.value = 0;
+  page.value = 1;
+}
+
+const unsubscribe = queue.subscribe(() => {
+  const settled = changingIdentity.value && !queue.isIdentityChanging;
+  const changed = observedRevision !== queue.revision;
+  changingIdentity.value = queue.isIdentityChanging;
+  if (changed) {
+    observedRevision = queue.revision;
+    resetRelationship();
+  }
+  if ((changed || settled) && !queue.isIdentityChanging) {
+    void refreshProfilePage();
+  }
+});
+watch(blockDialogOpen, (open) => {
+  if (!open) blockIntent = null;
+}, { flush: 'sync' });
+watch(userId, () => {
+  resetRelationship();
+  void refreshProfilePage();
+}, { flush: 'sync' });
+onUnmounted(() => { disposed = true; unsubscribe(); });
 
 const page = ref(1);
 const pageSize = ref(10);
@@ -108,9 +176,17 @@ const totalPages = computed(() =>
   Math.max(1, Math.ceil(totalTweetsCount.value / pageSize.value))
 );
 
-async function loadUserProfile() {
+async function loadUserProfile(): Promise<boolean> {
+  const id = userId.value;
+  const revision = queue.revision;
+  if (!isCurrent(id, revision)) return false;
+  const load = ++profileLoad;
+  profileLoading.value = true;
+  profileError.value = false;
   try {
-    const publicUser = await v2GetUserById(userId.value);
+    if (!id) throw new Error('Invalid profile route');
+    const publicUser = await app.runWithContext(() => v2GetUserById(id));
+    if (!isCurrent(id, revision) || load !== profileLoad) return false;
     user.value.id = publicUser.id;
     user.value.name = publicUser.name;
     user.value.title = publicUser.username;
@@ -122,49 +198,70 @@ async function loadUserProfile() {
       publicUser.followersCount;
     user.value.stats.followingCount =
       publicUser.followingCount;
-    user.value.stats.likesCount = publicUser.likesCount;
     user.value.follow = publicUser.relationship.isFollowing
       ? 'follow'
       : 'unfollow';
+    blockedByViewer.value = publicUser.relationship.isBlocking;
+    blockedByTarget.value = publicUser.relationship.isBlocked;
+    return true;
   } catch {
-    toast.error(t('account.errors.loadUser'));
+    if (isCurrent(id, revision) && load === profileLoad) {
+      user.value.id = 0;
+      profileError.value = true;
+    }
+    return false;
+  } finally {
+    if (isCurrent(id, revision) && load === profileLoad) profileLoading.value = false;
   }
 }
 
 async function loadUserAnalytics() {
+  const id = userId.value;
+  const revision = queue.revision;
+  if (!isCurrent(id, revision)) return;
+  const load = ++analyticsLoad;
+  userAnalytics.value = null;
+  user.value.point = 0;
   try {
-    const analytics = await v2GetUserAnalytics(userId.value);
-    userAnalytics.value.totalTweets = analytics.totalPosts;
-    userAnalytics.value.tweetsThisWeek =
-      analytics.postsThisWeek;
-    userAnalytics.value.totalLikesReceived =
-      analytics.totalLikesReceived;
-    userAnalytics.value.avgLikesPerTweet =
-      analytics.avgLikesPerPost;
-    userAnalytics.value.totalLikesGiven =
-      analytics.totalLikesGiven;
-    userAnalytics.value.totalCommentsMade =
-      analytics.totalCommentsMade;
-    userAnalytics.value.engagementScore =
-      analytics.engagementScore;
+    const analytics = await app.runWithContext(() => v2GetUserAnalytics(id));
+    if (!isCurrent(id, revision) || load !== analyticsLoad) return;
+    userAnalytics.value = {
+      totalTweets: analytics.totalPosts,
+      tweetsThisWeek: analytics.postsThisWeek,
+      totalLikesReceived: analytics.totalLikesReceived,
+      avgLikesPerTweet: analytics.avgLikesPerPost,
+      totalLikesGiven: analytics.totalLikesGiven,
+      totalCommentsMade: analytics.totalCommentsMade,
+      engagementScore: analytics.engagementScore
+    };
+    user.value.stats.likesCount = analytics.totalLikesReceived;
     user.value.point = analytics.engagementScore;
   } catch {
-    toast.error(t('account.errors.loadAnalytics'));
+    // An inaccessible profile has no analytics panel.
   }
 }
 
 async function loadTweets() {
+  const id = userId.value;
+  const revision = queue.revision;
+  const requestedPage = page.value;
+  if (!profileReady.value || !isCurrent(id, revision)) return;
+  const load = ++tweetsLoad;
+  const current = () => load === tweetsLoad && profileReady.value &&
+    isCurrent(id, revision) && page.value === requestedPage;
   tweetsLoading.value = true;
   tweetsError.value = null;
   try {
-    const result = await v2ListUserPosts(userId.value, {
-      page: page.value,
+    const result = await app.runWithContext(() => v2ListUserPosts(id, {
+      page: requestedPage,
       pageSize: pageSize.value,
       sort: 'newest'
-    });
+    }));
+    if (!current()) return;
     fullTweets.value = result.items;
     totalTweetsCount.value = result.total;
   } catch (error) {
+    if (!current()) return;
     tweetsError.value =
       error instanceof Error
         ? error.message
@@ -172,7 +269,7 @@ async function loadTweets() {
     fullTweets.value = [];
     totalTweetsCount.value = 0;
   } finally {
-    tweetsLoading.value = false;
+    if (current()) tweetsLoading.value = false;
   }
 }
 
@@ -181,8 +278,8 @@ watch(page, () => {
 });
 
 async function refreshProfilePage(): Promise<void> {
+  if (!await loadUserProfile()) return;
   await Promise.all([
-    loadUserProfile(),
     loadUserAnalytics(),
     loadTweets()
   ]);
@@ -285,11 +382,17 @@ function goToPage(newPage: number) {
 }
 
 async function followUser(targetUser: AccountHeaderUser, active: string) {
+  const id = targetUser.id, revision = queue.revision, name = targetUser.name;
+  if (id <= 0 || !isCurrent(id, revision) || relationshipBusy.value || blockedByViewer.value || blockedByTarget.value) return;
+  const intent = ++relationshipIntent;
+  relationshipBusy.value = true;
   try {
     const result =
       active === 'follow'
-        ? await v2FollowUser(targetUser.id)
-        : await v2UnfollowUser(targetUser.id);
+        ? await v2FollowUser(id)
+        : await v2UnfollowUser(id);
+    if (!isCurrent(id, revision) || intent !== relationshipIntent) return;
+    profileLoad++;
     user.value.follow =
       result.relationship === 'following'
         ? 'follow'
@@ -300,26 +403,97 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
         active === 'follow'
           ? 'account.follow.success'
           : 'account.follow.unfollowSuccess',
-        { name: targetUser.name }
+        { name }
       )
     );
   } catch {
-    toast.error(t('account.follow.failed'));
+    if (isCurrent(id, revision) && intent === relationshipIntent) toast.error(t('account.follow.failed'));
+  } finally {
+    if (isCurrent(id, revision) && intent === relationshipIntent) relationshipBusy.value = false;
+  }
+}
+
+function startVisibility(action: 'block' | 'mute' | 'muteDay'): void {
+  if (!visibilityEnabled.value || relationshipBusy.value) return;
+  const target = { id: user.value.id, revision: queue.revision, name: user.value.name };
+  if (action === 'block') {
+    blockIntent = target;
+    blockName.value = target.name;
+    blockDialogOpen.value = true;
+    return;
+  }
+  void applyVisibility(target, action);
+}
+
+function confirmBlock(): void {
+  const target = blockIntent;
+  blockIntent = null;
+  blockDialogOpen.value = false;
+  if (target) void applyVisibility(target, 'block');
+}
+
+async function applyVisibility(target: { id: number; revision: number }, action: 'block' | 'mute' | 'muteDay') {
+  if (!visibilityEnabled.value || relationshipBusy.value || !isCurrent(target.id, target.revision)) return;
+  const intent = ++relationshipIntent;
+  relationshipBusy.value = true;
+  try {
+    const expiry = action === 'muteDay' ? new Date(Date.now() + 86_400_000).toISOString() : undefined;
+    await setUserVisibility(action === 'block' ? 'blocks' : 'mutes', target.id, false, expiry);
+    if (!isCurrent(target.id, target.revision) || intent !== relationshipIntent) return;
+    profileLoad++;
+    if (action === 'block') {
+      analyticsLoad++;
+      userAnalytics.value = null;
+      user.value.point = 0;
+      blockedByViewer.value = true;
+      user.value.follow = 'unfollow';
+      await loadUserProfile();
+    }
+    if (isCurrent(target.id, target.revision) && intent === relationshipIntent) toast.success(t('visibility.saved'));
+  } catch {
+    if (isCurrent(target.id, target.revision) && intent === relationshipIntent) toast.error(t('common.operationFailed'));
+  } finally {
+    if (isCurrent(target.id, target.revision) && intent === relationshipIntent) relationshipBusy.value = false;
   }
 }
 </script>
 
 <template>
   <div class="grid gap-6 p-4 sm:p-6 lg:p-8">
+    <p v-if="profileLoading && !profileReady" role="status">{{ t('common.loading') }}</p>
+    <div v-else-if="profileError" class="grid justify-items-start gap-2 rounded-xl border p-5">
+      <p role="alert">{{ t('account.errors.loadUser') }}</p>
+      <Button variant="outline" @click="refreshProfilePage">{{ t('common.retry') }}</Button>
+    </div>
     <AccountHeaderCard
+      v-if="profileReady"
       :user="user"
       :account-tabs="localizedAccountTabs"
       v-model="activeTab"
+      :interaction-blocked="blockedByViewer || blockedByTarget"
+      :relationship-busy="relationshipBusy || changingIdentity"
+      :visibility-actions="visibilityEnabled"
+      :blocked-by-viewer="blockedByViewer"
+      :analytics-available="userAnalytics !== null && !blockedByViewer && !blockedByTarget"
       @follow="followUser"
+      @visibility="startVisibility"
       @refresh="refreshProfilePage"
     />
+    <Dialog v-model:open="blockDialogOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{{ t('visibility.block') }}</DialogTitle>
+          <DialogDescription>{{ t('visibility.confirmBlock', { name: blockName }) }}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" @click="blockDialogOpen = false">{{ t('common.cancel') }}</Button>
+          <Button variant="destructive" @click="confirmBlock">{{ t('visibility.block') }}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <section
+      v-if="profileReady && userAnalytics && !blockedByViewer && !blockedByTarget"
       class="grid gap-5 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
     >
       <header class="flex items-start gap-3">
@@ -337,10 +511,11 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
           </p>
         </div>
       </header>
-      <OverAllPanel :userAnalytics="userAnalytics" />
+      <OverAllPanel :userAnalytics="userAnalytics" summary-only />
     </section>
 
     <section
+      v-if="profileReady"
       class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
     >
       <header class="flex items-start gap-3">
@@ -380,6 +555,7 @@ async function followUser(targetUser: AccountHeaderUser, active: string) {
           <AlertTriangle class="h-5 w-5 text-rose-500" />
         </span>
         <p class="text-sm text-rose-600 dark:text-rose-400">{{ tweetsError }}</p>
+        <Button variant="outline" size="sm" @click="loadTweets">{{ t('common.retry') }}</Button>
       </div>
 
       <div v-else-if="fullTweets.length > 0">

@@ -1,13 +1,7 @@
-import { v2FollowUser } from '~/server/services/v2/users';
-import {
-  defineV2Handler,
-  v2RouterNumber
-} from '~/server/utils/v2';
+import { v2WriteFollow } from '~/server/services/v2/user-visibility';
+import { safeAuthEntry } from '~/server/utils/auth-entry-errors';
+import { defineV2Handler } from '~/server/utils/v2';
 
-export default defineV2Handler((event, connection) =>
-  v2FollowUser(
-    event,
-    connection,
-    v2RouterNumber(event, 'id')
-  )
-);
+export default defineV2Handler(safeAuthEntry((event, connection) =>
+  v2WriteFollow(event, connection, false)
+));

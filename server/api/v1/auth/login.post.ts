@@ -1,8 +1,10 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { sessionLifetimes } from '../../../../scripts/runtime-env.mjs';
 
 const runtimeConfig = useRuntimeConfig();
+const { accessSeconds, refreshSeconds } = sessionLifetimes(process.env, runtimeConfig);
 
 // 事件处理函数：处理获取邮箱验证码的请求
 export default defineEventHandler(async event => {
@@ -97,7 +99,7 @@ export default defineEventHandler(async event => {
         type: 'access' // 标识token类型
       },
       runtimeConfig.accessSecret,
-      { expiresIn: Number(runtimeConfig.accessExpiresIn) } // 15分钟过期
+      { expiresIn: accessSeconds }
     );
 
     const refreshToken = jwt.sign(
@@ -106,7 +108,7 @@ export default defineEventHandler(async event => {
         type: 'refresh'
       },
       runtimeConfig.refreshSecret,
-      { expiresIn: Number(runtimeConfig.refreshExpiresIn) } // 30天过期
+      { expiresIn: refreshSeconds }
     );
 
     // 生成随机的refresh token ID
@@ -139,11 +141,11 @@ export default defineEventHandler(async event => {
         refreshToken,
         accessTokenExpiresAt: new Date(
           Date.now() +
-            Number(runtimeConfig.accessExpiresIn) * 1000
+            accessSeconds * 1000
         ),
         refreshTokenExpiresAt: new Date(
           Date.now() +
-            Number(runtimeConfig.refreshExpiresIn) * 1000
+            refreshSeconds * 1000
         ),
         deviceInfo: 'unknown', // 可以根据实际情况获取设备信息
         deviceFingerprint: 'unknown', // 可以根据实际情况获取设备指纹

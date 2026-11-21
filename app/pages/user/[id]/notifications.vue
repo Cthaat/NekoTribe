@@ -12,6 +12,8 @@ import {
 import { useNotificationMailbox } from '@/composables/useNotificationMailbox';
 import type { NotificationVM } from '@/types/notifications';
 import type { V2Json } from '@/types/v2';
+import { groupNotificationQuery, isGroupCommentNotice, isGroupPostNotice } from '@/utils/group-notification-target';
+import { notificationTargetId, postNotificationTarget } from '@/utils/post-notification-target';
 import type {
   MailDetailItem,
   MailItem,
@@ -28,6 +30,7 @@ const unreadOnly = ref(
   (route.query.unreadOnly as string) === 'true'
 );
 const showDeleted = ref(false);
+const markingListed = ref(false);
 
 const mailbox = useNotificationMailbox({
   type,
@@ -48,71 +51,62 @@ watch(
   { immediate: true }
 );
 
-function setLocalReadStatus(
-  notificationId: number,
-  read: boolean
-) {
-  mailbox.notifications.value =
-    mailbox.notifications.value.map(item =>
-      item.id === notificationId ? { ...item, read } : item
-    );
-}
-
-async function handleReadMail(mailId: string) {
-  const notificationId = Number(mailId);
-  setLocalReadStatus(notificationId, true);
+async function updateMailbox(change: () => Promise<unknown>, success?: string, failure?: string) {
+  const sameOwner = mailbox.captureOwner();
+  if (!sameOwner()) return;
   try {
-    await v2SetNotificationReadStatus(notificationId, {
-      read: true
-    });
+    await change();
+    if (!sameOwner()) return;
+    mailbox.resetAndRefresh();
+    if (success) toast.success(success);
   } catch {
-    /* swallow read-status sync errors */
+    if (!sameOwner()) return;
+    mailbox.resetAndRefresh();
+    if (failure) toast.error(failure);
   }
 }
 
-async function handleSetMailReadStatus({
-  mailId,
-  read
-}: {
-  mailId: string;
-  read: boolean;
-}) {
-  const notificationId = Number(mailId);
-  setLocalReadStatus(notificationId, read);
+function handleReadMail(mailId: string) {
+  return updateMailbox(() => v2SetNotificationReadStatus(Number(mailId), { read: true }));
+}
+
+function handleSetMailReadStatus({ mailId, read }: { mailId: string; read: boolean }) {
+  return updateMailbox(
+    () => v2SetNotificationReadStatus(Number(mailId), { read }),
+    t(read ? 'notifications.mail.markReadSuccess' : 'notifications.mail.markUnreadSuccess'),
+    t('notifications.mail.readFailed')
+  );
+}
+
+function handleMarkAllRead() {
+  return updateMailbox(
+    () => v2BatchSetNotificationReadStatus({ read: true }),
+    t('notifications.mail.markAllReadSuccess'),
+    t('notifications.mail.markAllReadFailed')
+  );
+}
+
+async function handleMarkListedRead(mailIds: string[]) {
+  if (showDeleted.value || markingListed.value) return;
+  const allowed = new Set(mailbox.notifications.value.filter(item => !item.read && !item.deletedAt).map(item => item.id));
+  const ids = [...new Set(mailIds.map(Number).filter(id => Number.isSafeInteger(id) && id > 0 && allowed.has(id)))];
+  const sameOwner = mailbox.captureOwner();
+  if (!ids.length || !sameOwner()) return;
+  markingListed.value = true;
   try {
-    await v2SetNotificationReadStatus(notificationId, {
-      read
-    });
-    toast.success(
-      read
-        ? t('notifications.mail.markReadSuccess')
-        : t('notifications.mail.markUnreadSuccess')
-    );
+    for (let start = 0; start < ids.length && sameOwner(); start += 1000) {
+      await v2BatchSetNotificationReadStatus({ read: true, notificationIds: ids.slice(start, start + 1000) });
+    }
   } catch {
-    setLocalReadStatus(notificationId, !read);
-    toast.error(t('notifications.mail.readFailed'));
+    if (sameOwner()) toast.error(t('notifications.mail.readFailed'));
+  } finally {
+    markingListed.value = false;
+    if (sameOwner()) mailbox.resetAndRefresh();
   }
 }
 
-async function handleMarkAllRead() {
-  try {
-    await v2BatchSetNotificationReadStatus({
-      read: true
-    });
-    mailbox.notifications.value =
-      mailbox.notifications.value.map(item => ({
-        ...item,
-        read: true
-      }));
-    toast.success(t('notifications.mail.markAllReadSuccess'));
-  } catch {
-    toast.error(t('notifications.mail.markAllReadFailed'));
-  }
-}
-
-async function handleRefresh() {
-  mailbox.page.value = 1;
-  await mailbox.refresh();
+function handleRefresh() {
+  mailbox.resetAndRefresh();
 }
 
 function handleFilterChange(filters: {
@@ -125,32 +119,20 @@ function handleFilterChange(filters: {
   showDeleted.value = filters.showDeleted;
 }
 
-async function handleDeleteMail(mailId: string) {
-  const notificationId = Number(mailId);
-  try {
-    await v2DeleteNotification(notificationId);
-    mailbox.notifications.value =
-      mailbox.notifications.value.filter(
-        item => item.id !== notificationId
-      );
-    toast.success(t('notifications.mail.deleteSuccess'));
-  } catch {
-    toast.error(t('notifications.mail.deleteFailed'));
-  }
+function handleDeleteMail(mailId: string) {
+  return updateMailbox(
+    () => v2DeleteNotification(Number(mailId)),
+    t('notifications.mail.deleteSuccess'),
+    t('notifications.mail.deleteFailed')
+  );
 }
 
-async function handleRestoreMail(mailId: string) {
-  const notificationId = Number(mailId);
-  try {
-    await v2RestoreNotification(notificationId);
-    mailbox.notifications.value =
-      mailbox.notifications.value.filter(
-        item => item.id !== notificationId
-      );
-    toast.success(t('notifications.mail.restoreSuccess'));
-  } catch {
-    toast.error(t('notifications.mail.restoreFailed'));
-  }
+function handleRestoreMail(mailId: string) {
+  return updateMailbox(
+    () => v2RestoreNotification(Number(mailId)),
+    t('notifications.mail.restoreSuccess'),
+    t('notifications.mail.restoreFailed')
+  );
 }
 
 type NotificationMetadata = { [key: string]: V2Json };
@@ -197,17 +179,6 @@ function metadataNumber(
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function firstMetadataNumber(
-  metadata: NotificationMetadata,
-  keys: string[]
-): number | null {
-  for (const key of keys) {
-    const value = metadataNumber(metadata, key);
-    if (value !== null) return value;
-  }
-  return null;
-}
-
 function typeLabel(typeValue: string): string {
   const key = typeValue.replace(/-/g, '_');
   if (
@@ -218,6 +189,7 @@ function typeLabel(typeValue: string): string {
       'follow',
       'mention',
       'login_alert',
+      'direct_message',
       'system',
       'group_invite'
     ].includes(key)
@@ -238,49 +210,33 @@ function compactText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function postIdForNotification(
-  notification: NotificationVM,
-  metadata: NotificationMetadata
-): number | null {
-  const metadataPostId = firstMetadataNumber(metadata, [
-    'target_post_id',
-    'post_id',
-    'source_post_id'
-  ]);
-  if (metadataPostId !== null) return metadataPostId;
-
-  return notification.resourceType === 'post'
-    ? notification.resourceId
-    : null;
-}
-
-function commentIdForNotification(
-  notification: NotificationVM,
-  metadata: NotificationMetadata
-): number | null {
-  const metadataCommentId = firstMetadataNumber(metadata, [
-    'comment_id',
-    'parent_comment_id'
-  ]);
-  if (metadataCommentId !== null) return metadataCommentId;
-
-  return notification.resourceType === 'comment'
-    ? notification.resourceId
-    : null;
-}
-
 function resourceHref(
   notification: NotificationVM,
   metadata: NotificationMetadata
 ): string | null {
-  const postId = postIdForNotification(notification, metadata);
-  const commentId = commentIdForNotification(
-    notification,
-    metadata
-  );
+  if (notification.type === 'direct_message' || notification.resourceType === 'direct_message') {
+    const conversationId = notificationTargetId(metadata.conversation_id);
+    return conversationId === null ? null : localePath({
+      path: '/chat',
+      query: { conversation: String(conversationId) }
+    });
+  }
+  if (notification.type === 'group_invite' || notification.resourceType === 'group_invite') {
+    const cited = notificationTargetId(metadata.invite_id);
+    const resource = notification.resourceType === 'group_invite' ? notificationTargetId(notification.resourceId) : null;
+    const invite = cited !== null && resource !== null && cited !== resource ? null : cited ?? resource;
+    return localePath({ path: '/groups/invites', query: invite === null ? {} : { invite: String(invite) } });
+  }
+  if (isGroupPostNotice(notification)) {
+    const query = groupNotificationQuery(notification, metadata);
+    return query ? localePath({ path: '/groups/posts', query }) : null;
+  }
+  const { postId, commentId } = postNotificationTarget(notification, metadata);
   if (postId) {
-    const basePath = localePath(`/tweet/${postId}`);
-    return commentId ? `${basePath}#comment-${commentId}` : basePath;
+    return localePath({
+      path: `/tweet/${postId}`,
+      query: commentId === null ? {} : { comment: String(commentId) }
+    });
   }
 
   if (
@@ -301,24 +257,23 @@ function resourceHref(
     return localePath('/account/active');
   }
 
-  if (notification.type === 'group_invite') {
-    return localePath('/groups/invites');
-  }
-
   return null;
 }
 
 function primaryActionLabel(notification: NotificationVM): string {
+  if (notification.type === 'direct_message' || notification.resourceType === 'direct_message') {
+    return t('mail.actions.viewConversation');
+  }
   if (notification.type === 'follow') {
     return t('mail.actions.viewProfile');
   }
   if (notification.type === 'login_alert') {
     return t('mail.actions.viewSession');
   }
-  if (notification.resourceType === 'comment') {
+  if (notification.resourceType === 'comment' || isGroupCommentNotice(notification)) {
     return t('mail.actions.viewComment');
   }
-  if (notification.type === 'group_invite') {
+  if (notification.type === 'group_invite' || notification.resourceType === 'group_invite') {
     return t('mail.actions.viewInvite');
   }
   return t('mail.actions.viewTweet');
@@ -358,7 +313,7 @@ function previewsForNotification(
   );
 
   const actionPreview = buildPreview(
-    notification.resourceType === 'comment'
+    notification.resourceType === 'comment' || isGroupCommentNotice(notification)
       ? t('mail.preview.comment')
       : t('mail.preview.action'),
     actionText,
@@ -388,11 +343,7 @@ function detailsForNotification(
   metadata: NotificationMetadata
 ): MailDetailItem[] {
   const details: MailDetailItem[] = [];
-  const postId = postIdForNotification(notification, metadata);
-  const commentId = commentIdForNotification(
-    notification,
-    metadata
-  );
+  const { postId, commentId } = postNotificationTarget(notification, metadata);
   const deviceInfo = metadataString(metadata, 'device_info');
   const ipAddress = metadataString(metadata, 'ip_address');
   const userAgent = metadataString(metadata, 'user_agent');
@@ -501,11 +452,13 @@ const hasNoNotifications = computed(
       :load-more="mailbox.loadNextPage"
       :is-trash-view="showDeleted"
       :loading="mailbox.loading.value"
+      :marking-listed="markingListed"
       @read-mail="handleReadMail"
       @delete-mail="handleDeleteMail"
       @restore-mail="handleRestoreMail"
       @set-read-status="handleSetMailReadStatus"
       @mark-all-read="handleMarkAllRead"
+      @mark-listed-read="handleMarkListedRead"
       @refresh="handleRefresh"
       @filter-change="handleFilterChange"
     />
