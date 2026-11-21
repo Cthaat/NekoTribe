@@ -516,9 +516,13 @@ jobs:
           MAKE_LATEST: ${{ needs.version.outputs.prerelease == 'false' }}
         run: |
           endpoint="repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"
-          gh api --paginate "$endpoint/assets?per_page=100" |
-            jq -sr 'add | .[] | "\\(.digest | ltrimstr("sha256:"))  \\(.name)"' |
+          gh api --paginate "$endpoint/assets?per_page=100" \
+            --jq '.[] | (.digest | ltrimstr("sha256:")) + "  " + .name' |
             sort -k2 > uploaded-checksums.txt
-          { cat SHA256SUMS.txt; sha256sum SHA256SUMS.txt; } | sort -k2 > local-checksums.txt
+          manifest_digest=$(sha256sum -b SHA256SUMS.txt | cut -d' ' -f1)
+          {
+            cat SHA256SUMS.txt
+            printf '%s  SHA256SUMS.txt\n' "$manifest_digest"
+          } | sort -k2 > local-checksums.txt
           diff -u local-checksums.txt uploaded-checksums.txt
           gh api --method PATCH "$endpoint" -F draft=false -f make_latest="$MAKE_LATEST" --jq .html_url
