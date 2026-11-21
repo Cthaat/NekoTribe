@@ -1,0 +1,12 @@
+{
+  "id": "GROUP-INVITE-LIST",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"invalid-group-id","status":400},
+    {"id":"inactive-or-missing-group","status":404},
+    {"id":"viewer-is-not-active-staff","status":422},
+    {"id":"staff-sees-directed-and-link-invites","status":200},
+    {"id":"stable-sort-and-empty-page","status":200}
+  ]
+}

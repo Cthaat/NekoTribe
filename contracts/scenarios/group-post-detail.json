@@ -1,0 +1,10 @@
+{
+  "id": "GROUP-POST-DETAIL",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"unsafe-id","status":400},
+    {"id":"hidden-dissolved-cross-group-or-deleted","status":404},
+    {"id":"same-group-content-and-viewer-like-no-meta","status":200}
+  ]
+}

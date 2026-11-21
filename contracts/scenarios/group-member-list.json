@@ -1,0 +1,17 @@
+{
+  "id": "GROUP-MEMBER-LIST",
+  "revision": 2,
+  "cases": [
+    { "id": "anonymous", "status": 401 },
+    { "id": "unsafe-group-id", "status": 400 },
+    { "id": "invalid-or-repeated-filter", "status": 400 },
+    { "id": "missing-inactive-or-deleted-group", "status": 404 },
+    { "id": "nonmember-private-or-banned", "status": 403 },
+    { "id": "public-list-hides-pending-and-banned", "status": 200 },
+    { "id": "manager-filters-pending", "status": 200 },
+    { "id": "mute-expiry-private-to-member-and-managers", "status": 200 },
+    { "id": "filtered-out-of-range-page-preserves-count", "status": 200 },
+    { "id": "member-id-breaks-join-time-ties", "status": 200 },
+    { "id": "both-cache-layers-bypassed", "status": 200 }
+  ]
+}

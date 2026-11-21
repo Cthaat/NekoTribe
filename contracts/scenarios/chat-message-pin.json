@@ -1,0 +1,22 @@
+{
+  "id": "CHAT-MESSAGE-PIN",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "manager-pins",
+      "status": 200
+    },
+    {
+      "id": "manager-unpins",
+      "status": 200
+    },
+    {
+      "id": "member-cannot-pin",
+      "status": 403
+    },
+    {
+      "id": "viewer-neutral-event",
+      "status": 200
+    }
+  ]
+}

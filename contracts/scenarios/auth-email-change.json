@@ -1,0 +1,247 @@
+{
+  "id": "AUTH-EMAIL-CHANGE",
+  "revision": 1,
+  "base": {
+    "new_email": "new@example.test",
+    "verification_id": "email_fixture",
+    "code": "123456"
+  },
+  "verified_at": "2026-01-02T03:04:05.000Z",
+  "cases": [
+    {
+      "id": "EMAIL-01",
+      "patch": {},
+      "status": 200,
+      "message": "success",
+      "marks": 1,
+      "writes": 1
+    },
+    {
+      "id": "EMAIL-02",
+      "patch": {
+        "new_email": " new@example.test ",
+        "code": 123456
+      },
+      "status": 200,
+      "message": "success",
+      "marks": 1,
+      "writes": 1
+    },
+    {
+      "id": "EMAIL-03",
+      "patch": {
+        "new_email": " "
+      },
+      "status": 400,
+      "message": "new_email 不能为空",
+      "marks": 0,
+      "writes": 0
+    },
+    {
+      "id": "EMAIL-04",
+      "patch": {
+        "verification_id": null
+      },
+      "status": 400,
+      "message": "verification_id 不能为空",
+      "marks": 0,
+      "writes": 0
+    },
+    {
+      "id": "EMAIL-05",
+      "patch": {
+        "code": []
+      },
+      "status": 400,
+      "message": "code 不能为空",
+      "marks": 0,
+      "writes": 0
+    },
+    {
+      "id": "EMAIL-06",
+      "patch": {},
+      "status": 409,
+      "message": "邮箱已被使用",
+      "marks": 0,
+      "writes": 0,
+      "duplicate": true
+    },
+    {
+      "id": "EMAIL-07",
+      "patch": {
+        "new_email": "old@example.test"
+      },
+      "status": 400,
+      "message": "验证码不存在或已过期",
+      "marks": 0,
+      "writes": 0
+    },
+    {
+      "id": "EMAIL-08",
+      "patch": {
+        "verification_id": "different"
+      },
+      "status": 400,
+      "message": "验证码不存在或已过期",
+      "marks": 0,
+      "writes": 0
+    },
+    {
+      "id": "EMAIL-09",
+      "patch": {
+        "code": "bad"
+      },
+      "status": 401,
+      "message": "验证码错误",
+      "marks": 0,
+      "writes": 0
+    },
+    {
+      "id": "EMAIL-10",
+      "patch": {},
+      "status": 400,
+      "message": "验证码不存在或已过期",
+      "marks": 0,
+      "writes": 0,
+      "expired": true
+    },
+    {
+      "id": "EMAIL-11",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "fault": "duplicate"
+    },
+    {
+      "id": "EMAIL-12",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "fault": "lookup"
+    },
+    {
+      "id": "EMAIL-13",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "fault": "claim"
+    },
+    {
+      "id": "EMAIL-14",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "fault": "write"
+    },
+    {
+      "id": "EMAIL-15",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "fault": "read"
+    },
+    {
+      "id": "EMAIL-16",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "fault": "commit"
+    },
+    {
+      "id": "EMAIL-17",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "fault": "rollback"
+    },
+    {
+      "id": "EMAIL-18",
+      "patch": {},
+      "status": 400,
+      "message": "验证码不存在或已过期",
+      "marks": 0,
+      "writes": 0,
+      "lost_race": true
+    },
+    {
+      "id": "EMAIL-19",
+      "patch": {},
+      "status": 404,
+      "message": "用户不存在",
+      "marks": 0,
+      "writes": 0,
+      "missing_user": true
+    },
+    {
+      "id": "EMAIL-20",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "claim_count": 2
+    },
+    {
+      "id": "EMAIL-21",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 0,
+      "writes": 0,
+      "write_count": 2
+    },
+    {
+      "id": "EMAIL-22",
+      "patch": {},
+      "status": 409,
+      "message": "邮箱已被使用",
+      "marks": 0,
+      "writes": 0,
+      "unique_race": true
+    },
+    {
+      "id": "EMAIL-23",
+      "patch": {
+        "new_email": ""
+      },
+      "status": 401,
+      "message": "请先登录",
+      "marks": 0,
+      "writes": 0,
+      "auth": "none"
+    },
+    {
+      "id": "EMAIL-24",
+      "patch": {},
+      "status": 401,
+      "message": "Token无效或已过期",
+      "marks": 0,
+      "writes": 0,
+      "auth": "revoked"
+    },
+    {
+      "id": "EMAIL-25",
+      "patch": {},
+      "status": 500,
+      "message": "服务器内部错误",
+      "marks": 1,
+      "writes": 1,
+      "fault": "commit",
+      "commit_applied": true
+    }
+  ]
+}

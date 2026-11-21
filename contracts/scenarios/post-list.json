@@ -1,0 +1,33 @@
+{
+  "id": "POST-LIST",
+  "revision": 3,
+  "cases": [
+    {"id": "LIST-01", "name": "匿名公开列表，NULL viewer 和可见性函数", "status": "not-run"},
+    {"id": "LIST-02", "name": "有效 Cookie 与 Bearer 按会话身份过滤", "status": "not-run"},
+    {"id": "LIST-03", "name": "过期或撤销凭据拒绝，错误 Cookie 不回退 Bearer", "status": "not-run"},
+    {"id": "LIST-04", "name": "匿名 following 和 mentions 返回 401", "status": "not-run"},
+    {"id": "LIST-05", "name": "关注流只包含有效关注且可见的帖子", "status": "not-run"},
+    {"id": "LIST-06", "name": "提及流限定当前用户和可见帖子", "status": "not-run"},
+    {"id": "LIST-07", "name": "查询参数 viewer_id 不影响身份", "status": "not-run"},
+    {"id": "LIST-08", "name": "搜索内容位置标签，去除标签前缀并保持 LIKE 通配符", "status": "not-run"},
+    {"id": "LIST-09", "name": "空搜索不增加过滤且总数和列表使用相同条件", "status": "not-run"},
+    {"id": "LIST-10", "name": "newest oldest popular 与未知排序", "status": "not-run"},
+    {"id": "LIST-11", "name": "默认、边界、无效及小数分页的兼容行为", "status": "not-run"},
+    {"id": "LIST-12", "name": "非空结果映射作者媒体标签提及，不增加浏览量", "status": "not-run"},
+    {"id": "LIST-13", "name": "媒体结构缺失安全失败，空列表不检查媒体结构", "status": "not-run"},
+    {"id": "LIST-14", "name": "数据库错误脱敏以及私密、删除和屏蔽数据不可见", "status": "not-run"},
+    {"id": "LIST-15", "name": "跨后端新增修改后共享模式不返回过期缓存", "status": "not-run"},
+    {"id": "LIST-16", "name": "热门列表允许匿名并强制 popular 排序", "status": "not-run"},
+    {"id": "LIST-17", "name": "个人、收藏、点赞列表必须有有效会话", "status": "not-run"},
+    {"id": "LIST-18", "name": "个人、收藏、点赞过滤仅依据当前会话身份", "status": "not-run"},
+    {"id": "LIST-19", "name": "点赞列表按点赞时间或互动分排序", "status": "not-run"},
+    {"id": "LIST-20", "name": "热门及个人列表叠加 timeline、搜索与权限过滤", "status": "not-run"},
+    {"id": "LIST-21", "name": "用户、标签、回复、转发列表需登录", "status": "not-run"},
+    {"id": "LIST-22", "name": "指定目标绑定并叠加可见性、搜索和时间线过滤", "status": "not-run"},
+    {"id": "LIST-23", "name": "数字目标仅接受安全正整数，认证先于参数校验", "status": "not-run"},
+    {"id": "LIST-24", "name": "标签名称按 URL 解码并绑定，特殊字符不拼入 SQL", "status": "not-run"},
+    {"id": "LIST-25", "name": "不存在的目标返回空列表且不泄露目标状态", "status": "not-run"},
+    {"id": "LIST-26", "name": "帖子详情的回复帖独立分页，过滤错帖和重复数据，重试失败的原页，精确引用及匿名详情不读取回复帖", "status": "not-run"},
+    {"id": "LIST-27", "name": "回帖和转发切换请求正确端点并按原帖 ID 过滤，丢弃上一类型迟到的列表响应", "status": "not-run"}
+  ]
+}

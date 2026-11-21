@@ -1,0 +1,12 @@
+{
+  "id": "GROUP-POST-LIST",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"invalid-type-or-group-id","status":400},
+    {"id":"hidden-or-dissolved-group","status":404},
+    {"id":"weight-time-and-id-order","status":200},
+    {"id":"filtered-total-before-page","status":200},
+    {"id":"empty-or-overflow-page","status":200}
+  ]
+}

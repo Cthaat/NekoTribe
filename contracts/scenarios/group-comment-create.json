@@ -1,0 +1,42 @@
+{
+  "id": "GROUP-COMMENT-CREATE",
+  "revision": 3,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "bad-content-or-id",
+      "status": 400
+    },
+    {
+      "id": "cross-post-or-deleted-parent",
+      "status": 404
+    },
+    {
+      "id": "member-or-target-required",
+      "status": 422
+    },
+    {
+      "id": "derive-parent-author-and-commit-before-notify",
+      "status": 200
+    },
+    {
+      "id": "readback-failure-rolls-back",
+      "status": 500
+    },
+    {
+      "id": "hidden-author-before-write",
+      "status": 404
+    },
+    {
+      "id": "visibility-lost-before-commit-rolls-back",
+      "status": 404
+    },
+    {
+      "id": "notifications-filter-inactive-and-blocked-recipients",
+      "status": 200
+    }
+  ]
+}

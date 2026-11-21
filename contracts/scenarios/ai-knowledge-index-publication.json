@@ -1,0 +1,9 @@
+{
+  "id": "AI-KNOWLEDGE-INDEX-PUBLICATION",
+  "cases": [
+    {"id":"interrupted-before-activation","active":"previous","expect":"discarded","ledger":"previous"},
+    {"id":"interrupted-after-activation","active":"next","expect":"committed","ledger":"next"},
+    {"id":"activation-during-initial-bootstrap","active":"missing","noPrevious":true,"expect":"discarded","ledger":"previous"},
+    {"id":"unexpected-active-file","active":"external","expect":"conflict","ledger":"previous"}
+  ]
+}

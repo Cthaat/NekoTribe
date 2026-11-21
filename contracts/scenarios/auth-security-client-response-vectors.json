@@ -1,0 +1,3296 @@
+{
+  "id": "AUTH-SECURITY-CLIENT-RESPONSE",
+  "description": "Synthetic only; common strict success-envelope and operation-data checks through both client API boundaries. Duplicate recovery strings remain valid; server generation has no uniqueness guarantee.",
+  "bases": {
+    "setup": {
+      "code": 200,
+      "message": "success",
+      "data": {
+        "secret": "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567",
+        "otpauth_url": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+      },
+      "meta": null
+    },
+    "confirm": {
+      "code": 200,
+      "message": "success",
+      "data": {
+        "enabled": true,
+        "recovery_codes": [
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO",
+          "ABCDE-FGHIJ-KLMNO"
+        ]
+      },
+      "meta": null
+    },
+    "disable": {
+      "code": 200,
+      "message": "success",
+      "data": {
+        "enabled": false
+      },
+      "meta": null
+    },
+    "deletion": {
+      "code": 200,
+      "message": "success",
+      "data": {
+        "deleted": true,
+        "user_id": 1
+      },
+      "meta": null
+    }
+  },
+  "cases": [
+    {
+      "id": "setup-valid",
+      "operation": "setup",
+      "accepted": true,
+      "changes": []
+    },
+    {
+      "id": "setup-js-nel-message",
+      "operation": "setup",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "setup-additive",
+      "operation": "setup",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "future"
+          ],
+          "value": {
+            "enabled": "ignored"
+          }
+        },
+        {
+          "path": [
+            "data",
+            "future"
+          ],
+          "value": "ignored"
+        },
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": false,
+            "other": 1
+          }
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "setup-nullable-meta-member",
+      "operation": "setup",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "setup-root-null",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [],
+      "root": null
+    },
+    {
+      "id": "setup-root-[]",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [],
+      "root": []
+    },
+    {
+      "id": "setup-root-true",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [],
+      "root": true
+    },
+    {
+      "id": "setup-root-123",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [],
+      "root": 123
+    },
+    {
+      "id": "setup-root-\"synthetic-secret\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [],
+      "root": "synthetic-secret"
+    },
+    {
+      "id": "setup-code-null",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "setup-code-\"200\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": "200"
+        }
+      ]
+    },
+    {
+      "id": "setup-code-true",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "setup-code-201",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 201
+        }
+      ]
+    },
+    {
+      "id": "setup-code-500",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 500
+        }
+      ]
+    },
+    {
+      "id": "setup-message-null",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "setup-message-\"\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "setup-message-\" \\t \"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": " \t "
+        }
+      ]
+    },
+    {
+      "id": "setup-message-false",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "setup-message-200",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": 200
+        }
+      ]
+    },
+    {
+      "id": "setup-message-{}",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "setup-meta-[]",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "setup-meta-false",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "setup-meta-\"bad\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "setup-meta-1",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "setup-data-null",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "setup-data-[]",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "setup-data-true",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "setup-data-\"bad\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "setup-data-1",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "setup-error-true",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "setup-error-\"true\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "setup-error-null",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "setup-error-0",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "setup-meta.has_next-\"false\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "setup-meta.has_next-0",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "setup-meta.has_next-[]",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "setup-missing-code",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "setup-missing-message",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "setup-missing-meta",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "setup-missing-data",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-valid",
+      "operation": "confirm",
+      "accepted": true,
+      "changes": []
+    },
+    {
+      "id": "confirm-js-nel-message",
+      "operation": "confirm",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "confirm-additive",
+      "operation": "confirm",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "future"
+          ],
+          "value": {
+            "enabled": "ignored"
+          }
+        },
+        {
+          "path": [
+            "data",
+            "future"
+          ],
+          "value": "ignored"
+        },
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": false,
+            "other": 1
+          }
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "confirm-nullable-meta-member",
+      "operation": "confirm",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "confirm-root-null",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [],
+      "root": null
+    },
+    {
+      "id": "confirm-root-[]",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [],
+      "root": []
+    },
+    {
+      "id": "confirm-root-true",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [],
+      "root": true
+    },
+    {
+      "id": "confirm-root-123",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [],
+      "root": 123
+    },
+    {
+      "id": "confirm-root-\"synthetic-secret\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [],
+      "root": "synthetic-secret"
+    },
+    {
+      "id": "confirm-code-null",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-\"200\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": "200"
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-true",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-201",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 201
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-500",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 500
+        }
+      ]
+    },
+    {
+      "id": "confirm-message-null",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "confirm-message-\"\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "confirm-message-\" \\t \"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": " \t "
+        }
+      ]
+    },
+    {
+      "id": "confirm-message-false",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "confirm-message-200",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": 200
+        }
+      ]
+    },
+    {
+      "id": "confirm-message-{}",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "confirm-meta-[]",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "confirm-meta-false",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "confirm-meta-\"bad\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "confirm-meta-1",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "confirm-data-null",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "confirm-data-[]",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "confirm-data-true",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-data-\"bad\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "confirm-data-1",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "confirm-error-true",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-error-\"true\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "confirm-error-null",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "confirm-error-0",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "confirm-meta.has_next-\"false\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "confirm-meta.has_next-0",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "confirm-meta.has_next-[]",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "confirm-missing-code",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-missing-message",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-missing-meta",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-missing-data",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "disable-valid",
+      "operation": "disable",
+      "accepted": true,
+      "changes": []
+    },
+    {
+      "id": "disable-js-nel-message",
+      "operation": "disable",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "disable-additive",
+      "operation": "disable",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "future"
+          ],
+          "value": {
+            "enabled": "ignored"
+          }
+        },
+        {
+          "path": [
+            "data",
+            "future"
+          ],
+          "value": "ignored"
+        },
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": false,
+            "other": 1
+          }
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "disable-nullable-meta-member",
+      "operation": "disable",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "disable-root-null",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [],
+      "root": null
+    },
+    {
+      "id": "disable-root-[]",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [],
+      "root": []
+    },
+    {
+      "id": "disable-root-true",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [],
+      "root": true
+    },
+    {
+      "id": "disable-root-123",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [],
+      "root": 123
+    },
+    {
+      "id": "disable-root-\"synthetic-secret\"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [],
+      "root": "synthetic-secret"
+    },
+    {
+      "id": "disable-code-null",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "disable-code-\"200\"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": "200"
+        }
+      ]
+    },
+    {
+      "id": "disable-code-true",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "disable-code-201",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 201
+        }
+      ]
+    },
+    {
+      "id": "disable-code-500",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 500
+        }
+      ]
+    },
+    {
+      "id": "disable-message-null",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "disable-message-\"\"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "disable-message-\" \\t \"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": " \t "
+        }
+      ]
+    },
+    {
+      "id": "disable-message-false",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "disable-message-200",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": 200
+        }
+      ]
+    },
+    {
+      "id": "disable-message-{}",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "disable-meta-[]",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "disable-meta-false",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "disable-meta-\"bad\"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "disable-meta-1",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "disable-data-null",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "disable-data-[]",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "disable-data-true",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "disable-data-\"bad\"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "disable-data-1",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "disable-error-true",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "disable-error-\"true\"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "disable-error-null",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "disable-error-0",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "disable-meta.has_next-\"false\"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "disable-meta.has_next-0",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "disable-meta.has_next-[]",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "disable-missing-code",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "disable-missing-message",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "disable-missing-meta",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "disable-missing-data",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-valid",
+      "operation": "deletion",
+      "accepted": true,
+      "changes": []
+    },
+    {
+      "id": "deletion-js-nel-message",
+      "operation": "deletion",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "deletion-additive",
+      "operation": "deletion",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "future"
+          ],
+          "value": {
+            "enabled": "ignored"
+          }
+        },
+        {
+          "path": [
+            "data",
+            "future"
+          ],
+          "value": "ignored"
+        },
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": false,
+            "other": 1
+          }
+        },
+        {
+          "path": [
+            "error"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "deletion-nullable-meta-member",
+      "operation": "deletion",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {
+            "has_next": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "deletion-root-null",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [],
+      "root": null
+    },
+    {
+      "id": "deletion-root-[]",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [],
+      "root": []
+    },
+    {
+      "id": "deletion-root-true",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [],
+      "root": true
+    },
+    {
+      "id": "deletion-root-123",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [],
+      "root": 123
+    },
+    {
+      "id": "deletion-root-\"synthetic-secret\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [],
+      "root": "synthetic-secret"
+    },
+    {
+      "id": "deletion-code-null",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "deletion-code-\"200\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": "200"
+        }
+      ]
+    },
+    {
+      "id": "deletion-code-true",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-code-201",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 201
+        }
+      ]
+    },
+    {
+      "id": "deletion-code-500",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "value": 500
+        }
+      ]
+    },
+    {
+      "id": "deletion-message-null",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "deletion-message-\"\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "deletion-message-\" \\t \"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": " \t "
+        }
+      ]
+    },
+    {
+      "id": "deletion-message-false",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "deletion-message-200",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": 200
+        }
+      ]
+    },
+    {
+      "id": "deletion-message-{}",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "deletion-meta-[]",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "deletion-meta-false",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "deletion-meta-\"bad\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "deletion-meta-1",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "deletion-data-null",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "deletion-data-[]",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "deletion-data-true",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-data-\"bad\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "id": "deletion-data-1",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "deletion-error-true",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-error-\"true\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "deletion-error-null",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "deletion-error-0",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "error"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "deletion-meta.has_next-\"false\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "deletion-meta.has_next-0",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "deletion-meta.has_next-[]",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "value": {}
+        },
+        {
+          "path": [
+            "meta",
+            "has_next"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "deletion-missing-code",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "code"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-missing-message",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "message"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-missing-meta",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "meta"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-missing-data",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-\"\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-\"abcdefghijklmnopqrstuvwxyz234567\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": "abcdefghijklmnopqrstuvwxyz234567"
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-\"BCDEFGHIJKLMNOPQRSTUVWXYZ234567\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": "BCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-\"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567A\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567A"
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-\"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567=\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567="
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-null",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-123",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": 123
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-\" ABCDEFGHIJKLMNOPQRSTUVWXYZ234567\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": " ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        }
+      ]
+    },
+    {
+      "id": "setup-secret-\"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567\\n\"",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "value": "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567\n"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-empty",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-numeric",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": 123
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-missingQuery",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-https",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "https://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-hotp",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://hotp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-otherSecret",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-issuer",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=other&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-algorithm",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA256&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-digits",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=8&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-period",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=60"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-duplicate",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30&secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-encodedDuplicate",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30&%73ecret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-fragment",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30#secret"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-username",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://edge@totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-port",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp:1/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-emptyLabel",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3A?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-wrongLabel",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/Other%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-badEscape",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%XXedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-invalidUtf8",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%C0%AFedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-space",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30 "
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-backslash",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp\\NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-pathSegment",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3A/edge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-unicodeRaw",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3A猫%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-extra-query",
+      "operation": "setup",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3Aedge%40example.test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30&future=one&future=two"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-query-reordered",
+      "operation": "setup",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe:edge?period=30&digits=6&algorithm=SHA1&issuer=NekoTribe&secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        }
+      ]
+    },
+    {
+      "id": "setup-uri-encoded-account",
+      "operation": "setup",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "value": "otpauth://totp/NekoTribe%3A%E7%8C%AB%2Fedge%20test?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=NekoTribe&algorithm=SHA1&digits=6&period=30"
+        }
+      ]
+    },
+    {
+      "id": "setup-missing-secret",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "secret"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "setup-missing-otpauth_url",
+      "operation": "setup",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "otpauth_url"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-enabled-false",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "confirm-enabled-\"true\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "confirm-enabled-1",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "confirm-enabled-null",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "confirm-codes-null",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "confirm-codes-{}",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "confirm-codes-\"codes\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes"
+          ],
+          "value": "codes"
+        }
+      ]
+    },
+    {
+      "id": "confirm-codes-[]",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "confirm-codes-[\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\"]",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes"
+          ],
+          "value": [
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "confirm-codes-[\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\",\"ABCDE-FGHIJ-KLMNO\"]",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes"
+          ],
+          "value": [
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO",
+            "ABCDE-FGHIJ-KLMNO"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-123",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes",
+            2
+          ],
+          "value": 123
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-null",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes",
+            2
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-\"\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes",
+            2
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-\"ABCD-EFGH\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes",
+            2
+          ],
+          "value": "ABCD-EFGH"
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-\"abcde-fghij-klmno\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes",
+            2
+          ],
+          "value": "abcde-fghij-klmno"
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-\"ABCDE-FGHIJ-KLMN0\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes",
+            2
+          ],
+          "value": "ABCDE-FGHIJ-KLMN0"
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-\" ABCDE-FGHIJ-KLMNO\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes",
+            2
+          ],
+          "value": " ABCDE-FGHIJ-KLMNO"
+        }
+      ]
+    },
+    {
+      "id": "confirm-code-\"ABCDE-FGHIJ-KLMNO\\n\"",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes",
+            2
+          ],
+          "value": "ABCDE-FGHIJ-KLMNO\n"
+        }
+      ]
+    },
+    {
+      "id": "confirm-missing-enabled",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-missing-recovery_codes",
+      "operation": "confirm",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "recovery_codes"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "disable-enabled-true",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "disable-enabled-\"false\"",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "id": "disable-enabled-0",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "disable-enabled-null",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "disable-missing-enabled",
+      "operation": "disable",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "enabled"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-deleted-false",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "deleted"
+          ],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "deletion-deleted-\"true\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "deleted"
+          ],
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "id": "deletion-deleted-1",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "deleted"
+          ],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "deletion-deleted-null",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "deleted"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "deletion-id-null",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "deletion-id-\"1\"",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "deletion-id-true",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-id-0",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "deletion-id--1",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": -1
+        }
+      ]
+    },
+    {
+      "id": "deletion-id-1.5",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": 1.5
+        }
+      ]
+    },
+    {
+      "id": "deletion-id-9007199254740992",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": 9007199254740992
+        }
+      ]
+    },
+    {
+      "id": "deletion-id-{}",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": {}
+        }
+      ]
+    },
+    {
+      "id": "deletion-id-[]",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "deletion-max-safe-id",
+      "operation": "deletion",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "value": 9007199254740991
+        }
+      ]
+    },
+    {
+      "id": "deletion-missing-deleted",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "deleted"
+          ],
+          "remove": true
+        }
+      ]
+    },
+    {
+      "id": "deletion-missing-user_id",
+      "operation": "deletion",
+      "accepted": false,
+      "changes": [
+        {
+          "path": [
+            "data",
+            "user_id"
+          ],
+          "remove": true
+        }
+      ]
+    }
+  ]
+}

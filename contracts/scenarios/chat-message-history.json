@@ -1,0 +1,55 @@
+{
+  "id": "CHAT-MESSAGE-HISTORY",
+  "revision": 3,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "invalid-channel",
+      "status": 400
+    },
+    {
+      "id": "private-channel-non-manager",
+      "status": 403
+    },
+    {
+      "id": "filtered-page",
+      "status": 200,
+      "q": " Hello ",
+      "page": 2,
+      "page_size": 3,
+      "has_next": true,
+      "writes": 0
+    },
+    {
+      "id": "page-one-marks-read-after-enrichment",
+      "status": 200,
+      "writes": 1
+    },
+    {
+      "id": "search-first-page-keeps-read-position",
+      "status": 200,
+      "page": 1,
+      "q": "Hello",
+      "writes": 0
+    },
+    {
+      "id": "deleted-or-foreign-reply",
+      "status": 200,
+      "reply_to": null
+    },
+    {
+      "id": "attachment-failure",
+      "status": 500,
+      "commit": false
+    },
+    {
+      "id": "empty-history",
+      "status": 200,
+      "data": [],
+      "writes": 0
+    }
+  ]
+}

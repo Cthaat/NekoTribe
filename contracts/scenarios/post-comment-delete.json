@@ -1,0 +1,13 @@
+{
+  "id": "POST-COMMENT-DELETE",
+  "revision": 2,
+  "cases": [
+    {"id":"DELETE-01","assertion":"require a valid session and canonical safe comment ID"},
+    {"id":"DELETE-02","assertion":"missing, deleted and hidden comments return 404; a visible non-owner receives 422"},
+    {"id":"DELETE-03","assertion":"only the owner can delete; the write checks visibility, ownership and deletion state"},
+    {"id":"DELETE-04","assertion":"a zero-row write caused by concurrent state or permission changes returns 404"},
+    {"id":"DELETE-05","assertion":"success returns null data and repeat deletion returns 404"},
+    {"id":"DELETE-06","assertion":"both clients expose a confirmed delete for an owned comment in regular and exact views, ignore stale scope, and remove the comment on success or 404"},
+    {"id":"DELETE-07","assertion":"isolated real Oracle triggers, concurrency and both clients against all backends are verified"}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "AI-MODEL-SWITCHING",
+  "revision": 2,
+  "executionStatus": "not-run",
+  "scope": "shared-acceptance-definitions-not-runtime-results",
+  "cases": [
+    {"id": "MODEL-S001", "given": "Two available compatible models A and B", "when": "Change the knowledge model A to B and back through applied configuration", "then": ["Real inference requests target the configured model each time", "Public frontend/business interface is unchanged"]},
+    {"id": "MODEL-S002", "given": "Independent knowledge, writing, agent and moderation bindings", "when": "Change only the writing model", "then": ["Other role bindings remain unchanged", "Actual writing requests use the new binding"]},
+    {"id": "MODEL-S003", "given": "A stream is running on A", "when": "Apply B for new requests", "then": ["Existing stream completes or cancels on A", "A new request uses B", "Each response records its actual model/configuration version"]},
+    {"id": "MODEL-S004", "given": "An agent binding lacks required tool support", "when": "Enable or invoke the agent", "then": ["Capability error is explicit", "No invented tool result is accepted", "No unconfigured fallback occurs"]},
+    {"id": "MODEL-S005", "given": "Local and remote adapters with separate credential references", "when": "Switch configured provider or an upstream times out", "then": ["Errors and cancellation follow the shared contract", "Secrets are absent from client responses/logs", "No unconfigured external upload occurs"]},
+    {"id": "MODEL-S006", "given": "A ready index built using embedding model E1", "when": "Change only the chat model", "then": ["The existing compatible index remains usable"]},
+    {"id": "MODEL-S007", "given": "An index from E1 and a proposed embedding model/version E2", "when": "Activate E2 including equal-dimension replacement", "then": ["A new compatible index is built and verified before activation", "Old and new vectors are never silently mixed", "Dimension mismatch is rejected", "Rollback is explicit"]},
+    {"id": "MODEL-S008", "given": "Only public posts/comments/rules are approved for phase one", "when": "Switch models, invoke tools, or query after content visibility changes", "then": ["Private group/direct-message data is not exposed or trained by default", "Removed or restricted content is unavailable through stale index/cache", "Retrieved text cannot escalate tool permissions"]},
+    {"id": "MODEL-S009", "given": "The service reads a valid AI_MODEL_CONFIG_FILE and a request is running on A", "when": "Publish B at a higher revision, then publish invalid and stale data, then publish A at another higher revision", "then": ["New requests follow A, B, B, A with monotonically increasing accepted revisions", "The in-flight request stays on the original A", "A configured file with no previously valid revision cannot silently fall back to inline configuration"]}
+  ]
+}

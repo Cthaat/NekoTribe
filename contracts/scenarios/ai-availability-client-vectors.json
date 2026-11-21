@@ -1,0 +1,666 @@
+{
+  "id": "AI-AVAILABILITY-CLIENTS",
+  "revision": 6,
+  "scope": "Client decoding of the v2 data object; HTTP/auth and UI transitions have separate tests.",
+  "cases": [
+    {
+      "id": "AC-01",
+      "data": {
+        "knowledge": false,
+        "writing": false
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": false,
+        "writing": false
+      }
+    },
+    {
+      "id": "AC-02",
+      "data": {
+        "knowledge": true,
+        "writing": false
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": false
+      }
+    },
+    {
+      "id": "AC-03",
+      "data": {
+        "knowledge": false,
+        "writing": true
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": false,
+        "writing": true
+      }
+    },
+    {
+      "id": "AC-04",
+      "data": {
+        "knowledge": true,
+        "writing": true
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": true
+      }
+    },
+    {
+      "id": "AC-05",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "future": {}
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": false
+      }
+    },
+    {
+      "id": "AC-06",
+      "data": null,
+      "accepted": false
+    },
+    {
+      "id": "AC-07",
+      "data": [],
+      "accepted": false
+    },
+    {
+      "id": "AC-08",
+      "data": {},
+      "accepted": false
+    },
+    {
+      "id": "AC-09",
+      "data": {
+        "knowledge": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-10",
+      "data": {
+        "writing": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-11",
+      "data": {
+        "knowledge": 1,
+        "writing": false
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-12",
+      "data": {
+        "knowledge": true,
+        "writing": "false"
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-13",
+      "data": {
+        "knowledge": null,
+        "writing": true
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-14",
+      "data": {
+        "knowledge": true,
+        "writing": []
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-15",
+      "data": {
+        "knowledge": true,
+        "writing": true,
+        "inference": {
+          "knowledge": true,
+          "writing": false
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": true,
+        "inference": {
+          "knowledge": true,
+          "writing": false
+        }
+      }
+    },
+    {
+      "id": "AC-16",
+      "data": {
+        "knowledge": true,
+        "writing": true,
+        "inference": {
+          "knowledge": true
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-17",
+      "data": {
+        "knowledge": true,
+        "writing": true,
+        "inference": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-18",
+      "data": {
+        "knowledge": false,
+        "writing": false,
+        "group": true,
+        "moderation": true,
+        "inference": {
+          "knowledge": false,
+          "writing": false,
+          "group": true,
+          "moderation": false
+        }
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": false,
+        "writing": false,
+        "group": true,
+        "moderation": true,
+        "inference": {
+          "knowledge": false,
+          "writing": false,
+          "group": true,
+          "moderation": false
+        }
+      }
+    },
+    {
+      "id": "AC-19",
+      "data": {
+        "knowledge": false,
+        "writing": false,
+        "group": true,
+        "moderation": null,
+        "inference": {
+          "knowledge": false,
+          "writing": false,
+          "group": true,
+          "moderation": false
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-20",
+      "data": {
+        "knowledge": false,
+        "writing": false,
+        "group": true,
+        "moderation": true,
+        "inference": {
+          "knowledge": false,
+          "writing": false,
+          "group": "false",
+          "moderation": false
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-21",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false
+          }
+        ]
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "AC-22",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-23",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          }
+        ]
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-24",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false
+          }
+        ]
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-25",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "group-brief",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false
+          }
+        ]
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-26",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 9007199254740992,
+            "enabled": true
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false
+          }
+        ]
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-27",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": false
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false
+          }
+        ]
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-28",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false,
+            "explicit_selection": true
+          }
+        ]
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false,
+            "explicitSelection": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "AC-29",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "group": true,
+        "moderation": false,
+        "skills": [
+          {
+            "id": "knowledge-answer",
+            "purpose": "knowledge",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "writing-draft",
+            "purpose": "writing",
+            "version": 2,
+            "enabled": false
+          },
+          {
+            "id": "group-brief",
+            "purpose": "group",
+            "version": 1,
+            "enabled": true
+          },
+          {
+            "id": "moderation-advice",
+            "purpose": "moderation",
+            "version": 1,
+            "enabled": false,
+            "explicit_selection": "true"
+          }
+        ]
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-30",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "model_config_revision": 7
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": false,
+        "modelConfigRevision": 7
+      }
+    },
+    {
+      "id": "AC-31",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "model_config_revision": null
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": false
+      }
+    },
+    {
+      "id": "AC-32",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "model_config_revision": 999999999999999
+      },
+      "accepted": true,
+      "expected": {
+        "knowledge": true,
+        "writing": false,
+        "modelConfigRevision": 999999999999999
+      }
+    },
+    {
+      "id": "AC-33",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "model_config_revision": 0
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-34",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "model_config_revision": 1.25
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-35",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "model_config_revision": "7"
+      },
+      "accepted": false
+    },
+    {
+      "id": "AC-36",
+      "data": {
+        "knowledge": true,
+        "writing": false,
+        "model_config_revision": 1000000000000000
+      },
+      "accepted": false
+    }
+  ]
+}

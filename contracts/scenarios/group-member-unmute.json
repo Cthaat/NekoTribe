@@ -1,0 +1,26 @@
+{
+  "id": "GROUP-MEMBER-UNMUTE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "status": 401
+    },
+    {
+      "id": "clear-muted-member",
+      "status": 200
+    },
+    {
+      "id": "already-active-is-idempotent",
+      "status": 200
+    },
+    {
+      "id": "pending-banned-owner-or-peer-protected",
+      "status": 422
+    },
+    {
+      "id": "audit-failure-rolls-back",
+      "status": 500
+    }
+  ]
+}

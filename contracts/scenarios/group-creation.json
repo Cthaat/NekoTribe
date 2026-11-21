@@ -1,0 +1,13 @@
+{
+  "id": "GROUP-CREATION",
+  "revision": 2,
+  "cases": [
+    {"id":"anonymous","status":401},
+    {"id":"missing-blank-or-overlong-name","status":400},
+    {"id":"malformed-json-or-metadata","status":400},
+    {"id":"name-only-defaults-and-active-owner","status":200},
+    {"id":"all-metadata-and-normalized-tags","status":200},
+    {"id":"multibyte-slug-keeps-whole-characters-and-suffix","status":200},
+    {"id":"owner-tag-audit-readback-or-commit-failure","status":500}
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "CHAT-REACTION-REMOVE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "remove-own-reaction",
+      "status": 200
+    },
+    {
+      "id": "missing-own-reaction-is-idempotent",
+      "status": 200
+    },
+    {
+      "id": "other-users-reactions-retained",
+      "status": 200
+    },
+    {
+      "id": "deleted-target",
+      "status": 404
+    },
+    {
+      "id": "viewer-neutral-event",
+      "status": 200
+    }
+  ]
+}

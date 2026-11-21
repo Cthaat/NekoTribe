@@ -1,0 +1,21 @@
+{
+  "id": "USER-SETTINGS-NATIVE",
+  "revision": 1,
+  "cases": [
+    {"id":"ready","mode":"ok","credential":"valid","status":200,"message":"success"},
+    {"id":"anonymous","mode":"ok","credential":"absent","status":401},
+    {"id":"invalid-token","mode":"ok","credential":"invalid","status":401},
+    {"id":"schema","mode":"schema","credential":"valid","status":503,"message":"服务暂不可用，请稍后重试。"},
+    {"id":"storage","mode":"error","credential":"valid","status":500,"message":"服务器内部错误"},
+    {"id":"missing-user","mode":"missing-user","credential":"valid","status":404,"message":"用户不存在"},
+    {"id":"missing-settings","mode":"missing-settings","credential":"valid","status":404,"message":"用户设置不存在"}
+  ],
+  "mappingCases": [
+    {"id":"null-defaults","flag":null,"top":null,"expectedFlag":false,"expectedProbabilities":true,"expectedTop":3},
+    {"id":"enabled","flag":1,"top":10,"expectedFlag":true,"expectedProbabilities":true,"expectedTop":10},
+    {"id":"fractional-flags","flag":1.9,"top":3.9,"expectedFlag":false,"expectedProbabilities":false,"expectedTop":3},
+    {"id":"fractional-top-outside","flag":0,"top":10.9,"expectedFlag":false,"expectedProbabilities":false,"expectedTop":3},
+    {"id":"fractional-top-inside","flag":2,"top":1.9,"expectedFlag":false,"expectedProbabilities":false,"expectedTop":1},
+    {"id":"below-range","flag":-1,"top":0.9,"expectedFlag":false,"expectedProbabilities":false,"expectedTop":3}
+  ]
+}

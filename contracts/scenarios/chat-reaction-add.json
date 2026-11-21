@@ -1,0 +1,32 @@
+{
+  "id": "CHAT-REACTION-ADD",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "first-reaction",
+      "status": 200
+    },
+    {
+      "id": "duplicate-is-idempotent",
+      "status": 200
+    },
+    {
+      "id": "muted-member-in-visible-channel",
+      "status": 200
+    },
+    {
+      "id": "private-channel",
+      "status": 403
+    },
+    {
+      "id": "emoji-limits",
+      "status": 400
+    },
+    {
+      "id": "readback-failure",
+      "status": 500,
+      "commit": false,
+      "publish": false
+    }
+  ]
+}

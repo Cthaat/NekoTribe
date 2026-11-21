@@ -1,0 +1,38 @@
+{
+  "id": "GROUP-POST-PIN",
+  "revision": 3,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "strict-boolean",
+      "status": 400
+    },
+    {
+      "id": "wrong-group-or-deleted-post",
+      "status": 404
+    },
+    {
+      "id": "non-staff-denied",
+      "status": 422
+    },
+    {
+      "id": "staff-pin-and-unpin",
+      "status": 200
+    },
+    {
+      "id": "hidden-post-pin-rejected",
+      "status": 404
+    },
+    {
+      "id": "visibility-loss-before-commit-rolls-back",
+      "status": 404
+    },
+    {
+      "id": "manager-can-unpin-hidden-post",
+      "status": 200
+    }
+  ]
+}

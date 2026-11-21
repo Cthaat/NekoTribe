@@ -1,0 +1,13 @@
+{
+  "id":"USER-SETTINGS-CLIENT-LIFECYCLE",
+  "revision":1,
+  "cases":[
+    {"id":"initial-read-failed","expectedWrites":0},
+    {"id":"duplicate-save","expectedWrites":1},
+    {"id":"uncertain-save","expectedWrites":1,"expectedAutomaticReads":0},
+    {"id":"stale-owner","expectedWrites":0},
+    {"id":"stale-completion","expectedStateChange":false},
+    {"id":"detached-view","expectedEffects":0},
+    {"id":"legacy-privacy","selectableValues":["private","public"]}
+  ]
+}

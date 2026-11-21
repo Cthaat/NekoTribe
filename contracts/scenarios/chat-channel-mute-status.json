@@ -1,0 +1,31 @@
+{
+  "id": "CHAT-CHANNEL-MUTE-STATUS",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "repeat-mute",
+      "status": 200,
+      "body": {
+        "is_muted": true
+      },
+      "is_muted": true
+    },
+    {
+      "id": "repeat-unmute",
+      "status": 200,
+      "body": {
+        "is_muted": false
+      },
+      "is_muted": false
+    },
+    {
+      "id": "permission-revoked-after-lock",
+      "status": 403,
+      "writes": 0
+    },
+    {
+      "id": "private-channel-ordinary-member",
+      "status": 403
+    }
+  ]
+}

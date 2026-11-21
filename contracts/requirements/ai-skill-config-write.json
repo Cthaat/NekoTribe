@@ -1,0 +1,9 @@
+{
+  "id": "AI-SKILL-CONFIG-WRITE",
+  "revision": 1,
+  "maxGeneration": 999999999999999,
+  "queries": {
+    "insert": "INSERT INTO n_ai_skill_config (singleton_id,generation,enabled_ids) VALUES (1,1,:enabled_ids)",
+    "update": "UPDATE n_ai_skill_config SET generation=generation+1,enabled_ids=:enabled_ids,updated_at=CURRENT_TIMESTAMP WHERE singleton_id=1 AND generation=:expected_generation"
+  }
+}

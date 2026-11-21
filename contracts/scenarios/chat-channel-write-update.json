@@ -1,0 +1,43 @@
+{
+  "id": "CHAT-CHANNEL-UPDATE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "unauthenticated",
+      "status": 401
+    },
+    {
+      "id": "ordinary-member",
+      "status": 403
+    },
+    {
+      "id": "deleted-or-inaccessible",
+      "status": 403
+    },
+    {
+      "id": "invalid-type-or-id",
+      "status": 400
+    },
+    {
+      "id": "blank-or-too-long-name",
+      "status": 400
+    },
+    {
+      "id": "patch-preserves-omissions",
+      "status": 200,
+      "body": {
+        "is_private": true
+      },
+      "preserve": [
+        "name",
+        "type",
+        "category",
+        "position"
+      ]
+    },
+    {
+      "id": "failed-readback-rolls-back",
+      "status": 500
+    }
+  ]
+}

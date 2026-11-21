@@ -1,0 +1,12 @@
+{
+  "id": "GROUP-INVITE-CLIENT",
+  "revision": 3,
+  "cases": [
+    {"id":"preview-does-not-consume"},
+    {"id":"login-and-2fa-continue-to-local-preview"},
+    {"id":"confirm-joins-with-code"},
+    {"id":"existing-membership-disables-join"},
+    {"id":"invalid-expired-or-network-error"},
+    {"id":"flutter-paste-code-or-link"}
+  ]
+}

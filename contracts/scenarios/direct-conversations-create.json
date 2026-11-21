@@ -1,0 +1,37 @@
+{
+  "id": "DIRECT-CONVERSATION-CREATE",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "create-self",
+      "method": "POST",
+      "viewer": 42,
+      "target": 42,
+      "status": 400
+    },
+    {
+      "id": "create-blocked",
+      "method": "POST",
+      "viewer": 42,
+      "target": 9,
+      "relationship": "blocked_by",
+      "status": 403
+    },
+    {
+      "id": "create-concurrent",
+      "method": "POST",
+      "viewer": 42,
+      "target": 9,
+      "status": 200,
+      "reuseWinningPair": true
+    },
+    {
+      "id": "create-deleted",
+      "method": "POST",
+      "viewer": 42,
+      "target": 9,
+      "status": 409,
+      "restoreHistory": false
+    }
+  ]
+}

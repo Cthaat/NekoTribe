@@ -1,0 +1,36 @@
+{
+  "id": "CHAT-MEMBERS",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "unsafe-id",
+      "status": 400
+    },
+    {
+      "id": "not-a-member-or-group-disabled",
+      "status": 403
+    },
+    {
+      "id": "muted-viewer",
+      "status": 200
+    },
+    {
+      "id": "role-and-join-order",
+      "status": 200
+    },
+    {
+      "id": "hidden-last-seen",
+      "status": 200,
+      "last_seen_at": null
+    },
+    {
+      "id": "authorized-empty",
+      "status": 200,
+      "data": []
+    }
+  ]
+}

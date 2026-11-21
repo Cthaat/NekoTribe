@@ -1,0 +1,34 @@
+{
+  "id": "GROUP-MEMBERSHIP-LEAVE",
+  "revision": 2,
+  "cases": [
+    {
+      "id": "anonymous",
+      "status": 401
+    },
+    {
+      "id": "unsafe-id",
+      "status": 400
+    },
+    {
+      "id": "leave-active",
+      "status": 200
+    },
+    {
+      "id": "cancel-pending",
+      "status": 200
+    },
+    {
+      "id": "owner-cannot-leave",
+      "status": 422
+    },
+    {
+      "id": "banned-cannot-discard-record",
+      "status": 422
+    },
+    {
+      "id": "missing-member",
+      "status": 404
+    }
+  ]
+}
