@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { nativeTarget, packageNative, verifyNative } from '../scripts/package-native.mjs';
+import { launcherEnvironment } from './helpers/launcher-env.mjs';
 
 test('a release directory preserves target metadata and detects a modified payload', async t => {
   const folder = await mkdtemp(join(tmpdir(),'native-package-'));
@@ -147,13 +148,14 @@ test('packaged launcher locates the backend, optional ffprobe and private config
   const [shell,args] = os === 'win32'
     ? ['cmd.exe',['/d','/c','.\\start.cmd','--check']]
     : ['sh',['start.sh','--check']];
-  const wrapped = spawnSync(shell,args,{cwd:output,env:inherited,encoding:'utf8'});
+  const shellEnv = launcherEnvironment(inherited);
+  const wrapped = spawnSync(shell,args,{cwd:output,env:shellEnv,encoding:'utf8'});
   assert.equal(wrapped.status,0,wrapped.stderr);
   assert.match(wrapped.stdout,/verified\./);
   assert.match(wrapped.stdout,/go native configuration checked for port 33006/);
   await writeFile(join(output,ffprobe),Buffer.concat([header,Buffer.from([1])]));
   await assert.rejects(() => verifyNative(output),/PACKAGE_HASH_MISMATCH/);
-  const damaged = spawnSync(shell,args,{cwd:output,env:inherited,encoding:'utf8'});
+  const damaged = spawnSync(shell,args,{cwd:output,env:shellEnv,encoding:'utf8'});
   assert.equal(damaged.status,1);
   assert.match(damaged.stderr,/PACKAGE_HASH_MISMATCH/);
   assert.doesNotMatch(damaged.stdout,/configuration checked/);

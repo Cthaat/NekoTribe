@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { buildEnvironment, buildHeapMiB, copyNuxtOutput, verifyNuxt } from '../scripts/package-nuxt.mjs';
+import { launcherEnvironment } from './helpers/launcher-env.mjs';
 
 test('release build passes through system paths and excludes runtime settings', () => {
   assert.deepEqual(buildEnvironment({PATH:'fixture',ORACLE_PASSWORD:'fixture',NUXT_PUBLIC_API_BASE:'fixture'}),
@@ -74,7 +75,7 @@ test('Nuxt deployment copy is independent and detects damaged output', async t =
     ? ['cmd.exe',['/d','/c','.\\start.cmd','--dotenv','.env.runtime']]
     : ['sh',['start.sh','--dotenv','.env.runtime']];
   const launched = execFileSync(shell,args,{
-    cwd:output,env:buildEnvironment(process.env),encoding:'utf8',
+    cwd:output,env:launcherEnvironment(buildEnvironment(process.env)),encoding:'utf8',
   });
   assert.match(launched,/prepared\./);
   assert.deepEqual(JSON.parse(launched.trim().split(/\r?\n/).at(-1)),{mode:'production',port:'1522',marker:`fixture ${dependency}/marker.txt`});
