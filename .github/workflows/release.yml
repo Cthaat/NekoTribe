@@ -209,7 +209,7 @@ jobs:
           unzip -tq "NekoTribe-$VERSION.zip"
           sha256sum "NekoTribe-$VERSION.zip" > "NekoTribe-$VERSION.zip.sha256"
           cat ../publish-notes.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ needs.contracts.outputs.nuxt }}
