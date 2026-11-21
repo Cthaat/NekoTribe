@@ -18,14 +18,14 @@ NekoTribe 的 Windows、Android 与 Web 客户端，连接你选择的 Nuxt、Go
 
 ### 下载 Release
 
-1. 在 [GitHub Releases](https://github.com/Cthaat/NekoTribe/releases/latest) 下载并解压 `NekoTribe-<version>-flutter.zip`。`SHA256SUMS.txt` 提供下载校验值。
-2. 选择平台启动客户端。
+1. 从 [正式版](https://github.com/Cthaat/NekoTribe/releases/latest) 或 [滚动预发布](https://github.com/Cthaat/NekoTribe/releases/tag/rolling-latest) 选择下表对应的附件。`<version>` 为正式版本号，滚动预发布使用 `latest`。`SHA256SUMS.txt` 提供下载校验值。
+2. 安装版可直接下载 EXE 或 APK。绿色版及 Web 从 `NekoTribe-<version>-flutter.zip` 解压。
 
    | 平台 | 安装或运行 |
    | --- | --- |
-   | Windows x64 安装版 | 双击 `windows/NekoTribe-<version>-windows-x64-setup.exe`，选择中文或英文及安装位置。安装后从开始菜单打开 **NekoTribe**。 |
+   | Windows x64 安装版 | 下载并双击 `NekoTribe-<version>-windows-x64-setup.exe`，选择中文或英文及安装位置。安装后从开始菜单打开 **NekoTribe**。 |
    | Windows x64 绿色版 | 双击 `windows/portable/nekotribe.exe`。移动程序时请保留整个 `portable/` 目录。 |
-   | Android | 将 `android/NekoTribe-<version>-android.apk` 复制到手机，在文件管理器打开，按系统提示允许当前来源安装应用。 |
+   | Android | 在手机上下载并打开 `NekoTribe-<version>-android.apk`，按系统提示允许当前来源安装应用。 |
    | Web 本机预览 | 安装 Node.js 22，进入 `web/`。Windows 双击 `start.cmd`，Linux 执行 `sh start.sh`，然后打开 `http://127.0.0.1:30004`。 |
    | Web 静态部署 | 进入 `web/`，参照 [Web 静态部署](#web-静态部署) 配置后端，再将 `web/site/` 设为 Nginx 的站点根目录。 |
 
