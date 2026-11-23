@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,7 +6,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:mime/mime.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
@@ -15,12 +13,19 @@ import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../calls/data/call_signaling.dart';
+import '../../calls/presentation/call_widgets.dart';
+import '../../links/presentation/content_link_preview.dart';
 import '../../media/presentation/private_attachment_button.dart';
 import '../../posts/domain/post_models.dart';
 import '../../realtime/data/realtime_service.dart'
     show realtimeUserIdFromAccessToken;
+import '../data/chat_attachment_upload.dart';
 import '../domain/chat_models.dart';
 import 'chat_realtime_binding.dart';
+import 'chat_message_extras.dart';
+import 'chat_message_search.dart';
+import 'chat_typing.dart';
 
 class ChannelScreen extends ConsumerStatefulWidget {
   const ChannelScreen({
@@ -40,16 +45,15 @@ class ChannelScreen extends ConsumerStatefulWidget {
 
 class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   static const _maxAttachments = 32;
-  static const _maxAttachmentBytes = 500 * 1024 * 1024;
 
   final _composer = TextEditingController();
-  final _messageSearch = TextEditingController();
   bool _searchOpen = false;
   Future<List<V2ChatMember>>? _members;
-  String _query = '';
+  var _filters = const ChatMessageFilters();
   final _deletedSearchResults = <int>{};
   final _scroll = ScrollController();
   late final ChatRealtimeBinding _binding;
+  late final ChatTyping _typing;
   late final AppLifecycleListener _lifecycle;
   int _readRevision = 0;
   Timer? _readTimer;
@@ -58,6 +62,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   bool _loadingMessageActions = false;
   bool? _canManageChannel;
   int? _currentUserId;
+  int _callSelection = 0;
   final _pendingMessageActions = <int>{};
   final _pendingReactions = <int>{};
   List<V2ChatMessage> _messages = [];
@@ -84,8 +89,18 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       onReset: _reset,
       onReload: () => unawaited(_load()),
     );
+    _typing = ChatTyping(
+      scope: ChatTypingScope.channel,
+      scopeId: () => widget.channelId,
+      ownId: () => _currentUserId,
+      send: _binding.sendTyping,
+      onChange: () {
+        if (mounted) setState(() {});
+      },
+    );
     _binding.bind(ref.read(realtimeServiceProvider));
     _lifecycle = AppLifecycleListener(
+      onStateChange: (_) => _typing.setVisible(_visibleChannel),
       onResume: () {
         _scheduleRead();
         if (mounted &&
@@ -101,6 +116,12 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _typing.setVisible(_visibleChannel);
+  }
+
+  @override
   void didUpdateWidget(covariant ChannelScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.channelId != widget.channelId ||
@@ -111,6 +132,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
 
   void _reset() {
     _clearPendingRead();
+    _typing.reset(notify: false);
     _attachmentUpload?.cancel();
     _attachmentUpload = null;
     _readRevision++;
@@ -124,9 +146,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       _members = null;
       _messages = [];
       _composer.clear();
-      _messageSearch.clear();
       _searchOpen = false;
-      _query = '';
+      _filters = const ChatMessageFilters();
       _deletedSearchResults.clear();
       _attachments.clear();
       _uploadedAttachments.clear();
@@ -136,17 +157,19 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       _loading = true;
       _hasNext = _loadingOlder = _sending = _pickingAttachment = false;
     });
+    _typing.setVisible(_visibleChannel);
   }
 
   @override
   void dispose() {
     _clearPendingRead();
+    _typing.stop();
+    _typing.reset(notify: false);
     _attachmentUpload?.cancel();
     _lifecycle.dispose();
     _scroll.removeListener(_onScroll);
     _binding.dispose();
     _composer.dispose();
-    _messageSearch.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -160,6 +183,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   }
 
   void _onRealtime(Map<String, dynamic> event) {
+    if (!mounted || _typing.receive(event)) return;
     final type = event['type'];
     final data = _eventData(event);
     if (data == null) return;
@@ -168,7 +192,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       _removeDeletedMessage(data);
       return;
     }
-    if (_query.isNotEmpty) return;
+    if (_filters.active) return;
 
     if (type != 'chat_message' &&
         type != 'chat_message_created' &&
@@ -286,7 +310,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     if (messageId == null) return;
     if (!mounted) return;
     setState(() {
-      if (_query.isNotEmpty) _deletedSearchResults.add(messageId);
+      if (_filters.active) _deletedSearchResults.add(messageId);
       _liveChannelChanges?[messageId] = null;
       _messages.removeWhere((message) => message.messageId == messageId);
       if (_replyTo?.messageId == messageId) {
@@ -296,7 +320,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   }
 
   void _upsertMessage(V2ChatMessage message) {
-    if (_query.isNotEmpty) return;
+    if (_filters.active) return;
     if (_liveChannelChanges?.containsKey(message.messageId) == true &&
         _liveChannelChanges?[message.messageId] == null) {
       return;
@@ -364,7 +388,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     bool current() => ownsPage() && revision == _readRevision;
     final api = ref.read(chatApiProvider);
     final channelId = widget.channelId;
-    final search = _query;
+    final filters = _filters;
     final changes = <int, V2ChatMessage?>{};
     _liveChannelChanges = changes;
     setState(() {
@@ -376,7 +400,10 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       final page = await api.listMessages(
         channelId: channelId,
         page: 1,
-        search: search,
+        search: filters.query,
+        senderId: filters.senderId,
+        startAt: filters.startAt,
+        endAt: filters.endAt,
       );
       if (!current()) return;
       // Server returns ASC (oldest→newest within page). Store newest-first.
@@ -401,7 +428,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
         _hasNext = page.hasNext;
         _loading = false;
       });
-      if (search.isEmpty && _visibleChannel) {
+      if (!filters.active && _visibleChannel) {
         final cursor = _displayedCursor();
         if (cursor > 0) {
           if (_pendingRead <= cursor) _pendingRead = 0;
@@ -424,7 +451,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     return mounted &&
         _members == null &&
-        _query.isEmpty &&
+        !_searchOpen &&
         ModalRoute.of(context)?.isCurrent == true &&
         (lifecycle == null || lifecycle == AppLifecycleState.resumed);
   }
@@ -483,10 +510,11 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   }
 
   Future<void> _loadOlder() async {
-    if (_loading || _loadingOlder || !_hasNext || _messages.isEmpty) return;
+    if (_loading || _loadingOlder || !_hasNext) return;
     final ownsPage = _binding.capture();
     if (!ownsPage()) return;
     final revision = _readRevision;
+    final filters = _filters;
     bool current() => ownsPage() && revision == _readRevision;
     final changes = <int, V2ChatMessage?>{};
     _liveChannelChanges = changes;
@@ -499,7 +527,10 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
           .listMessages(
             channelId: widget.channelId,
             page: nextPage,
-            search: _query,
+            search: filters.query,
+            senderId: filters.senderId,
+            startAt: filters.startAt,
+            endAt: filters.endAt,
           );
       if (!current()) return;
       final existing = _messages.map((m) => m.messageId).toSet();
@@ -529,24 +560,106 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     }
   }
 
-  void _searchMessages() {
-    final query = _messageSearch.text.trim();
+  void _openMessageSearch() {
+    _clearPendingRead();
+    setState(() => _searchOpen = true);
+    _typing.setVisible(false);
+  }
+
+  Future<List<ChatSearchSender>> _loadSearchSenders() async {
+    final current = _binding.capture();
+    if (!current()) return [];
+    final members = await ref.read(chatApiProvider).listMembers(widget.groupId);
+    if (!current()) return [];
+    return [
+      for (final member in members)
+        if (member.userId > 0 && member.userId <= 9007199254740991)
+          (
+            id: member.userId,
+            name: member.displayName.isEmpty
+                ? member.username
+                : member.displayName,
+          ),
+    ];
+  }
+
+  Future<void> _startChannelCall(CallMode mode) async {
+    final scope = _binding.capture();
+    final selection = ++_callSelection;
+    bool current() =>
+        mounted &&
+        scope() &&
+        selection == _callSelection &&
+        ModalRoute.isCurrentOf(context) == true;
+    if (!current() || ref.read(callControllerProvider).phase != null) return;
+    try {
+      final tokens = await ref.read(tokenStoreProvider).read();
+      if (!current() || tokens == null) return;
+      final self = realtimeUserIdFromAccessToken(tokens.accessToken);
+      if (self == null) return;
+      final members = (await _loadSearchSenders())
+          .where((member) => member.id != self)
+          .toList();
+      if (!current()) return;
+      final member = await showDialog<ChatSearchSender>(
+        context: context,
+        builder: (context) {
+          final l10n = AppLocalizations.of(context);
+          return SimpleDialog(
+            title: Text(l10n.t('call.select_member')),
+            children: [
+              if (members.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(l10n.t('call.no_members')),
+                ),
+              for (final member in members)
+                SimpleDialogOption(
+                  onPressed: () =>
+                      Navigator.of(context).pop(scope() ? member : null),
+                  child: Text(member.name),
+                ),
+            ],
+          );
+        },
+      );
+      if (!current() || member == null) return;
+      final conversation = await ref
+          .read(chatApiProvider)
+          .openConversation(userId: member.id);
+      if (!current()) return;
+      await ref
+          .read(callControllerProvider)
+          .start(
+            conversationId: conversation.conversationId,
+            mode: mode,
+            peerId: member.id,
+            peerName: member.name,
+            current: current,
+          );
+    } catch (error) {
+      if (current()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErrorView.describe(context, error))),
+        );
+      }
+    }
+  }
+
+  void _searchMessages(ChatMessageFilters filters) {
     _clearPendingRead();
     setState(() {
-      _query = query;
+      _filters = filters;
       _messages = [];
       _hasNext = false;
     });
+    _typing.setVisible(_visibleChannel);
     unawaited(_load());
   }
 
   void _closeMessageSearch() {
-    setState(() {
-      _searchOpen = false;
-      _messageSearch.clear();
-      _deletedSearchResults.clear();
-    });
-    if (_query.isNotEmpty) _searchMessages();
+    setState(() => _searchOpen = false);
+    _searchMessages(const ChatMessageFilters());
   }
 
   void _scrollToBottom() {
@@ -568,6 +681,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     }
     final current = _binding.capture();
     if (!current()) return;
+    _typing.stop();
     final cancel = CancelToken();
     _attachmentUpload = cancel;
     setState(() => _sending = true);
@@ -625,7 +739,9 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       final String? selectionError;
       if (_attachments.length + result.files.length > _maxAttachments) {
         selectionError = l10n.t('chat.attachment_count');
-      } else if (result.files.any((file) => file.size > _maxAttachmentBytes)) {
+      } else if (result.files.any(
+        (file) => file.size > chatAttachmentMaxBytes,
+      )) {
         selectionError = l10n.t('compose.media_size');
       } else if (result.files.any((file) => file.size <= 0)) {
         selectionError = l10n.t('chat.attachment_empty');
@@ -660,6 +776,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       text: updated,
       selection: TextSelection.collapsed(offset: offset),
     );
+    _typing.input(updated.trim().isNotEmpty);
   }
 
   Future<List<int>?> _uploadAttachments(
@@ -676,70 +793,25 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
         mediaIds.add(uploadedId);
         continue;
       }
-      V2MediaAsset asset;
-      final mime = lookupMimeType(
-        attachment.name,
-        headerBytes: attachment.bytes?.take(16).toList(),
-      );
-      final mediaType = _chatMediaType(mime);
-      final stream = attachment.readStream;
-      if (attachment.bytes != null) {
-        asset = await api.uploadBytes(
-          bytes: attachment.bytes!,
-          fileName: attachment.name,
-          mediaType: mediaType,
-          mimeType: mime,
-          altText: attachment.name,
-          accessScope: 'chat',
-          cancelToken: cancel,
-        );
-      } else if (stream != null) {
-        try {
-          asset = await api.uploadStream(
-            chunks: stream,
-            length: attachment.size,
-            fileName: attachment.name,
-            mediaType: mediaType,
-            altText: attachment.name,
-            accessScope: 'chat',
-            cancelToken: cancel,
-          );
-        } catch (_) {
-          if (!current()) return null;
-          // A browser picker stream can only be consumed once.
-          setState(() => _attachments.remove(attachment));
-          final hint = AppLocalizations.of(
-            context,
-          ).t('chat.attachment_reselect');
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('${attachment.name}: $hint')));
-          return null;
-        }
-      } else if (!kIsWeb && attachment.path != null) {
-        asset = await api.uploadFile(
-          file: File(attachment.path!),
-          mediaType: mediaType,
-          altText: attachment.name,
-          accessScope: 'chat',
-          cancelToken: cancel,
-        );
-      } else {
-        throw Exception('attachment file is empty');
+      final V2MediaAsset asset;
+      try {
+        asset = await uploadChatAttachment(api, attachment, cancel);
+      } catch (_) {
+        if (!current()) return null;
+        if (attachment.bytes != null || attachment.readStream == null) rethrow;
+        // A browser picker stream can only be consumed once.
+        setState(() => _attachments.remove(attachment));
+        final hint = AppLocalizations.of(context).t('chat.attachment_reselect');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('${attachment.name}: $hint')));
+        return null;
       }
       if (!current()) return null;
       _uploadedAttachments[attachment] = asset.mediaId;
       mediaIds.add(asset.mediaId);
     }
     return mediaIds;
-  }
-
-  String _chatMediaType(String? mimeType) {
-    if (mimeType == null) return 'file';
-    if (mimeType.startsWith('image/')) return 'image';
-    if (mimeType.startsWith('video/')) return 'video';
-    if (mimeType.startsWith('audio/')) return 'audio';
-    return 'file';
   }
 
   Future<void> _react(V2ChatMessage message, [String emoji = '👍']) async {
@@ -944,9 +1016,13 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     setState(() {
       _members = pending;
     });
+    _typing.setVisible(false);
   }
 
-  void _closeMembers() => setState(() => _members = null);
+  void _closeMembers() {
+    setState(() => _members = null);
+    _typing.setVisible(_visibleChannel);
+  }
 
   Widget _buildMembers(
     Future<List<V2ChatMember>> members,
@@ -1039,10 +1115,14 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       appBar: AppBar(
         title: Text(_appBarTitle),
         actions: [
+          CallMenu(
+            key: const Key('chat-channel-call-menu'),
+            onSelected: (mode) => unawaited(_startChannelCall(mode)),
+          ),
           IconButton(
             key: const Key('chat-channel-members'),
             tooltip: l10n.t('group.members_title'),
-            onPressed: _loadMembers,
+            onPressed: _searchOpen ? null : _loadMembers,
             icon: const Icon(Icons.group_outlined),
           ),
           IconButton(
@@ -1054,7 +1134,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                 ? null
                 : _searchOpen
                 ? _closeMessageSearch
-                : () => setState(() => _searchOpen = true),
+                : _openMessageSearch,
             icon: Icon(_searchOpen ? Icons.close : Icons.search),
           ),
         ],
@@ -1068,23 +1148,13 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
           child: Column(
             children: [
               if (_searchOpen)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: TextField(
-                    key: const Key('chat-channel-search-input'),
-                    controller: _messageSearch,
-                    autofocus: true,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _searchMessages(),
-                    decoration: InputDecoration(
-                      labelText: l10n.t('chat.search_messages'),
-                      suffixIcon: IconButton(
-                        tooltip: l10n.t('common.search'),
-                        onPressed: _searchMessages,
-                        icon: const Icon(Icons.search),
-                      ),
-                    ),
-                  ),
+                ChatMessageSearch(
+                  inputKey: const Key('chat-channel-search-input'),
+                  title: l10n.t('chat.search_messages'),
+                  loadSenders: _loadSearchSenders,
+                  isCurrent: _binding.capture(),
+                  onApply: _searchMessages,
+                  onClear: _closeMessageSearch,
                 ),
               Expanded(
                 child: _loading
@@ -1094,7 +1164,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                     : _messages.isEmpty
                     ? EmptyView(
                         message: l10n.t(
-                          _query.isEmpty
+                          !_filters.active
                               ? 'chat.empty_messages'
                               : 'chat.search_empty',
                         ),
@@ -1144,6 +1214,11 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                         },
                       ),
               ),
+              if (_filters.active && _hasNext && !_loading && _error == null)
+                TextButton(
+                  onPressed: _loadingOlder ? null : _loadOlder,
+                  child: Text(l10n.t('chat.dm.load_older')),
+                ),
               if (!_searchOpen)
                 Container(
                   decoration: BoxDecoration(
@@ -1157,6 +1232,14 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (_typing.hasRemoteTyping)
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: Text(
+                                l10n.t('chat.channel.typing'),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
                           if (_replyTo != null) ...[
                             _ReplyPreview(
                               key: const Key('chat-channel-reply-preview'),
@@ -1338,6 +1421,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                                     isDense: true,
                                   ),
                                   onSubmitted: (_) => _send(),
+                                  onChanged: (text) =>
+                                      _typing.input(text.trim().isNotEmpty),
                                 ),
                               ),
                               const SizedBox(width: 4),
@@ -1601,7 +1686,7 @@ class _ChannelMessageTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 if (message.replyTo != null) ...[
-                  _MessageReplyQuote(replyTo: message.replyTo!),
+                  ChatReplyQuote(replyTo: message.replyTo!),
                   const SizedBox(height: 6),
                 ],
                 if (message.isDeleted)
@@ -1636,6 +1721,8 @@ class _ChannelMessageTile extends StatelessWidget {
                       fontStyle: FontStyle.italic,
                     ),
                   ),
+                if (!message.isDeleted)
+                  ContentLinkPreview(content: message.content),
                 if (message.media.isNotEmpty) ...[
                   if (message.content.isNotEmpty || message.isDeleted)
                     const SizedBox(height: 8)
@@ -1661,7 +1748,7 @@ class _ChannelMessageTile extends StatelessWidget {
                     runSpacing: 6,
                     children: [
                       for (final reaction in message.reactions)
-                        _ReactionChip(
+                        ChatReactionChip(
                           key: Key(
                             'chat-channel-reaction-${message.messageId}-${reaction.emoji}',
                           ),
@@ -1765,75 +1852,6 @@ class _ChannelMessageTile extends StatelessWidget {
 }
 
 enum _ChannelMessageAction { reply, react, pin, edit, delete }
-
-class _MessageReplyQuote extends StatelessWidget {
-  const _MessageReplyQuote({required this.replyTo});
-
-  final V2ChatMessageReply replyTo;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.55,
-        ),
-        border: Border(
-          left: BorderSide(color: theme.colorScheme.primary, width: 3),
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.reply_rounded, size: 16),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              '${replyTo.authorName}: ${replyTo.content}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReactionChip extends StatelessWidget {
-  const _ReactionChip({super.key, required this.reaction, this.onPressed});
-
-  final V2ChatReactionSummary reaction;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ActionChip(
-      visualDensity: VisualDensity.compact,
-      side: BorderSide(
-        color: reaction.reactedByMe
-            ? theme.colorScheme.primary.withValues(alpha: 0.45)
-            : theme.dividerColor,
-      ),
-      backgroundColor: reaction.reactedByMe
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55)
-          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(reaction.emoji),
-          const SizedBox(width: 4),
-          Text('${reaction.count}'),
-        ],
-      ),
-      onPressed: onPressed,
-    );
-  }
-}
 
 class _MessageAttachment extends StatelessWidget {
   const _MessageAttachment({

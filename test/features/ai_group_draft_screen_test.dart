@@ -50,12 +50,20 @@ class _Backend implements HttpClientAdapter {
   bool invalidPostReceipt = false;
   int? historySize;
   bool legacyHistory = false;
+  List<String>? draftTools;
 
   ResponseBody ok(Object? data) => ResponseBody.fromString(
     jsonEncode({'code': 200, 'message': 'success', 'data': data, 'meta': null}),
     200,
     headers: {
       Headers.contentTypeHeader: [Headers.jsonContentType],
+    },
+  );
+  ResponseBody generatedReply() => ResponseBody.fromString(
+    'event: done\ndata: ${jsonEncode({'code': 200, 'data': receipt})}\n\n',
+    200,
+    headers: {
+      Headers.contentTypeHeader: ['text/event-stream'],
     },
   );
   Map<String, Object?> conversation(String id, int group, String title) => {
@@ -138,7 +146,7 @@ class _Backend implements HttpClientAdapter {
           );
         }
         generated = true;
-        return ok(receipt);
+        return generatedReply();
       case '$_conversations/$_id/messages':
         if (historyMissing) return ResponseBody.fromString('{"code":404}', 404);
         if (historyUnavailable) throw StateError('History offline');
@@ -184,6 +192,8 @@ class _Backend implements HttpClientAdapter {
                         : [
                             {'kind': 'post', 'source_id': 24, 'post_id': 24},
                           ],
+                    if (!sourceHidden && draftTools != null)
+                      'group_tools': draftTools,
                   },
                 ]
               : [],
@@ -270,6 +280,27 @@ Future<void> _mount(
 }
 
 void main() {
+  testWidgets('restores all three authorized tools in saved group drafts', (
+    tester,
+  ) async {
+    final backend = _Backend()
+      ..generated = true
+      ..draftTools = [
+        'public_search',
+        'public_statistics',
+        'community_sentiment_summary',
+      ];
+    await _mount(tester, backend, _Session());
+    await tester.ensureVisible(find.text('Weekly'));
+    await tester.tap(find.text('Weekly'));
+    await tester.pumpAndSettle();
+    expect(find.text('Draft for review'), findsOneWidget);
+    expect(
+      find.textContaining('Summarize community sentiment'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('group draft history retries an invalid cursor', (tester) async {
     final backend = _Backend()..invalidHistoryCursor = true;
     await _mount(tester, backend, _Session());
@@ -738,7 +769,7 @@ void main() {
       expect(backend.requests.where((r) => r.path == _generate), hasLength(1));
       session.beginSessionChange();
       await tester.pump();
-      backend.pending!.complete(backend.ok(backend.receipt));
+      backend.pending!.complete(backend.generatedReply());
       await tester.pumpAndSettle();
       expect(backend.sawCancellation, isTrue);
       expect(find.text('Weekly'), findsNothing);

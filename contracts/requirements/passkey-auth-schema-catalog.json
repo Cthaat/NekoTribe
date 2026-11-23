@@ -1,0 +1,324 @@
+{
+  "id": "PASSKEY-AUTH-SCHEMA-CATALOG",
+  "revision": 1,
+  "scope": "Oracle metadata only. Apply Passkey credential and challenge tables through the Nuxt migration CLI.",
+  "sources": [
+    {
+      "path": "server/database/schema-definition.mjs",
+      "sha256": "e1d369fdd70c021bf8316bd221c7657eb7b15af6ac3006334bb72ba0f05da4cc"
+    },
+    {
+      "path": "server/database/schema.mjs",
+      "sha256": "9335ded9fb0293c43e44976d36be79b266851e7082f64939666f95e480c7bd3a"
+    }
+  ],
+  "ledger": {
+    "id": "ledger",
+    "kind": "table",
+    "name": "N_SCHEMA_MIGRATIONS",
+    "sql": "CREATE TABLE N_SCHEMA_MIGRATIONS (step_id VARCHAR2(128) PRIMARY KEY, checksum VARCHAR2(64) NOT NULL, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)",
+    "table": "N_SCHEMA_MIGRATIONS",
+    "columns": [
+      {
+        "name": "STEP_ID",
+        "type": "VARCHAR2(128)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "CHECKSUM",
+        "type": "VARCHAR2(64)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "APPLIED_AT",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "NT13_9A3B3BE8E5C218A6F138",
+        "type": "P",
+        "columns": [
+          "STEP_ID"
+        ]
+      }
+    ]
+  },
+  "migrationChecksums": {
+    "t14-ai-conversations-n_ai_conversations": "401d2c04d67b37c5deaf820b97971c4682e54f0591d2ff987e1df7a9365e6ba0",
+    "t14-ai-conversations-n_ai_messages": "96e7ff2b571f5bdafd38e550cbd71430fd0577fca7ed2b5a9c1a835d6659db37",
+    "t14-ai-conversations-idx_ai_conv_owner": "27b071842e0d027761657909278475ccc5a5eb7e5f7f5485ae9ee6950acba6f1",
+    "ai-conversations-title-char": "fe3944264226dafcb573d6ccdb8c17ba65e802006fafff0c1f09b16f618532a4",
+    "ai-conversations-group-id-precision": "2e4946e5831ed32fdfc74227c737e1dc219e26710ba4c73c657392c512586d5b",
+    "ai-conversations-knowledge-scope": "dd5b59fcb09efb6dac69c24db95fcb479bc6efa2ec8cda2cab1be4674ff8c1c7",
+    "t13-two-factor-seq_2fa_recovery_code_id": "90a60fd64eabdac15f4e7a8af14f0c8a9d6279510f95293897e2c966cee41b1d",
+    "t13-two-factor-seq_2fa_trusted_device_id": "e1be11f71aa8d6be57b7a3b5e8d20e15421567610ba1b3cddf5159464b3d0dbf",
+    "t13-two-factor-n_user_two_factor_secrets": "eec88e92a4d4d900267f80ff3be6e3e9cd69c664bcf9830ee774846bc172b026",
+    "t13-two-factor-n_user_two_factor_recovery_codes": "3ce7a82c83a40f59fc0081d48a637f8fd956218450903186b1362f54701d871f",
+    "t13-two-factor-n_user_two_factor_trusted_devices": "700bdd8d49a9af8adddd06c273b71f7dcf0fda39a6aa6ac30d658f013c93233b",
+    "t13-two-factor-n_auth_two_factor_challenges": "078982767691a10f78cef2caa4b0c90760229716787eac9d3a2bfd9ff645400a",
+    "t13-two-factor-idx_2fa_recovery_user": "8b8a085d364783454d847c3e4bc8b56af8db3122dca8747460c981b7923d8a16",
+    "t13-two-factor-idx_2fa_challenge_user": "af04f4b78cd4722563dc151eaf32b32abf4ab5db98bb7cc4784f8782c76b1ef8",
+    "t13-two-factor-idx_2fa_trusted_user": "19d550d058941b16d36705207bdb97d003fe95e3ba19dfa3c07245aa07b85f77",
+    "t13-groups-n_groups.category": "2f2e8d093fa3ede4e3f65796bbf0fd58c48c7ca79b86190e824b4bfd43417730",
+    "t13-groups-n_group_tags": "625fc1ad4ee3bfda1f2b5e3cc32b2578ba733c9e312ac3a82cdb6ca94bb5412c",
+    "t13-groups-n_group_notification_preferences": "69a376d5f260e4d249b28bfab864a7b71449c4789d939499a15bbf8ea17d69cb",
+    "t13-user-settings-n_user_settings.ai_sentiment_enabled": "87657e2892f4105025b0867e8eb0f0319c16773dc33b5eff3f78e769454084b9",
+    "t13-user-settings-n_user_settings.ai_sentiment_model_id": "c2f00af40a085886758b63aba13a48714bcd44f786dc1058a97c532901cc5d8a",
+    "t13-user-settings-n_user_settings.ai_sentiment_return_probabilities": "366d16b922b8961e2f0f1a2b8798cf6d28d46949391c2085062a3a5293ff0ecc",
+    "t13-user-settings-n_user_settings.ai_sentiment_include_metadata": "32ab1799ea7fe0562085f2d483138da949ff5dbf4fbd8878cb247c8e3eaf32ed",
+    "t13-user-settings-n_user_settings.ai_sentiment_top_k": "d4d1a9a97c497742f6e94329c1a29758fc6f86c2fc7e2c27e4a272312070276d",
+    "t13-media-n_media_assets.description": "2ef10c2feaa37efa3284ad7faffb38d565f029df86500e4c0a0fdc14612a2fa5",
+    "t13-moderation-seq_moderation_report_id": "c0207c97f84c6174f99c90d673d9e896279a19b755f2528735b255da9a4374ab",
+    "t13-moderation-seq_moderation_case_id": "185e1e8f1919e6a1fbf41f2951fe5b8c6921cbb93c42fbfe47c528eb3ed5f9e2",
+    "t13-moderation-seq_moderation_action_id": "bc98876f5b9bff506e77d1aeec58a2a01127b301d3c74e0895045aa361a7b595",
+    "t13-moderation-seq_moderation_restriction_id": "ad41babe6a28e6e7b2a18fc370b34a59034e06a1a6ecd8ba69da822d7d18ee5f",
+    "t13-moderation-n_moderation_reports": "f8f911a0bee6177055aa544921fe21ba336b907f166cb9182283749c65ab41ad",
+    "t13-moderation-n_moderation_cases": "5b88cee5f425cd015b0cfae7e50f1b507af6e74a4739346fd22e2559d1cda63a",
+    "t13-moderation-n_moderation_actions": "28207ecee7bb8b07f20cc173eb11e65c81df988261bb6d8097084a8c83857162",
+    "t13-moderation-n_moderation_user_restrictions": "216c00410ff5ceb75c6ea230071ab6ec0c6a46bcf60d11610f3bc785bc785b7a",
+    "t13-moderation-n_moderation_settings": "775881d4124f1a65fdfdd1c2b78cd6fbe32d514bd5f631c3eeda425a9567c31f",
+    "t13-moderation-setting-auto_hide_report_threshold": "524d97889ef4d7dff5e20909a02aa8b3c07d3a22344879b7489bcbdfc182bd13",
+    "t13-moderation-setting-require_note_on_reject": "d842365391fb11ee1149780828d47be6df8e8f57405c9c5a2f3f0399e078b556",
+    "t13-moderation-setting-allow_moderator_claim": "2b83d8bfe4a90c8a6ef5f22e0542f0485ecef6c8261291d49e5791fcb225f2a7",
+    "t13-moderation-setting-default_mute_hours": "3c8ea3dec55c1119293a4e69f6f32bc83857aeac4a600fe7211a47ff979ca5bd",
+    "t15-ai-terms-n_ai_terms_active": "6910f8800a90327327a32084a91aa74e186b75cdc14971dfd35e7f1939707813",
+    "t16-ai-skills-n_ai_skill_config": "f9a6d75c20fe03b45b3439dc86f2b9ab93d9b025a54ae73efc4fdb4b0521985a",
+    "t17-recommendation-feedback-n_recommendation_feedback": "aa17f7ffdaf79ea8a32202d9597547286998daef4eb61630b4d46c4a86042e52",
+    "t18-ai-moderation-feedback-n_ai_moderation_feedback": "6701376638003a989acdab20fa0218e03f1a82e588d6d5708019cc051f75d3b4",
+    "t19-media-n_media_assets.access_scope": "8db63002388883c7ac268a2de8355ff9b8c66e94da98932a2c3475a6f7830977",
+    "t20-ai-user-provider": "f1e476dae90597e987996b819d3cc2c3d9f512f96f851f10b46a46c1425d6a01",
+    "t21-direct-message-media": "6d15216c722394078171a9355876e00d2f0d0d2c950ec4978aa988211bd4ded6",
+    "t21-direct-message-replies": "fd512d7facbcc5e369ac4473f0982f7493975d26952bf1a23c88534372e95f77",
+    "t21-direct-message-reactions": "3372629b6219debcc301009c9b56195e616d01f6fe6e621331ce16d0a8cd0a1b",
+    "t22-post-polls": "0878bc8e5342ab32ea88748ed5b975c006ab28377cd081fb5bd8defe824f4010",
+    "t22-post-poll-options": "58c8fc435e7d9626058d95ba03beaf65e8d6594bc006c62578e4d2b48386001a",
+    "t22-post-poll-ballots": "a35cfd76fcdb59ac3df0f5bcdb795d4bf516f300a38fd1a7cafc527f021f2ce4",
+    "t22-post-poll-votes": "6f2188d4605a62022689268094d43a52314be1ac10794e9018531556b180a7f3",
+    "t22-post-poll-sequence": "1c3026ed973c355893bf62bedf3a65d0259204ffb7f08c2c806daa2d3dbb97a3",
+    "t23-post-drafts": "0b3f05148cc904d2609523f8cbc456987a4e689c16f7ebe9ea66c8b852c41c2b",
+    "t23-post-draft-sequence": "5da2739c7cec627cce46a906363c799719b8bd4e46694712a26bb53c3459e731",
+    "t23-post-draft-owner-index": "c41826509033ab08c333b838abda10e66b2af3f12a862a9f5f0f15f92eef6ed3",
+    "t23-post-draft-due-index": "dcdf484a7a8aec60e8111ca2b4ce7fb048d0ab5e3c4ea70b19874f7478737576",
+    "t24-profile-pinned-post": "74c2aedcddccda09e6a3d72833c55084d7d66cef919b5c8d17becee69c85ac7c",
+    "t25-post-markdown": "b746114576988ee06adf63a83ea26717534f7a0954ac81fbb666c43f40d04eb4",
+    "t26-webauthn-credentials": "59770d8d4d7d521e25d599462c83dae882b95c34977f7d93506e57d16d8cbba5",
+    "t26-webauthn-credentials-owner": "8199630245b312298b114fccdc8c75f2a5df12a2897a4c7c34b863c2107603dd",
+    "t26-webauthn-challenges": "2a3454b1f7b9ee4fe057001c64381bca93b427ee05671d5dc399087f1c11a5c0",
+    "t26-webauthn-challenges-expiry": "7f623d7fc91375688c8c99a0bf19c14d351f152b6fbe460ee0200faa5867eceb"
+  },
+  "feature": {
+    "id": "passkey-auth",
+    "steps": [
+      {
+        "id": "t26-webauthn-credentials",
+        "kind": "table",
+        "name": "N_WEBAUTHN_CREDENTIALS",
+        "sql": "CREATE TABLE n_webauthn_credentials (\ncredential_id VARCHAR2(1400) PRIMARY KEY,\nuser_id NUMBER(10) NOT NULL,\npublic_x VARCHAR2(43) NOT NULL,\npublic_y VARCHAR2(43) NOT NULL,\nsign_count NUMBER(10) DEFAULT 0 NOT NULL,\nbackup_eligible NUMBER(1) DEFAULT 0 NOT NULL,\nbacked_up NUMBER(1) DEFAULT 0 NOT NULL,\nlabel VARCHAR2(80 CHAR) NOT NULL,\ncreated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\nlast_used_at TIMESTAMP,\nCONSTRAINT fk_webauthn_credential_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,\nCONSTRAINT ck_webauthn_sign_count CHECK (sign_count BETWEEN 0 AND 4294967295),\nCONSTRAINT ck_webauthn_backup CHECK (backup_eligible IN (0,1) AND backed_up IN (0,1) AND backed_up <= backup_eligible)\n)",
+        "table": "N_WEBAUTHN_CREDENTIALS",
+        "columns": [
+          {
+            "name": "CREDENTIAL_ID",
+            "type": "VARCHAR2(1400)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "USER_ID",
+            "type": "NUMBER(10)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "PUBLIC_X",
+            "type": "VARCHAR2(43)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "PUBLIC_Y",
+            "type": "VARCHAR2(43)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "SIGN_COUNT",
+            "type": "NUMBER(10)",
+            "nullable": false,
+            "default": "0"
+          },
+          {
+            "name": "BACKUP_ELIGIBLE",
+            "type": "NUMBER(1)",
+            "nullable": false,
+            "default": "0"
+          },
+          {
+            "name": "BACKED_UP",
+            "type": "NUMBER(1)",
+            "nullable": false,
+            "default": "0"
+          },
+          {
+            "name": "LABEL",
+            "type": "VARCHAR2(80)",
+            "nullable": false,
+            "default": null,
+            "charUsed": "C"
+          },
+          {
+            "name": "CREATED_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "LAST_USED_AT",
+            "type": "TIMESTAMP",
+            "nullable": true,
+            "default": null
+          }
+        ],
+        "constraints": [
+          {
+            "name": "NT13_B69AEEE8FFB75FF1E4E4",
+            "type": "P",
+            "columns": [
+              "CREDENTIAL_ID"
+            ]
+          },
+          {
+            "name": "FK_WEBAUTHN_CREDENTIAL_USER",
+            "type": "R",
+            "columns": [
+              "USER_ID"
+            ],
+            "referencedTable": "N_USERS",
+            "referencedColumns": [
+              "USER_ID"
+            ],
+            "deleteRule": "CASCADE"
+          },
+          {
+            "name": "CK_WEBAUTHN_SIGN_COUNT",
+            "type": "C",
+            "expression": "sign_count BETWEEN 0 AND 4294967295"
+          },
+          {
+            "name": "CK_WEBAUTHN_BACKUP",
+            "type": "C",
+            "expression": "backup_eligible IN (0,1) AND backed_up IN (0,1) AND backed_up <= backup_eligible"
+          }
+        ]
+      },
+      {
+        "id": "t26-webauthn-credentials-owner",
+        "kind": "index",
+        "name": "IDX_WEBAUTHN_CRED_OWNER",
+        "sql": "CREATE INDEX idx_webauthn_cred_owner ON n_webauthn_credentials (user_id, created_at)",
+        "table": "N_WEBAUTHN_CREDENTIALS",
+        "columns": [
+          "USER_ID",
+          "CREATED_AT"
+        ]
+      },
+      {
+        "id": "t26-webauthn-challenges",
+        "kind": "table",
+        "name": "N_WEBAUTHN_CHALLENGES",
+        "sql": "CREATE TABLE n_webauthn_challenges (\nchallenge_id VARCHAR2(43) PRIMARY KEY,\npurpose VARCHAR2(12) NOT NULL,\nissuer VARCHAR2(8) NOT NULL,\nowner_user_id NUMBER(10),\nowner_session_id VARCHAR2(128),\nchallenge VARCHAR2(256) NOT NULL,\nengine_state VARCHAR2(4000),\nexpires_at TIMESTAMP NOT NULL,\nCONSTRAINT fk_webauthn_challenge_user FOREIGN KEY (owner_user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,\nCONSTRAINT ck_webauthn_challenge_use CHECK ((purpose='register' AND owner_user_id IS NOT NULL AND owner_session_id IS NOT NULL) OR (purpose='login' AND owner_user_id IS NULL AND owner_session_id IS NULL))\n)",
+        "table": "N_WEBAUTHN_CHALLENGES",
+        "columns": [
+          {
+            "name": "CHALLENGE_ID",
+            "type": "VARCHAR2(43)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "PURPOSE",
+            "type": "VARCHAR2(12)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "ISSUER",
+            "type": "VARCHAR2(8)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "OWNER_USER_ID",
+            "type": "NUMBER(10)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "OWNER_SESSION_ID",
+            "type": "VARCHAR2(128)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "CHALLENGE",
+            "type": "VARCHAR2(256)",
+            "nullable": false,
+            "default": null
+          },
+          {
+            "name": "ENGINE_STATE",
+            "type": "VARCHAR2(4000)",
+            "nullable": true,
+            "default": null
+          },
+          {
+            "name": "EXPIRES_AT",
+            "type": "TIMESTAMP",
+            "nullable": false,
+            "default": null
+          }
+        ],
+        "constraints": [
+          {
+            "name": "NT13_351820582C3D3CE30B91",
+            "type": "P",
+            "columns": [
+              "CHALLENGE_ID"
+            ]
+          },
+          {
+            "name": "FK_WEBAUTHN_CHALLENGE_USER",
+            "type": "R",
+            "columns": [
+              "OWNER_USER_ID"
+            ],
+            "referencedTable": "N_USERS",
+            "referencedColumns": [
+              "USER_ID"
+            ],
+            "deleteRule": "CASCADE"
+          },
+          {
+            "name": "CK_WEBAUTHN_CHALLENGE_USE",
+            "type": "C",
+            "expression": "(purpose='register' AND owner_user_id IS NOT NULL AND owner_session_id IS NOT NULL) OR (purpose='login' AND owner_user_id IS NULL AND owner_session_id IS NULL)"
+          }
+        ]
+      },
+      {
+        "id": "t26-webauthn-challenges-expiry",
+        "kind": "index",
+        "name": "IDX_WEBAUTHN_CHALL_EXPIRY",
+        "sql": "CREATE INDEX idx_webauthn_chall_expiry ON n_webauthn_challenges (expires_at)",
+        "table": "N_WEBAUTHN_CHALLENGES",
+        "columns": [
+          "EXPIRES_AT"
+        ]
+      }
+    ]
+  }
+}

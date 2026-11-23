@@ -1,0 +1,10 @@
+{
+  "id": "WEBRTC-CALLS",
+  "revision": 1,
+  "cases": [
+    {"id":"voice-and-video-negotiation","assertion":"Two authorized participants can invite, accept, exchange SDP and ICE in role order, and hang up. No unrelated session receives media signaling."},
+    {"id":"busy-reject-cancel-timeout","assertion":"A simultaneous caller receives busy. Reject, cancel and a 30-second ring timeout release both memberships for the next independent call."},
+    {"id":"scope-and-device","assertion":"A nonparticipant or a blocked pair cannot send or receive signals. An unselected same-account device cannot join negotiation."},
+    {"id":"ice-credentials","assertion":"A signed-in client receives deployment ICE URLs and scoped expiring TURN credentials, and the shared server secret is never included."}
+  ]
+}

@@ -1,4 +1,6 @@
 import '../../../core/utils/json_utils.dart';
+import '../../posts/domain/post_markdown.dart';
+import '../../posts/domain/post_poll.dart';
 import '../../users/domain/user_models.dart';
 
 class V2GroupAuditEntry {
@@ -86,6 +88,17 @@ class V2Group {
   final V2GroupMembership membership;
   final String createdAt;
   final String updatedAt;
+
+  bool get canWritePosts =>
+      membership.status == 'active' &&
+      switch (postPermission) {
+        'all' => true,
+        'moderator_up' => const {'owner', 'admin', 'moderator'}.contains(
+          membership.role,
+        ),
+        'admin_only' => const {'owner', 'admin'}.contains(membership.role),
+        _ => false,
+      };
 
   factory V2Group.fromJson(Map<String, dynamic> json) {
     return V2Group(
@@ -298,6 +311,7 @@ class V2GroupPost {
   V2GroupPost({
     required this.postId,
     required this.groupId,
+    this.groupName,
     required this.author,
     required this.content,
     required this.mediaUrls,
@@ -307,12 +321,15 @@ class V2GroupPost {
     required this.commentsCount,
     required this.viewsCount,
     required this.isLikedByMe,
+    this.poll,
+    this.markdown,
     required this.createdAt,
     required this.updatedAt,
   });
 
   final int postId;
   final int groupId;
+  final String? groupName;
   final V2PublicUser author;
   final String content;
   final List<String> mediaUrls;
@@ -322,6 +339,8 @@ class V2GroupPost {
   final int commentsCount;
   final int viewsCount;
   final bool isLikedByMe;
+  final V2PostPoll? poll;
+  final String? markdown;
   final String createdAt;
   final String updatedAt;
 
@@ -329,6 +348,7 @@ class V2GroupPost {
     return V2GroupPost(
       postId: toInt(json['post_id']) ?? 0,
       groupId: toInt(json['group_id']) ?? 0,
+      groupName: toStrOrNull(json['group_name']),
       author: V2PublicUser.fromJson(toMap(json['author'])),
       content: toStr(json['content']),
       mediaUrls: toList(json['media_urls'], (e) => toStr(e)),
@@ -338,6 +358,8 @@ class V2GroupPost {
       commentsCount: toInt(json['comments_count']) ?? 0,
       viewsCount: toInt(json['views_count']) ?? 0,
       isLikedByMe: toBool(json['is_liked_by_me']),
+      poll: V2PostPoll.optional(json['poll']),
+      markdown: readPostMarkdown(json['markdown']),
       createdAt: toStr(json['created_at']),
       updatedAt: toStr(json['updated_at']),
     );
@@ -354,6 +376,7 @@ class V2GroupPost {
     return V2GroupPost(
       postId: postId,
       groupId: groupId,
+      groupName: groupName,
       author: author,
       content: content,
       mediaUrls: mediaUrls,
@@ -363,6 +386,8 @@ class V2GroupPost {
       commentsCount: commentsCount ?? this.commentsCount,
       viewsCount: viewsCount ?? this.viewsCount,
       isLikedByMe: isLikedByMe ?? this.isLikedByMe,
+      poll: poll,
+      markdown: markdown,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

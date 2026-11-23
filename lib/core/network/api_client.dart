@@ -78,11 +78,15 @@ class ApiClient {
     if (_inactive) {
       throw _endpointChanged(RequestOptions(path: path, method: method));
     }
+    final interactiveAuth = ApiPaths.isInteractiveAuthPath(path);
     final options = Options(
       method: method,
       headers: headers,
+      extra: interactiveAuth ? {_authRevision: tokenStore.revision} : null,
       followRedirects:
-          path == ApiPaths.authTokens || onTrustedDeviceProof != null
+          path == ApiPaths.authTokens ||
+              interactiveAuth ||
+              onTrustedDeviceProof != null
           ? false
           : null,
     );
@@ -355,10 +359,10 @@ class ApiClient {
           handler.reject(_endpointChanged(options));
           return;
         }
-        final protected =
+        final sendBearer =
             !ApiPaths.isAuthEntryPath(options.path) ||
             ApiPaths.isRefreshPath(options.path);
-        if (protected) {
+        if (sendBearer) {
           options.extra.putIfAbsent(_authRevision, () => tokenStore.revision);
         }
         // 标准头
@@ -370,12 +374,9 @@ class ApiClient {
         } catch (_) {}
         options.headers['x-device-info'] = _deviceInfo();
 
-        final shouldSendAuth =
-            !ApiPaths.isAuthEntryPath(options.path) ||
-            ApiPaths.isRefreshPath(options.path);
         // refresh path 也需要 access token；登录入口不需要
 
-        if (shouldSendAuth) {
+        if (sendBearer) {
           final pair = await tokenStore.read();
           if (pair != null && pair.accessToken.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer ${pair.accessToken}';
@@ -388,7 +389,8 @@ class ApiClient {
           handler.reject(_endpointChanged(options));
           return;
         }
-        if (protected && options.extra[_authRevision] != tokenStore.revision) {
+        final revision = options.extra[_authRevision];
+        if (revision is int && revision != tokenStore.revision) {
           handler.reject(
             DioException(
               requestOptions: options,
@@ -620,13 +622,26 @@ class ApiClient {
     }
 
     if (!ApiPaths.isAuthEntryPath(path)) return data;
-    final tokens = normalized['tokens'];
+    if (ApiPaths.isGitHubLoginCompletion(path)) {
+      final login = normalized['login'];
+      if (login is Map) {
+        final loginData = Map<String, dynamic>.from(login);
+        _mergeLoginCookies(loginData, cookies);
+        normalized['login'] = loginData;
+      }
+    } else {
+      _mergeLoginCookies(normalized, cookies);
+    }
+    return normalized;
+  }
+
+  void _mergeLoginCookies(Map<String, dynamic> login, _AuthCookies cookies) {
+    final tokens = login['tokens'];
     if (tokens is Map) {
       final tokenMap = Map<String, dynamic>.from(tokens);
       _putCookieTokens(tokenMap, cookies);
-      normalized['tokens'] = tokenMap;
+      login['tokens'] = tokenMap;
     }
-    return normalized;
   }
 
   void _putCookieTokens(Map<String, dynamic> target, _AuthCookies cookies) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -7,15 +8,32 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../posts/data/local_post_drafts.dart';
+import '../../links/presentation/content_link_preview.dart';
+import '../../posts/domain/post_draft.dart';
+import '../../posts/domain/post_markdown.dart';
+import '../../posts/domain/post_poll.dart';
+import '../../posts/presentation/post_draft_actions.dart';
+import '../../posts/presentation/post_draft_scope.dart';
+import '../../posts/presentation/post_drafts_screen.dart';
+import '../../posts/presentation/post_markdown_body.dart';
+import '../../posts/presentation/post_markdown_field.dart';
+import '../../posts/presentation/post_poll_card.dart';
+import '../../posts/presentation/post_poll_composer.dart';
 import '../domain/group_models.dart';
 import 'group_image_upload.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
-  const GroupDetailScreen({super.key, required this.slug});
+  const GroupDetailScreen({super.key, required this.slug}) : resumeDraft = null;
+  const GroupDetailScreen.resumeDraft({super.key, required this.resumeDraft})
+    : slug = '';
+
   final String slug;
+  final ScopedPostDraft? resumeDraft;
 
   @override
   ConsumerState<GroupDetailScreen> createState() => _GroupDetailScreenState();
@@ -31,6 +49,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   Object? _error;
   bool _busy = false;
   bool _composing = false;
+  DialogRoute<bool>? _composerRoute;
   bool _expired = false;
   int _request = 0;
   late final VoidCallback _stopSessionListener;
@@ -46,12 +65,24 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     ref.listenManual(groupsApiProvider, (previous, next) {
       if (!identical(previous, next)) _expire();
     });
-    _load();
+    final draft = widget.resumeDraft;
+    if (draft == null) {
+      _load();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted || _expired) return;
+        await _composePost(cloud: draft);
+        if (mounted && (ModalRoute.isCurrentOf(context) ?? false)) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _stopSessionListener();
+    _dismissComposer();
     super.dispose();
   }
 
@@ -64,11 +95,21 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   void _expire() {
     if (!mounted || _expired) return;
     _request++;
+    _dismissComposer();
     setState(() {
       _expired = true;
       _group = null;
       _posts = [];
     });
+  }
+
+  void _dismissComposer() {
+    final route = _composerRoute;
+    if (route != null) {
+      scheduleMicrotask(() {
+        if (route.isActive) route.navigator?.removeRoute(route);
+      });
+    }
   }
 
   Future<void> _load() async {
@@ -170,13 +211,40 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     }
   }
 
-  Future<void> _composePost() async {
+  Future<void> _openCloudDrafts() async {
     final group = _group;
     if (_expired ||
-        _loading ||
-        _composing ||
         group == null ||
-        !_canPost(group)) {
+        !requireAuthenticatedAction(context, ref) ||
+        ref.read(tokenStoreProvider).isSessionChanging) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => PostDraftsScreen(
+          groupId: group.groupId,
+          openEditor: (context, draft) => _composePost(
+            cloud: draft,
+            host: context,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _composePost({
+    ScopedPostDraft? cloud,
+    BuildContext? host,
+  }) async {
+    final group = _group;
+    final groupId = cloud?.draft.payload.groupId ?? group?.groupId;
+    if (_expired ||
+        _composing ||
+        groupId == null ||
+        (cloud == null && (_loading || group?.canWritePosts != true)) ||
+        (cloud != null &&
+            ((group != null && group.groupId != groupId) ||
+                !cloud.scope.isCurrent(ref)))) {
       return;
     }
     setState(() => _composing = true);
@@ -184,30 +252,113 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     final request = _request;
     bool current() =>
         mounted &&
+        !_expired &&
         request == _request &&
         identical(ref.read(groupsApiProvider), api);
-    var draft = '';
-    var announcement = false;
-    final attachments = <String>[];
+    final initial = cloud?.draft.payload;
+    var draft = initial?.content ?? '';
+    var markdown = initial?.markdown ?? '';
+    var usingMarkdown = initial?.markdown != null;
+    var textRevision = 0;
+    var announcement = initial?.announcement ?? false;
+    V2CreatePostPoll? poll = initial?.poll;
+    final attachments = <String>[...?initial?.mediaUrls];
+    var receipt = cloud?.draft;
+    var draftWorking = false;
     var uploading = false;
     var dialogEnded = false;
+    var restoreStarted = false;
     String? attachmentError;
-    final canAnnounce = _canManageGroup(group.membership.role);
+    final canAnnounce = cloud != null || _canManageGroup(group?.membership.role);
     final l10n = AppLocalizations.of(context);
+    final auth = ref.read(authSessionProvider);
+    final tokens = ref.read(tokenStoreProvider);
+    final local = cloud == null &&
+            (auth.isAuthenticated || auth.loading) &&
+            !tokens.isSessionChanging
+        ? LocalPostDraftSession(
+            storage: ref.read(localPostDraftStoreProvider),
+            tokens: tokens,
+            backend: ref.read(appConfigProvider).apiBaseUrl,
+            groupId: groupId,
+          )
+        : null;
+    void cacheText() => local?.update((
+      text: usingMarkdown ? markdown : draft,
+      markdown: usingMarkdown,
+    ));
     try {
-      final confirmed = await showDialog<bool>(
-        context: context,
+      final nav = Navigator.of(host ?? context, rootNavigator: true);
+      final route = DialogRoute<bool>(
+        context: host ?? context,
+        themes: InheritedTheme.capture(from: host ?? context, to: nav.context),
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, update) {
+            if (local != null && !restoreStarted) {
+              restoreStarted = true;
+              unawaited(local.restore().then((saved) {
+                if (saved == null ||
+                    dialogEnded ||
+                    !dialogContext.mounted ||
+                    !current() ||
+                    !local.canRestore) {
+                  return;
+                }
+                local.acceptRestored(saved);
+                update(() {
+                  textRevision++;
+                  usingMarkdown = saved.markdown;
+                  if (saved.markdown) {
+                    markdown = saved.text;
+                  } else {
+                    draft = saved.text;
+                  }
+                });
+              }));
+            }
             final bytes = utf8.encode(draft.trim()).length;
+            final validContent = usingMarkdown
+                ? isValidPostMarkdown(markdown)
+                : bytes > 0 && bytes <= 4000;
+            final locked = draftWorking ||
+                receipt?.status == PostDraftStatus.published;
             return AlertDialog(
               title: Text(l10n.t('group.new_post')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(
-                      onChanged: (value) => update(() => draft = value),
+                    PostMarkdownToggle(
+                      selected: usingMarkdown,
+                      onChanged: locked
+                          ? null
+                          : (value) => update(() {
+                              if (value && markdown.isEmpty) markdown = draft;
+                              if (!value && draft.isEmpty && isValidPostMarkdown(markdown)) {
+                                draft = postMarkdownExcerpt(markdown);
+                              }
+                              usingMarkdown = value;
+                              cacheText();
+                            }),
+                    ),
+                    if (usingMarkdown)
+                      PostMarkdownField(
+                        value: markdown,
+                        onChanged: locked
+                            ? null
+                            : (value) => update(() {
+                                markdown = value;
+                                cacheText();
+                              }),
+                      )
+                    else TextFormField(
+                      key: ValueKey(('group-compose-text', textRevision)),
+                      initialValue: draft,
+                      readOnly: locked,
+                      onChanged: (value) => update(() {
+                        draft = value;
+                        cacheText();
+                      }),
                       maxLines: 5,
                       minLines: 3,
                       decoration: InputDecoration(
@@ -222,8 +373,9 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                         contentPadding: EdgeInsets.zero,
                         title: Text(l10n.t('group.compose_announcement')),
                         value: announcement,
-                        onChanged: (value) =>
-                            update(() => announcement = value ?? false),
+                        onChanged: locked
+                            ? null
+                            : (value) => update(() => announcement = value ?? false),
                       ),
                     if (attachments.isNotEmpty)
                       Wrap(
@@ -250,7 +402,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                               deleteButtonTooltipMessage: l10n.t(
                                 'group.compose_remove_image',
                               ),
-                              onDeleted: uploading
+                              onDeleted: uploading || locked
                                   ? null
                                   : () => update(
                                       () => attachments.removeAt(index),
@@ -267,7 +419,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                               : 'group.compose_add_image',
                         ),
                       ),
-                      onPressed: uploading
+                      onPressed: uploading || locked
                           ? null
                           : () async {
                               if (!current()) return;
@@ -325,16 +477,84 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                             },
                     ),
                     if (attachmentError != null) Text(l10n.t(attachmentError!)),
+                    PostPollComposer(
+                      initial: initial?.poll,
+                      enabled: !uploading && !locked,
+                      onChanged: (value) => update(() => poll = value),
+                    ),
+                    if (local != null)
+                      TextButton(
+                        key: const Key('group-local-draft-discard'),
+                        onPressed: locked
+                            ? null
+                            : () async {
+                                final discard = await confirmDraftAction(
+                                  context,
+                                  'draft.discard_local',
+                                  l10n.t('draft.confirm_discard_local'),
+                                );
+                                if (!discard || !dialogContext.mounted ||
+                                    dialogEnded || !current()) {
+                                  return;
+                                }
+                                update(() {
+                                  draft = markdown = '';
+                                  usingMarkdown = false;
+                                  textRevision++;
+                                });
+                                final cleared = await local.discard();
+                                if (!cleared && dialogContext.mounted &&
+                                    !dialogEnded && current()) {
+                                  update(() => attachmentError = 'draft.discard_local_error');
+                                }
+                              },
+                        child: Text(l10n.t('draft.discard_local')),
+                      ),
+                    PostDraftActions(
+                      initial: cloud,
+                      enabled: !uploading,
+                      readInput: () => V2PostDraftInput(
+                        groupId: groupId,
+                        content: usingMarkdown && isValidPostMarkdown(markdown)
+                            ? initial?.markdown == markdown
+                                ? initial!.content
+                                : postMarkdownExcerpt(markdown)
+                            : draft,
+                        markdown: usingMarkdown ? markdown : null,
+                        mediaUrls: List.of(attachments),
+                        announcement: announcement,
+                        poll: poll,
+                      ),
+                      onWorkingChanged: (value) {
+                        if (!dialogEnded && dialogContext.mounted) {
+                          update(() => draftWorking = value);
+                        }
+                      },
+                      onChanged: (value) {
+                        if (!dialogEnded && dialogContext.mounted) {
+                          update(() => receipt = value);
+                          if (local != null &&
+                              value.status == PostDraftStatus.published) {
+                            unawaited(local.clearPublished(local.snapshot));
+                          }
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
+                  onPressed: draftWorking
+                      ? null
+                      : () => Navigator.pop(dialogContext),
                   child: Text(l10n.t('common.cancel')),
                 ),
-                FilledButton(
-                  onPressed: uploading || bytes == 0 || bytes > 4000
+                if (receipt == null) FilledButton(
+                  onPressed:
+                      uploading || draftWorking ||
+                          !validContent ||
+                          poll?.isValid == false
                       ? null
                       : () => Navigator.pop(dialogContext, true),
                   child: Text(l10n.t('common.post')),
@@ -344,14 +564,31 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           },
         ),
       );
+      _composerRoute = route;
+      final confirmed = await nav.push(route);
       dialogEnded = true;
-      if (!current() || confirmed != true) return;
+      if (!current()) return;
+      if (receipt?.status == PostDraftStatus.published) {
+        if (widget.resumeDraft == null) await _load();
+        return;
+      }
+      if (confirmed != true) return;
+      if (poll?.isValid == false) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.t('poll.invalid_deadline'))),
+        );
+        return;
+      }
+      final publishedLocal = local?.snapshot;
       await api.createPost(
-        groupId: group.groupId,
-        content: draft.trim(),
+        groupId: groupId,
+        content: usingMarkdown ? postMarkdownExcerpt(markdown) : draft.trim(),
         isAnnouncement: canAnnounce && announcement,
         mediaUrls: List.of(attachments),
+        poll: poll,
+        markdown: usingMarkdown ? markdown : null,
       );
+      unawaited(local?.clearPublished(publishedLocal));
       if (!current()) return;
       ScaffoldMessenger.of(
         context,
@@ -369,6 +606,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         ),
       );
     } finally {
+      _composerRoute = null;
       if (mounted && !_expired) setState(() => _composing = false);
     }
   }
@@ -379,6 +617,14 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       if (!identical(previous, next)) _expire();
     });
     final l10n = AppLocalizations.of(context);
+    if (widget.resumeDraft != null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.t('draft.title'))),
+        body: _expired
+            ? EmptyView(message: l10n.t('visibility.sessionChanged'))
+            : null,
+      );
+    }
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
@@ -388,6 +634,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          if (!_expired && _group != null && !_loading)
+            IconButton(
+              icon: const Icon(Icons.cloud_outlined),
+              tooltip: l10n.t('draft.title'),
+              onPressed: _composing ? null : _openCloudDrafts,
+            ),
           // Manage is owner/admin/moderator only — not every member.
           if (!_loading &&
               _group != null &&
@@ -401,7 +653,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         ],
       ),
       floatingActionButton:
-          !_loading && !_busy && _group != null && _canPost(_group!)
+          !_loading && !_busy && _group != null && _group!.canWritePosts
           ? FloatingActionButton.extended(
               onPressed: _composing ? null : _composePost,
               icon: const Icon(Icons.edit),
@@ -549,6 +801,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                           ..._posts.map(
                             (p) => _GroupPostTile(
                               post: p,
+                              canWrite: _group!.canWritePosts,
                               onTap: () => context.push(
                                 '/groups/${widget.slug}/posts/${p.postId}',
                               ),
@@ -574,17 +827,6 @@ bool _canManageGroup(String? role) {
 }
 
 bool _activeMember(V2Group group) => group.membership.status == 'active';
-
-bool _canPost(V2Group group) {
-  if (!_activeMember(group)) return false;
-  final role = group.membership.role;
-  return switch (group.postPermission) {
-    'all' => true,
-    'moderator_up' => _canManageGroup(role),
-    'admin_only' => role == 'owner' || role == 'admin',
-    _ => false,
-  };
-}
 
 bool _canChangeMembership(V2Group group) {
   final status = group.membership.status;
@@ -634,8 +876,13 @@ class _MetaPiece extends StatelessWidget {
 }
 
 class _GroupPostTile extends StatelessWidget {
-  const _GroupPostTile({required this.post, required this.onTap});
+  const _GroupPostTile({
+    required this.post,
+    required this.canWrite,
+    required this.onTap,
+  });
   final V2GroupPost post;
+  final bool canWrite;
   final VoidCallback onTap;
 
   String _formatDate(String iso) {
@@ -702,7 +949,19 @@ class _GroupPostTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(post.content, style: theme.textTheme.bodyMedium),
+            if (post.markdown case final source?)
+              PostMarkdownBody(source: source)
+            else
+              Text(post.content, style: theme.textTheme.bodyMedium),
+            ContentLinkPreview(content: post.content, markdown: post.markdown),
+            if (post.poll case final poll?)
+              PostPollCard(
+                key: ValueKey((post.groupId, post.postId, poll.pollId)),
+                groupId: post.groupId,
+                postId: post.postId,
+                poll: poll,
+                canWrite: canWrite,
+              ),
             if (post.mediaUrls.isNotEmpty) ...[
               const SizedBox(height: 8),
               Wrap(

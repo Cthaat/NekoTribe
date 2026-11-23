@@ -1,0 +1,10 @@
+{
+  "id": "POST-POLLS",
+  "revision": 1,
+  "cases": [
+    {"id":"attached-single-and-multiple","assertion":"A regular post with a single-choice poll and a group post with a multiple-choice poll round-trip valid options and live counts."},
+    {"id":"ballot-unique","assertion":"Concurrent submissions from the same account leave only one ballot, and an expired poll cannot accept another vote."},
+    {"id":"choice-and-scope-denied","assertion":"Unknown options or multiple selections in a single-choice poll are rejected. A viewer outside the original post access scope cannot read or vote."},
+    {"id":"migration-readiness","assertion":"Explicit migrations create constraints without changing prior steps. Native poll operations check readiness without DDL."}
+  ]
+}

@@ -56,6 +56,7 @@ class _Backend implements HttpClientAdapter {
   bool deleted = false;
   bool withSkills = false;
   bool explicitModeration = false;
+  String? analysisMode;
   int? feedbackError;
   int sequence = 1;
   bool legacyHistory = false;
@@ -69,6 +70,11 @@ class _Backend implements HttpClientAdapter {
     headers: {
       Headers.contentTypeHeader: [Headers.jsonContentType],
     },
+  );
+  ResponseBody generatedReply(Object? data) => ResponseBody.fromString(
+    'event: done\ndata: ${jsonEncode({'code': 200, 'data': data})}\n\n',
+    200,
+    headers: {Headers.contentTypeHeader: ['text/event-stream']},
   );
 
   Map<String, Object?> _conversation(String id, String title) => {
@@ -99,6 +105,7 @@ class _Backend implements HttpClientAdapter {
             'risk': 'spam',
             'reason': _reason,
             'recommendation': 'human_review',
+            if (analysisMode case final mode?) 'analysis_mode': mode,
             'target': {
               'kind': 'group_post_comment',
               'id': 17,
@@ -179,7 +186,7 @@ class _Backend implements HttpClientAdapter {
         }
         return conflict
             ? ok(null, status: 409)
-            : ok({'status': 'generated', 'message': _message(++sequence)});
+            : generatedReply({'status': 'generated', 'message': _message(++sequence)});
       default:
         if (request.method == 'PUT' &&
             request.path.endsWith('/moderation-feedback')) {
@@ -267,6 +274,18 @@ Future<ProviderContainer> _mount(
 }
 
 void main() {
+  testWidgets('marks current and legacy moderation analysis modes', (
+    tester,
+  ) async {
+    final backend = _Backend();
+    await _mount(tester, backend, _Session());
+    expect(find.text('Text-only analysis'), findsOneWidget);
+    backend.analysisMode = 'text_and_images';
+    await tester.tap(find.text('Refresh history'));
+    await tester.pumpAndSettle();
+    expect(find.text('Text and image analysis'), findsOneWidget);
+    expect(find.text('Text-only analysis'), findsNothing);
+  });
   testWidgets(
     'a reviewed group comment opens its exact source and preserves the advice',
     (tester) async {
@@ -730,7 +749,7 @@ void main() {
         isNull,
       );
       pending.complete(
-        backend.ok({'status': 'insufficient_evidence', 'message': null}),
+        backend.generatedReply({'status': 'insufficient_evidence', 'message': null}),
       );
       await tester.pumpAndSettle();
       expect(backend.requests.last.path, _generate);
@@ -758,7 +777,7 @@ void main() {
     );
     session.beginSessionChange();
     pending.complete(
-      backend.ok({'status': 'insufficient_evidence', 'message': null}),
+      backend.generatedReply({'status': 'insufficient_evidence', 'message': null}),
     );
     await tester.pumpAndSettle();
     expect(backend.sawCancellation, isTrue);

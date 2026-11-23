@@ -1,0 +1,27 @@
+{
+  "id": "GITHUB-OAUTH",
+  "revision": 1,
+  "ttlSeconds": 300,
+  "nonceBytes": 32,
+  "providerTimeoutMs": 8000,
+  "providerBodyMaxBytes": 524288,
+  "endpoints": {
+    "authorize": "https://github.com/login/oauth/authorize",
+    "exchange": "https://github.com/login/oauth/access_token",
+    "profile": "https://api.github.com/user"
+  },
+  "sql": {
+    "prune": "DELETE FROM n_github_oauth_flows WHERE expires_at <= LOCALTIMESTAMP",
+    "begin": "INSERT INTO n_github_oauth_flows (flow_id,purpose,owner_user_id,owner_session_id,state_hash,flow_key_hash,pkce_verifier,status,expires_at)\nVALUES (:flow_id,:purpose,:owner_user_id,:owner_session_id,:state_hash,:flow_key_hash,:pkce_verifier,'pending',LOCALTIMESTAMP+NUMTODSINTERVAL(:ttl_seconds,'SECOND'))",
+    "callbackLock": "SELECT flow_id,pkce_verifier FROM n_github_oauth_flows WHERE state_hash=:state_hash AND status='pending' AND expires_at>LOCALTIMESTAMP FOR UPDATE",
+    "callbackClaim": "UPDATE n_github_oauth_flows SET status='checking' WHERE flow_id=:flow_id AND status='pending'",
+    "callbackFinish": "UPDATE n_github_oauth_flows SET status=:status,github_user_id=:github_user_id,github_login=:github_login,pkce_verifier=NULL WHERE flow_id=:flow_id AND status='checking' AND expires_at>LOCALTIMESTAMP",
+    "completeLock": "SELECT status,github_user_id,github_login FROM n_github_oauth_flows WHERE flow_id=:flow_id AND flow_key_hash=:flow_key_hash AND purpose=:purpose AND expires_at>LOCALTIMESTAMP AND (purpose='login' OR (owner_user_id=:owner_user_id AND owner_session_id=:owner_session_id)) FOR UPDATE",
+    "completeConsume": "DELETE FROM n_github_oauth_flows WHERE flow_id=:flow_id",
+    "linkForGitHub": "SELECT user_id,github_user_id,github_login,linked_at FROM n_github_oauth_links WHERE github_user_id=:github_user_id",
+    "linkForUser": "SELECT user_id,github_user_id,github_login,linked_at FROM n_github_oauth_links WHERE user_id=:user_id",
+    "linkCreate": "INSERT INTO n_github_oauth_links (github_user_id,user_id,github_login) VALUES (:github_user_id,:user_id,:github_login)",
+    "linkRemove": "DELETE FROM n_github_oauth_links WHERE user_id=:user_id",
+    "passkeyCount": "SELECT COUNT(*) AS total FROM n_webauthn_credentials WHERE user_id=:user_id"
+  }
+}

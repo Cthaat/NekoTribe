@@ -11,11 +11,14 @@ import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../links/presentation/content_link_preview.dart';
 import '../../media/presentation/private_attachment_button.dart';
 import '../../media/presentation/public_video_player_native.dart'
     if (dart.library.js_interop) '../../media/presentation/public_video_player_web.dart';
 import '../data/posts_api.dart';
 import '../domain/post_models.dart';
+import 'post_poll_card.dart';
+import 'post_markdown_body.dart';
 
 class PostCard extends ConsumerStatefulWidget {
   const PostCard({
@@ -27,6 +30,9 @@ class PostCard extends ConsumerStatefulWidget {
     this.onReport,
     this.onDeleted,
     this.onRetweeted,
+    this.onRecommendationFeedback,
+    this.profilePinned = false,
+    this.onChangeProfilePin,
   });
 
   final V2Post post;
@@ -36,6 +42,9 @@ class PostCard extends ConsumerStatefulWidget {
   final VoidCallback? onReport;
   final VoidCallback? onDeleted;
   final VoidCallback? onRetweeted;
+  final VoidCallback? onRecommendationFeedback;
+  final bool profilePinned;
+  final ValueChanged<bool>? onChangeProfilePin;
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -245,19 +254,18 @@ class _PostCardState extends ConsumerState<PostCard> {
   Future<void> _sendFeedback(String feedback) async {
     if (!requireAuthenticatedAction(context, ref)) return;
     final l10n = AppLocalizations.of(context);
+    final api = ref.read(postsApiProvider);
+    final id = _post.postId;
+    final current = _captureInteraction(api, id);
     try {
-      await ref
-          .read(postsApiProvider)
-          .recordRecommendationFeedback(
-            postId: _post.postId,
-            feedback: feedback,
-          );
-      if (!mounted) return;
+      await api.recordRecommendationFeedback(postId: id, feedback: feedback);
+      if (!current()) return;
+      widget.onRecommendationFeedback?.call();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.t('post.feedback.saved'))));
     } catch (e) {
-      if (!mounted) return;
+      if (!current()) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(ErrorView.describe(context, e))));
@@ -319,6 +327,10 @@ class _PostCardState extends ConsumerState<PostCard> {
         break;
       case 'quote':
         _quotePost();
+        break;
+      case 'profile_pin':
+      case 'profile_unpin':
+        widget.onChangeProfilePin?.call(value == 'profile_pin');
         break;
       case 'not_interested':
       case 'show_less':
@@ -387,6 +399,22 @@ class _PostCardState extends ConsumerState<PostCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (widget.profilePinned)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Icon(Icons.push_pin, size: 14, color: muted),
+                            const SizedBox(width: 4),
+                            Text(
+                              l10n.t('profile.pin.label'),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -430,7 +458,10 @@ class _PostCardState extends ConsumerState<PostCard> {
                         ),
                       ],
                     ),
-                    if (_post.content.isNotEmpty) ...[
+                    if (_post.markdown case final source?) ...[
+                      const SizedBox(height: 8),
+                      PostMarkdownBody(source: source),
+                    ] else if (_post.content.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       SelectableText(
                         _post.content,
@@ -439,10 +470,20 @@ class _PostCardState extends ConsumerState<PostCard> {
                         ),
                       ),
                     ],
+                    ContentLinkPreview(
+                      content: _post.content,
+                      markdown: _post.markdown,
+                    ),
                     if (_post.media.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       _MediaGrid(media: _post.media),
                     ],
+                    if (_post.poll case final poll?)
+                      PostPollCard(
+                        key: ValueKey((_post.postId, poll.pollId)),
+                        postId: _post.postId,
+                        poll: poll,
+                      ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
@@ -511,6 +552,19 @@ class _PostCardState extends ConsumerState<PostCard> {
                   icon: Icon(Icons.more_horiz, size: 18, color: muted),
                   onSelected: _handleMenu,
                   itemBuilder: (_) => [
+                    if (widget.onChangeProfilePin != null)
+                      PopupMenuItem(
+                        value: widget.profilePinned
+                            ? 'profile_unpin'
+                            : 'profile_pin',
+                        child: Text(
+                          l10n.t(
+                            widget.profilePinned
+                                ? 'profile.pin.clear'
+                                : 'profile.pin.set',
+                          ),
+                        ),
+                      ),
                     if (_post.viewerState.canDelete) ...[
                       PopupMenuItem(
                         value: 'edit',

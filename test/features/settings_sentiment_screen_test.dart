@@ -35,6 +35,7 @@ void main() {
 
       expect(find.text('AI 知识助手'), findsOneWidget);
       expect(find.text('AI 写作助手'), findsOneWidget);
+      expect(find.text('个人 AI 服务'), findsOneWidget);
       expect(find.text('BERT v1'), findsNothing);
       expect(legacy.calls, 0);
       expect(users.lastPatch, isNull);

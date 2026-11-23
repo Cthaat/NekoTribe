@@ -6,6 +6,8 @@ import '../../../core/network/api_response.dart';
 import '../../../core/utils/json_utils.dart';
 import '../../users/domain/user_models.dart';
 import '../domain/post_models.dart';
+import '../domain/post_markdown.dart';
+import '../domain/post_poll.dart';
 
 class UnconfirmedPostError implements Exception {
   const UnconfirmedPostError();
@@ -147,6 +149,28 @@ class PostsApi {
     );
   }
 
+  Future<V2PostPoll> getPoll(int postId, {CancelToken? cancelToken}) {
+    return _client.requestData<V2PostPoll>(
+      '${ApiPaths.posts}/$postId/poll',
+      cancelToken: cancelToken,
+      decode: (data) => V2PostPoll.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2PostPoll> votePoll(
+    int postId,
+    List<int> optionIds, {
+    CancelToken? cancelToken,
+  }) {
+    return _client.requestData<V2PostPoll>(
+      '${ApiPaths.posts}/$postId/poll/vote',
+      method: 'POST',
+      data: {'option_ids': optionIds},
+      cancelToken: cancelToken,
+      decode: (data) => V2PostPoll.fromJson(toMap(data)),
+    );
+  }
+
   Future<V2Post> createPost({
     required String content,
     String postType = 'normal',
@@ -159,6 +183,8 @@ class PostsApi {
     List<int> mediaIds = const [],
     List<String> tags = const [],
     List<int> mentionUserIds = const [],
+    V2CreatePostPoll? poll,
+    String? markdown,
   }) {
     final body = <String, dynamic>{
       'content': content,
@@ -172,6 +198,8 @@ class PostsApi {
       if (mediaIds.isNotEmpty) 'media_ids': mediaIds,
       if (tags.isNotEmpty) 'tag_names': tags,
       if (mentionUserIds.isNotEmpty) 'mention_user_ids': mentionUserIds,
+      if (poll != null) 'poll': poll.toJson(),
+      if (markdown != null) 'markdown': markdown,
     };
     return _client.requestData<V2Post>(
       ApiPaths.posts,
@@ -189,7 +217,12 @@ class PostsApi {
             receipt['quoted_post_id'] != quotedPostId) {
           throw const UnconfirmedPostError();
         }
-        return V2Post.fromJson(receipt);
+        final post = V2Post.fromJson(receipt);
+        if ((poll != null && post.poll == null) ||
+            (markdown != null && post.markdown != markdown)) {
+          throw const UnconfirmedPostError();
+        }
+        return post;
       },
     );
   }
@@ -202,6 +235,7 @@ class PostsApi {
     String? location,
     List<String>? tags,
     List<int>? mediaIds,
+    PostMarkdownUpdate? markdown,
   }) {
     return _client.requestData<V2Post>(
       '${ApiPaths.posts}/$postId',
@@ -213,6 +247,7 @@ class PostsApi {
         if (location != null) 'location': location,
         if (tags != null) 'tag_names': tags,
         if (mediaIds != null) 'media_ids': mediaIds,
+        if (markdown != null) 'markdown': markdown.body,
       },
       validateSuccessEnvelope: (value) {
         final envelope = toMap(value);
@@ -223,7 +258,8 @@ class PostsApi {
             envelope['meta'] != null ||
             post['post_id'] != postId ||
             !_isPostId(toMap(post['author'])['user_id']) ||
-            toMap(post['viewer_state'])['can_delete'] != true) {
+            toMap(post['viewer_state'])['can_delete'] != true ||
+            (markdown != null && post['markdown'] != markdown.body)) {
           throw const UnconfirmedPostUpdateError();
         }
       },
@@ -467,6 +503,15 @@ class PostsApi {
       decodeItem: (item) => V2Post.fromJson(toMap(item)),
     );
   }
+
+  Future<PagedResult<V2Post>> getTrendingPage({
+    required int page,
+    int size = 20,
+  }) => _client.requestPaged<V2Post>(
+    ApiPaths.postsTrending,
+    query: {'page': page, 'page_size': size},
+    decodeItem: (item) => V2Post.fromJson(toMap(item)),
+  );
 
   Future<List<V2TagItem>> getTrendingTags({int limit = 10}) {
     return _client.requestList<V2TagItem>(

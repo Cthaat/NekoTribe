@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -13,11 +14,161 @@ import 'package:nekotribe/core/network/api_exception.dart';
 import 'package:nekotribe/features/media/data/media_api.dart';
 import 'package:nekotribe/features/posts/data/posts_api.dart';
 import 'package:nekotribe/features/posts/domain/post_models.dart';
+import 'package:nekotribe/features/posts/domain/post_poll.dart';
 import 'package:nekotribe/features/posts/presentation/compose_post_screen.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets('Markdown composer submits source and a bounded plain excerpt', (
+    tester,
+  ) async {
+    final api = _FakePostsApi();
+    final tokens = _AuthenticatedTokenStore();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appConfigBundleProvider.overrideWithValue(_testBundle),
+          appConfigInitialProvider.overrideWithValue(_testConfig),
+          tokenStoreProvider.overrideWithValue(tokens),
+          authSessionProvider.overrideWith(
+            (_) => AuthSessionController(tokens)..markLoggedIn(),
+          ),
+          postsApiProvider.overrideWithValue(api),
+        ],
+        child: const MaterialApp(home: ComposePostScreen()),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('post-markdown-toggle')));
+    await tester.pumpAndSettle();
+    final source = '# **${'文' * 300}**\n\nmore';
+    await tester.enterText(find.byKey(const Key('post-markdown-field')), source);
+    await tester.tap(find.widgetWithText(FilledButton, '发布'));
+    await tester.pumpAndSettle();
+    expect(api.content, '文' * 280);
+    expect(api.markdown, source);
+  });
+
+  testWidgets('ordinary composer only publishes a valid poll', (tester) async {
+    final api = _FakePostsApi();
+    final tokens = _AuthenticatedTokenStore();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appConfigBundleProvider.overrideWithValue(_testBundle),
+          appConfigInitialProvider.overrideWithValue(_testConfig),
+          tokenStoreProvider.overrideWithValue(tokens),
+          authSessionProvider.overrideWith(
+            (_) => AuthSessionController(tokens)..markLoggedIn(),
+          ),
+          postsApiProvider.overrideWithValue(api),
+        ],
+        child: const MaterialApp(home: ComposePostScreen()),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const Key('compose-content-field')),
+      'Pick one',
+    );
+    final attach = find.byKey(const Key('post-poll-attach'));
+    await tester.ensureVisible(attach);
+    await tester.tap(attach);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '发布'));
+    await tester.pumpAndSettle();
+    expect(api.content, isNull);
+
+    for (final (index, text) in [(1, ' Cats '), (2, 'Dogs')]) {
+      final field = find.byKey(ValueKey('post-poll-option-$index'));
+      await tester.ensureVisible(field);
+      await tester.enterText(field, text);
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(find.widgetWithText(FilledButton, '发布'));
+    await tester.pumpAndSettle();
+    expect(api.content, 'Pick one');
+    expect(api.poll?.toJson()['options'], ['Cats', 'Dogs']);
+    expect(api.poll?.multiple, isFalse);
+  });
+
+  testWidgets('applies only confirmed image description and selected topics', (
+    tester,
+  ) async {
+    final backend = _ImageDescriptionBackend();
+    final posts = _FakePostsApi()..unconfirmed = true;
+    await _mountImageSuggestion(tester, backend, posts);
+    final action = find.byTooltip('生成图片描述和话题');
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+
+    expect(backend.requests.single.method, 'POST');
+    expect(backend.requests.single.path, '/api/v2/ai/media/describe');
+    expect(backend.requests.single.data, {'media_id': 7, 'locale': 'zh'});
+    expect(find.text('Possible image description'), findsOneWidget);
+    expect(posts.mediaIds, isEmpty);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(backend.requests, hasLength(1));
+
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'Confirmed description');
+    await tester.tap(find.widgetWithText(FilterChip, '#clouds'));
+    await tester.tap(find.text('应用到草稿'));
+    await tester.pumpAndSettle();
+    expect(backend.requests.last.method, 'PATCH');
+    expect(backend.requests.last.path, '/api/v2/media/7');
+    expect(backend.requests.last.data, {'alt_text': 'Confirmed description'});
+    expect(find.text('Confirmed description'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, '#photography'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, '#clouds'), findsNothing);
+    expect(posts.mediaIds, isEmpty);
+
+    await tester.tap(find.text('发布').last);
+    await tester.pumpAndSettle();
+    expect(posts.mediaIds, [7]);
+    expect(posts.tags, ['photography']);
+  });
+
+  testWidgets(
+    'session change removes private image suggestions before confirmation',
+    (tester) async {
+      final backend = _ImageDescriptionBackend();
+      final tokens = await _mountImageSuggestion(
+        tester,
+        backend,
+        _FakePostsApi(),
+      );
+      final action = find.byTooltip('生成图片描述和话题');
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(find.text('Possible image description'), findsOneWidget);
+      tokens.beginSessionChange();
+      await tester.pumpAndSettle();
+      expect(find.text('Possible image description'), findsNothing);
+      expect(find.text('应用到草稿'), findsNothing);
+      expect(backend.requests, hasLength(1));
+    },
+  );
+
+  testWidgets('does not apply draft topics from an invalid alt-text receipt', (
+    tester,
+  ) async {
+    final backend = _ImageDescriptionBackend()..receiptMediaId = 8;
+    await _mountImageSuggestion(tester, backend, _FakePostsApi());
+    final action = find.byTooltip('生成图片描述和话题');
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('应用到草稿'));
+    await tester.pumpAndSettle();
+    expect(backend.requests.last.method, 'PATCH');
+    expect(find.byType(InputChip), findsNothing);
+    expect(find.text('Possible image description'), findsNothing);
+  });
+
   testWidgets(
     'composer keeps media on conflict and removes it after confirmed deletion',
     (tester) async {
@@ -121,10 +272,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(posts.visibility, 'mentioned');
         expect(posts.mediaIds, [7]);
-        expect(
-          find.text('无法确认是否已发布，草稿仍保留。请先查看发布结果，再决定是否重试。'),
-          findsOneWidget,
-        );
+        expect(find.text('无法确认是否已发布，草稿仍保留。请先查看发布结果，再决定是否重试。'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('compose-remove-media-7')),
           findsOneWidget,
@@ -185,6 +333,80 @@ void main() {
   });
 }
 
+Future<_AuthenticatedTokenStore> _mountImageSuggestion(
+  WidgetTester tester,
+  _ImageDescriptionBackend backend,
+  _FakePostsApi posts,
+) async {
+  FilePicker.platform = _ComposerFilePicker();
+  final tokens = _AuthenticatedTokenStore();
+  final client = ApiClient(config: _testConfig, tokenStore: tokens);
+  client.raw.httpClientAdapter = backend;
+  addTearDown(client.dispose);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        appConfigBundleProvider.overrideWithValue(_testBundle),
+        appConfigInitialProvider.overrideWithValue(_testConfig),
+        tokenStoreProvider.overrideWithValue(tokens),
+        authSessionProvider.overrideWith(
+          (ref) => AuthSessionController(tokens)..markLoggedIn(),
+        ),
+        mediaApiProvider.overrideWithValue(_FakeMediaApi(client)),
+        postsApiProvider.overrideWithValue(posts),
+      ],
+      child: const MaterialApp(home: ComposePostScreen()),
+    ),
+  );
+  final visibility = find.byKey(const Key('compose-visibility-field'));
+  await tester.ensureVisible(visibility);
+  await tester.tap(visibility);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('提及的人').last);
+  await tester.pumpAndSettle();
+  final add = find.byTooltip('添加图片');
+  await tester.ensureVisible(add);
+  await tester.tap(add);
+  await tester.pumpAndSettle();
+  return tokens;
+}
+
+class _ImageDescriptionBackend implements HttpClientAdapter {
+  final requests = <RequestOptions>[];
+  int receiptMediaId = 7;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    final data = switch (options.path) {
+      '/api/v2/ai/media/describe' => {
+        'media_id': 7,
+        'alt_text': 'Possible image description',
+        'tags': ['photography', 'clouds'],
+      },
+      '/api/v2/media/7' => {
+        'media_id': receiptMediaId,
+        'alt_text': (options.data as Map<String, Object?>)['alt_text'],
+      },
+      _ => throw StateError('Unexpected endpoint ${options.path}'),
+    };
+    return ResponseBody.fromString(
+      jsonEncode({'code': 200, 'message': 'test', 'data': data, 'meta': null}),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 class _ComposerFilePicker extends FilePicker {
   @override
   Future<FilePickerResult?> pickFiles({
@@ -209,8 +431,10 @@ class _ComposerFilePicker extends FilePicker {
 }
 
 class _FakeMediaApi extends MediaApi {
-  _FakeMediaApi()
-    : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
+  _FakeMediaApi([ApiClient? client])
+    : super(
+        client ?? ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()),
+      );
 
   final deleted = <int>[];
   final scopes = <String?>[];
@@ -253,7 +477,10 @@ class _FakeMediaApi extends MediaApi {
     return V2MediaAsset.fromJson({
       'media_id': 7,
       'media_type': mediaType,
+      'mime_type': mediaType == 'video' ? 'video/mp4' : 'image/png',
+      'file_size': 4,
       'file_name': fileName,
+      'status': 'ready',
       'public_url': accessScope == 'post'
           ? '/api/v2/media/7/content'
           : '/storage/draft.png',
@@ -278,6 +505,8 @@ class _FakePostsApi extends PostsApi {
   String? location;
   List<String> tags = const [];
   List<int> mediaIds = const [];
+  V2CreatePostPoll? poll;
+  String? markdown;
   bool unconfirmed = false;
 
   @override
@@ -293,12 +522,16 @@ class _FakePostsApi extends PostsApi {
     List<int> mediaIds = const [],
     List<String> tags = const [],
     List<int> mentionUserIds = const [],
+    V2CreatePostPoll? poll,
+    String? markdown,
   }) async {
     this.content = content;
     this.visibility = visibility;
     this.location = location;
     this.tags = tags;
     this.mediaIds = mediaIds;
+    this.poll = poll;
+    this.markdown = markdown;
     if (unconfirmed) throw const UnconfirmedPostError();
     return _post(content: content, visibility: visibility, location: location);
   }
@@ -364,6 +597,9 @@ const _testConfig = AppConfig(
 const _testBundle = AppConfigBundle(defaults: _testConfig, presets: []);
 
 class _AuthenticatedTokenStore extends TokenStore {
+  @override
+  Future<String> deviceFingerprint() async => 'widget-test';
+
   @override
   Future<TokenPair?> read() async => const TokenPair(
     accessToken: 'access-token',

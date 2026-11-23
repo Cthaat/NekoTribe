@@ -21,6 +21,49 @@ import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets('channel typing is scoped and cleared when opening the roster', (
+    tester,
+  ) async {
+    final socket = _FakeRealtimeService();
+    addTearDown(socket.dispose);
+    await tester.pumpWidget(
+      _testApp(
+        chatApi: _FakeChatApi(),
+        mediaApi: _FakeMediaApi(),
+        realtime: socket,
+        tokenStore: _FakeTokenStore(userId: 1),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final composer = find.byKey(const Key('chat-channel-composer-field'));
+    await tester.enterText(composer, 'draft');
+    expect(socket.sent.last, {
+      'type': 'typing_start',
+      'data': {'channel_id': 7},
+    });
+    void peer(int channel) => socket.emit({
+      'type': 'typing_start',
+      'timestamp': 3,
+      'data': {'channel_id': channel, 'user_id': 2},
+    });
+    peer(8);
+    await tester.pump();
+    expect(find.text('有人正在输入…'), findsNothing);
+    peer(7);
+    await tester.pump();
+    expect(find.text('有人正在输入…'), findsOneWidget);
+
+    final roster = find.byKey(const Key('chat-channel-members'));
+    await tester.tap(roster);
+    await tester.pumpAndSettle();
+    expect(socket.sent.last, {
+      'type': 'typing_stop',
+      'data': {'channel_id': 7},
+    });
+    await tester.tap(roster);
+    await tester.pumpAndSettle();
+    expect(find.text('有人正在输入…'), findsNothing);
+  });
   FilePicker? originalFilePicker;
 
   setUp(() {
@@ -134,6 +177,20 @@ void main() {
       final toggle = find.byKey(const Key('chat-channel-search-toggle'));
       await tester.tap(toggle);
       await tester.pumpAndSettle();
+      await tester.tap(find.text('发送者'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Quiet Member'));
+      await tester.pumpAndSettle();
+      final today = DateTime.now();
+      for (final label in ['开始日期', '结束日期']) {
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        final picker = tester.element(find.byType(DatePickerDialog));
+        await tester.tap(
+          find.text(MaterialLocalizations.of(picker).okButtonLabel),
+        );
+        await tester.pumpAndSettle();
+      }
       await tester.enterText(
         find.byKey(const Key('chat-channel-search-input')),
         ' match ',
@@ -141,12 +198,18 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
       expect(chatApi.lastSearch, 'match');
+      expect(chatApi.searchDetails, (
+        7,
+        DateTime(today.year, today.month, today.day).toUtc(),
+        DateTime(today.year, today.month, today.day + 1).toUtc(),
+      ));
       expect(find.text('match this'), findsOneWidget);
       expect(find.text('other message'), findsNothing);
       expect(chatApi.reads, [(7, 42)]);
-      await tester.tap(toggle);
+      await tester.tap(find.text('清除筛选'));
       await tester.pumpAndSettle();
       expect(chatApi.lastSearch, '');
+      expect(chatApi.searchDetails, (null, null, null));
       expect(find.text('other message'), findsOneWidget);
     },
   );
@@ -638,6 +701,7 @@ class _FakeChatApi extends ChatApi {
   bool failSend = false;
   final reads = <(int, int?)>[];
   final memberRequests = <int>[];
+  (int?, DateTime?, DateTime?)? searchDetails;
   Future<List<V2ChatMember>>? pendingMembers;
 
   @override
@@ -664,11 +728,15 @@ class _FakeChatApi extends ChatApi {
     int page = 1,
     int size = 30,
     String? search,
+    int? senderId,
+    DateTime? startAt,
+    DateTime? endAt,
     int? beforeMessageId,
   }) async {
     lastListPage = page;
     lastBeforeMessageId = beforeMessageId;
     lastSearch = search;
+    searchDetails = (senderId, startAt, endAt);
     final matching = messages
         .where((message) => message.content.contains(search ?? ''))
         .toList();
@@ -827,6 +895,7 @@ class _FakeRealtimeService extends RealtimeService {
     : super(config: _testConfig, tokenStore: _FakeTokenStore());
 
   final List<RealtimeListener> listeners = [];
+  final sent = <Map<String, dynamic>>[];
 
   void emit(Map<String, dynamic> event) {
     for (final listener in List<RealtimeListener>.of(listeners)) {
@@ -841,7 +910,10 @@ class _FakeRealtimeService extends RealtimeService {
   Future<void> disconnect() async {}
 
   @override
-  bool send(Map<String, dynamic> payload) => true;
+  bool send(Map<String, dynamic> payload) {
+    sent.add(payload);
+    return true;
+  }
 
   @override
   void addListener(RealtimeListener listener) {

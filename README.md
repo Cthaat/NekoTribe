@@ -33,6 +33,14 @@ NekoTribe 的 Windows、Android 与 Web 客户端，连接你选择的 Nuxt、Go
 
 Android 原地升级需要前后版本使用相同签名。在不同签名的构建之间切换可能需要先卸载，卸载会清除应用的本地数据。
 
+### Passkey
+
+在已启用 Passkey 的服务器登录后，从 **安全 → Passkey** 登记。以后可以在登录页使用设备选择器登录，账号开启两步验证时仍会进入验证码页面。
+
+- Web 使用前端站点的 HTTPS 来源或开发用 HTTP localhost。将该来源加入服务端的 `WEBAUTHN_ORIGINS`。
+- Windows Hello 使用 `https://<WEBAUTHN_RP_ID>` 作为来源。将它加入 `WEBAUTHN_ORIGINS`，并配置 RP 域名或其子域名下的 HTTPS API 端点。
+- Android 在 RP 域名的 `/.well-known/assetlinks.json` 发布 `delegate_permission/common.get_login_creds`，绑定应用 ID `com.nekotribe.nekotribe` 和已安装 APK 的签名证书 SHA-256 指纹。将该证书对应的 `android:apk-key-hash:<SHA-256 的无填充 Base64URL>` 加入 `WEBAUTHN_ORIGINS`。更换签名后需同步更新这两处配置。
+
 ### Docker 部署
 
 先部署一个兼容后端。各分支的部署指南提供可执行命令、`.env` 配置、容器清单及 Oracle 19c 授权和 Oracle Free 23 切换说明。
@@ -116,7 +124,18 @@ node check-deployment-endpoints.mjs --api https://api.example.com --origin https
 
 ## 源码构建与验收
 
-Windows 需要 Visual Studio 的 **使用 C++ 的桌面开发** 工作负载。生成双语安装程序时使用 Inno Setup 6.5+，可通过 `INNO_SETUP_ISCC` 指定 `ISCC.exe` 路径。若 Inno Setup 未附带简体中文语言包，脚本会下载固定版本的官方翻译并核对 SHA-256。Android 需要 JDK 17、Android SDK Platform 36、Build Tools 及 NDK `28.2.13676358`。打包脚本使用 Node.js 22，APK 的结构校验还需要 PATH 中的 Python 3。
+Windows 需要 Visual Studio 的 **使用 C++ 的桌面开发** 工作负载。生成双语安装程序时使用 Inno Setup 6.5+，可通过 `INNO_SETUP_ISCC` 指定 `ISCC.exe` 路径。若 Inno Setup 未附带简体中文语言包，脚本会下载固定版本的官方翻译并核对 SHA-256。Android CI 使用 JDK 21，项目的 Java 和 Kotlin 编译目标为 17。应用构建使用 Android SDK Platform 36，Passkey 插件另需 Platform 35。构建还需要 Build Tools 和 NDK `28.2.13676358`。打包脚本使用 Node.js 22，APK 的结构校验还需要 PATH 中的 Python 3。
+
+### Windows 和 Android 离线构建预检
+
+2026-11-22 在 Windows x64（系统版本 `10.0.26200.0`）执行本机工具检测。Flutter `3.41.9` 和 Dart `3.11.5` 可用，SDK 缓存中有对应的 Windows x64 和 Android ARM64 Release 引擎。
+
+| 平台 | 实际检测 | 结果 |
+| --- | --- | --- |
+| Windows x64 | 常规安装路径存在 Visual Studio 2019 目录。未从该目录、注册表或 PATH 检出可用的 C++ 工具链。常规安装路径缺少 `vswhere.exe` 和 Windows 10/11 SDK，PATH 和常规安装路径也未检出 `ISCC.exe`。 | 当前阻塞 Windows 构建和安装程序打包。 |
+| Android | SDK 位于 `%LOCALAPPDATA%\Android\Sdk`，有 `android-36.1`、`android-37.0`、Build Tools `36.1.0` 和 `37.0.0`。应用和 Passkey 插件所用的 `platforms/android-36/android.jar`、`platforms/android-35/android.jar` 缺失。NDK `28.2.13676358` 目录仅有 `.installer`，缺少版本清单和编译器。当前 Java 为 Temurin `21.0.10`，另检测到 Temurin `17.0.18`。 | 当前阻塞 Android Release 构建。 |
+
+预检只读取了本地工具和 SDK 文件，未安装组件或执行平台构建。
 
 在 Flutter 工作树根目录执行。打包脚本输出到新的目录；下面的 Windows、Android、Web 分别在对应的构建环境执行。
 

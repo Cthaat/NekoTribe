@@ -37,13 +37,19 @@ class _StrictRedirectAdapter implements HttpClientAdapter {
     final abort = web.AbortController();
     _active.add(abort);
     cancelFuture?.then((_) => abort.abort());
+    void close() {
+      _active.remove(abort);
+      abort.abort();
+    }
+
+    var streaming = false;
     final timeout =
         (options.connectTimeout ?? Duration.zero) +
         (options.sendTimeout ?? Duration.zero) +
         (options.receiveTimeout ?? Duration.zero);
     try {
-      final request = _send(options, requestStream, abort.signal);
-      return timeout == Duration.zero
+      final request = _send(options, requestStream, abort.signal, close);
+      final result = timeout == Duration.zero
           ? await request
           : await request.timeout(
               timeout,
@@ -52,9 +58,16 @@ class _StrictRedirectAdapter implements HttpClientAdapter {
                 requestOptions: options,
               ),
             );
+      streaming =
+          options.responseType == ResponseType.stream &&
+          result.statusCode == 200 &&
+          result.headers[Headers.contentTypeHeader]?.first.startsWith(
+                'text/event-stream',
+              ) ==
+              true;
+      return result;
     } finally {
-      _active.remove(abort);
-      abort.abort();
+      if (!streaming) close();
     }
   }
 
@@ -62,6 +75,7 @@ class _StrictRedirectAdapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     web.AbortSignal signal,
+    void Function() close,
   ) async {
     final headers = web.Headers();
     options.headers.forEach((name, value) {
@@ -102,19 +116,52 @@ class _StrictRedirectAdapter implements HttpClientAdapter {
           ),
         )
         .toDart;
-    final bytes = (await response.arrayBuffer().toDart).toDart.asUint8List();
     final responseHeaders = <String, List<String>>{};
     _FetchHeaders(response.headers).forEach(
       ((String value, String name) {
         responseHeaders[name] = [value];
       }).toJS,
     );
+    final stream = response.body;
+    if (options.responseType == ResponseType.stream &&
+        response.status == 200 &&
+        response.headers
+                .get(Headers.contentTypeHeader)
+                ?.startsWith('text/event-stream') ==
+            true &&
+        stream != null) {
+      return ResponseBody(
+        _readEvents(stream, close),
+        response.status,
+        headers: responseHeaders,
+        statusMessage: response.statusText,
+        onClose: close,
+      );
+    }
+    final bytes = (await response.arrayBuffer().toDart).toDart.asUint8List();
     return ResponseBody.fromBytes(
       bytes,
       response.status,
       headers: responseHeaders,
       statusMessage: response.statusText,
     );
+  }
+
+  Stream<Uint8List> _readEvents(
+    web.ReadableStream stream,
+    void Function() close,
+  ) async* {
+    final reader = web.ReadableStreamDefaultReader(stream);
+    try {
+      while (true) {
+        final chunk = await reader.read().toDart;
+        if (chunk.done) return;
+        yield (chunk.value as JSUint8Array).toDart;
+      }
+    } finally {
+      reader.releaseLock();
+      close();
+    }
   }
 
   @override

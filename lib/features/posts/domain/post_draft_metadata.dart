@@ -35,11 +35,18 @@ String discussionTextDraft({
   return parts.join('\n\n');
 }
 
-List<String> draftTagNames({required String content, required String tags}) {
+const maxDraftTags = 8;
+
+List<String> draftTagNames({
+  required String content,
+  required String tags,
+  Iterable<String> imageTags = const [],
+}) {
   return _uniqueTags([
     ..._extractHashTags(content),
     ..._splitManualTags(tags),
-  ]).take(8).toList(growable: false);
+    ...imageTags,
+  ]).take(maxDraftTags).toList(growable: false);
 }
 
 List<String> _extractHashTags(String value) {
@@ -62,7 +69,7 @@ List<String> _uniqueTags(Iterable<String> tags) {
   final seen = <String>{};
   final result = <String>[];
   for (final tag in tags) {
-    if (seen.add(tag)) result.add(tag);
+    if (seen.add(tag.toLowerCase())) result.add(tag);
   }
   return result;
 }

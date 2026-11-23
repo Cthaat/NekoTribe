@@ -1,3 +1,5 @@
+import 'ai_stream.dart';
+
 import 'package:dio/dio.dart';
 
 import '../../../core/constants/api_paths.dart';
@@ -43,6 +45,11 @@ final _conversationId = RegExp(
   r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
   caseSensitive: false,
 );
+const _groupToolNames = {
+  'public_search',
+  'public_statistics',
+  'community_sentiment_summary',
+};
 bool _validNumber(Object? value) =>
     value is int && value > 0 && value <= 9007199254740991;
 bool _validConversation(Object? value) =>
@@ -107,12 +114,10 @@ GroupDraftMessage _message(Object? raw, String conversationId) {
           sources is! List ||
           sources.isEmpty ||
           tools is! List ||
-          tools.length > 2 ||
+          tools.length > _groupToolNames.length ||
           !tools.contains('public_search') ||
           tools.toSet().length != tools.length ||
-          !tools.every(
-            (tool) => tool == 'public_search' || tool == 'public_statistics',
-          ))) {
+          !tools.every(_groupToolNames.contains))) {
     throw const FormatException('Invalid AI group tools');
   }
   return (
@@ -234,7 +239,9 @@ class AiGroupDraftApi {
     CancelToken cancel, {
     bool explicitlySelectGroupBrief = false,
     String? searchTerm,
-  }) => _client.requestData<bool>(
+    void Function(String)? onDelta,
+  }) => generateAiData<bool>(
+    _client,
     '${_path(id)}/group-generate',
     method: 'POST',
     data: {
@@ -244,6 +251,7 @@ class AiGroupDraftApi {
       if (searchTerm != null) 'search_term': searchTerm,
     },
     cancelToken: cancel,
+    onDelta: onDelta,
     decode: (raw) {
       final data = toMap(raw);
       if (data['status'] == 'insufficient_evidence' &&

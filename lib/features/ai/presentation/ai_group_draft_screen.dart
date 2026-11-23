@@ -11,6 +11,8 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../groups/domain/group_models.dart';
+import '../../posts/domain/post_draft.dart';
+import '../../posts/presentation/post_draft_scope.dart';
 import '../data/ai_group_draft_api.dart';
 import '../data/ai_writing_api.dart';
 import 'ai_quota_notice.dart';
@@ -35,7 +37,7 @@ class AiGroupDraftScreen extends ConsumerStatefulWidget {
   ConsumerState<AiGroupDraftScreen> createState() => _AiGroupDraftScreenState();
 }
 
-enum _Phase { load, page, generate, review, publish, delete }
+enum _Phase { load, page, generate, review, publish, saveDraft, delete }
 
 class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
   final _edited = TextEditingController();
@@ -65,6 +67,7 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
   int? _modelConfigRevision;
   String _groupName = '';
   int? _published;
+  V2PostDraftInput? _savedDraftInput;
   bool _publicationUnconfirmed = false;
   bool _publicationRetryConfirmed = false;
   bool get _publicationNeedsConfirmation =>
@@ -74,6 +77,7 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
   bool _deleteConfirm = false;
   _Phase? _phase;
   CancelToken? _current;
+  String _preview = '';
   VoidCallback? _stopListening;
 
   @override
@@ -92,6 +96,7 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
     _current?.cancel();
     _current = null;
     _phase = null;
+    _preview = '';
     _clearScope();
     if (!_expired) {
       _notice = null;
@@ -110,6 +115,7 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
 
   void _clearReview() {
     _review = null;
+    _savedDraftInput = null;
     _publicationUnconfirmed = false;
     _publicationRetryConfirmed = false;
     _deleteConfirm = false;
@@ -209,6 +215,10 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
           _notice = 'forbidden';
           return;
         }
+        if (phase == _Phase.saveDraft) {
+          _notice = 'saveCloudFailed';
+          return;
+        }
         final retry = phase == _Phase.generate ? aiQuotaRetry(error) : null;
         if (retry != null) {
           _quotaRetry = retry;
@@ -234,6 +244,7 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
       if (valid()) {
         setState(() {
           _phase = null;
+          _preview = '';
           _current = null;
         });
       }
@@ -487,9 +498,15 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
         token,
         explicitlySelectGroupBrief: explicitSkill,
         searchTerm: searchTerm.isEmpty ? null : searchTerm,
+        onDelta: (text) {
+          if (valid()) setState(() => _preview += text);
+        },
       );
       if (!valid()) return;
-      setState(() => _phase = _Phase.load);
+      setState(() {
+        _phase = _Phase.load;
+        _preview = '';
+      });
       try {
         final result = await _readMessages(api, token, id);
         if (!valid()) return;
@@ -537,6 +554,7 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
     setState(() {
       _current = null;
       _phase = null;
+      _preview = '';
       _needsRefresh = true;
       _messages = [];
       _notice = 'cancelled';
@@ -588,6 +606,7 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
       }
       setState(() {
         _review = message;
+        _savedDraftInput = null;
         _edited.text = message.content;
         _announcement = false;
         _published = null;
@@ -629,6 +648,42 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
           _clearReview();
           _published = post.postId;
           _notice = 'published';
+        });
+      }
+    });
+  }
+
+  Future<void> _saveToCloudDraft() async {
+    final id = _selected;
+    final draft = _review;
+    final content = _edited.text;
+    if (id == null ||
+        draft == null ||
+        !_allowed ||
+        _needsRefresh ||
+        utf8.encode(content).length > 4000) {
+      return;
+    }
+    final scope = PostDraftScope(ref);
+    if (!scope.isCurrent(ref)) return;
+    final input = V2PostDraftInput(
+      groupId: widget.groupId,
+      content: content,
+      announcement: _announcement,
+    );
+    await _work(_Phase.saveDraft, (api, token, valid) async {
+      final matches = await _matchesCurrent(api, token, id, draft);
+      if (!valid() || !scope.isCurrent(ref)) return;
+      if (!matches) {
+        _markStale();
+        return;
+      }
+      if (_savedDraftInput?.matches(input) == true) return;
+      await scope.api.save(input, cancel: token);
+      if (valid() && scope.isCurrent(ref)) {
+        setState(() {
+          _savedDraftInput = input;
+          _notice = 'savedToCloud';
         });
       }
     });
@@ -895,6 +950,11 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
                       ),
                   ],
                 ),
+                if (_preview.isNotEmpty && _phase == _Phase.generate)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    child: SingleChildScrollView(child: Text(_preview)),
+                  ),
                 if (_invalidSearch && _review == null)
                   Text(
                     label('searchInvalid'),
@@ -968,6 +1028,13 @@ class _AiGroupDraftScreenState extends ConsumerState<AiGroupDraftScreen> {
                                     ? null
                                     : _publish,
                                 child: Text(label('confirmPublish')),
+                              ),
+                              TextButton(
+                                key: const Key('ai-group-save-cloud-draft'),
+                                onPressed: busy || _needsRefresh || editedBytes > 4000
+                                    ? null
+                                    : _saveToCloudDraft,
+                                child: Text(l10n.t('draft.save')),
                               ),
                               TextButton(
                                 onPressed: busy

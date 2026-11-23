@@ -11,6 +11,7 @@ typedef RealtimeListener = void Function(Map<String, dynamic> event);
 enum RemoteEvents { unknown, connecting, connected, unavailable }
 
 const _maxSafeInteger = 9007199254740991;
+const chatTypingInterval = Duration(milliseconds: 1200);
 
 int? realtimeUserIdFromAccessToken(String token) {
   final parts = token.split('.');
@@ -45,6 +46,7 @@ class RealtimeService {
   StreamSubscription<dynamic>? _sub;
   Timer? _pingTimer;
   Timer? _reconnectTimer;
+  final _typingCooldowns = <String, Timer>{};
   bool _shouldReconnect = false;
   int _generation = 0;
   int? _channelRevision;
@@ -145,6 +147,10 @@ class RealtimeService {
   Future<void> _releaseChannel() async {
     _pingTimer?.cancel();
     _pingTimer = null;
+    for (final cooldown in _typingCooldowns.values) {
+      cooldown.cancel();
+    }
+    _typingCooldowns.clear();
     final subscription = _sub, channel = _channel;
     final wasReady = _ready;
     _sub = null;
@@ -182,6 +188,23 @@ class RealtimeService {
       _scheduleReconnect(_generation, tokenStore.revision, channel);
       return false;
     }
+  }
+
+  bool sendTyping(Map<String, dynamic> payload) {
+    final type = payload['type'];
+    if (type is! String ||
+        (type != 'typing_start' && type != 'typing_stop') ||
+        _typingCooldowns.containsKey(type) ||
+        !send(payload)) {
+      return false;
+    }
+    if (isConnected) {
+      _typingCooldowns[type] = Timer(
+        chatTypingInterval,
+        () => _typingCooldowns.remove(type),
+      );
+    }
+    return true;
   }
 
   bool _isCurrent(int generation, int revision) =>

@@ -11,6 +11,7 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/utils/ai_conversation_link.dart';
+import '../../groups/domain/group_models.dart';
 import '../../posts/domain/post_models.dart';
 import '../../posts/presentation/compose_post_screen.dart';
 import '../data/ai_conversation_page.dart';
@@ -84,6 +85,11 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
   String _titleDraft = '';
   _WritingMode _writingMode = _WritingMode.draft;
   String? _conversation;
+  AiKnowledgeScope _knowledgeScope = AiKnowledgeScope.public;
+  int? _scopeGroupId;
+  String? _scopeGroupName;
+  bool get _scopeReady =>
+      _knowledgeScope != AiKnowledgeScope.group || _scopeGroupId != null;
   List<AiWritingMessage> _messages = [];
   bool _forwardOnly = false;
   bool _oldestPageComplete = false;
@@ -98,6 +104,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
   bool _expired = false;
   bool _explicitSkill = false;
   CancelToken? _generation;
+  String _preview = '';
   VoidCallback? _stopListening;
   Route<Object?>? _dialog;
   bool get _active => mounted && !_expired;
@@ -127,7 +134,11 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       final group = await groups.getGroupById(groupId);
       if (!current()) return;
       if (group.groupId == groupId &&
-          group.privacy == 'public' &&
+          (group.privacy == 'public' ||
+              (_knowledgeScope == AiKnowledgeScope.group &&
+                  _scopeGroupId == groupId &&
+                  group.membership.isMember &&
+                  group.membership.status == 'active')) &&
           group.isActive == 1 &&
           group.slug.isNotEmpty) {
         final path = '/groups/${Uri.encodeComponent(group.slug)}/posts/$postId';
@@ -425,11 +436,13 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
   }
 
   Future<void> _openHistory() async {
-    if (!_active || _busy) return;
+    if (!_active || _busy || !_scopeReady) return;
     final id = await _showScopedDialog<String>(
       builder: (_) => _HistoryDialog(
         api: ref.read(aiWritingApiProvider),
         knowledge: widget.knowledge,
+        knowledgeScope: widget.knowledge ? _knowledgeScope : null,
+        groupId: _scopeGroupId,
       ),
     );
     if (!_active || id == null) return;
@@ -439,6 +452,94 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     }
     if (_updateLocation(id)) return;
     await _restoreConversation(id);
+  }
+
+  void _setKnowledgeScope(AiKnowledgeScope scope, [V2Group? group]) {
+    if (!_active ||
+        _busy ||
+        (_knowledgeScope == scope && _scopeGroupId == group?.groupId)) {
+      return;
+    }
+    _search.clear();
+    setState(() {
+      _knowledgeScope = scope;
+      _scopeGroupId = group?.groupId;
+      _scopeGroupName = group?.name;
+      _conversation = null;
+      _titleDraft = '';
+      _messages = [];
+      _forwardOnly = false;
+      _oldestPageComplete = false;
+      _needsRefresh = false;
+      _savedReplyPending = false;
+      _notice = null;
+    });
+    _updateLocation(null);
+  }
+
+  Future<void> _chooseKnowledgeGroup() async {
+    if (!_active || _busy || _dialog != null) return;
+    final l10n = AppLocalizations.of(context);
+    final api = ref.read(groupsApiProvider);
+    Future<List<V2Group>> loadGroups() async {
+      final groups = <V2Group>[];
+      for (var page = 1; _active; page++) {
+        final result = await api.myGroups(page: page, size: 50);
+        if (!_active) return const [];
+        groups.addAll(
+          result.items.where(
+            (group) =>
+                group.isActive == 1 &&
+                group.membership.isMember &&
+                group.membership.status == 'active',
+          ),
+        );
+        if (!result.hasNext || result.items.isEmpty) break;
+      }
+      return groups;
+    }
+
+    final groups = loadGroups();
+    final selected = await _showScopedDialog<V2Group>(
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(l10n.t('ai.knowledge.scope.choose_group')),
+        children: [
+          FutureBuilder<List<V2Group>>(
+            future: groups,
+            builder: (context, result) {
+              if (result.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final active = result.data ?? const [];
+              if (active.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    l10n.t(
+                      result.hasError
+                          ? 'ai.writing.history_failed'
+                          : 'ai.knowledge.scope.no_groups',
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final group in active)
+                    SimpleDialogOption(
+                      onPressed: () => Navigator.of(dialogContext).pop(group),
+                      child: Text(group.name),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+    if (selected != null) _setKnowledgeScope(AiKnowledgeScope.group, selected);
   }
 
   bool _updateLocation(String? id) {
@@ -502,6 +603,9 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       _search.clear();
       setState(() {
         _conversation = id;
+        _knowledgeScope = record.knowledgeScope;
+        if (_scopeGroupId != record.groupId) _scopeGroupName = null;
+        _scopeGroupId = record.groupId;
         _titleDraft = '';
         _messages = recent.messages;
         _oldestPageComplete = recent.messages.length < 50;
@@ -572,6 +676,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     if (!_active ||
         _busy ||
         _needsRefresh ||
+        !_scopeReady ||
         draft.isEmpty ||
         !_generationEnabled(ref.read(aiAvailabilityProvider))) {
       return;
@@ -594,7 +699,11 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       final id =
           existing ??
           await (widget.knowledge
-              ? api.createKnowledgeConversation(title: title)
+              ? api.createKnowledgeConversation(
+                  title: title,
+                  knowledgeScope: _knowledgeScope,
+                  groupId: _scopeGroupId,
+                )
               : api.createConversation(title: title));
       if (!_active) return;
       _conversation = id;
@@ -733,7 +842,16 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     int sequence,
   ) async {
     final generation = CancelToken();
-    setState(() => _generation = generation);
+    setState(() {
+      _generation = generation;
+      _preview = '';
+    });
+    void preview(String text) {
+      if (_active && !generation.isCancelled) {
+        setState(() => _preview += text);
+      }
+    }
+
     try {
       var hasEvidence = true;
       final availability = ref.read(aiAvailabilityProvider);
@@ -752,6 +870,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
           cancelToken: generation,
           selectSkill: selectSkill,
           expectedSequence: sequence,
+          onDelta: preview,
         );
       } else {
         hasEvidence = await api.generateKnowledge(
@@ -760,6 +879,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
           cancelToken: generation,
           selectSkill: selectSkill,
           expectedSequence: sequence,
+          onDelta: preview,
         );
       }
       if (generation.isCancelled) throw generation.cancelError!;
@@ -790,7 +910,10 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
         return false;
       }
       final retry = aiQuotaRetry(error);
-      if (retry == null) rethrow;
+      if (retry == null) {
+        if (_active) setState(() => _needsRefresh = true);
+        rethrow;
+      }
       if (_active) {
         setState(() {
           _quotaRetry = retry;
@@ -799,7 +922,12 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       }
       return false;
     } finally {
-      if (_active) setState(() => _generation = null);
+      if (_active) {
+        setState(() {
+          _generation = null;
+          _preview = '';
+        });
+      }
     }
   }
 
@@ -907,7 +1035,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
           IconButton(
             key: const Key('ai-writing-history'),
             tooltip: l10n.t('ai.writing.history'),
-            onPressed: _busy ? null : _openHistory,
+            onPressed: _busy || !_scopeReady ? null : _openHistory,
             icon: const Icon(Icons.history),
           ),
           if (_conversation != null || widget.initialConversationId != null)
@@ -957,6 +1085,57 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(l10n.t('ai.writing.discussion_prefilled')),
+                ),
+              if (widget.knowledge)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Wrap(
+                    spacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Semantics(
+                        label: l10n.t('ai.knowledge.scope.label'),
+                        child: SizedBox(
+                          width: 300,
+                          child: DropdownButton<AiKnowledgeScope>(
+                            isExpanded: true,
+                            value: _knowledgeScope,
+                            onChanged: _busy
+                                ? null
+                                : (scope) {
+                                    if (scope != null &&
+                                        scope != _knowledgeScope) {
+                                      _setKnowledgeScope(scope);
+                                      if (scope == AiKnowledgeScope.group) {
+                                        unawaited(_chooseKnowledgeGroup());
+                                      }
+                                    }
+                                  },
+                            items: [
+                              for (final scope in AiKnowledgeScope.values)
+                                DropdownMenuItem(
+                                  value: scope,
+                                  child: Text(
+                                    l10n.t('ai.knowledge.scope.${scope.name}'),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_knowledgeScope == AiKnowledgeScope.group)
+                        OutlinedButton(
+                          onPressed: _busy ? null : _chooseKnowledgeGroup,
+                          child: Text(
+                            _scopeGroupName ??
+                                (_scopeGroupId == null
+                                    ? l10n.t('ai.knowledge.scope.choose_group')
+                                    : '#$_scopeGroupId'),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -1215,6 +1394,14 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                   onPressed: () => _generation?.cancel(),
                   child: Text(l10n.t('ai.writing.stop')),
                 ),
+              if (_generation != null && _preview.isNotEmpty)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(_preview),
+                  ),
+                ),
               if (!widget.knowledge)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1294,7 +1481,11 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                         IconButton.filled(
                           key: const Key('ai-writing-send'),
                           onPressed:
-                              _busy || _needsRefresh || !canGenerate || tooLong
+                              _busy ||
+                                  _needsRefresh ||
+                                  !_scopeReady ||
+                                  !canGenerate ||
+                                  tooLong
                               ? null
                               : _send,
                           tooltip: l10n.t('ai.writing.send'),
@@ -1331,9 +1522,16 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
 }
 
 class _HistoryDialog extends StatefulWidget {
-  const _HistoryDialog({required this.api, required this.knowledge});
+  const _HistoryDialog({
+    required this.api,
+    required this.knowledge,
+    this.knowledgeScope,
+    this.groupId,
+  });
   final AiWritingApi api;
   final bool knowledge;
+  final AiKnowledgeScope? knowledgeScope;
+  final int? groupId;
   @override
   State<_HistoryDialog> createState() => _HistoryDialogState();
 }
@@ -1361,6 +1559,8 @@ class _HistoryDialogState extends State<_HistoryDialog> {
       final page = await widget.api.listConversations(
         purpose: widget.knowledge ? 'knowledge' : 'writing',
         afterId: cursor,
+        knowledgeScope: widget.knowledgeScope,
+        groupId: widget.groupId,
       );
       if (!mounted) return;
       final next = validateAiConversationPage(

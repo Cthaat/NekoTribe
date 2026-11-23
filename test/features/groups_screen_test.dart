@@ -16,6 +16,7 @@ import 'package:nekotribe/features/groups/presentation/group_detail_screen.dart'
 import 'package:nekotribe/features/groups/presentation/groups_screen.dart';
 import 'package:nekotribe/features/media/data/media_api.dart';
 import 'package:nekotribe/features/posts/domain/post_models.dart';
+import 'package:nekotribe/features/posts/domain/post_poll.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
@@ -109,6 +110,67 @@ void main() {
     expect(media.uploadedFileNames, ['drop.png', 'keep.png']);
     expect(api.publishedImages, ['/uploads/keep.png']);
     expect(api.groupPostReads, 2);
+  });
+
+  testWidgets('group members can add a multiple-choice poll to a group post', (
+    tester,
+  ) async {
+    final api = _FakeGroupsApi()..membershipStatus = 'active';
+    await tester.pumpWidget(
+      _testApp(
+        groupsApi: api,
+        mediaApi: _FakeMediaApi(),
+        child: const GroupDetailScreen(slug: 'private-cats'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FloatingActionButton, '发布群组动态'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Pick every favourite');
+    final attach = find.byKey(const Key('post-poll-attach'));
+    await tester.ensureVisible(attach);
+    await tester.tap(attach);
+    await tester.pumpAndSettle();
+    for (final (index, text) in [(1, 'Cats'), (2, 'Dogs')]) {
+      final field = find.byKey(ValueKey('post-poll-option-$index'));
+      await tester.ensureVisible(field);
+      await tester.enterText(field, text);
+      await tester.pumpAndSettle();
+    }
+    final multiple = find.byKey(const Key('post-poll-multiple'));
+    await tester.ensureVisible(multiple);
+    await tester.tap(multiple);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '发布'));
+    await tester.pumpAndSettle();
+    expect(api.publishedPost, (42, 'Pick every favourite', false));
+    expect(api.publishedPoll?.options, ['Cats', 'Dogs']);
+    expect(api.publishedPoll?.multiple, isTrue);
+  });
+
+  testWidgets('group composer publishes Markdown with its plain summary', (
+    tester,
+  ) async {
+    final api = _FakeGroupsApi()..membershipStatus = 'active';
+    await tester.pumpWidget(
+      _testApp(
+        groupsApi: api,
+        mediaApi: _FakeMediaApi(),
+        child: const GroupDetailScreen(slug: 'private-cats'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FloatingActionButton, '发布群组动态'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('post-markdown-toggle')));
+    await tester.pumpAndSettle();
+    const source = '# Group headline\n\n- read **this**';
+    await tester.enterText(find.byKey(const Key('post-markdown-field')), source);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '发布'));
+    await tester.pumpAndSettle();
+    expect(api.publishedPost, (42, 'Group headline read this', false));
+    expect(api.publishedMarkdown, source);
   });
 
   testWidgets(
@@ -354,6 +416,8 @@ Widget _testApp({
 }
 
 class _FakeGroupsApi extends GroupsApi {
+  V2CreatePostPoll? publishedPoll;
+  String? publishedMarkdown;
   _FakeGroupsApi()
     : super(ApiClient(config: _testConfig, tokenStore: _FakeTokenStore()));
 
@@ -461,10 +525,14 @@ class _FakeGroupsApi extends GroupsApi {
     required String content,
     bool isAnnouncement = false,
     List<String> mediaUrls = const [],
+    V2CreatePostPoll? poll,
+    String? markdown,
     CancelToken? cancelToken,
   }) async {
     publishedPost = (groupId, content, isAnnouncement);
     publishedImages = List.of(mediaUrls);
+    publishedPoll = poll;
+    publishedMarkdown = markdown;
     return V2GroupPost.fromJson({
       'group_id': groupId,
       'post_id': 123,

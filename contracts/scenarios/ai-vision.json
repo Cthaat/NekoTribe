@@ -1,0 +1,31 @@
+{
+  "id": "AI-VISION",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "describe-and-apply-own-draft",
+      "status": 200,
+      "assertion": "An owned authorized upload yields alt text and topic suggestions. The user confirms the selection before applying the draft update or publishing."
+    },
+    {
+      "id": "foreign-media",
+      "status": 404,
+      "assertion": "Another account's media ID cannot be used for description or metadata update and triggers no inference."
+    },
+    {
+      "id": "media-id-not-url",
+      "status": 400,
+      "assertion": "An arbitrary URL is rejected before storage or inference."
+    },
+    {
+      "id": "vision-moderation",
+      "status": 200,
+      "assertion": "An authorized public post's public images enter vision moderation and are rechecked before the saved advice is exposed."
+    },
+    {
+      "id": "text-only-model",
+      "status": 200,
+      "assertion": "A text-only moderation model receives no images and the client marks the analysis scope as text only."
+    }
+  ]
+}

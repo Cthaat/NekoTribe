@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'core/config/app_config.dart';
+import 'features/calls/presentation/call_widgets.dart';
 import 'shared/i18n/app_localizations.dart';
 import 'shared/providers/providers.dart';
 import 'shared/routing/app_router.dart';
@@ -80,7 +81,7 @@ class NekoTribeApp extends ConsumerWidget {
       ],
       builder: (context, child) => DesktopWindowFrame(
         enabled: isDesktopWindowFrameSupported,
-        child: child ?? const SizedBox.shrink(),
+        child: CallOverlay(child: child ?? const SizedBox.shrink()),
       ),
       routerConfig: router,
     );

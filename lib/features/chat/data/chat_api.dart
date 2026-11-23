@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
@@ -122,6 +124,9 @@ class ChatApi {
     int page = 1,
     int size = 30,
     String? search,
+    int? senderId,
+    DateTime? startAt,
+    DateTime? endAt,
     // Kept for API compatibility; server pagination is page/page_size only
     // and ignores `before`. Prefer page-based history loading in screens.
     int? beforeMessageId,
@@ -133,7 +138,7 @@ class ChatApi {
       size: size,
       filters: {
         if (beforeMessageId != null) 'before': beforeMessageId,
-        if (search != null && search.isNotEmpty) 'q': search,
+        ..._messageFilters(search, senderId, startAt, endAt),
       },
       invalid: invalid,
       idOf: (message) => message.messageId,
@@ -397,31 +402,114 @@ class ChatApi {
     required int conversationId,
     int page = 1,
     int size = 30,
+    bool markRead = true,
+    String? search,
+    int? senderId,
+    DateTime? startAt,
+    DateTime? endAt,
     // Kept for API compatibility; server pagination is page/page_size only
     // and ignores `before`. Prefer page-based history loading in screens.
     int? beforeMessageId,
   }) {
     const invalid = FormatException('Invalid direct message history response');
     return _readChatPage<V2DirectMessage>(
-      '${ApiPaths.chatDirectConversations}/$conversationId/messages',
+      _directMessagesPath(conversationId),
       page: page,
       size: size,
-      filters: {if (beforeMessageId != null) 'before': beforeMessageId},
+      filters: {
+        if (beforeMessageId != null) 'before': beforeMessageId,
+        if (!markRead) 'mark_read': false,
+        ..._messageFilters(search, senderId, startAt, endAt),
+      },
       invalid: invalid,
       idOf: (message) => message.messageId,
-      decodeItem: (item) {
-        final message = toMap(item);
-        final author = toMap(message['author']);
-        if (!_safeId(message['message_id']) ||
-            message['conversation_id'] is! int ||
-            message['conversation_id'] != conversationId ||
-            !_safeId(author['user_id']) ||
-            message['content'] is! String ||
-            message['created_at'] is! String ||
-            message['is_deleted'] != false) {
-          throw invalid;
+      decodeItem: (item) => _decodeDirectMessage(item, conversationId),
+    );
+  }
+
+  Map<String, Object> _messageFilters(
+    String? search,
+    int? senderId,
+    DateTime? startAt,
+    DateTime? endAt,
+  ) {
+    String utcMilliseconds(DateTime date) =>
+        DateTime.fromMillisecondsSinceEpoch(
+          date.millisecondsSinceEpoch,
+          isUtc: true,
+        ).toIso8601String();
+    final query = search?.trim() ?? '';
+    return {
+      if (query.isNotEmpty) 'q': query,
+      if (senderId != null) 'sender_id': senderId,
+      if (startAt != null) 'start_at': utcMilliseconds(startAt),
+      if (endAt != null) 'end_at': utcMilliseconds(endAt),
+    };
+  }
+
+  Future<V2DirectReadStatus> getDirectReadStatus({
+    required int conversationId,
+    CancelToken? cancelToken,
+  }) => _readDirectStatus(
+    conversationId: conversationId,
+    cancelToken: cancelToken,
+  );
+
+  Future<V2DirectReadStatus> setDirectReadStatus({
+    required int conversationId,
+    required int lastReadMessageId,
+    CancelToken? cancelToken,
+  }) {
+    if (!_safeId(lastReadMessageId)) {
+      throw const FormatException('Invalid direct read cursor');
+    }
+    return _readDirectStatus(
+      conversationId: conversationId,
+      lastReadMessageId: lastReadMessageId,
+      cancelToken: cancelToken,
+    );
+  }
+
+  Future<V2DirectReadStatus> _readDirectStatus({
+    required int conversationId,
+    int? lastReadMessageId,
+    CancelToken? cancelToken,
+  }) {
+    if (!_safeId(conversationId)) {
+      throw const FormatException('Invalid direct conversation ID');
+    }
+    return _client.requestData(
+      '${ApiPaths.chatDirectConversations}/$conversationId/read-status',
+      method: lastReadMessageId == null ? 'GET' : 'PUT',
+      data: lastReadMessageId == null
+          ? null
+          : {'last_read_message_id': lastReadMessageId},
+      cancelToken: cancelToken,
+      decode: (raw) {
+        final data = toMap(raw);
+        final own = data['last_read_message_id'],
+            peer = data['participant_last_read_message_id'];
+        final unread = data['unread_count'];
+        if (data.length != 4 ||
+            !_safeId(data['conversation_id']) ||
+            data['conversation_id'] != conversationId ||
+            !data.containsKey('last_read_message_id') ||
+            (own != null && !_safeId(own)) ||
+            !data.containsKey('participant_last_read_message_id') ||
+            (peer != null && !_safeId(peer)) ||
+            unread is! int ||
+            unread < 0 ||
+            unread > 9007199254740991 ||
+            (lastReadMessageId != null &&
+                (own is! int || own < lastReadMessageId))) {
+          throw const FormatException('Invalid direct read status');
         }
-        return V2DirectMessage.fromJson(message);
+        return (
+          conversationId: conversationId,
+          lastReadMessageId: own as int?,
+          participantLastReadMessageId: peer as int?,
+          unreadCount: unread,
+        );
       },
     );
   }
@@ -476,24 +564,126 @@ class ChatApi {
 
   Future<V2DirectMessage> sendDirectMessage({
     required int conversationId,
-    required String content,
+    String content = '',
+    List<int> mediaIds = const [],
+    int? replyToMessageId,
+    CancelToken? cancelToken,
   }) {
+    final text = content.trim();
+    final ids = List<int>.of(mediaIds);
+    if ((text.isEmpty && ids.isEmpty) ||
+        !validDirectMessageContent(text) ||
+        ids.length > directMessageMaxMedia ||
+        !ids.every(_safeId) ||
+        ids.toSet().length != ids.length ||
+        (replyToMessageId != null && !_safeId(replyToMessageId))) {
+      throw const FormatException('Invalid direct message input');
+    }
     return _client.requestData<V2DirectMessage>(
-      '${ApiPaths.chatDirectConversations}/$conversationId/messages',
+      _directMessagesPath(conversationId),
       method: 'POST',
-      data: {'content': content},
+      data: {
+        if (text.isNotEmpty) 'content': text,
+        if (ids.isNotEmpty) 'media_ids': ids,
+        if (replyToMessageId != null) 'reply_to_message_id': replyToMessageId,
+      },
+      cancelToken: cancelToken,
       decode: (data) {
-        final receipt = toMap(data);
-        if (!_safeId(receipt['message_id']) ||
-            receipt['conversation_id'] is! int ||
-            receipt['conversation_id'] != conversationId ||
-            receipt['is_deleted'] != false ||
-            receipt['content'] != content.trim()) {
+        final receipt = _decodeDirectMessage(
+          data,
+          conversationId,
+          requireTimestamp: false,
+        );
+        if (receipt.content != text ||
+            receipt.media.length != ids.length ||
+            !receipt.media.indexed.every(
+              (entry) => entry.$2.mediaId == ids[entry.$1],
+            ) ||
+            (receipt.replyTo != null &&
+                receipt.replyTo!.messageId != replyToMessageId)) {
           throw const FormatException('Invalid direct message response');
         }
-        return V2DirectMessage.fromJson(receipt);
+        return receipt;
       },
     );
+  }
+
+  Future<V2DirectMessage> getDirectMessage({
+    required int conversationId,
+    required int messageId,
+    CancelToken? cancelToken,
+  }) => _client.requestData(
+    _directMessagePath(conversationId, messageId),
+    cancelToken: cancelToken,
+    decode: (data) =>
+        _decodeDirectMessage(data, conversationId, messageId: messageId),
+  );
+
+  Future<V2DirectMessage> setDirectMessageReaction({
+    required int conversationId,
+    required int messageId,
+    required String emoji,
+    required bool reacted,
+    CancelToken? cancelToken,
+  }) {
+    final symbol = emoji.trim();
+    if (!validDirectMessageEmoji(symbol)) {
+      throw const FormatException('Invalid direct message emoji');
+    }
+    return _client.requestData(
+      '${_directMessagePath(conversationId, messageId)}/reactions',
+      method: reacted ? 'POST' : 'DELETE',
+      data: {'emoji': symbol},
+      cancelToken: cancelToken,
+      decode: (data) {
+        final message = _decodeDirectMessage(
+          data,
+          conversationId,
+          messageId: messageId,
+        );
+        final confirmed = message.reactions.any(
+          (item) => item.emoji == symbol && item.reactedByMe,
+        );
+        if (confirmed != reacted) {
+          throw const FormatException('Invalid direct reaction receipt');
+        }
+        return message;
+      },
+    );
+  }
+
+  String _directMessagesPath(int conversationId) {
+    if (!_safeId(conversationId)) {
+      throw const FormatException('Invalid direct conversation ID');
+    }
+    return '${ApiPaths.chatDirectConversations}/$conversationId/messages';
+  }
+
+  String _directMessagePath(int conversationId, int messageId) {
+    if (!_safeId(messageId)) {
+      throw const FormatException('Invalid direct message ID');
+    }
+    return '${_directMessagesPath(conversationId)}/$messageId';
+  }
+
+  V2DirectMessage _decodeDirectMessage(
+    Object? raw,
+    int conversationId, {
+    int? messageId,
+    bool requireTimestamp = true,
+  }) {
+    final message = toMap(raw);
+    if (!_safeId(message['message_id']) ||
+        (messageId != null && message['message_id'] != messageId) ||
+        message['conversation_id'] is! int ||
+        message['conversation_id'] != conversationId ||
+        !_safeId(toMap(message['author'])['user_id']) ||
+        message['is_deleted'] != false ||
+        message['content'] is! String ||
+        (requireTimestamp && message['created_at'] is! String)) {
+      throw const FormatException('Invalid direct message response');
+    }
+    return V2DirectMessage.fromJson(message);
   }
 
   Future<void> deleteDirectMessage({
@@ -501,7 +691,7 @@ class ChatApi {
     required int messageId,
   }) async {
     await _client.request<void>(
-      '${ApiPaths.chatDirectConversations}/$conversationId/messages/$messageId',
+      _directMessagePath(conversationId, messageId),
       method: 'DELETE',
       decode: (data) {
         if (data != null) {

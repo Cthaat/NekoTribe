@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -10,10 +11,109 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/utils/json_utils.dart';
 import '../../posts/domain/post_models.dart';
 
+typedef ImageDescription = ({String altText, List<String> tags});
+
 class MediaApi {
   MediaApi(this._client);
 
   final ApiClient _client;
+
+  static const maxAltTextBytes = 500;
+  static final _invalidText = RegExp(
+    r'[\u0000-\u001f\u007f\uD800-\uDFFF]',
+    unicode: true,
+  );
+  static final _invalidTag = RegExp(r'[#\s]');
+
+  static bool validAltText(String value) =>
+      !_invalidText.hasMatch(value) &&
+      utf8.encode(value).length <= maxAltTextBytes;
+
+  static bool canDescribe(V2MediaAsset asset) =>
+      _validId(asset.mediaId) &&
+      asset.status == 'ready' &&
+      asset.mediaType == 'image' &&
+      const {
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+      }.contains(asset.mimeType) &&
+      asset.fileSize > 0 &&
+      asset.fileSize <= 4 * 1024 * 1024;
+
+  static bool _validId(int value) => value > 0 && value <= 9007199254740991;
+
+  Future<ImageDescription> describeImage(
+    int mediaId, {
+    required String locale,
+    required CancelToken cancelToken,
+  }) {
+    if (!_validId(mediaId) || (locale != 'zh' && locale != 'en')) {
+      throw const FormatException('Invalid image description request');
+    }
+    return _client.requestData<ImageDescription>(
+      ApiPaths.aiMediaDescribe,
+      method: 'POST',
+      data: {'media_id': mediaId, 'locale': locale},
+      cancelToken: cancelToken,
+      decode: (raw) {
+        final data = toMap(raw);
+        final text = data['alt_text'], tags = data['tags'];
+        if (data.length != 3 ||
+            data['media_id'] is! int ||
+            data['media_id'] != mediaId ||
+            text is! String ||
+            text.trim().isEmpty ||
+            !validAltText(text) ||
+            tags is! List ||
+            tags.length > 5) {
+          throw const FormatException('Invalid image description');
+        }
+        final topics = <String>{};
+        for (final tag in tags) {
+          if (tag is! String ||
+              tag.isEmpty ||
+              tag.trim() != tag ||
+              tag.runes.length > 40 ||
+              _invalidText.hasMatch(tag) ||
+              _invalidTag.hasMatch(tag) ||
+              !topics.add(tag)) {
+            throw const FormatException('Invalid image topic');
+          }
+        }
+        return (altText: text.trim(), tags: List.unmodifiable(topics));
+      },
+    );
+  }
+
+  Future<String?> updateAltText(
+    int mediaId,
+    String altText, {
+    required CancelToken cancelToken,
+  }) {
+    if (!_validId(mediaId) || !validAltText(altText)) {
+      throw const FormatException('Invalid image alternate text');
+    }
+    final clean = altText.trim();
+    final String? expected = clean.isEmpty ? null : clean;
+    return _client.requestData<String?>(
+      '${ApiPaths.media}/$mediaId',
+      method: 'PATCH',
+      data: {'alt_text': clean},
+      cancelToken: cancelToken,
+      decode: (raw) {
+        final data = toMap(raw);
+        if (data.length != 2 ||
+            data['media_id'] is! int ||
+            data['media_id'] != mediaId ||
+            !data.containsKey('alt_text') ||
+            data['alt_text'] != expected) {
+          throw const FormatException('Invalid alternate text receipt');
+        }
+        return expected;
+      },
+    );
+  }
 
   Future<V2MediaAsset> uploadFile({
     required File file,

@@ -453,6 +453,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           label: l10n.t('ai.writing.title'),
                           onTap: () => openAiConversation(context),
                         ),
+                        _Divider(),
+                        _NavRow(
+                          icon: Icons.vpn_key_outlined,
+                          label: l10n.t('ai.provider.title'),
+                          onTap: () => context.push('/settings/ai-provider'),
+                        ),
                       ],
                     ),
                     _SectionHeader(title: l10n.t('settings.section.security')),

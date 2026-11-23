@@ -1,0 +1,16 @@
+{
+  "id": "WEBRTC-CALLS",
+  "revision": 1,
+  "ring_ms": 30000,
+  "active_ms": 14400000,
+  "turn_ttl_seconds": 14700,
+  "max_sdp_bytes": 32768,
+  "max_ice_candidates": 16,
+  "max_ice_candidate_bytes": 2048,
+  "redis_key_prefix": "nt:{webrtc}:",
+  "environment": {
+    "stun_urls": "WEBRTC_STUN_URLS",
+    "turn_urls": "WEBRTC_TURN_URLS",
+    "turn_shared_secret": "WEBRTC_TURN_SHARED_SECRET"
+  }
+}

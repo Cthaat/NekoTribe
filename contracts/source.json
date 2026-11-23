@@ -2,25 +2,25 @@
   "schemaVersion": 2,
   "authority": "Nuxt doc/v2.openapi.json",
   "contractVersion": "2.0.0",
-  "revision": "2026-11-19-media-storage-unavailable",
+  "revision": "2026-11-21-ai-knowledge-scope",
   "normalization": "UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.",
   "source": {
     "project": "nuxt",
     "branch": "master",
-    "commit": "88c3f1362f0ba0e5b71491382c3372e07a9484bd"
+    "commit": "4d566b43ab7189d36f0b2d66c3dbbb5a199bd775"
   },
   "files": [
     {
       "path": "v2.openapi.json",
       "sourcePath": "doc/v2.openapi.json",
-      "sha256": "786d3c714aab2ebf16abc356ae077109436040533dc7136e5b256c6290172b36",
-      "gitBlob": "66391b2ebf0b4410b7d8a244aea0887c0a073a90",
+      "sha256": "d308c3cfb30e45b26a73b15c26fe1238ca248b0890fd6c591519a31b1dc36128",
+      "gitBlob": "45c5cd79735620da8941f524bc8c020526da201c",
       "committedSource": {
-        "commit": "88c3f1362f0ba0e5b71491382c3372e07a9484bd",
-        "gitBlob": "e9ab871717206d78b9b8e060774e3683cb137a03",
-        "sha256": "83cc7cd8610143d7bc0430dcaa89661d121fc3acf8303cc868c663fac24b553a"
+        "commit": "4d566b43ab7189d36f0b2d66c3dbbb5a199bd775",
+        "gitBlob": "45c5cd79735620da8941f524bc8c020526da201c",
+        "sha256": "d308c3cfb30e45b26a73b15c26fe1238ca248b0890fd6c591519a31b1dc36128"
       },
-      "differsFromCommittedSource": true
+      "differsFromCommittedSource": false
     },
     {
       "path": "runtime-addresses.md",
@@ -28,11 +28,11 @@
       "sha256": "eee953ed96ddb7db9f36871362b81527dc31456fe5ef7b13ad73b27eacd2aa1f",
       "gitBlob": "b423b7a4c7fb274e888ae4b8f7ac7560259c4f7c",
       "committedSource": {
-        "commit": "88c3f1362f0ba0e5b71491382c3372e07a9484bd",
-        "gitBlob": "748b5407fc7744827c7f70041808e55c14de52db",
-        "sha256": "700bb79c8efe738d3ba51eee92cde91772406587c3338ca1477462a0f2d5cdb7"
+        "commit": "4d566b43ab7189d36f0b2d66c3dbbb5a199bd775",
+        "gitBlob": "b423b7a4c7fb274e888ae4b8f7ac7560259c4f7c",
+        "sha256": "eee953ed96ddb7db9f36871362b81527dc31456fe5ef7b13ad73b27eacd2aa1f"
       },
-      "differsFromCommittedSource": true
+      "differsFromCommittedSource": false
     }
   ]
 }

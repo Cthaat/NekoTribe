@@ -12,6 +12,8 @@ import '../../../core/utils/auth_input.dart';
 import '../../../core/utils/group_invite.dart';
 import '../../../core/utils/group_post_link.dart';
 import '../domain/auth_models.dart';
+import 'github_oauth_dialog.dart';
+import 'passkey_feedback.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key, this.inviteCode, this.groupPostLink});
@@ -23,11 +25,14 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
+enum _LoginMethod { password, passkey, gitHub }
+
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _account = TextEditingController();
   final _password = TextEditingController();
   bool _rememberMe = false;
-  bool _busy = false;
+  _LoginMethod? _pending;
+  bool get _busy => _pending != null;
   String? _error;
 
   @override
@@ -37,23 +42,78 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _login() async {
+  Future<void> _login() => _submitLogin(_LoginMethod.password);
+
+  Future<void> _loginWithPasskey() => _submitLogin(_LoginMethod.passkey);
+
+  Future<void> _loginWithGitHub() => _submitLogin(_LoginMethod.gitHub);
+
+  Future<void> _submitLogin(_LoginMethod method) async {
     if (_busy) return;
     final account = trimAuthInput(_account.text),
         password = trimAuthInput(_password.text);
-    if (account.isEmpty || password.isEmpty) return;
+    if (method == _LoginMethod.password &&
+        (account.isEmpty || password.isEmpty)) {
+      return;
+    }
+    final repo = ref.read(authRepositoryProvider);
+    final store = ref.read(tokenStoreProvider);
+    final endpoint = store.endpointRevision;
+    final startingRevision = repo.sessionRevision;
+    final rememberMe = _rememberMe;
+    int? submittedRevision = method == _LoginMethod.passkey
+        ? startingRevision + 1
+        : null;
+    bool isActive() =>
+        mounted &&
+        identical(ref.read(authRepositoryProvider), repo) &&
+        identical(ref.read(tokenStoreProvider), store) &&
+        store.endpointRevision == endpoint;
+    bool isCurrentGitHubFlow() =>
+        isActive() &&
+        repo.sessionRevision == startingRevision &&
+        !repo.isSessionChanging;
     setState(() {
-      _busy = true;
+      _pending = method;
       _error = null;
     });
     try {
-      final repo = ref.read(authRepositoryProvider);
-      final result = await repo.login(
-        account: account,
-        password: password,
-        rememberMe: _rememberMe,
-      );
-      if (!mounted) return;
+      V2LoginResult result;
+      switch (method) {
+        case _LoginMethod.password:
+          result = await repo.login(
+            account: account,
+            password: password,
+            rememberMe: rememberMe,
+          );
+        case _LoginMethod.passkey:
+          result = await repo.loginWithPasskey(
+            authenticate: ref.read(passkeyClientProvider).authenticate,
+            rememberMe: rememberMe,
+            isActive: isActive,
+          );
+        case _LoginMethod.gitHub:
+          if (!isCurrentGitHubFlow()) return;
+          final receipt = await showGitHubOAuth<V2LoginResult>(
+            context: context,
+            repository: repo,
+            isCurrent: isCurrentGitHubFlow,
+            signIn: true,
+            poll: (flow, cancel) => repo.pollGitHubLogin(
+              flow,
+              rememberMe: rememberMe,
+              cancelToken: cancel,
+            ),
+          );
+          if (receipt == null || !isCurrentGitHubFlow()) return;
+          submittedRevision = startingRevision + 1;
+          result = await repo.finishGitHubLogin(receipt, startingRevision);
+      }
+      if (!isActive() ||
+          (submittedRevision != null &&
+              repo.sessionRevision != submittedRevision)) {
+        return;
+      }
       if (result is V2LoginSuccess) {
         ref.read(authSessionProvider.notifier).markLoggedIn();
         unawaited(ref.read(realtimeServiceProvider).connect());
@@ -78,10 +138,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = ErrorView.describe(context, e));
+      if (!isActive() ||
+          (submittedRevision != null &&
+              repo.sessionRevision != submittedRevision)) {
+        return;
+      }
+      setState(() {
+        _error = switch (method) {
+          _LoginMethod.passkey => passkeyError(context, e),
+          _LoginMethod.gitHub => gitHubOAuthError(context, e),
+          _LoginMethod.password => ErrorView.describe(context, e),
+        };
+      });
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _pending = null);
     }
   }
 
@@ -118,6 +188,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     }
     final theme = Theme.of(context);
+    final supportsPasskeys = ref.watch(passkeyClientProvider).isSupported;
     return Scaffold(
       appBar: appBar,
       body: LayoutBuilder(
@@ -245,7 +316,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: _busy ? null : _login,
-                        child: _busy
+                        child: _busy && _pending != _LoginMethod.gitHub
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,
@@ -254,6 +325,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                               )
                             : Text(l10n.t('auth.login')),
+                      ),
+                      if (supportsPasskeys) ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: _busy ? null : _loginWithPasskey,
+                          icon: const Icon(Icons.key_outlined),
+                          label: Text(l10n.t('passkeys.sign_in')),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _busy ? null : _loginWithGitHub,
+                        icon: const Icon(Icons.open_in_new_outlined),
+                        label: Text(l10n.t('github_oauth.sign_in')),
                       ),
                       const SizedBox(height: 12),
                       Row(

@@ -4,6 +4,7 @@ import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
 import '../../../core/utils/json_utils.dart';
+import '../../posts/domain/post_poll.dart';
 import '../domain/group_models.dart';
 
 class GroupsApi {
@@ -323,10 +324,62 @@ class GroupsApi {
     );
   }
 
+  Future<PagedResult<V2GroupPost>> homeActivity({
+    required int page,
+    int size = 20,
+  }) => _client.requestPaged<V2GroupPost>(
+    ApiPaths.groupActivity,
+    query: {'page': page, 'page_size': size},
+    decodeItem: (item) {
+      final data = toMap(item);
+      final postId = data['post_id'];
+      final groupId = data['group_id'];
+      final groupName = data['group_name'];
+      if (postId is! int ||
+          postId < 1 ||
+          postId > 9007199254740991 ||
+          groupId is! int ||
+          groupId < 1 ||
+          groupId > 9007199254740991 ||
+          groupName is! String ||
+          groupName.trim().isEmpty) {
+        throw const FormatException('Invalid group activity post');
+      }
+      return V2GroupPost.fromJson(data);
+    },
+  );
+
   Future<V2GroupPost> getPost({required int groupId, required int postId}) {
     return _client.requestData<V2GroupPost>(
       '${ApiPaths.groups}/$groupId/posts/$postId',
       decode: (data) => V2GroupPost.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2PostPoll> getPoll({
+    required int groupId,
+    required int postId,
+    CancelToken? cancelToken,
+  }) {
+    return _client.requestData<V2PostPoll>(
+      '${ApiPaths.groups}/$groupId/posts/$postId/poll',
+      cancelToken: cancelToken,
+      decode: (data) => V2PostPoll.fromJson(toMap(data)),
+    );
+  }
+
+  Future<V2PostPoll> votePoll({
+    required int groupId,
+    required int postId,
+    required List<int> optionIds,
+    CancelToken? cancelToken,
+  }) {
+    return _client.requestData<V2PostPoll>(
+      '${ApiPaths.groups}/$groupId/posts/$postId/poll/vote',
+      method: 'POST',
+      data: {'option_ids': optionIds},
+      cancelToken: cancelToken,
+      decode: (data) => V2PostPoll.fromJson(toMap(data)),
     );
   }
 
@@ -335,6 +388,8 @@ class GroupsApi {
     required String content,
     bool isAnnouncement = false,
     List<String> mediaUrls = const [],
+    V2CreatePostPoll? poll,
+    String? markdown,
     CancelToken? cancelToken,
   }) {
     return _client.requestData<V2GroupPost>(
@@ -345,6 +400,8 @@ class GroupsApi {
         'content': content,
         'is_announcement': isAnnouncement,
         if (mediaUrls.isNotEmpty) 'media_urls': mediaUrls,
+        if (poll != null) 'poll': poll.toJson(),
+        if (markdown != null) 'markdown': markdown,
       },
       decode: (data) {
         final body = toMap(data);
@@ -358,7 +415,12 @@ class GroupsApi {
             postId != postId.truncate()) {
           throw const FormatException('Invalid group post receipt');
         }
-        return V2GroupPost.fromJson(body);
+        final post = V2GroupPost.fromJson(body);
+        if ((poll != null && post.poll == null) ||
+            (markdown != null && post.markdown != markdown)) {
+          throw const FormatException('Invalid group post attachment receipt');
+        }
+        return post;
       },
     );
   }

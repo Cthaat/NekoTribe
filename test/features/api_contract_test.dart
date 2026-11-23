@@ -10,6 +10,7 @@ import 'package:nekotribe/core/network/api_client.dart';
 import 'package:nekotribe/core/network/api_response.dart';
 import 'package:nekotribe/features/ai/data/ai_writing_api.dart';
 import 'package:nekotribe/features/auth/data/auth_api.dart';
+import 'package:nekotribe/features/calls/data/call_api.dart';
 import 'package:nekotribe/features/chat/data/chat_api.dart';
 import 'package:nekotribe/features/chat/domain/chat_models.dart';
 import 'package:nekotribe/features/groups/data/groups_api.dart';
@@ -18,8 +19,74 @@ import 'package:nekotribe/features/notifications/data/notifications_api.dart';
 import 'package:nekotribe/features/posts/data/posts_api.dart';
 import 'package:nekotribe/features/sentiment_flow/data/sentiment_flow_api.dart';
 import 'package:nekotribe/features/users/data/users_api.dart';
+import 'package:nekotribe/features/users/domain/account_usage.dart';
 
 void main() {
+  test(
+    'call ICE configuration accepts temporary TURN and empty configured lists',
+    () async {
+      final recorder = _ApiRecorder();
+      final api = CallApi(
+        _client(
+          recorder,
+          tokens: const TokenPair(
+            accessToken: 'call-test-access',
+            refreshToken: 'test-refresh',
+            sessionId: 'test-session',
+          ),
+        ),
+      );
+      recorder.callIceConfig = {
+        'ice_servers': [
+          {
+            'urls': ['stun:example.test:3478'],
+          },
+          {
+            'urls': ['turns:example.test:5349?transport=tcp'],
+            'username': '1000:7',
+            'credential': 'test-turn-credential',
+          },
+        ],
+        'expires_at': DateTime.now()
+            .toUtc()
+            .add(const Duration(minutes: 1))
+            .toIso8601String(),
+      };
+      expect((await api.iceServers()).last['username'], '1000:7');
+      recorder.expectLast(method: 'GET', path: '/api/v2/calls/ice-servers');
+      expect(
+        recorder.requests.last.headers['Authorization'],
+        'Bearer call-test-access',
+      );
+      recorder.callIceConfig = {...recorder.callIceConfig, 'expires_at': null};
+      await expectLater(api.iceServers(), throwsFormatException);
+      recorder.callIceConfig = {'ice_servers': [], 'expires_at': null};
+      expect(await api.iceServers(), isEmpty);
+    },
+  );
+
+  test(
+    'account resources render real totals and request both export formats',
+    () async {
+      final recorder = _ApiRecorder();
+      final api = UsersApi(_client(recorder));
+      final usage = await api.accountUsage();
+      expect(usage.usedUnits, 7);
+      expect(usage.mediaFiles, 2);
+      expect(usage.mediaBytes, 768);
+      expect(usage.conversations, 3);
+      for (final format in AccountExportFormat.values) {
+        final bytes = await api.exportAccount(
+          format,
+          cancelToken: CancelToken(),
+        );
+        expect(bytes, isNotEmpty);
+        expect(recorder.requests.last.path, '/api/v2/users/me/export');
+        expect(recorder.requests.last.queryParameters['format'], format.name);
+      }
+    },
+  );
+
   test('private conversation sends the canonical recipient field', () async {
     final recorder = _ApiRecorder();
     final api = ChatApi(_client(recorder));
@@ -43,6 +110,145 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('direct read status validates scope and the committed cursor', () async {
+    const path = '/api/v2/chat/direct-conversations/77/read-status';
+    final recorder = _ApiRecorder()
+      ..directReadStatus = {
+        'conversation_id': 77,
+        'last_read_message_id': null,
+        'participant_last_read_message_id': 5,
+        'unread_count': 2,
+      };
+    final api = ChatApi(_client(recorder));
+    final status = await api.getDirectReadStatus(conversationId: 77);
+    expect(status.lastReadMessageId, isNull);
+    expect(status.participantLastReadMessageId, 5);
+    expect(status.unreadCount, 2);
+    recorder.expectLast(method: 'GET', path: path);
+    recorder.directReadStatus!['last_read_message_id'] = 12;
+    await api.setDirectReadStatus(conversationId: 77, lastReadMessageId: 11);
+    recorder.expectLast(
+      method: 'PUT',
+      path: path,
+      body: {'last_read_message_id': 11},
+    );
+    await expectLater(
+      api.setDirectReadStatus(conversationId: 77, lastReadMessageId: 13),
+      throwsFormatException,
+    );
+    recorder.directReadStatus!['conversation_id'] = 88;
+    await expectLater(
+      api.getDirectReadStatus(conversationId: 77),
+      throwsFormatException,
+    );
+  });
+
+  test(
+    'direct attachments, replies and reactions use exact message contracts',
+    () async {
+      const messages = '/api/v2/chat/direct-conversations/77/messages';
+      const messagePath = '$messages/9';
+      final asset = {
+        'media_id': 7,
+        'status': 'ready',
+        'media_type': 'image',
+        'file_name': 'private.png',
+        'public_url': '/api/v2/media/7/content',
+        'thumbnail_url': null,
+      };
+      final receipt = {
+        'conversation_id': 77,
+        'message_id': 9,
+        'is_deleted': false,
+        'content': '',
+        'author': _publicUserJson,
+        'created_at': '2026-11-17T12:00:00Z',
+        'media': [asset],
+        'reply_to': {
+          'message_id': 3,
+          'author_name': 'Edge',
+          'content': 'Earlier message',
+        },
+      };
+      final recorder = _ApiRecorder()..directMessageReceipt = receipt;
+      final api = ChatApi(_client(recorder));
+      final sent = await api.sendDirectMessage(
+        conversationId: 77,
+        mediaIds: [7],
+        replyToMessageId: 3,
+      );
+      expect(sent.media.single.privateContentPath, '/api/v2/media/7/content');
+      expect(sent.replyTo?.messageId, 3);
+      recorder.expectLast(
+        method: 'POST',
+        path: messages,
+        body: {
+          'media_ids': [7],
+          'reply_to_message_id': 3,
+        },
+      );
+
+      expect(
+        (await api.getDirectMessage(
+          conversationId: 77,
+          messageId: 9,
+        )).messageId,
+        9,
+      );
+      recorder.expectLast(method: 'GET', path: messagePath);
+
+      recorder.directMessageReceipt = {
+        ...receipt,
+        'reactions': [
+          {'emoji': '👍', 'count': 2, 'reacted_by_me': true},
+        ],
+      };
+      final reacted = await api.setDirectMessageReaction(
+        conversationId: 77,
+        messageId: 9,
+        emoji: '👍',
+        reacted: true,
+      );
+      expect(reacted.reactions.single.reactedByMe, isTrue);
+      recorder.expectLast(
+        method: 'POST',
+        path: '$messagePath/reactions',
+        body: {'emoji': '👍'},
+      );
+      recorder.directMessageReceipt = receipt;
+      expect(
+        (await api.setDirectMessageReaction(
+          conversationId: 77,
+          messageId: 9,
+          emoji: '👍',
+          reacted: false,
+        )).reactions,
+        isEmpty,
+      );
+      recorder.expectLast(
+        method: 'DELETE',
+        path: '$messagePath/reactions',
+        body: {'emoji': '👍'},
+      );
+
+      recorder.directMessageReceipt = {...receipt, 'conversation_id': 78};
+      await expectLater(
+        api.getDirectMessage(conversationId: 77, messageId: 9),
+        throwsFormatException,
+      );
+      recorder.directMessageReceipt = {
+        ...receipt,
+        'media': [
+          {...asset, 'public_url': 'https://other.example.test/private.png'},
+        ],
+      };
+      await expectLater(
+        api.getDirectMessage(conversationId: 77, messageId: 9),
+        throwsFormatException,
+      );
+    },
+  );
 
   test('channel writes confirm the target and deletion envelope', () async {
     final recorder = _ApiRecorder();
@@ -342,6 +548,7 @@ void main() {
         'sort': 'most_reports',
         'page': 2,
         'page_size': 10,
+        'sentiment_signal': 1,
       },
     );
   });
@@ -1334,6 +1541,12 @@ void main() {
           path: '/api/v2/chat/channels/7/messages',
           query: {'page': 2, 'page_size': 30, 'q': 'cat'},
         );
+        await api.listMessages(channelId: 7, page: 2, senderId: 42);
+        recorder.expectLast(
+          method: 'GET',
+          path: '/api/v2/chat/channels/7/messages',
+          query: {'page': 2, 'page_size': 30, 'sender_id': 42},
+        );
         for (final invalid in [
           {
             ...valid,
@@ -1467,6 +1680,29 @@ void main() {
           method: 'GET',
           path: '/api/v2/chat/direct-conversations/77/messages',
           query: {'page': 2, 'page_size': 20},
+        );
+        await api.listDirectMessages(
+          conversationId: 77,
+          page: 2,
+          size: 20,
+          markRead: false,
+          search: '  cat  ',
+          senderId: 42,
+          startAt: DateTime.parse('2026-11-20T08:00:00.123456+08:00'),
+          endAt: DateTime.utc(2026, 11, 21),
+        );
+        recorder.expectLast(
+          method: 'GET',
+          path: '/api/v2/chat/direct-conversations/77/messages',
+          query: {
+            'page': 2,
+            'page_size': 20,
+            'mark_read': 'false',
+            'q': 'cat',
+            'sender_id': 42,
+            'start_at': '2026-11-20T00:00:00.123Z',
+            'end_at': '2026-11-21T00:00:00.000Z',
+          },
         );
         for (final invalid in [
           {...envelope, 'meta': null},
@@ -2221,11 +2457,11 @@ const _testConfig = AppConfig(
   storageBaseUrl: 'http://example.test',
 );
 
-ApiClient _client(_ApiRecorder recorder) {
+ApiClient _client(_ApiRecorder recorder, {TokenPair? tokens}) {
   final dio = Dio()..httpClientAdapter = recorder;
   return ApiClient(
     config: _testConfig,
-    tokenStore: _FakeTokenStore(),
+    tokenStore: _FakeTokenStore(tokens),
     dio: dio,
   );
 }
@@ -2234,6 +2470,7 @@ class _ApiRecorder implements HttpClientAdapter {
   _ApiRecorder({this.unreadNotificationTotal = 7});
 
   final int unreadNotificationTotal;
+  Map<String, Object?> callIceConfig = {};
   Object? aiMessageHistory;
   Map<String, Object?>? notificationWriteEnvelope;
   Object? retweetReceipt = {'post_id': 53, 'repost_of_post_id': 42};
@@ -2243,6 +2480,8 @@ class _ApiRecorder implements HttpClientAdapter {
   Map<String, Object?>? channelWriteEnvelope;
   Object? channelListReceipt;
   Map<String, Object?>? directHistoryEnvelope;
+  Map<String, Object?>? directMessageReceipt;
+  Map<String, Object?>? directReadStatus;
   Map<String, Object?>? channelHistoryEnvelope;
   Map<String, Object?>? directConversationsEnvelope;
   Object? publicProfileReceipt;
@@ -2292,6 +2531,34 @@ class _ApiRecorder implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+    if (options.path == '/api/v2/calls/ice-servers' &&
+        options.method == 'GET') {
+      return ResponseBody.fromString(
+        jsonEncode({
+          'code': 200,
+          'message': 'ok',
+          'data': callIceConfig,
+          'meta': null,
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+          'cache-control': ['private, no-store'],
+        },
+      );
+    }
+    if (options.path == '/api/v2/users/me/export') {
+      final markdown = options.queryParameters['format'] == 'markdown';
+      return ResponseBody.fromString(
+        markdown ? '# NekoTribe account export' : '{"posts":[],"bookmarks":[]}',
+        200,
+        headers: {
+          Headers.contentTypeHeader: [
+            markdown ? 'text/markdown' : Headers.jsonContentType,
+          ],
+        },
+      );
+    }
     if (channelHistoryEnvelope != null &&
         options.path == '/api/v2/chat/channels/7/messages' &&
         options.method == 'GET') {
@@ -2678,6 +2945,17 @@ class _ApiRecorder implements HttpClientAdapter {
       }
       return <Object>[_directConversationJson];
     }
+    if (directMessageReceipt != null &&
+        const [
+          '/api/v2/chat/direct-conversations/77/messages',
+          '/api/v2/chat/direct-conversations/77/messages/9',
+          '/api/v2/chat/direct-conversations/77/messages/9/reactions',
+        ].contains(path)) {
+      return directMessageReceipt;
+    }
+    if (path == '/api/v2/chat/direct-conversations/77/read-status') {
+      return directReadStatus;
+    }
     if (path == '/api/v2/chat/direct-conversations/77/messages' &&
         options.method == 'POST') {
       return {
@@ -2932,6 +3210,13 @@ class _ApiRecorder implements HttpClientAdapter {
     if (path == '/api/v2/users' || path == '/api/v2/users/recommendations') {
       return [_publicUserJson];
     }
+    if (path == '/api/v2/users/me/usage') {
+      return {
+        'ai_quota': {'used_units': 7, 'limit_units': 20, 'window_seconds': 60},
+        'media': {'bytes': 768, 'files': 2},
+        'ai_history': {'conversations': 3},
+      };
+    }
     if (path == '/api/v2/users/me/account-statements') {
       return [
         {'statement_id': 9, 'type': 'warning', 'status': 'unread'},
@@ -2989,8 +3274,12 @@ class _ApiRecorder implements HttpClientAdapter {
 }
 
 class _FakeTokenStore extends TokenStore {
+  _FakeTokenStore([this.tokens]);
+
+  final TokenPair? tokens;
+
   @override
-  Future<TokenPair?> read() async => null;
+  Future<TokenPair?> read() async => tokens;
 
   @override
   Future<void> write(TokenPair pair) async {}

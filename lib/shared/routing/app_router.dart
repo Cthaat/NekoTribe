@@ -35,6 +35,7 @@ import '../../features/users/presentation/account_analytics_screen.dart';
 import '../../features/users/presentation/account_data_analytics_screen.dart';
 import '../../features/users/presentation/account_screen.dart';
 import '../../features/users/presentation/account_posts_screen.dart';
+import '../../features/users/presentation/ai_provider_settings_screen.dart';
 import '../../features/users/presentation/appearance_screen.dart';
 import '../../features/users/presentation/billing_screen.dart';
 import '../../features/users/presentation/endpoint_screen.dart';
@@ -88,6 +89,7 @@ const productionRoutePaths = <String>{
   '/chat/groups/:groupId/channels/:channelId',
   '/settings',
   '/settings/appearance',
+  '/settings/ai-provider',
   '/settings/billing',
   '/settings/pro',
   '/settings/security',
@@ -347,6 +349,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings/ai-provider',
+        builder: (_, __) => const AiProviderSettingsScreen(),
+      ),
       GoRoute(
         path: '/settings/relationships',
         builder: (_, __) => const VisibilityScreen(),

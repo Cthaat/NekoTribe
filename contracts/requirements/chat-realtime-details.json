@@ -1,0 +1,12 @@
+{
+  "id": "CHAT-REALTIME-DETAILS",
+  "revision": 1,
+  "typing_min_interval_ms": 1200,
+  "typing_ttl_ms": 5000,
+  "sql": {
+    "direct_typing_peer": "SELECT CASE WHEN c.user_low_id=:user_id THEN c.user_high_id ELSE c.user_low_id END AS OTHER_USER_ID FROM n_direct_conversations c JOIN n_users lo ON lo.user_id=c.user_low_id AND lo.is_active=1 AND lo.status='active' JOIN n_users hi ON hi.user_id=c.user_high_id AND hi.is_active=1 AND hi.status='active' WHERE c.conversation_id=:conversation_id AND c.is_deleted=0 AND :user_id IN (c.user_low_id,c.user_high_id) AND NOT EXISTS (SELECT 1 FROM n_user_blocks b WHERE (b.user_id=c.user_low_id AND b.target_user_id=c.user_high_id) OR (b.user_id=c.user_high_id AND b.target_user_id=c.user_low_id))",
+    "read_status": "SELECT c.conversation_id,me.last_read_message_id,peer.last_read_message_id AS PARTICIPANT_LAST_READ_MESSAGE_ID,(SELECT COUNT(*) FROM n_direct_messages m WHERE m.conversation_id=c.conversation_id AND m.is_deleted=0 AND m.sender_id<>:user_id AND m.message_id>NVL(me.last_read_message_id,0)) AS UNREAD_COUNT FROM n_direct_conversations c LEFT JOIN n_direct_conversation_reads me ON me.conversation_id=c.conversation_id AND me.user_id=:user_id LEFT JOIN n_direct_conversation_reads peer ON peer.conversation_id=c.conversation_id AND peer.user_id=CASE WHEN c.user_low_id=:user_id THEN c.user_high_id ELSE c.user_low_id END WHERE c.conversation_id=:conversation_id AND c.is_deleted=0 AND :user_id IN (c.user_low_id,c.user_high_id)",
+    "advance_read": "MERGE INTO n_direct_conversation_reads r USING (SELECT :conversation_id AS conversation_id,:user_id AS user_id,:last_read_message_id AS last_read_message_id FROM dual) s ON (r.conversation_id=s.conversation_id AND r.user_id=s.user_id) WHEN MATCHED THEN UPDATE SET r.last_read_message_id=s.last_read_message_id,r.last_read_at=CURRENT_TIMESTAMP WHERE NVL(r.last_read_message_id,0)<s.last_read_message_id WHEN NOT MATCHED THEN INSERT (conversation_id,user_id,last_read_message_id,last_read_at) VALUES (s.conversation_id,s.user_id,s.last_read_message_id,CURRENT_TIMESTAMP)",
+    "direct_read_delivery": "SELECT 1 FROM n_direct_conversations c JOIN n_direct_conversation_reads r ON r.conversation_id=c.conversation_id AND r.user_id=:reader_id AND r.last_read_message_id>=:last_read_message_id JOIN n_direct_messages m ON m.conversation_id=c.conversation_id AND m.message_id=:last_read_message_id WHERE c.conversation_id=:conversation_id AND c.is_deleted=0 AND :user_id IN (c.user_low_id,c.user_high_id) AND :reader_id IN (c.user_low_id,c.user_high_id)"
+  }
+}

@@ -1,7 +1,11 @@
-import '../../../core/auth/token_store.dart';
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/foundation.dart';
+
+import '../../../core/auth/token_store.dart';
 import '../../users/domain/user_models.dart';
 import '../domain/auth_models.dart';
+import '../domain/github_oauth_models.dart';
+import '../domain/passkey_models.dart';
 import 'auth_api.dart';
 
 class SessionClearReceipt {
@@ -78,14 +82,38 @@ class AuthRepository {
     required String account,
     required String password,
     bool rememberMe = false,
-  }) async {
+  }) => _runLogin(
+    (_) => _api.login(
+      account: account,
+      password: password,
+      rememberMe: rememberMe,
+    ),
+  );
+
+  Future<V2LoginResult> loginWithPasskey({
+    required PasskeyPrompt authenticate,
+    required bool Function() isActive,
+    bool rememberMe = false,
+  }) => _runLogin((revision) async {
+    final challenge = await _api.beginPasskeyAuthentication();
+    _requireActive(revision, isActive);
+    final credential = await authenticate(challenge.options);
+    _requireActive(revision, isActive);
+    final result = await _api.verifyPasskeyAuthentication(
+      challengeId: challenge.id,
+      credential: credential,
+      rememberMe: rememberMe,
+    );
+    _requireActive(revision, isActive);
+    return result;
+  });
+
+  Future<V2LoginResult> _runLogin(
+    Future<V2LoginResult> Function(int revision) request,
+  ) async {
     _tokenStore.requireSessionStorage();
     return _tokenStore.runSessionChange((revision) async {
-      final result = await _api.login(
-        account: account,
-        password: password,
-        rememberMe: rememberMe,
-      );
+      final result = await request(revision);
       if (result is V2LoginSuccess) {
         await _persistTokens(result.tokens, revision);
       }
@@ -93,6 +121,65 @@ class AuthRepository {
       return result;
     });
   }
+
+  Future<PasskeyCredential> registerPasskey({
+    required PasskeyPrompt create,
+    required String label,
+    required bool Function() isActive,
+  }) async {
+    final revision = sessionRevision;
+    _requireActive(revision, isActive);
+    final challenge = await _api.beginPasskeyRegistration();
+    _requireActive(revision, isActive);
+    final credential = await create(challenge.options);
+    _requireActive(revision, isActive);
+    final result = await _api.verifyPasskeyRegistration(
+      challengeId: challenge.id,
+      credential: credential,
+      label: label,
+    );
+    _requireActive(revision, isActive);
+    return result;
+  }
+
+  Future<List<PasskeyCredential>> listPasskeys() => _api.listPasskeys();
+
+  Future<void> removePasskey(String id) => _api.removePasskey(id);
+
+  Future<GitHubOAuthFlow> beginGitHubOAuth({
+    required bool signIn,
+    required CancelToken cancelToken,
+  }) {
+    if (signIn) _tokenStore.requireSessionStorage();
+    return _api.beginGitHubOAuth(signIn: signIn, cancelToken: cancelToken);
+  }
+
+  Future<V2LoginResult?> pollGitHubLogin(
+    GitHubOAuthFlow flow, {
+    required bool rememberMe,
+    required CancelToken cancelToken,
+  }) => _api.pollGitHubLogin(
+    flow,
+    rememberMe: rememberMe,
+    cancelToken: cancelToken,
+  );
+
+  Future<V2LoginResult> finishGitHubLogin(
+    V2LoginResult result,
+    int expectedRevision,
+  ) {
+    _requireCurrent(expectedRevision);
+    return _runLogin((_) async => result);
+  }
+
+  Future<GitHubLink?> pollGitHubLink(
+    GitHubOAuthFlow flow, {
+    required CancelToken cancelToken,
+  }) => _api.pollGitHubLink(flow, cancelToken: cancelToken);
+
+  Future<GitHubLink?> readGitHubLink() => _api.readGitHubLink();
+
+  Future<void> removeGitHubLink() => _api.removeGitHubLink();
 
   Future<V2LoginSuccess> completeTwoFactor({
     required String challengeId,
@@ -173,6 +260,11 @@ class AuthRepository {
     if (_tokenStore.revision != revision) {
       throw StateError('Authentication operation superseded');
     }
+  }
+
+  void _requireActive(int revision, bool Function() isActive) {
+    _requireCurrent(revision);
+    if (!isActive()) throw StateError('Authentication operation superseded');
   }
 
   Future<void> _persistTokens(V2TokenData tokens, int revision) async {

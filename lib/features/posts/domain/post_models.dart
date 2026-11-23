@@ -1,6 +1,8 @@
 import '../../../core/constants/api_paths.dart';
 import '../../../core/utils/json_utils.dart';
 import '../../users/domain/user_models.dart';
+import 'post_markdown.dart';
+import 'post_poll.dart';
 
 class V2MediaAsset {
   V2MediaAsset({
@@ -220,6 +222,8 @@ class V2Post {
     this.replyToPostId,
     this.repostOfPostId,
     this.quotedPostId,
+    this.poll,
+    this.markdown,
     required this.media,
     required this.tags,
     required this.mentions,
@@ -239,6 +243,8 @@ class V2Post {
   final int? replyToPostId;
   final int? repostOfPostId;
   final int? quotedPostId;
+  final V2PostPoll? poll;
+  final String? markdown;
   final List<V2MediaAsset> media;
   final List<String> tags;
   final List<V2PublicUser> mentions;
@@ -259,6 +265,8 @@ class V2Post {
       replyToPostId: toInt(json['reply_to_post_id']),
       repostOfPostId: toInt(json['repost_of_post_id']),
       quotedPostId: toInt(json['quoted_post_id']),
+      poll: V2PostPoll.optional(json['poll']),
+      markdown: readPostMarkdown(json['markdown']),
       media: toList(json['media'], (e) => V2MediaAsset.fromJson(toMap(e))),
       tags: toList(json['tags'], (e) => toStr(e)),
       mentions: toList(
@@ -284,6 +292,8 @@ class V2Post {
       replyToPostId: replyToPostId,
       repostOfPostId: repostOfPostId,
       quotedPostId: quotedPostId,
+      poll: poll,
+      markdown: markdown,
       media: media,
       tags: tags,
       mentions: mentions,

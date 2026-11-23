@@ -16,6 +16,7 @@ import '../../ai/presentation/moderation_advice_dialog.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/moderation_api.dart';
 import '../domain/moderation_models.dart';
+import 'ai_operations_tab.dart';
 
 String _moderationReasonLabel(AppLocalizations l10n, String reason) {
   final normalized = reason.trim().toLowerCase();
@@ -54,9 +55,9 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 6,
+      length: 7,
       vsync: this,
-      initialIndex: widget.initialTab.clamp(0, 5),
+      initialIndex: widget.initialTab.clamp(0, 6),
     );
     _loadStats();
   }
@@ -105,6 +106,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
             Tab(text: l10n.t('moderation.tabs.users')),
             Tab(text: l10n.t('moderation.tabs.appeals')),
             Tab(text: l10n.t('moderation.tabs.settings')),
+            Tab(text: l10n.t('moderation.aiOps.title')),
           ],
         ),
       ),
@@ -128,6 +130,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
               const _UsersTab(),
               const _AppealsTab(),
               const _SettingsTab(),
+              const AiOperationsTab(),
             ],
           ),
         ),
@@ -934,6 +937,40 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                                       ),
                                     ),
                                   ),
+                                  if (item.sentimentSignal case final signal?)
+                                    DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        child: Text(
+                                          l10n
+                                              .t('moderation.content.sentiment')
+                                              .replaceAll(
+                                                '{label}',
+                                                l10n.t(
+                                                  'moderation.content.sentiment.${signal.label.name}',
+                                                ),
+                                              )
+                                              .replaceAll(
+                                                '{confidence}',
+                                                NumberFormat.percentPattern(
+                                                  l10n.locale.languageCode,
+                                                ).format(signal.confidence),
+                                              ),
+                                          style: theme.textTheme.labelSmall,
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                               Align(

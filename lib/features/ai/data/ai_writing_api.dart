@@ -1,3 +1,5 @@
+import 'ai_stream.dart';
+
 import 'package:dio/dio.dart';
 
 import '../../../core/constants/api_paths.dart';
@@ -162,27 +164,46 @@ class AiAvailability {
   }
 }
 
+enum AiKnowledgeScope { public, personal, group }
+
 class AiConversation {
   const AiConversation({
     required this.id,
     required this.purpose,
     required this.title,
     required this.updatedAt,
+    this.knowledgeScope = AiKnowledgeScope.public,
+    this.groupId,
   });
   final String id;
   final String purpose;
   final String? title;
   final String updatedAt;
+  final AiKnowledgeScope knowledgeScope;
+  final int? groupId;
   factory AiConversation.fromJson(Map<String, dynamic> data) {
     final id = data['conversation_id'],
         purpose = data['purpose'],
         title = data['title'],
-        updated = data['updated_at'];
+        updated = data['updated_at'],
+        scope = data['knowledge_scope'],
+        groupId = data['group_id'];
+    final knowledgeScope = switch (scope) {
+      null || 'public' => AiKnowledgeScope.public,
+      'personal' => AiKnowledgeScope.personal,
+      'group' => AiKnowledgeScope.group,
+      _ => throw const FormatException('Invalid knowledge scope'),
+    };
     if (id is! String ||
         id.isEmpty ||
         purpose is! String ||
         (title != null && title is! String) ||
-        updated is! String) {
+        updated is! String ||
+        (groupId != null &&
+            (groupId is! int || groupId < 1 || groupId > 9007199254740991)) ||
+        (purpose == 'knowledge' &&
+            ((knowledgeScope == AiKnowledgeScope.group) !=
+                (groupId != null)))) {
       throw const FormatException('Invalid AI conversation');
     }
     return AiConversation(
@@ -190,6 +211,8 @@ class AiConversation {
       purpose: purpose,
       title: title as String?,
       updatedAt: updated,
+      knowledgeScope: knowledgeScope,
+      groupId: groupId as int?,
     );
   }
 }
@@ -235,7 +258,7 @@ class AiKnowledgeCitation {
             ? (postId == null ||
                   groupId is! int ||
                   groupId < 1 ||
-                  groupId > 999999999999999 ||
+                  groupId > 9007199254740991 ||
                   (kind == 'group_post' && postId != id))
             : data.containsKey('group_id')) ||
         (kind == 'terms' && (id > 8 || data.containsKey('post_id')))) {
@@ -326,12 +349,16 @@ class AiWritingApi {
   Future<AiConversationPage> listConversations({
     String? afterId,
     String? purpose,
+    AiKnowledgeScope? knowledgeScope,
+    int? groupId,
   }) => _client.requestData<AiConversationPage>(
     ApiPaths.aiConversations,
     query: {
       'limit': 50,
       if (afterId != null) 'after_id': afterId,
       if (purpose != null) 'purpose': purpose,
+      if (knowledgeScope != null) 'knowledge_scope': knowledgeScope.name,
+      if (groupId != null) 'group_id': groupId,
     },
     decode: (raw) {
       final data = toMap(raw),
@@ -364,19 +391,27 @@ class AiWritingApi {
         },
       );
 
-  Future<String> createKnowledgeConversation({String? title}) =>
-      _client.requestData<String>(
-        ApiPaths.aiConversations,
-        method: 'POST',
-        data: {'purpose': 'knowledge', if (title != null) 'title': title},
-        decode: (data) {
-          final id = toMap(data)['conversation_id'];
-          if (id is! String || id.isEmpty) {
-            throw const FormatException('Invalid AI conversation');
-          }
-          return id;
-        },
-      );
+  Future<String> createKnowledgeConversation({
+    String? title,
+    AiKnowledgeScope? knowledgeScope,
+    int? groupId,
+  }) => _client.requestData<String>(
+    ApiPaths.aiConversations,
+    method: 'POST',
+    data: {
+      'purpose': 'knowledge',
+      if (title != null) 'title': title,
+      if (knowledgeScope != null) 'knowledge_scope': knowledgeScope.name,
+      if (groupId != null) 'group_id': groupId,
+    },
+    decode: (data) {
+      final id = toMap(data)['conversation_id'];
+      if (id is! String || id.isEmpty) {
+        throw const FormatException('Invalid AI conversation');
+      }
+      return id;
+    },
+  );
 
   Future<bool> generateKnowledge(
     String id, {
@@ -384,10 +419,13 @@ class AiWritingApi {
     CancelToken? cancelToken,
     bool selectSkill = false,
     int? expectedSequence,
-  }) => _client.requestData<bool>(
+    void Function(String)? onDelta,
+  }) => generateAiData<bool>(
+    _client,
     '${ApiPaths.aiConversations}/${Uri.encodeComponent(id)}/knowledge-generate',
     method: 'POST',
     cancelToken: cancelToken,
+    onDelta: onDelta,
     data: searchPhrase == null && !selectSkill && expectedSequence == null
         ? null
         : {
@@ -422,8 +460,10 @@ class AiWritingApi {
     CancelToken? cancelToken,
     bool selectSkill = false,
     int? expectedSequence,
+    void Function(String)? onDelta,
   }) async {
-    await _client.requestData<void>(
+    await generateAiData<void>(
+      _client,
       '${ApiPaths.aiConversations}/${Uri.encodeComponent(id)}/generate',
       method: 'POST',
       data: selectSkill || expectedSequence != null
@@ -434,6 +474,7 @@ class AiWritingApi {
             }
           : null,
       cancelToken: cancelToken,
+      onDelta: onDelta,
       decode: (data) => _validateAssistantReceipt(data, id, expectedSequence),
     );
   }

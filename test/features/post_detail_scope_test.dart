@@ -14,6 +14,7 @@ import 'package:nekotribe/features/ai/presentation/ai_writing_screen.dart';
 import 'package:nekotribe/features/posts/data/posts_api.dart';
 import 'package:nekotribe/features/posts/domain/post_draft_metadata.dart';
 import 'package:nekotribe/features/posts/domain/post_models.dart';
+import 'package:nekotribe/features/posts/domain/post_markdown.dart';
 import 'package:nekotribe/features/posts/presentation/edit_post_screen.dart';
 import 'package:nekotribe/features/posts/presentation/post_card.dart';
 import 'package:nekotribe/features/posts/presentation/post_detail_screen.dart';
@@ -75,6 +76,7 @@ class _Posts extends PostsApi {
     String? location,
     List<String>? tags,
     List<int>? mediaIds,
+    PostMarkdownUpdate? markdown,
   }) async {
     postContent = content ?? postContent;
     return getPost(postId);

@@ -6,11 +6,34 @@ import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
 import 'package:nekotribe/features/posts/data/posts_api.dart';
 import 'package:nekotribe/features/posts/domain/post_models.dart';
+import 'package:nekotribe/features/posts/domain/post_markdown.dart';
 import 'package:nekotribe/features/posts/presentation/edit_post_screen.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets('removing Markdown sends an explicit null patch', (tester) async {
+    final api = _FakePostsApi()..originalMarkdown = '# Original';
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStoreProvider.overrideWithValue(_AuthenticatedTokenStore()),
+          postsApiProvider.overrideWithValue(api),
+        ],
+        child: const MaterialApp(home: EditPostScreen(postId: 100001)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('# Original'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('post-markdown-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('edit-post-content-field')), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+    expect(api.markdownUpdate, (body: null));
+    expect(api.content, isNull);
+  });
+
   testWidgets('an unconfirmed save keeps the draft in the editor', (
     tester,
   ) async {
@@ -255,6 +278,8 @@ class _FakePostsApi extends PostsApi {
   String? location;
   List<String>? tags;
   List<int>? mediaIds;
+  String? originalMarkdown;
+  PostMarkdownUpdate? markdownUpdate;
   bool unconfirmed = false;
   String originalVisibility = 'public';
   List<V2MediaAsset> originalMedia = const [];
@@ -266,6 +291,7 @@ class _FakePostsApi extends PostsApi {
     location: 'Old Place',
     tags: const ['old'],
     media: originalMedia,
+    markdown: originalMarkdown,
   );
 
   @override
@@ -277,6 +303,7 @@ class _FakePostsApi extends PostsApi {
     String? location,
     List<String>? tags,
     List<int>? mediaIds,
+    PostMarkdownUpdate? markdown,
   }) async {
     updatedPostId = postId;
     this.content = content;
@@ -285,12 +312,14 @@ class _FakePostsApi extends PostsApi {
     this.location = location;
     this.tags = tags;
     this.mediaIds = mediaIds;
+    markdownUpdate = markdown;
     if (unconfirmed) throw const UnconfirmedPostUpdateError();
     return _post(
       content: content ?? 'Original #Old',
       visibility: visibility ?? 'public',
       location: location,
       tags: tags ?? const [],
+      markdown: markdown == null ? originalMarkdown : markdown.body,
     );
   }
 }
@@ -301,11 +330,13 @@ V2Post _post({
   String? location,
   List<String> tags = const [],
   List<V2MediaAsset> media = const [],
+  String? markdown,
 }) {
   return V2Post(
     postId: 100001,
     author: _user,
     content: content,
+    markdown: markdown,
     postType: 'post',
     visibility: visibility,
     language: 'zh',

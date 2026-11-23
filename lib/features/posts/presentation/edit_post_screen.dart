@@ -8,7 +8,9 @@ import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../data/posts_api.dart';
 import '../domain/post_draft_metadata.dart';
+import '../domain/post_markdown.dart';
 import '../domain/post_models.dart';
+import 'post_markdown_field.dart';
 
 class EditPostScreen extends ConsumerStatefulWidget {
   const EditPostScreen({super.key, required this.postId});
@@ -27,11 +29,20 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
   V2Post? _post;
   String _visibility = 'public';
   String _language = 'zh';
+  String _markdown = '';
+  bool _usingMarkdown = false;
   bool _loading = true;
   bool _saving = false;
   bool _expired = false;
   Object? _error;
   late final VoidCallback _stopListening;
+
+  bool get _canUseMarkdown => switch (_post?.postType) {
+    'post' || 'normal' => _post?.replyToPostId == null &&
+        _post?.quotedPostId == null &&
+        _post?.repostOfPostId == null,
+    _ => false,
+  };
 
   @override
   void initState() {
@@ -52,6 +63,8 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
       _locationController.clear();
       _tagController.clear();
       _removedMediaIds.clear();
+      _markdown = '';
+      _usingMarkdown = false;
     });
   }
 
@@ -86,6 +99,8 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
         _post = post;
         _removedMediaIds.clear();
         _controller.text = post.content;
+        _markdown = post.markdown ?? '';
+        _usingMarkdown = post.markdown != null;
         _locationController.text = post.location;
         _tagController.text = post.tags.join(', ');
         _visibility = post.visibility;
@@ -104,7 +119,21 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
   Future<void> _save() async {
     final post = _post;
     if (_saving || _expired || post == null) return;
-    final content = _controller.text == post.content ? null : _controller.text;
+    final markdown = _usingMarkdown ? _markdown : null;
+    if (markdown != null && !isValidPostMarkdown(markdown)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).t('post.markdown.invalid'))),
+      );
+      return;
+    }
+    final PostMarkdownUpdate? markdownUpdate =
+        markdown == post.markdown ? null : (body: markdown);
+    final summary = markdown == null
+        ? _controller.text
+        : markdownUpdate == null
+        ? post.content
+        : postMarkdownExcerpt(markdown);
+    final content = summary == post.content ? null : summary;
     final location = _locationController.text == post.location
         ? null
         : _locationController.text;
@@ -115,7 +144,7 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
     List<String>? tags;
     if (_tagController.text != storedTags || content != null) {
       final draft = draftTagNames(
-        content: _controller.text,
+        content: summary,
         tags: _tagController.text,
       );
       if (_tagController.text != storedTags ||
@@ -127,6 +156,7 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
       }
     }
     if (content == null &&
+        markdownUpdate == null &&
         location == null &&
         visibility == null &&
         language == null &&
@@ -168,6 +198,7 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
         language: language,
         location: location,
         tags: tags,
+        markdown: markdownUpdate,
         mediaIds: retainedMedia.length == post.media.length
             ? null
             : retainedMedia.map((asset) => asset.mediaId).toList(),
@@ -266,7 +297,26 @@ class _EditPostScreenState extends ConsumerState<EditPostScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      TextField(
+                      if (_canUseMarkdown)
+                        PostMarkdownToggle(
+                          selected: _usingMarkdown,
+                          onChanged: _saving
+                              ? null
+                              : (value) => setState(() {
+                                  if (value && _markdown.isEmpty) {
+                                    _markdown = _controller.text;
+                                  }
+                                  _usingMarkdown = value;
+                                }),
+                        ),
+                      if (_usingMarkdown)
+                        PostMarkdownField(
+                          value: _markdown,
+                          onChanged: _saving
+                              ? null
+                              : (value) => setState(() => _markdown = value),
+                        )
+                      else TextField(
                         key: const Key('edit-post-content-field'),
                         controller: _controller,
                         enabled: !_saving,

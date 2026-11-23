@@ -18,6 +18,39 @@ import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets('queue displays only valid sentiment signals in original order', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 1600);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final fixture = _AppealsFixture();
+    fixture.api.contentItems = [
+      V2ModerationContentItem.fromJson({
+        'post_id': 41,
+        'content': 'First post',
+      }),
+      V2ModerationContentItem.fromJson({
+        'post_id': 42,
+        'content': 'Second post',
+        'sentiment_signal': {'label': 'negative', 'confidence': 0.84},
+      }),
+      V2ModerationContentItem.fromJson({
+        'post_id': 43,
+        'content': 'Third post',
+        'sentiment_signal': {'label': 'positive', 'confidence': 1.2},
+      }),
+    ];
+    await tester.pumpWidget(fixture.screen(initialTab: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('情感倾向：负面 · 84%'), findsOneWidget);
+    expect(find.textContaining('情感倾向'), findsOneWidget);
+    double top(String text) => tester.getTopLeft(find.text(text)).dy;
+    expect(top('First post'), lessThan(top('Second post')));
+    expect(top('Second post'), lessThan(top('Third post')));
+  });
+
   testWidgets(
     'appeal decision sends the reply and exposes the result in history',
     (tester) async {
@@ -389,6 +422,8 @@ class _FakeModerationApi extends ModerationApi {
     appealDecision = (status, response ?? '');
   }
 
+  List<V2ModerationContentItem>? contentItems;
+
   List<V2ModerationSetting> _settings = [
     _setting(key: 'auto_hide_report_threshold', value: '10', type: 'number'),
     _setting(key: 'require_note_on_reject', value: 'true', type: 'boolean'),
@@ -424,7 +459,8 @@ class _FakeModerationApi extends ModerationApi {
     contentPriority = priority;
     return PagedResult(
       items: status == 'pending' && bulkDecision == null
-          ? [_contentItem(assignedTo: claimed ? _publicUser : null)]
+          ? contentItems ??
+                [_contentItem(assignedTo: claimed ? _publicUser : null)]
           : const [],
       meta: const ApiMeta(page: 1, pageSize: 20, total: 1, hasNext: false),
     );

@@ -97,6 +97,7 @@ void main() {
         '/chat/groups/:groupId/channels/:channelId',
         '/settings',
         '/settings/appearance',
+        '/settings/ai-provider',
         '/settings/billing',
         '/settings/pro',
         '/settings/security',
@@ -181,6 +182,7 @@ void main() {
       '/moderation',
       '/settings',
       '/settings/security',
+      '/settings/ai-provider',
       '/settings/endpoint/private',
     ]) {
       expect(isPublicRoutePath(path), isFalse, reason: path);

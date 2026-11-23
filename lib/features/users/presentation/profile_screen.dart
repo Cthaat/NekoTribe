@@ -13,6 +13,7 @@ import '../../posts/presentation/post_card.dart';
 import '../../posts/presentation/report_dialog.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/user_models.dart';
+import 'profile_pinned_post.dart';
 
 enum _VisibilityAction { block, mute, muteDay }
 
@@ -171,7 +172,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .getUserPostsById(widget.userId, page: next, size: 20);
       if (!_isCurrent(scope)) return;
       setState(() {
-        _posts = [..._posts, ...page.items];
+        _posts = appendProfilePosts(_posts, page.items);
         _page = next;
         _hasNext = page.hasNext;
         _loadingMore = false;
@@ -285,6 +286,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         await repository.blockUser(user.userId);
         if (!_isCurrent(scope)) return;
         setState(() => _locallyBlocked = true);
+        ref.invalidate(profilePinnedPostProvider(user.userId));
         await _load();
       } else {
         final expiry = action == _VisibilityAction.muteDay
@@ -352,6 +354,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final menuScope = _scope;
+    final pinProvider = profilePinnedPostProvider(widget.userId);
+    final showPin = signedIn && !_restricted && !_changing &&
+        _user?.userId == widget.userId;
+    final pin = showPin ? ref.watch(pinProvider) : null;
+    final pinController = showPin ? ref.read(pinProvider.notifier) : null;
+    final visiblePosts = profilePostsWithPin(_posts, pin?.post);
+    final canPin = _user?.relationship.isSelf == true &&
+        pin?.ready == true && pin?.busy == false;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -413,8 +423,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     // header + optional empty + posts + optional footer
                     itemCount:
                         1 +
-                        (_posts.isEmpty ? 1 : _posts.length) +
-                        (_hasNext ? 1 : 0),
+                        (visiblePosts.isEmpty ? 1 : visiblePosts.length) +
+                        (_hasNext || (_postsError != null && visiblePosts.isNotEmpty)
+                            ? 1
+                            : 0),
+                    findChildIndexCallback: (key) {
+                      if (key is! ValueKey<int>) return null;
+                      final index = visiblePosts.indexWhere((post) => post.postId == key.value);
+                      return index < 0 ? null : index + 1;
+                    },
                     itemBuilder: (context, index) {
                       if (index == 0) {
                         return Column(
@@ -441,9 +458,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         );
                       }
                       if (_postsError case final error?) {
-                        return ErrorView(error: error, onRetry: _loadPosts);
+                        if (visiblePosts.isEmpty || index > visiblePosts.length) {
+                          return ErrorView(error: error, onRetry: _loadPosts);
+                        }
                       }
-                      if (_posts.isEmpty) {
+                      if (visiblePosts.isEmpty) {
                         // empty state under header
                         if (index == 1 && !_hasNext) {
                           return Padding(
@@ -459,18 +478,46 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       }
 
                       final postIndex = index - 1;
-                      if (postIndex < _posts.length) {
-                        final post = _posts[postIndex];
+                      if (postIndex < visiblePosts.length) {
+                        final post = visiblePosts[postIndex];
                         return Column(
+                          key: ValueKey(post.postId),
                           children: [
                             PostCard(
-                              key: ValueKey(post.postId),
                               post: post,
-                              onChanged: (u) =>
-                                  setState(() => _posts[postIndex] = u),
+                              profilePinned: pin?.post?.postId == post.postId,
+                              onChangeProfilePin: canPin &&
+                                      post.author.userId == widget.userId &&
+                                      pinController != null
+                                  ? (pinned) {
+                                      if (_isCurrent(menuScope)) {
+                                        changeProfilePin(
+                                          context,
+                                          pinController,
+                                          post,
+                                          pinned: pinned,
+                                        );
+                                      }
+                                    }
+                                  : null,
+                              onChanged: (updated) {
+                                if (!_isCurrent(menuScope)) return;
+                                pinController?.update(updated);
+                                final index = _posts.indexWhere(
+                                  (item) => item.postId == updated.postId,
+                                );
+                                if (index >= 0) {
+                                  setState(() => _posts[index] = updated);
+                                }
+                              },
                               onDeleted: () {
-                                _posts.removeAt(postIndex);
-                                setState(() {});
+                                if (!_isCurrent(menuScope)) return;
+                                pinController?.remove(post.postId);
+                                setState(() {
+                                  _posts = _posts
+                                      .where((item) => item.postId != post.postId)
+                                      .toList();
+                                });
                               },
                               onReport: () => showReportDialog(
                                 context,

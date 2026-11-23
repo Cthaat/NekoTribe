@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
 import 'package:nekotribe/core/constants/storage_keys.dart';
 import 'package:nekotribe/features/auth/domain/auth_models.dart';
+import 'package:nekotribe/features/auth/domain/passkey_models.dart';
 import 'package:nekotribe/core/config/app_config.dart';
 import 'package:nekotribe/core/network/api_client.dart';
 import 'package:nekotribe/features/auth/data/auth_api.dart';
@@ -22,6 +23,57 @@ Map<String, dynamic> success() => {
 };
 
 void main() {
+  test(
+    'passkey login reuses session storage and forwards remember me',
+    () async {
+      final store = TokenStore(storage: _Storage());
+      final api = _Api();
+      final repo = AuthRepository(api: api, tokenStore: store);
+      final result = await repo.loginWithPasskey(
+        authenticate: (options) async {
+          expect(options['rpId'], 'example.test');
+          return {'id': 'synthetic'};
+        },
+        rememberMe: true,
+        isActive: () => true,
+      );
+      expect(result, isA<V2LoginSuccess>());
+      expect(api.passkeySubmission, [
+        'challenge',
+        {'id': 'synthetic'},
+        true,
+      ]);
+      expect((await store.read())?.sessionId, 'session');
+    },
+  );
+
+  test(
+    'passkey prompt superseded by another login never sends proof',
+    () async {
+      final store = TokenStore(storage: _Storage());
+      final api = _Api();
+      final repo = AuthRepository(api: api, tokenStore: store);
+      final prompt = Completer<Map<String, dynamic>>();
+      final opened = Completer<void>();
+      final rejected = expectLater(
+        repo.loginWithPasskey(
+          authenticate: (_) {
+            opened.complete();
+            return prompt.future;
+          },
+          isActive: () => true,
+        ),
+        throwsStateError,
+      );
+      await opened.future;
+      await repo.login(account: 'new', password: 'password');
+      prompt.complete({'id': 'old'});
+      await rejected;
+      expect(api.passkeySubmission, isNull);
+      expect((await store.read())?.sessionId, 'session');
+    },
+  );
+
   test(
     'storage cleanup failure propagates and still synchronizes only its own cleared epoch',
     () async {
@@ -379,6 +431,22 @@ class _Api extends AuthApi {
   Completer<V2LoginResult>? pending;
   Completer<void>? pendingLogout;
   Completer<void>? pendingReset;
+  List<Object>? passkeySubmission;
+
+  @override
+  Future<PasskeyChallenge> beginPasskeyAuthentication() async =>
+      const PasskeyChallenge('challenge', {'rpId': 'example.test'});
+
+  @override
+  Future<V2LoginResult> verifyPasskeyAuthentication({
+    required String challengeId,
+    required Map<String, dynamic> credential,
+    required bool rememberMe,
+  }) async {
+    passkeySubmission = [challengeId, credential, rememberMe];
+    return result;
+  }
+
   @override
   Future<void> requestPasswordReset({
     required String email,

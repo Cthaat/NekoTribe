@@ -28,3 +28,7 @@ TLS 在代理终止时，原生后端以配置中的 HTTPS `BASE_URL` 作为允�
 私信恢复后重新读取活动会话的最新一页。Nuxt Web 和 Flutter 将请求期间同一会话收到的消息按 ID 合并，保留最新收到的数据，按时间及 ID 排序。切换账号、后端或会话后，旧历史响应不能写回当前页面。
 
 用户频道也接受 `direct_message_deleted`。该事件只有会话 ID、消息 ID 和可选发布实例标识。发送前按共同查询复核收件身份和已删除状态。客户端从活动会话移除该消息并保留历史合并的删除标记。详细约定见 `direct-message-delete.md`。
+
+回应变化使用 `direct_message_updated`。该事件只携带会话 ID、消息 ID 和可选发布实例标识，投递前复核收件人及未删除状态。客户端用单消息读取刷新当前账号的回应状态。详见 `direct-message-extras.md`。
+
+`typing_start`、`typing_stop` 使用当前私信或频道范围，不持久化并按连接限频。`direct_read_updated` 只在已读游标实际前进并提交后发送。事件字段、收件人和恢复规则见 `chat-realtime-details.md`。

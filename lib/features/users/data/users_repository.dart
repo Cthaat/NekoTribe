@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
+
 import '../../../core/network/api_response.dart';
+import '../domain/account_usage.dart';
 import '../domain/user_models.dart';
 import '../domain/security_action.dart';
 import 'users_api.dart';
@@ -12,6 +15,11 @@ class UsersRepository {
   final UsersApi _api;
 
   Future<V2SelfUser> getCurrentUser() => _api.getMe();
+  Future<AccountUsage> accountUsage() => _api.accountUsage();
+  Future<Uint8List> exportAccount(
+    AccountExportFormat format, {
+    required CancelToken cancelToken,
+  }) => _api.exportAccount(format, cancelToken: cancelToken);
 
   Future<V2SelfUser> updateProfile({
     String? displayName,

@@ -22,9 +22,10 @@ void main() {
     final zh = AppLocalizations(const Locale('zh'));
     final en = AppLocalizations(const Locale('en'));
 
-    expect(zh.t('feed.tab.home'), '首页');
-    expect(zh.t('feed.tab.discover'), '发现');
+    expect(zh.t('feed.tab.recommended'), '推荐');
     expect(zh.t('feed.tab.following'), '关注');
+    expect(zh.t('feed.tab.trending'), '热门');
+    expect(zh.t('feed.tab.groups'), '群动态');
     expect(zh.t('settings.section.appearance'), '外观');
     expect(zh.t('settings.appearance.workspace'), '外观工作台');
     expect(zh.t('settings.account.my_posts'), '我的推文');
@@ -36,7 +37,10 @@ void main() {
     expect(zh.t('window.restore'), '还原');
     expect(zh.t('window.close'), '关闭');
 
-    expect(en.t('feed.tab.home'), 'Home');
+    expect(en.t('feed.tab.recommended'), 'Recommended');
+    expect(en.t('feed.tab.following'), 'Following');
+    expect(en.t('feed.tab.trending'), 'Trending');
+    expect(en.t('feed.tab.groups'), 'Group activity');
     expect(en.t('settings.section.appearance'), 'Appearance');
     expect(en.t('settings.account.my_posts'), 'My posts');
     expect(en.t('settings.option.system'), 'System');

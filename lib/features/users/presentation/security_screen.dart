@@ -10,6 +10,8 @@ import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/otp_send_cooldown.dart';
+import 'github_account_card.dart';
+import 'passkey_management_card.dart';
 
 class SecurityScreen extends ConsumerStatefulWidget {
   const SecurityScreen({super.key});
@@ -373,8 +375,9 @@ class _SecurityScreenState extends ConsumerState<_SecurityScreenBody> {
   Future<void> _sendEmailOtp() async {
     if (_busy ||
         _emailOtpCooldown.remaining > 0 ||
-        !_isSecurityCurrent(_owner, _ownerRevision))
+        !_isSecurityCurrent(_owner, _ownerRevision)) {
       return;
+    }
     final auth = ref.read(authRepositoryProvider),
         revision = ref.read(authRepositoryProvider).sessionRevision;
     final l10n = AppLocalizations.of(context);
@@ -600,6 +603,18 @@ class _SecurityScreenState extends ConsumerState<_SecurityScreenBody> {
                             identical(_recoveryCodes, displayedRecoveryCodes),
                       ),
                     ],
+                    const SizedBox(height: 24),
+                    PasskeyManagementCard(
+                      repository: _owner,
+                      isCurrent: () =>
+                          _isSecurityCurrent(_owner, _ownerRevision),
+                    ),
+                    const SizedBox(height: 8),
+                    GitHubAccountCard(
+                      repository: _owner,
+                      isCurrent: () =>
+                          _isSecurityCurrent(_owner, _ownerRevision),
+                    ),
                     const SizedBox(height: 24),
                     _SectionLabel(
                       text: l10n.t('account.security.change_email_title'),

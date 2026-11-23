@@ -1,3 +1,5 @@
+import 'ai_stream.dart';
+
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -16,6 +18,7 @@ typedef ModerationAdvice = ({
   String risk,
   String reason,
   String recommendation,
+  ModerationAnalysisMode analysisMode,
   List<ModerationRule> rules,
   ModerationAdviceSource? source,
 });
@@ -38,6 +41,8 @@ typedef ModerationAdviceHistory = ({
 });
 typedef ModerationHistoryCursor = ({int before, bool forwardOnly});
 typedef _HistoryRow = ({int sequence, ModerationAdviceMessage? message});
+
+enum ModerationAnalysisMode { textOnly, textAndImages }
 
 enum ModerationRating {
   helpful,
@@ -98,6 +103,11 @@ ModerationAdvice? _parseAdvice(Object? raw, ModerationAdviceTarget target) {
   final risk = advice['risk'];
   final reason = advice['reason'];
   final recommendation = advice['recommendation'];
+  final analysisMode = switch (advice['analysis_mode']) {
+    null || 'text_only' => ModerationAnalysisMode.textOnly,
+    'text_and_images' => ModerationAnalysisMode.textAndImages,
+    _ => throw const FormatException('Invalid moderation analysis mode'),
+  };
   final rules = advice['rules'];
   final ids = advice['rule_ids'];
   if (risk is! String ||
@@ -152,6 +162,7 @@ ModerationAdvice? _parseAdvice(Object? raw, ModerationAdviceTarget target) {
     risk: risk,
     reason: reason,
     recommendation: recommendation,
+    analysisMode: analysisMode,
     rules: parsedRules,
     source: location,
   );
@@ -458,7 +469,9 @@ class AiModerationAdviceApi {
     int sequence,
     CancelToken cancel, {
     bool selectSkill = false,
-  }) => _client.requestData(
+    void Function(String)? onDelta,
+  }) => generateAiData<bool>(
+    _client,
     '${_path(id)}/moderation-generate',
     method: 'POST',
     data: {
@@ -469,6 +482,7 @@ class AiModerationAdviceApi {
       if (selectSkill) 'skill_id': 'moderation-advice',
     },
     cancelToken: cancel,
+    onDelta: onDelta,
     decode: (raw) {
       final data = toMap(raw);
       if (data['status'] == 'insufficient_evidence' &&

@@ -2,12 +2,18 @@ import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
 import '../../../core/utils/json_utils.dart';
+import '../domain/ai_operations_summary.dart';
 import '../domain/moderation_models.dart';
 
 class ModerationApi {
   ModerationApi(this._client);
 
   final ApiClient _client;
+
+  Future<AiOpsSummary> aiOperations() => _client.requestData(
+    ApiPaths.moderationAiOperations,
+    decode: parseAiOpsSummary,
+  );
 
   Future<V2ModerationStats> stats() {
     return _client.requestData<V2ModerationStats>(
@@ -30,6 +36,7 @@ class ModerationApi {
       'status': status,
       'page': page,
       'page_size': size,
+      'sentiment_signal': 1,
     };
     if (priority != null) query['priority'] = priority;
     if (reason != null) query['reason'] = reason;

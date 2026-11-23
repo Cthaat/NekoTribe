@@ -40,6 +40,9 @@ class ChatRealtimeBinding {
         !tokenStore.isSessionChanging;
   }
 
+  bool sendTyping(Map<String, dynamic> event) =>
+      capture()() && _service!.sendTyping(event);
+
   void bind(RealtimeService service) {
     final replacing = _service != null;
     _detach();

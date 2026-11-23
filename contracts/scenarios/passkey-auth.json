@@ -1,0 +1,9 @@
+{
+  "id": "PASSKEY-AUTH",
+  "revision": 1,
+  "cases": [
+    {"id":"owner-registration-and-management","assertion":"A logged-in user registers an ES256 discoverable credential using a fresh challenge for that session. Only the owner can list or delete it, and deleting the final available method is denied."},
+    {"id":"passwordless-login-preserves-existing-session-policy","assertion":"A verified discoverable assertion finds the active account and uses the existing session and remember-me/2FA lifecycle, including revoked-session and inactive-account protections."},
+    {"id":"verification-denies-replay-and-mismatches","assertion":"Missing/expired/replayed or another-session challenges, invalid origin, incorrect RP ID, invalid signature, missing UV, user-handle mismatch and a stale counter fail without a session."}
+  ]
+}

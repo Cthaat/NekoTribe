@@ -8,6 +8,8 @@ import '../../../core/constants/api_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
 import '../../../core/utils/json_utils.dart';
+import '../../posts/domain/post_models.dart';
+import '../domain/account_usage.dart';
 import '../domain/user_models.dart';
 import '../domain/email_change.dart';
 import '../domain/security_action.dart';
@@ -16,6 +18,85 @@ class UsersApi {
   UsersApi(this._client);
 
   final ApiClient _client;
+
+  Future<AccountUsage> accountUsage() => _client.requestData(
+    ApiPaths.usersMeUsage,
+    decode: decodeAccountUsage,
+  );
+
+  Future<V2Post?> getPinnedPost(
+    int userId, {
+    required CancelToken cancelToken,
+  }) => _client.requestData<V2Post?>(
+    '${ApiPaths.users}/$userId/pinned-post',
+    cancelToken: cancelToken,
+    decode: (value) {
+      final data = toMap(value);
+      if (data.length != 1 || !data.containsKey('post')) {
+        throw const FormatException('Invalid profile pin response');
+      }
+      if (data['post'] == null) return null;
+      final post = toMap(data['post']);
+      final id = post['post_id'];
+      if (id is! int ||
+          id < 1 ||
+          id > 9007199254740991 ||
+          toMap(post['author'])['user_id'] != userId) {
+        throw const FormatException('Invalid pinned profile post');
+      }
+      return V2Post.fromJson(post);
+    },
+  );
+
+  Future<void> setPinnedPost(
+    int postId, {
+    required CancelToken cancelToken,
+  }) async {
+    await _client.request<void>(
+      ApiPaths.usersMePinnedPost,
+      method: 'PUT',
+      data: {'post_id': postId},
+      cancelToken: cancelToken,
+      decode: (value) {
+        final data = toMap(value);
+        if (data.length != 1 ||
+            data['post_id'] is! int ||
+            data['post_id'] != postId) {
+          throw const FormatException('Invalid profile pin receipt');
+        }
+      },
+    );
+  }
+
+  Future<void> clearPinnedPost({required CancelToken cancelToken}) async {
+    await _client.request<void>(
+      ApiPaths.usersMePinnedPost,
+      method: 'DELETE',
+      cancelToken: cancelToken,
+      decode: (value) {
+        if (value != null) {
+          throw const FormatException('Invalid profile unpin receipt');
+        }
+      },
+    );
+  }
+
+  Future<Uint8List> exportAccount(
+    AccountExportFormat format, {
+    required CancelToken cancelToken,
+  }) async {
+    final response = await _client.raw.get<Uint8List>(
+      ApiPaths.usersMeExport,
+      queryParameters: {'format': format.name},
+      options: Options(responseType: ResponseType.bytes, followRedirects: false),
+      cancelToken: cancelToken,
+    );
+    final data = response.data;
+    if (data == null || response.statusCode != 200) {
+      throw const FormatException('Missing account export');
+    }
+    return data;
+  }
 
   Future<V2SelfUser> getMe() {
     return _client.requestData<V2SelfUser>(

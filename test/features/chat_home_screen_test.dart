@@ -15,6 +15,47 @@ import 'package:nekotribe/features/realtime/data/realtime_service.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
 void main() {
+  testWidgets('only my read events refresh direct conversation unread badges', (
+    tester,
+  ) async {
+    final api = _FakeChatApi()
+      ..conversations = [_conversation(9, 'new post', unread: 2)];
+    final socket = _HomeRealtime();
+    addTearDown(socket.dispose);
+    await _pumpChatHome(
+      tester,
+      api,
+      realtime: socket,
+      tokenStore: _FakeTokenStore(
+        const TokenPair(
+          accessToken: 'e30.eyJ1c2VySWQiOjF9.fixture',
+          refreshToken: 'fixture',
+          sessionId: 'fixture',
+        ),
+      ),
+    );
+    expect(find.text('2'), findsOneWidget);
+    api.conversations = [_conversation(9, 'new post')];
+    void read(int user) => socket.deliver({
+      'type': 'direct_read_updated',
+      'data': {
+        'conversation_id': 11,
+        'reader_id': user,
+        'last_read_message_id': 9,
+      },
+    });
+    read(22);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(api.conversationPages, [1]);
+    expect(find.text('2'), findsOneWidget);
+    read(1);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+    await tester.pumpAndSettle();
+    expect(api.conversationPages, [1, 1]);
+    expect(find.text('2'), findsNothing);
+  });
   testWidgets(
     'switching the API endpoint clears an open group channel picker',
     (tester) async {
@@ -241,6 +282,7 @@ Future<void> _pumpChatHome(
   _FakeChatApi api, {
   _HomeRealtime? realtime,
   ChatApi Function(Ref)? selectApi,
+  TokenStore? tokenStore,
 }) async {
   final socket = realtime ?? _HomeRealtime();
   if (realtime == null) addTearDown(socket.dispose);
@@ -264,6 +306,8 @@ Future<void> _pumpChatHome(
         appConfigInitialProvider.overrideWithValue(_testConfig),
         chatApiProvider.overrideWith(selectApi ?? (_) => api),
         realtimeServiceProvider.overrideWithValue(socket),
+        if (tokenStore != null)
+          tokenStoreProvider.overrideWithValue(tokenStore),
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
@@ -271,12 +315,16 @@ Future<void> _pumpChatHome(
   await tester.pumpAndSettle();
 }
 
-V2DirectConversation _conversation(int message, String content) =>
-    V2DirectConversation.fromJson({
-      'conversation_id': 11,
-      'participant': {'user_id': 22, 'username': 'peer'},
-      'last_message': {'message_id': message, 'content': content},
-    });
+V2DirectConversation _conversation(
+  int message,
+  String content, {
+  int unread = 0,
+}) => V2DirectConversation.fromJson({
+  'conversation_id': 11,
+  'participant': {'user_id': 22, 'username': 'peer'},
+  'unread_count': unread,
+  'last_message': {'message_id': message, 'content': content},
+});
 
 class _HomeRealtime extends RealtimeService {
   _HomeRealtime() : super(config: _testConfig, tokenStore: _FakeTokenStore());
@@ -515,8 +563,11 @@ const _testConfig = AppConfig(
 const _testBundle = AppConfigBundle(defaults: _testConfig, presets: []);
 
 class _FakeTokenStore extends TokenStore {
+  _FakeTokenStore([this.pair]);
+  final TokenPair? pair;
+
   @override
-  Future<TokenPair?> read() async => null;
+  Future<TokenPair?> read() async => pair;
 
   @override
   Future<void> write(TokenPair pair) async {}

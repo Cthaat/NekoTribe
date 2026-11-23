@@ -1,19 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/calls/data/call_api.dart';
+import '../../features/calls/presentation/call_controller.dart';
+
 import '../../core/auth/token_store.dart';
 import '../../core/config/app_config.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/asset_url_resolver.dart';
 import '../../features/auth/data/auth_api.dart';
+import '../../features/ai/data/ai_user_provider_api.dart';
 import '../../features/ai/data/ai_writing_api.dart';
 import '../../features/ai/data/ai_group_draft_api.dart';
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/auth/data/passkey_client.dart';
 import '../../features/chat/data/chat_api.dart';
 import '../../features/groups/data/groups_api.dart';
 import '../../features/media/data/media_api.dart';
 import '../../features/moderation/data/moderation_api.dart';
 import '../../features/notifications/data/notifications_api.dart';
 import '../../features/posts/data/posts_api.dart';
+import '../../features/posts/data/post_drafts_api.dart';
 import '../../features/posts/domain/post_models.dart';
 import '../../features/realtime/data/realtime_service.dart';
 import '../../features/sentiment_flow/data/sentiment_flow_api.dart';
@@ -175,6 +181,12 @@ final authApiProvider = Provider<AuthApi>(
   (ref) => AuthApi(ref.watch(apiClientProvider)),
 );
 
+final passkeyClientProvider = Provider<PasskeyClient>(
+  (ref) => PasskeyClient(
+    readApiBaseUrl: () => ref.read(appConfigProvider).apiBaseUrl,
+  ),
+);
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final store = ref.watch(tokenStoreProvider);
   var active = true;
@@ -203,6 +215,10 @@ final postsApiProvider = Provider<PostsApi>(
   (ref) => PostsApi(ref.watch(apiClientProvider)),
 );
 
+final postDraftsApiProvider = Provider<PostDraftsApi>(
+  (ref) => PostDraftsApi(ref.watch(apiClientProvider)),
+);
+
 // Lets an open list card receive confirmed edits made inside its detail route.
 final savedPostProvider = StateProvider.autoDispose.family<V2Post?, int>(
   (_, _) => null,
@@ -222,6 +238,10 @@ final chatApiProvider = Provider<ChatApi>(
 
 final aiWritingApiProvider = Provider<AiWritingApi>(
   (ref) => AiWritingApi(ref.watch(apiClientProvider)),
+);
+
+final aiUserProviderApiProvider = Provider<AiUserProviderApi>(
+  (ref) => AiUserProviderApi(ref.watch(apiClientProvider)),
 );
 
 final aiGroupDraftApiProvider = Provider<AiGroupDraftApi>(
@@ -247,6 +267,22 @@ final realtimeServiceProvider = Provider<RealtimeService>((ref) {
   );
   ref.onDispose(service.dispose);
   return service;
+});
+
+final callControllerProvider = ChangeNotifierProvider<CallController>((ref) {
+  final callApi = CallApi(ref.watch(apiClientProvider));
+  final chatApi = ref.watch(chatApiProvider);
+  return CallController(
+    realtime: ref.watch(realtimeServiceProvider),
+    tokenStore: ref.watch(tokenStoreProvider),
+    iceServers: callApi.iceServers,
+    peerName: (conversationId, peerId) async {
+      final conversation = await chatApi.getDirectConversation(conversationId);
+      final peer = conversation?.participant;
+      if (peer == null || peer.userId != peerId) return null;
+      return peer.displayName.isEmpty ? peer.username : peer.displayName;
+    },
+  );
 });
 
 class AuthSessionState {

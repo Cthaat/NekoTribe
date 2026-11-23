@@ -1,0 +1,22 @@
+{
+  "id": "LINK-PREVIEW",
+  "revision": 1,
+  "max_url_bytes": 2048,
+  "timeout_ms": 3000,
+  "max_redirects": 3,
+  "max_body_bytes": 524288,
+  "cache_timeout_ms": 150,
+  "cache_ttl_seconds": 3600,
+  "cache_prefix": "neko:link-preview:v1:",
+  "title_chars": 160,
+  "description_chars": 280,
+  "site_name_chars": 96,
+  "ipv6_public_prefix": "2000::/3",
+  "blocked_host_suffixes": ["localhost", "local", "internal", "home.arpa", "onion"],
+  "blocked_cidrs": [
+    "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "168.63.129.16/32", "169.254.0.0/16",
+    "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24", "192.168.0.0/16",
+    "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
+    "2001::/23", "2001:db8::/32", "2002::/16", "3fff::/20"
+  ]
+}

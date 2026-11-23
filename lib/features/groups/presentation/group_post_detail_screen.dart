@@ -16,7 +16,10 @@ import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../ai/presentation/ai_writing_screen.dart';
+import '../../links/presentation/content_link_preview.dart';
 import '../../posts/domain/post_draft_metadata.dart';
+import '../../posts/presentation/post_poll_card.dart';
+import '../../posts/presentation/post_markdown_body.dart';
 import '../domain/group_models.dart';
 
 class GroupPostDetailScreen extends ConsumerStatefulWidget {
@@ -763,10 +766,29 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
                               ],
                             ),
                             const SizedBox(height: 14),
-                            Text(
-                              _post!.content,
-                              style: theme.textTheme.bodyLarge,
+                            if (_post!.markdown case final source?)
+                              PostMarkdownBody(source: source)
+                            else
+                              Text(
+                                _post!.content,
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                            ContentLinkPreview(
+                              content: _post!.content,
+                              markdown: _post!.markdown,
                             ),
+                            if (_post!.poll case final poll?)
+                              PostPollCard(
+                                key: ValueKey((
+                                  _post!.groupId,
+                                  _post!.postId,
+                                  poll.pollId,
+                                )),
+                                groupId: _post!.groupId,
+                                postId: _post!.postId,
+                                poll: poll,
+                                canWrite: _group?.canWritePosts ?? false,
+                              ),
                             const SizedBox(height: 14),
                             Row(
                               children: [

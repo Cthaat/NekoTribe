@@ -11,6 +11,8 @@ import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../realtime/data/realtime_service.dart'
+    show realtimeUserIdFromAccessToken;
 import '../domain/chat_models.dart';
 import 'chat_realtime_binding.dart';
 
@@ -151,11 +153,27 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
 
   void _onRealtime(Map<String, dynamic> event) {
     final type = event['type'];
-    if (type != 'direct_message' && type != 'direct_message_deleted') return;
+    if (type != 'direct_message' &&
+        type != 'direct_message_deleted' &&
+        type != 'direct_read_updated') {
+      return;
+    }
     final data = event['data'];
     if (data is! Map || data['conversation_id'] is! int) return;
     final conversation = data['conversation_id'] as int;
     if (conversation <= 0 || conversation > 9007199254740991) return;
+    if (type == 'direct_read_updated') {
+      final reader = data['reader_id'], cursor = data['last_read_message_id'];
+      if (reader is int &&
+          reader > 0 &&
+          reader <= 9007199254740991 &&
+          cursor is int &&
+          cursor > 0 &&
+          cursor <= 9007199254740991) {
+        unawaited(_refreshOwnRead(reader));
+      }
+      return;
+    }
     if (type == 'direct_message_deleted') {
       final message = data['message_id'];
       if (message is! int || message <= 0 || message > 9007199254740991) return;
@@ -178,6 +196,26 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
         );
       }
     }
+    _queueConversationRefresh();
+  }
+
+  Future<void> _refreshOwnRead(int readerId) async {
+    final current = _realtime.capture();
+    if (!current()) return;
+    try {
+      final pair = await ref.read(tokenStoreProvider).read();
+      if (mounted &&
+          current() &&
+          pair != null &&
+          realtimeUserIdFromAccessToken(pair.accessToken) == readerId) {
+        _queueConversationRefresh();
+      }
+    } catch (_) {
+      // Leave existing unread data intact if the viewer cannot be identified.
+    }
+  }
+
+  void _queueConversationRefresh() {
     _conversationRequest++;
     _conversationRefresh ??= Timer(const Duration(milliseconds: 150), () {
       _conversationRefresh = null;

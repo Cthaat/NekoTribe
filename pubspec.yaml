@@ -19,6 +19,7 @@ dependencies:
   dio: ^5.7.0
   http_parser: ^4.0.2
   web: ^1.1.1
+  flutter_webrtc: 1.6.3
 
   # State management
   flutter_riverpod: ^2.5.1
@@ -29,6 +30,7 @@ dependencies:
   # Storage
   flutter_secure_storage: ^9.2.2
   shared_preferences: ^2.3.3
+  passkeys: 2.24.2
 
   # Realtime
   web_socket_channel: ^3.0.1
@@ -39,6 +41,10 @@ dependencies:
   image_picker: ^1.1.2
   mime: ^1.0.6
   url_launcher: ^6.3.2
+
+  # Post Markdown
+  markdown: ^7.3.1
+  highlight: ^0.7.0
 
   # Utils
   crypto: ^3.0.7

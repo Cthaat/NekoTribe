@@ -1,0 +1,23 @@
+{
+  "id": "POST-DRAFTS",
+  "revision": 1,
+  "sweep_interval_seconds": 15,
+  "sweep_batch_size": 20,
+  "default_list_limit": 20,
+  "max_list_limit": 50,
+  "max_payload_bytes": 65536,
+  "sql": {
+    "list": "SELECT draft_id,owner_id,group_id,payload_json,status,TO_CHAR(scheduled_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS scheduled_at,published_post_id,last_error,TO_CHAR(updated_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at FROM n_post_drafts WHERE owner_id=:owner_id AND (:before_id IS NULL OR draft_id<:before_id) AND (:group_scope IS NULL OR (:group_scope=0 AND group_id IS NULL) OR group_id=:group_scope) ORDER BY draft_id DESC FETCH FIRST :fetch_limit ROWS ONLY",
+    "read": "SELECT draft_id,owner_id,group_id,payload_json,status,TO_CHAR(scheduled_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS scheduled_at,published_post_id,last_error,TO_CHAR(updated_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at FROM n_post_drafts WHERE draft_id=:draft_id AND owner_id=:owner_id",
+    "lock_owner": "SELECT draft_id,owner_id,group_id,payload_json,status,TO_CHAR(scheduled_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS scheduled_at,published_post_id,last_error,TO_CHAR(updated_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at FROM n_post_drafts WHERE draft_id=:draft_id AND owner_id=:owner_id FOR UPDATE",
+    "insert": "INSERT INTO n_post_drafts (draft_id,owner_id,group_id,payload_json,status,updated_at) VALUES (:draft_id,:owner_id,:group_id,:payload_json,'draft',SYS_EXTRACT_UTC(SYSTIMESTAMP))",
+    "edit": "UPDATE n_post_drafts SET group_id=:group_id,payload_json=:payload_json,status='draft',scheduled_at=NULL,last_error=NULL,updated_at=SYS_EXTRACT_UTC(SYSTIMESTAMP) WHERE draft_id=:draft_id AND owner_id=:owner_id AND status<>'published'",
+    "remove": "DELETE FROM n_post_drafts WHERE draft_id=:draft_id AND owner_id=:owner_id",
+    "schedule": "UPDATE n_post_drafts SET status='scheduled',scheduled_at=TO_TIMESTAMP(:scheduled_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"'),last_error=NULL,updated_at=SYS_EXTRACT_UTC(SYSTIMESTAMP) WHERE draft_id=:draft_id AND owner_id=:owner_id AND status<>'published' AND TO_TIMESTAMP(:scheduled_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"')>SYS_EXTRACT_UTC(SYSTIMESTAMP)",
+    "unschedule": "UPDATE n_post_drafts SET status='draft',scheduled_at=NULL,last_error=NULL,updated_at=SYS_EXTRACT_UTC(SYSTIMESTAMP) WHERE draft_id=:draft_id AND owner_id=:owner_id AND status<>'published'",
+    "candidates": "SELECT draft_id FROM n_post_drafts WHERE status='scheduled' AND scheduled_at<=SYS_EXTRACT_UTC(SYSTIMESTAMP) ORDER BY scheduled_at,draft_id FETCH FIRST 20 ROWS ONLY",
+    "lock_due": "SELECT draft_id,owner_id,group_id,payload_json,status,TO_CHAR(scheduled_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS scheduled_at,published_post_id,last_error,TO_CHAR(updated_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS updated_at FROM n_post_drafts WHERE draft_id=:draft_id AND status='scheduled' AND scheduled_at<=SYS_EXTRACT_UTC(SYSTIMESTAMP) FOR UPDATE SKIP LOCKED",
+    "published": "UPDATE n_post_drafts SET status='published',published_post_id=:post_id,last_error=NULL,updated_at=SYS_EXTRACT_UTC(SYSTIMESTAMP) WHERE draft_id=:draft_id AND owner_id=:owner_id AND status<>'published'",
+    "failed": "UPDATE n_post_drafts SET status='failed',last_error=:reason,updated_at=SYS_EXTRACT_UTC(SYSTIMESTAMP) WHERE draft_id=:draft_id AND owner_id=:owner_id AND status='scheduled'"
+  }
+}

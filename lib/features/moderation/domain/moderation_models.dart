@@ -91,6 +91,32 @@ class V2ModerationReport {
   }
 }
 
+enum ModerationSentimentLabel { negative, neutral, positive }
+
+typedef ModerationSentimentSignal = ({
+  ModerationSentimentLabel label,
+  double confidence,
+});
+
+ModerationSentimentSignal? _readSentimentSignal(Object? raw) {
+  if (raw is! Map<String, dynamic> || raw.length != 2) return null;
+  final label = switch (raw['label']) {
+    'negative' => ModerationSentimentLabel.negative,
+    'neutral' => ModerationSentimentLabel.neutral,
+    'positive' => ModerationSentimentLabel.positive,
+    _ => null,
+  };
+  final confidence = raw['confidence'];
+  if (label == null ||
+      confidence is! num ||
+      !confidence.isFinite ||
+      confidence < 0 ||
+      confidence > 1) {
+    return null;
+  }
+  return (label: label, confidence: confidence.toDouble());
+}
+
 class V2ModerationContentItem {
   V2ModerationContentItem({
     required this.caseId,
@@ -110,6 +136,7 @@ class V2ModerationContentItem {
     required this.likesCount,
     required this.retweetsCount,
     required this.repliesCount,
+    this.sentimentSignal,
   });
 
   final int caseId;
@@ -129,6 +156,7 @@ class V2ModerationContentItem {
   final int likesCount;
   final int retweetsCount;
   final int repliesCount;
+  final ModerationSentimentSignal? sentimentSignal;
 
   factory V2ModerationContentItem.fromJson(Map<String, dynamic> json) {
     return V2ModerationContentItem(
@@ -154,6 +182,7 @@ class V2ModerationContentItem {
       likesCount: toInt(json['likes_count']) ?? 0,
       retweetsCount: toInt(json['retweets_count']) ?? 0,
       repliesCount: toInt(json['replies_count']) ?? 0,
+      sentimentSignal: _readSentimentSignal(json['sentiment_signal']),
     );
   }
 }

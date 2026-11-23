@@ -1,0 +1,16 @@
+{
+  "id": "POST-POLLS",
+  "revision": 1,
+  "max_option_bytes": 240,
+  "min_options": 2,
+  "max_options": 6,
+  "refresh_interval_ms": 5000,
+  "sql": {
+    "insert_poll": "INSERT INTO n_post_polls (poll_id,post_id,group_post_id,allow_multiple,closes_at) SELECT :poll_id,:post_id,:group_post_id,:allow_multiple,TO_TIMESTAMP(:closes_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') FROM dual WHERE TO_TIMESTAMP(:closes_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') > SYS_EXTRACT_UTC(SYSTIMESTAMP)",
+    "insert_option": "INSERT INTO n_post_poll_options (poll_id,option_id,option_text) VALUES (:poll_id,:option_id,:option_text)",
+    "read": "SELECT p.poll_id,p.allow_multiple,TO_CHAR(p.closes_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS closes_at,CASE WHEN p.closes_at<=SYS_EXTRACT_UTC(SYSTIMESTAMP) THEN 1 ELSE 0 END AS is_closed,o.option_id,o.option_text,(SELECT COUNT(*) FROM n_post_poll_ballots b WHERE b.poll_id=p.poll_id) AS total_ballots,(SELECT COUNT(*) FROM n_post_poll_votes v WHERE v.poll_id=p.poll_id AND v.option_id=o.option_id) AS votes_count,CASE WHEN EXISTS (SELECT 1 FROM n_post_poll_votes v WHERE v.poll_id=p.poll_id AND v.option_id=o.option_id AND v.user_id=:viewer_id) THEN 1 ELSE 0 END AS selected FROM n_post_polls p JOIN n_post_poll_options o ON o.poll_id=p.poll_id WHERE (:is_group=0 AND p.post_id=:post_id) OR (:is_group=1 AND p.group_post_id=:post_id) ORDER BY o.option_id",
+    "insert_ballot": "INSERT INTO n_post_poll_ballots (poll_id,user_id) SELECT p.poll_id,:user_id FROM n_post_polls p WHERE p.poll_id=:poll_id AND p.closes_at>SYS_EXTRACT_UTC(SYSTIMESTAMP)",
+    "insert_vote": "INSERT INTO n_post_poll_votes (poll_id,user_id,option_id) VALUES (:poll_id,:user_id,:option_id)",
+    "any_table_present": "SELECT 1 FROM user_tables WHERE table_name IN ('N_POST_POLLS','N_POST_POLL_OPTIONS','N_POST_POLL_BALLOTS','N_POST_POLL_VOTES') AND ROWNUM=1"
+  }
+}

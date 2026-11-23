@@ -62,6 +62,7 @@ class _ModerationAdviceDialogState
   CancelToken? _active;
   _Request? _busy;
   bool _generating = false;
+  String _preview = '';
   String? _notice;
   String _availability = 'loading';
   AiSkillAvailability? _skill;
@@ -103,6 +104,7 @@ class _ModerationAdviceDialogState
       _active = null;
       _busy = null;
       _generating = false;
+      _preview = '';
       _notice = 'sessionChanged';
       _availability = 'loading';
       _skill = null;
@@ -182,10 +184,16 @@ class _ModerationAdviceDialogState
               _explicitSkill &&
               _skill?.explicitSelection == true &&
               _skill?.enabled == true,
+          onDelta: (text) {
+            if (valid()) setState(() => _preview += text);
+          },
         );
         if (!valid()) return;
         generationSaved = !insufficient;
-        setState(() => _generating = false);
+        setState(() {
+          _generating = false;
+          _preview = '';
+        });
       }
       if (feedback != null && previous != null) {
         final confirmed = await api.rate(
@@ -265,6 +273,7 @@ class _ModerationAdviceDialogState
           _active = null;
           _busy = null;
           _generating = false;
+          _preview = '';
         });
       }
     }
@@ -289,6 +298,7 @@ class _ModerationAdviceDialogState
       _active = null;
       _busy = null;
       _generating = false;
+      _preview = '';
       _notice = 'generationStopped';
     });
   }
@@ -423,6 +433,11 @@ class _ModerationAdviceDialogState
                   ),
               ],
             ),
+            if (_generating && _preview.isNotEmpty)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 160),
+                child: SingleChildScrollView(child: Text(_preview)),
+              ),
             if (confirmation != null)
               Text(
                 label(
@@ -483,6 +498,10 @@ class _ModerationAdviceDialogState
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 SelectableText(advice.reason),
+                Text(
+                  label('analysis.${advice.analysisMode.name}'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 if (widget.router != null && advice.source != null)
                   TextButton(
                     onPressed: () => _openSource(advice.source!),

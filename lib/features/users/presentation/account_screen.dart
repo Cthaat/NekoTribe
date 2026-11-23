@@ -208,6 +208,16 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                           onTap: () => context.push('/account/bookmarks'),
                         ),
                         _Row(
+                          icon: Icons.storage_outlined,
+                          label: l10n.t('account.resources.title'),
+                          onTap: () => context.push('/account/billing'),
+                        ),
+                        _Row(
+                          icon: Icons.smart_toy_outlined,
+                          label: l10n.t('account.resources.ai_title'),
+                          onTap: () => context.push('/account/pro'),
+                        ),
+                        _Row(
                           icon: Icons.groups_outlined,
                           label: l10n.t('settings.account.groups'),
                           onTap: () => context.push('/groups'),

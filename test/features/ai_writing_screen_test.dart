@@ -112,7 +112,11 @@ class FakeWritingApi extends AiWritingApi {
   }
 
   @override
-  Future<String> createKnowledgeConversation({String? title}) async {
+  Future<String> createKnowledgeConversation({
+    String? title,
+    AiKnowledgeScope? knowledgeScope,
+    int? groupId,
+  }) async {
     createdTitles.add(title);
     knowledgeCreations++;
     return 'id';
@@ -125,6 +129,7 @@ class FakeWritingApi extends AiWritingApi {
     CancelToken? cancelToken,
     bool selectSkill = false,
     int? expectedSequence,
+    void Function(String)? onDelta,
   }) async {
     knowledgeGenerations++;
     selectedKnowledgeSkills.add(selectSkill);
@@ -150,6 +155,8 @@ class FakeWritingApi extends AiWritingApi {
   Future<AiConversationPage> listConversations({
     String? afterId,
     String? purpose,
+    AiKnowledgeScope? knowledgeScope,
+    int? groupId,
   }) async =>
       historyPage?.call(afterId) ??
       AiConversationPage(
@@ -195,6 +202,7 @@ class FakeWritingApi extends AiWritingApi {
     CancelToken? cancelToken,
     bool selectSkill = false,
     int? expectedSequence,
+    void Function(String)? onDelta,
   }) async {
     selectedWritingSkills.add(selectSkill);
     generatedSequences.add(expectedSequence);
@@ -989,7 +997,7 @@ void main() {
       expect(api.knowledgeGenerations, 1);
       expect(api.selectedKnowledgeSkills, [true]);
       expect(api.appends, 1);
-      expect(find.text('没有找到匹配的公开资料，请尝试其他文字。'), findsOneWidget);
+      expect(find.text('当前范围内没有找到匹配的资料，请尝试其他文字。'), findsOneWidget);
       expect(find.text('草稿'), findsNothing);
     },
   );
