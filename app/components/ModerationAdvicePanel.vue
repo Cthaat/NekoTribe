@@ -36,6 +36,7 @@ type AdviceTarget = NonNullable<typeof target.value>;
 type Request = 'history' | 'older' | 'generate' | 'remove' | {message: ModerationAdviceMessage; rating: ModerationRating};
 const busy = ref<'history' | 'older' | 'generate' | 'feedback' | 'remove' | null>(null);
 const generating = ref(false);
+const preview = ref('');
 const history = ref<ModerationAdviceHistory | null>(null);
 const deleteConfirm = shallowRef<{
   history: ModerationAdviceHistory; target: AdviceTarget; id: string; message?: ModerationAdviceMessage;
@@ -66,6 +67,7 @@ let active: AbortController | null = null;
 function clear() {
   active?.abort();
   active = null;
+  preview.value = '';
   busy.value = null;
   generating.value = false;
   history.value = null;
@@ -133,8 +135,11 @@ async function load(request: Request) {
       if (!valid()) return;
       generating.value = true;
       const skillId = explicitSkill.value && skill.value?.explicitSelection && skill.value.enabled ? 'moderation-advice' : undefined;
-      insufficient = !await api.generate(id, currentTarget, locale.value === 'en' ? 'en' : 'zh', previous.sequence, signal, skillId);
+      insufficient = !await api.generate(id, currentTarget, locale.value === 'en' ? 'en' : 'zh', previous.sequence, signal, skillId, text => {
+        if (valid()) preview.value += text;
+      });
       if (!valid()) return;
+      preview.value = '';
       generationSaved = !insufficient;
       generating.value = false;
     }
@@ -194,6 +199,7 @@ async function load(request: Request) {
       status === 401 || status === 403 ? 'forbidden' : (feedback ? 'feedbackFailed' : 'failed');
   } finally {
     if (active === controller) {
+      preview.value = '';
       active = null;
       busy.value = null;
       generating.value = false;
@@ -208,6 +214,7 @@ function stopGeneration() {
   controller.abort();
   busy.value = null;
   generating.value = false;
+  preview.value = '';
   notice.value = 'generationStopped';
 }
 
@@ -249,6 +256,7 @@ function askDelete(message?: ModerationAdviceMessage) {
             {{ label('deleteConversation') }}
           </Button>
         </div>
+        <p v-if="preview" class="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border p-3 text-sm">{{ preview }}</p>
         <div v-if="deleteConfirm" class="grid gap-2 rounded-md border p-3" :aria-label="label('deleteConversation')" role="group">
           <p>{{ label(deleteConfirm.message ? 'deleteHistoricalPrompt' : 'deletePrompt') }}</p>
           <time v-if="deleteConfirm.message" :datetime="deleteConfirm.message.createdAt">
@@ -277,6 +285,9 @@ function askDelete(message?: ModerationAdviceMessage) {
             <p v-if="!message.advice" class="text-muted-foreground">{{ label('expired') }}</p>
             <template v-else>
               <p class="font-medium">{{ label(`risk.${message.advice.risk}`) }} · {{ label(`recommendation.${message.advice.recommendation}`) }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{ t(message.advice.analysisMode === 'text_and_images' ? 'aiVision.textAndImages' : 'aiVision.textOnly') }}
+              </p>
               <p class="whitespace-pre-wrap break-words">{{ message.advice.reason }}</p>
               <a v-if="message.advice.source" :href="sourceHref(message.advice.source)"
                 target="_blank" rel="noopener noreferrer" class="w-fit text-primary underline underline-offset-4">

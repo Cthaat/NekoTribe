@@ -288,6 +288,7 @@ export const REDIS_CHANNELS = {
  */
 export interface WSMessage {
   type:
+    | import('./webrtc-signaling').CallServerEventType
     | 'broadcast'
     | 'user_message'
     | 'room_message'
@@ -298,6 +299,10 @@ export interface WSMessage {
     | 'chat_channel_updated'
     | 'direct_message'
     | 'direct_message_deleted'
+    | 'direct_message_updated'
+    | 'direct_read_updated'
+    | 'typing_start'
+    | 'typing_stop'
     | 'notification_created'
     | 'notification_read_status_updated'
     | 'notifications_read_status_updated'

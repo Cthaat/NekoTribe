@@ -54,6 +54,7 @@ export interface ModerationTweetVM {
   reports: ModerationReportVM[];
   status: ModerationStatusVM;
   priority: ModerationPriorityVM;
+  sentimentSignal?: {label:'negative'|'neutral'|'positive';confidence:number};
   assignedTo?: { id: number; name: string };
   createdAt: string;
   reportedAt: string;

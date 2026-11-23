@@ -3,12 +3,14 @@ import type oracledb from 'oracledb';
 import { v2Auth, v2BadRequest, v2Forbidden, v2NotFound } from '~/server/utils/v2';
 import { v2GroupPermission } from '~/server/services/v2/groups';
 import { requireModerationAccess } from '~/server/services/v2/moderation';
+import { requireKnowledgeMembership, type KnowledgeScope } from './knowledge-scope';
 
 export type ConversationPurpose = 'knowledge' | 'writing' | 'group' | 'moderation';
 export interface ConversationScope {
   ownerUserId: number;
   purpose: ConversationPurpose;
   groupId: number | null;
+  knowledgeScope?: KnowledgeScope;
 }
 
 export async function authorizeConversationScope(
@@ -19,6 +21,12 @@ export async function authorizeConversationScope(
   const actor = v2Auth(event);
   // Do not reveal whether a different owner's conversation exists.
   if (scope.ownerUserId !== actor.userId) v2NotFound('会话不存在');
+  if (scope.purpose === 'knowledge' && scope.knowledgeScope === 'group') {
+    const id = scope.groupId;
+    if (id === null || !Number.isSafeInteger(id) || id < 1) v2BadRequest('群组参数错误');
+    await requireKnowledgeMembership(connection, actor.userId, id);
+    return;
+  }
   if (scope.purpose === 'group') {
     if (!Number.isSafeInteger(scope.groupId) || (scope.groupId ?? 0) <= 0) v2BadRequest('群组参数错误');
     if (!(await v2GroupPermission(connection, actor.userId, scope.groupId!, 'admin'))) {

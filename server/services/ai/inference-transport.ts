@@ -1,4 +1,5 @@
 import type { AiModelSelection } from './model-configuration.ts';
+import vision from '../../../specifications/requirements/ai-vision.json' with { type: 'json' };
 
 export type AiTransportErrorCode = 'INVALID_REQUEST' | 'UNSUPPORTED_CAPABILITY' | 'MISSING_CREDENTIAL' |
   'PROVIDER_UNAVAILABLE' | 'PROVIDER_REJECTED' | 'INVALID_PROVIDER_RESPONSE' | 'RESPONSE_TOO_LARGE' | 'TIMEOUT' | 'CANCELLED';
@@ -14,7 +15,9 @@ export interface AiInferenceResult {
   finishReason: 'stop' | 'length' | 'tool-calls' | 'content-filter';
   usage: { inputTokens: number | null; outputTokens: number | null };
 }
+export type AiDeltaListener = (text: string) => void | Promise<void>;
 const LIMIT = 1048576;
+const STREAM_FRAME_LIMIT = 65536;
 function scalarString(value: string): boolean {
   for (let index = 0; index < value.length; index++) {
     const unit = value.charCodeAt(index);
@@ -113,11 +116,45 @@ function encodeMessages(selection: AiModelSelection, messages: Json[]): { encode
   if (pending.length) fail('INVALID_REQUEST');
   return { encoded, hasHistory };
 }
-function requestBody(selection: AiModelSelection, input: unknown): { body: ObjectValue; tools: Set<string>; structured: boolean } {
+function encodeImages(selection: AiModelSelection, messages: Json[], input: Json | undefined): number {
+  if (input === undefined) return 0;
+  if (!selection.capabilities.includes('vision')) fail('UNSUPPORTED_CAPABILITY');
+  const message = object(messages.at(-1), 'INVALID_REQUEST');
+  if (message.role !== 'user' || typeof message.content !== 'string' ||
+      !Array.isArray(input) || input.length < 1 || input.length > vision.max_images) fail('INVALID_REQUEST');
+  let bytes = 0;
+  let encodedBytes = 0;
+  const images = input.map(value => {
+    const image = object(value, 'INVALID_REQUEST');
+    exact(image, ['mime_type', 'data']);
+    if (typeof image.mime_type !== 'string' || !vision.mime_types.includes(image.mime_type) ||
+        typeof image.data !== 'string' || image.data.length > Math.ceil(vision.max_image_bytes / 3) * 4 ||
+        image.data.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(image.data)) fail('INVALID_REQUEST');
+    const padding = image.data.endsWith('==') ? 2 : image.data.endsWith('=') ? 1 : 0;
+    const size = image.data.length / 4 * 3 - padding;
+    if (size < 1 || size > vision.max_image_bytes) fail('INVALID_REQUEST');
+    bytes += size;
+    encodedBytes += image.data.length + 128;
+    return {mime: image.mime_type, data: image.data};
+  });
+  if (bytes > vision.max_total_image_bytes) fail('INVALID_REQUEST');
+  if (selection.adapter === 'ollama') {
+    message.images = images.map(image => image.data);
+  } else if (selection.adapter === 'openai-compatible') {
+    message.content = [
+      {type:'text', text:message.content},
+      ...images.map(image => ({type:'image_url',image_url:{url:`data:${image.mime};base64,${image.data}`}})),
+    ];
+  } else fail('INVALID_REQUEST');
+  return encodedBytes;
+}
+
+function requestBody(selection: AiModelSelection, input: unknown): { body: ObjectValue; tools: Set<string>; structured: boolean; imageBytes: number } {
   const request = object(jsonCopy(input, 64, 'INVALID_REQUEST'), 'INVALID_REQUEST');
-  exact(request, ['messages'], ['tools', 'responseSchema']);
+  exact(request, ['messages'], ['tools', 'responseSchema', 'images']);
   if (!Array.isArray(request.messages) || request.messages.length < 1 || request.messages.length > 128) fail('INVALID_REQUEST');
   const { encoded: messages, hasHistory } = encodeMessages(selection, request.messages);
+  const imageBytes = encodeImages(selection, messages, request.images);
   const tools = Object.hasOwn(request, 'tools') ? request.tools : [];
   if (!Array.isArray(tools) || tools.length > 32) fail('INVALID_REQUEST');
   const names = new Set<string>();
@@ -146,7 +183,7 @@ function requestBody(selection: AiModelSelection, input: unknown): { body: Objec
     else body.response_format = { type: 'json_schema', json_schema: { name: 'output', strict: true, schema } };
   }
   jsonCopy(body, 70, 'INVALID_REQUEST');
-  return { body, tools: names, structured };
+  return { body, tools: names, structured, imageBytes };
 }
 function tokens(value: Json | undefined): number | null {
   if (value === undefined) return null;
@@ -202,7 +239,108 @@ function normalize(selection: AiModelSelection, raw: Json, names: Set<string>, s
   return { text, toolCalls, finishReason: finish, usage: { inputTokens, outputTokens } };
 }
 
-// Server-internal, non-streaming adapter. Tool calls remain logical proposals.
+async function readProviderStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  selection: AiModelSelection,
+  structured: boolean,
+  onDelta: AiDeltaListener
+): Promise<AiInferenceResult> {
+  const openai = selection.adapter === 'openai-compatible';
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let bytes = 0;
+  let frameBytes = 0;
+  let frame: string[] = [];
+  let text = '';
+  let reason: Json | undefined;
+  let usage: Json | undefined;
+  let terminal = false;
+  let final: ObjectValue | undefined;
+
+  async function record(payload: string) {
+    if (openai && payload === '[DONE]') {
+      terminal = true;
+      return;
+    }
+    const response = object(JSON.parse(payload) as Json);
+    let delta: Json | undefined;
+    if (openai) {
+      if (response.usage) usage = response.usage;
+      if (!Array.isArray(response.choices)) fail();
+      if (!response.choices.length) return;
+      const choice = object(response.choices[0]);
+      if (choice.index !== 0) fail();
+      const fragment = object(choice.delta);
+      if (fragment.tool_calls) fail();
+      delta = fragment.content;
+      if (choice.finish_reason != null) reason = choice.finish_reason;
+    } else {
+      const message = object(response.message);
+      if (message.tool_calls) fail();
+      delta = message.content;
+      if (response.done === true) {
+        terminal = true;
+        final = response;
+      }
+    }
+    if (typeof delta === 'string' && delta.length) {
+      text += delta;
+      await onDelta(delta);
+    }
+  }
+
+  async function line(raw: string) {
+    const value = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    const size = Buffer.byteLength(value);
+    if (size > STREAM_FRAME_LIMIT) fail('RESPONSE_TOO_LARGE');
+    if (!openai) {
+      if (value.trim()) await record(value);
+    } else if (!value) {
+      if (frame.length) await record(frame.join('\n'));
+      frame = [];
+      frameBytes = 0;
+    } else if (value.startsWith('data:')) {
+      frameBytes += size + 1;
+      if (frameBytes > STREAM_FRAME_LIMIT) fail('RESPONSE_TOO_LARGE');
+      frame.push(value.slice(5).replace(/^ /, ''));
+    }
+  }
+
+  try {
+    while (!terminal) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        buffer += decoder.decode();
+        if (buffer) await line(buffer);
+        if (openai) await line('');
+        break;
+      }
+      bytes += chunk.value.byteLength;
+      if (bytes > LIMIT) fail('RESPONSE_TOO_LARGE');
+      buffer += decoder.decode(chunk.value, { stream: true });
+      let newline = buffer.indexOf('\n');
+      while (newline !== -1 && !terminal) {
+        await line(buffer.slice(0, newline));
+        buffer = buffer.slice(newline + 1);
+        newline = buffer.indexOf('\n');
+      }
+      if (!terminal && Buffer.byteLength(buffer) > STREAM_FRAME_LIMIT) fail('RESPONSE_TOO_LARGE');
+    }
+  } catch (error) {
+    if (error instanceof SyntaxError) fail();
+    throw error;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  if (!terminal) fail();
+  const message = { role: 'assistant', content: text };
+  const assembled: ObjectValue = openai
+    ? { choices: [{ index: 0, finish_reason: reason ?? null, message }], usage: usage ?? null }
+    : { ...final, message };
+  return normalize(selection, assembled, new Set(), structured);
+}
+
+// Tool calls remain logical proposals. Only final text requests stream.
 export class AiInferenceTransport {
   readonly #resolver: (reference: string) => string | undefined;
   readonly #timeoutMs: number;
@@ -210,15 +348,17 @@ export class AiInferenceTransport {
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300000) fail('INVALID_REQUEST');
     this.#resolver = resolver; this.#timeoutMs = timeoutMs;
   }
-  async infer(snapshot: AiModelSelection, input: unknown, signal?: AbortSignal): Promise<AiInferenceResult> {
+  async infer(snapshot: AiModelSelection, input: unknown, signal?: AbortSignal, onDelta?: AiDeltaListener): Promise<AiInferenceResult> {
     if (signal?.aborted) fail('CANCELLED');
     const selection = { ...snapshot, capabilities: [...snapshot.capabilities] };
     let prepared: ReturnType<typeof requestBody>;
     try { prepared = requestBody(selection, input); }
     catch (error) { if (error instanceof AiTransportError) throw error; return fail('INVALID_REQUEST'); }
-    const { body, tools, structured } = prepared;
+    const { body, tools, structured, imageBytes } = prepared;
+    const stream = tools.size === 0 ? onDelta : undefined;
+    if (stream) body.stream = true;
     const encoded = JSON.stringify(body);
-    if (new TextEncoder().encode(encoded).length > LIMIT) fail('INVALID_REQUEST');
+    if (Buffer.byteLength(encoded) > LIMIT + imageBytes) fail('INVALID_REQUEST');
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept-Encoding': 'identity' };
     if (selection.apiKeyEnv !== null) {
       let credential: string | undefined;
@@ -246,6 +386,7 @@ export class AiInferenceTransport {
       const chunks: Uint8Array[] = []; let size = 0;
       const reader = response.body?.getReader();
       if (!reader) fail();
+      if (stream) return await readProviderStream(reader, selection, structured, stream);
       while (true) {
         const chunk = await reader.read();
         if (chunk.done) break;

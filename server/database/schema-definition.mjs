@@ -96,6 +96,21 @@ CONSTRAINT fk_ai_message_conversation FOREIGN KEY (conversation_id) REFERENCES n
         "name": "GROUP_ID",
         "previousType": "NUMBER(15)",
         "sql": `ALTER TABLE n_ai_conversations MODIFY (group_id NUMBER(19))`
+      },
+      {
+        "id": "ai-conversations-knowledge-scope",
+        "kind": "column",
+        "name": "KNOWLEDGE_SCOPE",
+        "sql": `ALTER TABLE n_ai_conversations ADD (
+knowledge_scope VARCHAR2(8 CHAR) DEFAULT 'public' NOT NULL,
+CONSTRAINT ck_ai_knowledge_scope CHECK (
+  (purpose <> 'knowledge' AND knowledge_scope = 'public')
+  OR (purpose = 'knowledge' AND (
+    (knowledge_scope IN ('public', 'personal') AND group_id IS NULL)
+    OR (knowledge_scope = 'group' AND group_id IS NOT NULL)
+  ))
+)
+)`
       }
     ]
   },
@@ -547,6 +562,327 @@ CONSTRAINT ck_ai_mod_feedback_rating CHECK (rating IN ('helpful', 'incorrect', '
         "sql": `ALTER TABLE n_media_assets ADD (
 access_scope VARCHAR2(16) DEFAULT 'public' NOT NULL CHECK (access_scope IN ('public', 'chat', 'post'))
 )`
+      }
+    ]
+  },
+  {
+    "id": "ai-user-provider",
+    "steps": [
+      {
+        "id": "t20-ai-user-provider",
+        "kind": "table",
+        "name": "N_AI_USER_PROVIDERS",
+        "sql": `CREATE TABLE n_ai_user_providers (
+user_id NUMBER(10) PRIMARY KEY,
+preset_id VARCHAR2(8 CHAR) NOT NULL,
+base_url VARCHAR2(500 CHAR) NOT NULL,
+model_name VARCHAR2(128 CHAR) NOT NULL,
+secret_box VARCHAR2(724 CHAR) NOT NULL,
+enabled NUMBER(1) DEFAULT 0 NOT NULL,
+revision NUMBER(15) NOT NULL,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_ai_provider_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT ck_ai_provider_preset CHECK (preset_id IN ('default', 'provided')),
+CONSTRAINT ck_ai_provider_enabled CHECK (enabled IN (0, 1)),
+CONSTRAINT ck_ai_provider_revision CHECK (revision > 0)
+)`
+      }
+    ]
+  },
+  {
+    "id": "direct-message-extras",
+    "steps": [
+      {
+        "id": "t21-direct-message-media",
+        "kind": "table",
+        "name": "N_DIRECT_MESSAGE_MEDIA",
+        "sql": `CREATE TABLE n_direct_message_media (
+message_id NUMBER(19) NOT NULL,
+media_id NUMBER(15) NOT NULL,
+position NUMBER(5) NOT NULL,
+CONSTRAINT pk_direct_message_media PRIMARY KEY (message_id, media_id),
+CONSTRAINT uk_direct_message_media_asset UNIQUE (media_id),
+CONSTRAINT uk_direct_message_media_pos UNIQUE (message_id, position),
+CONSTRAINT fk_direct_media_message FOREIGN KEY (message_id) REFERENCES n_direct_messages(message_id) ON DELETE CASCADE,
+CONSTRAINT fk_direct_media_asset FOREIGN KEY (media_id) REFERENCES n_media_assets(media_id) ON DELETE CASCADE,
+CONSTRAINT ck_direct_media_position CHECK (position BETWEEN 1 AND 32)
+)`
+      },
+      {
+        "id": "t21-direct-message-replies",
+        "kind": "table",
+        "name": "N_DIRECT_MESSAGE_REPLIES",
+        "sql": `CREATE TABLE n_direct_message_replies (
+message_id NUMBER(19) PRIMARY KEY,
+reply_to_message_id NUMBER(19) NOT NULL,
+CONSTRAINT fk_direct_reply_message FOREIGN KEY (message_id) REFERENCES n_direct_messages(message_id) ON DELETE CASCADE,
+CONSTRAINT fk_direct_reply_target FOREIGN KEY (reply_to_message_id) REFERENCES n_direct_messages(message_id) ON DELETE CASCADE
+)`
+      },
+      {
+        "id": "t21-direct-message-reactions",
+        "kind": "table",
+        "name": "N_DIRECT_MESSAGE_REACTIONS",
+        "sql": `CREATE TABLE n_direct_message_reactions (
+message_id NUMBER(19) NOT NULL,
+user_id NUMBER(10) NOT NULL,
+emoji VARCHAR2(32 CHAR) NOT NULL,
+CONSTRAINT pk_direct_message_reactions PRIMARY KEY (message_id, user_id, emoji),
+CONSTRAINT fk_direct_react_message FOREIGN KEY (message_id) REFERENCES n_direct_messages(message_id) ON DELETE CASCADE,
+CONSTRAINT fk_direct_react_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE
+)`
+      }
+    ]
+  },
+  {
+    "id": "post-polls",
+    "steps": [
+      {
+        "id": "t22-post-polls",
+        "kind": "table",
+        "name": "N_POST_POLLS",
+        "sql": `CREATE TABLE n_post_polls (
+poll_id NUMBER(19) PRIMARY KEY,
+post_id NUMBER(15),
+group_post_id NUMBER(19),
+allow_multiple NUMBER(1) NOT NULL,
+closes_at TIMESTAMP NOT NULL,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT uk_post_poll_post UNIQUE (post_id),
+CONSTRAINT uk_post_poll_group_post UNIQUE (group_post_id),
+CONSTRAINT fk_post_poll_post FOREIGN KEY (post_id) REFERENCES n_posts(post_id) ON DELETE CASCADE,
+CONSTRAINT fk_post_poll_group_post FOREIGN KEY (group_post_id) REFERENCES n_group_posts(post_id) ON DELETE CASCADE,
+CONSTRAINT ck_post_poll_scope CHECK ((post_id IS NOT NULL AND group_post_id IS NULL) OR (post_id IS NULL AND group_post_id IS NOT NULL)),
+CONSTRAINT ck_post_poll_multiple CHECK (allow_multiple IN (0, 1))
+)`
+      },
+      {
+        "id": "t22-post-poll-options",
+        "kind": "table",
+        "name": "N_POST_POLL_OPTIONS",
+        "sql": `CREATE TABLE n_post_poll_options (
+poll_id NUMBER(19) NOT NULL,
+option_id NUMBER(2) NOT NULL,
+option_text VARCHAR2(240 CHAR) NOT NULL,
+CONSTRAINT pk_post_poll_options PRIMARY KEY (poll_id, option_id),
+CONSTRAINT fk_post_poll_options_poll FOREIGN KEY (poll_id) REFERENCES n_post_polls(poll_id) ON DELETE CASCADE,
+CONSTRAINT ck_post_poll_option_id CHECK (option_id BETWEEN 1 AND 6)
+)`
+      },
+      {
+        "id": "t22-post-poll-ballots",
+        "kind": "table",
+        "name": "N_POST_POLL_BALLOTS",
+        "sql": `CREATE TABLE n_post_poll_ballots (
+poll_id NUMBER(19) NOT NULL,
+user_id NUMBER(10) NOT NULL,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT pk_post_poll_ballots PRIMARY KEY (poll_id, user_id),
+CONSTRAINT fk_post_poll_ballot_poll FOREIGN KEY (poll_id) REFERENCES n_post_polls(poll_id) ON DELETE CASCADE,
+CONSTRAINT fk_post_poll_ballot_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE
+)`
+      },
+      {
+        "id": "t22-post-poll-votes",
+        "kind": "table",
+        "name": "N_POST_POLL_VOTES",
+        "sql": `CREATE TABLE n_post_poll_votes (
+poll_id NUMBER(19) NOT NULL,
+user_id NUMBER(10) NOT NULL,
+option_id NUMBER(2) NOT NULL,
+CONSTRAINT pk_post_poll_votes PRIMARY KEY (poll_id, user_id, option_id),
+CONSTRAINT fk_post_poll_vote_ballot FOREIGN KEY (poll_id, user_id) REFERENCES n_post_poll_ballots(poll_id, user_id) ON DELETE CASCADE,
+CONSTRAINT fk_post_poll_vote_option FOREIGN KEY (poll_id, option_id) REFERENCES n_post_poll_options(poll_id, option_id) ON DELETE CASCADE
+)`
+      },
+      {
+        "id": "t22-post-poll-sequence",
+        "kind": "sequence",
+        "name": "SEQ_POST_POLL_ID",
+        "sql": `CREATE SEQUENCE seq_post_poll_id
+START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE`,
+        "targetTable": "N_POST_POLLS",
+        "targetColumn": "POLL_ID"
+      }
+    ]
+  },
+  {
+    "id": "post-drafts",
+    "steps": [
+      {
+        "id": "t23-post-drafts",
+        "kind": "table",
+        "name": "N_POST_DRAFTS",
+        "sql": `CREATE TABLE n_post_drafts (
+draft_id NUMBER(19) PRIMARY KEY,
+owner_id NUMBER(10) NOT NULL,
+group_id NUMBER(19),
+payload_json CLOB NOT NULL,
+status VARCHAR2(12) NOT NULL,
+scheduled_at TIMESTAMP,
+published_post_id NUMBER(19),
+last_error VARCHAR2(24),
+updated_at TIMESTAMP NOT NULL,
+CONSTRAINT fk_post_draft_owner FOREIGN KEY (owner_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT ck_post_draft_status CHECK (status IN ('draft','scheduled','failed','published'))
+)`
+      },
+      {
+        "id": "t23-post-draft-sequence",
+        "kind": "sequence",
+        "name": "SEQ_POST_DRAFT_ID",
+        "sql": `CREATE SEQUENCE seq_post_draft_id
+START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE`,
+        "targetTable": "N_POST_DRAFTS",
+        "targetColumn": "DRAFT_ID"
+      },
+      {
+        "id": "t23-post-draft-owner-index",
+        "kind": "index",
+        "name": "IDX_POST_DRAFT_OWNER",
+        "sql": "CREATE INDEX idx_post_draft_owner ON n_post_drafts (owner_id, draft_id)"
+      },
+      {
+        "id": "t23-post-draft-due-index",
+        "kind": "index",
+        "name": "IDX_POST_DRAFT_DUE",
+        "sql": "CREATE INDEX idx_post_draft_due ON n_post_drafts (status, scheduled_at, draft_id)"
+      }
+    ]
+  },
+  {
+    "id": "profile-pinned-post",
+    "steps": [
+      {
+        "id": "t24-profile-pinned-post",
+        "kind": "table",
+        "name": "N_USER_PINNED_POSTS",
+        "sql": `CREATE TABLE n_user_pinned_posts (
+user_id NUMBER(10) PRIMARY KEY,
+post_id NUMBER(15) NOT NULL,
+CONSTRAINT fk_user_pin_owner FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT fk_user_pin_post FOREIGN KEY (post_id) REFERENCES n_posts(post_id) ON DELETE CASCADE
+)`
+      }
+    ]
+  },
+  {
+    "id": "post-markdown",
+    "steps": [
+      {
+        "id": "t25-post-markdown",
+        "kind": "table",
+        "name": "N_POST_MARKDOWN",
+        "sql": `CREATE TABLE n_post_markdown (
+post_id NUMBER(15),
+group_post_id NUMBER(19),
+markdown_body CLOB NOT NULL,
+CONSTRAINT uk_post_markdown_post UNIQUE (post_id),
+CONSTRAINT uk_post_markdown_group UNIQUE (group_post_id),
+CONSTRAINT fk_post_markdown_post FOREIGN KEY (post_id) REFERENCES n_posts(post_id) ON DELETE CASCADE,
+CONSTRAINT fk_post_markdown_group FOREIGN KEY (group_post_id) REFERENCES n_group_posts(post_id) ON DELETE CASCADE,
+CONSTRAINT ck_post_markdown_source CHECK ((post_id IS NOT NULL AND group_post_id IS NULL) OR (post_id IS NULL AND group_post_id IS NOT NULL))
+)`
+      }
+    ]
+  },
+  {
+    "id": "passkey-auth",
+    "steps": [
+      {
+        "id": "t26-webauthn-credentials",
+        "kind": "table",
+        "name": "N_WEBAUTHN_CREDENTIALS",
+        "sql": `CREATE TABLE n_webauthn_credentials (
+credential_id VARCHAR2(1400) PRIMARY KEY,
+user_id NUMBER(10) NOT NULL,
+public_x VARCHAR2(43) NOT NULL,
+public_y VARCHAR2(43) NOT NULL,
+sign_count NUMBER(10) DEFAULT 0 NOT NULL,
+backup_eligible NUMBER(1) DEFAULT 0 NOT NULL,
+backed_up NUMBER(1) DEFAULT 0 NOT NULL,
+label VARCHAR2(80 CHAR) NOT NULL,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+last_used_at TIMESTAMP,
+CONSTRAINT fk_webauthn_credential_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT ck_webauthn_sign_count CHECK (sign_count BETWEEN 0 AND 4294967295),
+CONSTRAINT ck_webauthn_backup CHECK (backup_eligible IN (0,1) AND backed_up IN (0,1) AND backed_up <= backup_eligible)
+)`
+      },
+      {
+        "id": "t26-webauthn-credentials-owner",
+        "kind": "index",
+        "name": "IDX_WEBAUTHN_CRED_OWNER",
+        "sql": "CREATE INDEX idx_webauthn_cred_owner ON n_webauthn_credentials (user_id, created_at)"
+      },
+      {
+        "id": "t26-webauthn-challenges",
+        "kind": "table",
+        "name": "N_WEBAUTHN_CHALLENGES",
+        "sql": `CREATE TABLE n_webauthn_challenges (
+challenge_id VARCHAR2(43) PRIMARY KEY,
+purpose VARCHAR2(12) NOT NULL,
+issuer VARCHAR2(8) NOT NULL,
+owner_user_id NUMBER(10),
+owner_session_id VARCHAR2(128),
+challenge VARCHAR2(256) NOT NULL,
+engine_state VARCHAR2(4000),
+expires_at TIMESTAMP NOT NULL,
+CONSTRAINT fk_webauthn_challenge_user FOREIGN KEY (owner_user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT ck_webauthn_challenge_use CHECK ((purpose='register' AND owner_user_id IS NOT NULL AND owner_session_id IS NOT NULL) OR (purpose='login' AND owner_user_id IS NULL AND owner_session_id IS NULL))
+)`
+      },
+      {
+        "id": "t26-webauthn-challenges-expiry",
+        "kind": "index",
+        "name": "IDX_WEBAUTHN_CHALL_EXPIRY",
+        "sql": "CREATE INDEX idx_webauthn_chall_expiry ON n_webauthn_challenges (expires_at)"
+      }
+    ]
+  },
+  {
+    "id": "github-oauth",
+    "steps": [
+      {
+        "id": "t27-github-oauth-links",
+        "kind": "table",
+        "name": "N_GITHUB_OAUTH_LINKS",
+        "sql": `CREATE TABLE n_github_oauth_links (
+github_user_id VARCHAR2(32) PRIMARY KEY,
+user_id NUMBER(10) NOT NULL,
+github_login VARCHAR2(80 CHAR) NOT NULL,
+linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_github_oauth_link_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT uk_github_oauth_link_user UNIQUE (user_id)
+)`
+      },
+      {
+        "id": "t27-github-oauth-flows",
+        "kind": "table",
+        "name": "N_GITHUB_OAUTH_FLOWS",
+        "sql": `CREATE TABLE n_github_oauth_flows (
+flow_id VARCHAR2(43) PRIMARY KEY,
+purpose VARCHAR2(8) NOT NULL,
+owner_user_id NUMBER(10),
+owner_session_id VARCHAR2(128),
+state_hash VARCHAR2(64) NOT NULL,
+flow_key_hash VARCHAR2(64) NOT NULL,
+pkce_verifier VARCHAR2(43),
+status VARCHAR2(12) NOT NULL,
+github_user_id VARCHAR2(32),
+github_login VARCHAR2(80 CHAR),
+expires_at TIMESTAMP NOT NULL,
+CONSTRAINT uk_github_oauth_flow_state UNIQUE (state_hash),
+CONSTRAINT fk_github_oauth_flow_user FOREIGN KEY (owner_user_id) REFERENCES n_users(user_id) ON DELETE CASCADE,
+CONSTRAINT ck_github_oauth_flow_owner CHECK ((purpose='link' AND owner_user_id IS NOT NULL AND owner_session_id IS NOT NULL) OR (purpose='login' AND owner_user_id IS NULL AND owner_session_id IS NULL)),
+CONSTRAINT ck_github_oauth_flow_status CHECK (status IN ('pending','checking','verified','failed'))
+)`
+      },
+      {
+        "id": "t27-github-oauth-expiry",
+        "kind": "index",
+        "name": "IDX_GITHUB_OAUTH_FLOW_EXPIRY",
+        "sql": "CREATE INDEX idx_github_oauth_flow_expiry ON n_github_oauth_flows (expires_at)"
       }
     ]
   }

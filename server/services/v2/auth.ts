@@ -1391,8 +1391,41 @@ export async function v2Login(
   const matched = await bcrypt.compare(payload.password, verifiedPasswordHash);
   if (!matched) v2Unauthorized('账号或密码错误');
 
-  const userId = v2Number(row.USER_ID);
+  return v2CompletePrimaryLogin(event, connection, {
+    userId: v2Number(row.USER_ID), username: v2String(row.USERNAME),
+    account: payload.account, rememberMe: payload.remember_me ?? false, passwordHash: verifiedPasswordHash,
+  });
+}
+
+export async function v2LoginAfterVerifiedCredential(
+  event: H3Event,
+  connection: oracledb.Connection,
+  userId: number,
+  rememberMe: boolean,
+): Promise<V2Response<V2LoginData>> {
+  const lookup = () => v2One(connection,
+    'SELECT user_id, username, password_hash, status, is_active FROM n_users WHERE user_id = :user_id',
+    { user_id: userId });
+  let row = await lookup();
+  if (row?.STATUS === 'suspended' && v2Number(row.IS_ACTIVE) === 0) {
+    await restoreExpiredBan(connection, userId);
+    row = await lookup();
+  }
+  if (!row) v2Unauthorized();
+  if (v2Number(row.IS_ACTIVE) !== 1 || v2String(row.STATUS) !== 'active') v2Forbidden('账号不可用');
   const username = v2String(row.USERNAME);
+  return v2CompletePrimaryLogin(event, connection, {
+    userId, username, account: username, rememberMe, passwordHash: v2String(row.PASSWORD_HASH),
+  });
+}
+
+async function v2CompletePrimaryLogin(
+  event: H3Event,
+  connection: oracledb.Connection,
+  { userId, username, account, rememberMe, passwordHash }: {
+    userId: number; username: string; account: string; rememberMe: boolean; passwordHash: string;
+  },
+): Promise<V2Response<V2LoginData>> {
 
   await v2EnsureTwoFactorSchema(connection);
   const twoFactorRow = await v2One(
@@ -1416,7 +1449,7 @@ export async function v2Login(
     if (deviceKey) {
       try {
         const session = await v2IssueLoginSession(
-          event, connection, userId, username, verifiedPasswordHash, {
+          event, connection, userId, username, passwordHash, {
             beforeSession: () => v2ClaimTrustedDevice(event, connection, userId, deviceKey)
           }
         );
@@ -1431,16 +1464,16 @@ export async function v2Login(
         event,
         connection,
         userId,
-        payload.account,
-        payload.remember_me ?? false,
-        verifiedPasswordHash
+        account,
+        rememberMe,
+        passwordHash
       ),
       'two factor required'
     );
   }
 
   return v2Ok(
-    await v2IssueLoginSession(event, connection, userId, username, verifiedPasswordHash),
+    await v2IssueLoginSession(event, connection, userId, username, passwordHash),
     'login success'
   );
 }

@@ -60,7 +60,7 @@ test('retrying older channel history preserves the current messages and page', a
   const { code } = await transform(`
     export function fixture(load) {
       const activeChannel = {value:{id:7}};
-      const searchQuery = {value:'cat'};
+      const channelSearch = {value:{q:'cat',sender_id:3}};
       const isLoadingMessages = {value:false};
       const failedMessageLoad = {value:null};
       const messages = {value:[{id:5}]};
@@ -81,7 +81,7 @@ test('retrying older channel history preserves the current messages and page', a
   let attempts = 0;
   const view = fixture(async (channelId, query) => {
     assert.equal(channelId,7);
-    assert.deepEqual(query,{page:2,page_size:50,q:'cat'});
+    assert.deepEqual(query,{page:2,page_size:50,q:'cat',sender_id:3});
     if (++attempts === 1) throw Error('temporary failure');
     return {items:[{id:4},{id:5}],meta:{has_next:false}};
   });

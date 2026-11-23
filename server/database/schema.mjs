@@ -69,6 +69,12 @@ function parts(value) {
   result.push(value.slice(start).trim()); return result;
 }
 
+export function describeIndex(step) {
+  const match = step.sql.match(/ON\s+(\w+)\s*\(([^)]+)\)/);
+  if (!match) throw new Error('Unsupported schema index definition.');
+  return { table: match[1].toUpperCase(), columns: parts(match[2]).map(column => column.toUpperCase()) };
+}
+
 // This parser accepts only the reviewed, fixed DDL grammar in schema-definition.mjs.
 // Unexpected definitions fail at import; arbitrary SQL is never accepted from CLI input.
 export function describeStep(step) {
@@ -154,8 +160,8 @@ async function inspect(adapter, step) {
     const found = await rows(adapter, 'SELECT index_name, table_name, uniqueness, status FROM user_indexes WHERE index_name = :name', { name: step.name });
     if (!found.length) return 'missing';
     const cols = await rows(adapter, 'SELECT column_name, descend FROM user_ind_columns WHERE index_name = :name ORDER BY column_position', { name: step.name });
-    const expected = step.sql.match(/ON\s+(\w+)\s*\(([^)]+)\)/);
-    return found[0].TABLE_NAME === expected[1].toUpperCase() && found[0].UNIQUENESS === 'NONUNIQUE' && found[0].STATUS === 'VALID' && same(cols.map(c => c.COLUMN_NAME), parts(expected[2]).map(x => x.toUpperCase())) && cols.every(c => c.DESCEND === 'ASC') ? 'ready' : 'incompatible';
+    const expected = describeIndex(step);
+    return found[0].TABLE_NAME === expected.table && found[0].UNIQUENESS === 'NONUNIQUE' && found[0].STATUS === 'VALID' && same(cols.map(c => c.COLUMN_NAME), expected.columns) && cols.every(c => c.DESCEND === 'ASC') ? 'ready' : 'incompatible';
   }
   if (step.kind === 'seed') {
     if (!await exists(adapter, 'table', 'N_MODERATION_SETTINGS')) return 'missing';

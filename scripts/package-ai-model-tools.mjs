@@ -11,6 +11,7 @@ const files = [
   'server/services/ai/model-configuration.ts',
   'server/services/ai/model-source.ts',
   'specifications/requirements/ai-group-draft.json',
+  'specifications/requirements/ai-vision.json',
 ];
 const usage = 'Usage: node scripts/package-ai-model-tools.mjs --out NEW_DIRECTORY';
 const readme = `# NekoTribe AI 模型维护工具

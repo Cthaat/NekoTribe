@@ -3,6 +3,7 @@ import {
   v2Request,
   v2RequestData
 } from './client';
+import { confirmsCreatedPoll } from './post-polls';
 import type {
   V2CreateGroupInviteData,
   V2CreateGroupInvitePayload,
@@ -36,6 +37,12 @@ import type {
   V2InviteCodeData,
   V2InviteResponsePayload
 } from '@/types/v2';
+
+export async function v2ListHomeGroupActivity(page: number, pageSize: number) {
+  return toV2PagedResult(await v2Request<(V2GroupPost & { group_name: string })[], undefined, V2PageQuery>(
+    '/api/v2/feed/groups', { query: { page, page_size: pageSize } },
+  ));
+}
 
 export async function v2ListGroupAuditLogs(groupId: number, page: number, signal: AbortSignal) {
   return toV2PagedResult(await v2Request<V2GroupAuditEntry[], undefined, V2PageQuery>(
@@ -75,7 +82,8 @@ export async function v2ListPopularGroups(
 }
 
 export async function v2ListMyGroups(
-  query: V2GroupListQuery = {}
+  query: V2GroupListQuery = {},
+  signal?: AbortSignal
 ): Promise<V2PagedResult<V2Group>> {
   const response = await v2Request<
     V2Group[],
@@ -83,7 +91,8 @@ export async function v2ListMyGroups(
     V2GroupListQuery
   >('/api/v2/users/me/groups', {
     method: 'GET',
-    query
+    query,
+    signal
   });
   return toV2PagedResult(response);
 }
@@ -347,7 +356,8 @@ export async function v2CreateGroupPost(
     signal
   });
   if (post?.group_id !== groupId || !Number.isSafeInteger(post.post_id) || post.post_id < 1 ||
-      post.is_announcement !== (payload.is_announcement ?? false)) {
+      post.is_announcement !== (payload.is_announcement ?? false) || payload.poll && !confirmsCreatedPoll(post.poll,payload.poll) ||
+      payload.markdown !== undefined && post.markdown !== payload.markdown) {
     throw new Error('Invalid group post receipt');
   }
   return post;

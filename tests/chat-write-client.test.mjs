@@ -7,6 +7,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const compiled = await build({
   entryPoints: ['app/api/v2/chat.ts'],
   absWorkingDir: root,
+  alias: { '@': `${root}app` },
   bundle: true,
   write: false,
   platform: 'node',
@@ -47,7 +48,8 @@ test('channel reads distinguish an empty result and a mismatched list', async ()
 
 test('direct chat writes confirm the recipient, conversation, and sent text', async () => {
   const conversation = { conversation_id: 11, participant: { user_id: 42 } };
-  const message = { message_id: 9, conversation_id: 11, is_deleted: false, content: 'hello' };
+  const message = { message_id: 9, conversation_id: 11, is_deleted: false, content: 'hello',
+    author: { user_id: 21 }, created_at: '2026-11-21T03:00:00Z' };
   let data = conversation;
   globalThis.channelTransport = () => ({ data });
   const open = () => api.v2CreateDirectConversation({ target_user_id: 42 });
@@ -61,6 +63,56 @@ test('direct chat writes confirm the recipient, conversation, and sent text', as
     data = invalid;
     await assert.rejects(send, /Invalid direct message response/);
   }
+});
+
+test('private attachment receipts confirm order, quote identity and own reaction state', async () => {
+  const asset = id => ({ media_id: id, file_name: `${id}.png`, public_url: `/api/v2/media/${id}/content`, thumbnail_url: null });
+  const message = { message_id: 9, conversation_id: 11, is_deleted: false, content: '',
+    author: { user_id: 21 }, created_at: '2026-11-21T03:00:00Z', media: [asset(36), asset(32)],
+    reply_to: { message_id: 7, content: 'reply', author_name: 'member' } };
+  let data = message;
+  const requests = [];
+  globalThis.channelTransport = (path, options) => { requests.push({ path, ...options }); return { data }; };
+  const send = () => api.v2CreateDirectMessage(11, { media_ids: [36, 32], reply_to_message_id: 7 });
+  assert.deepEqual(await send(), message);
+  for (const invalid of [{ ...message, media: [...message.media].reverse() },
+    { ...message, reply_to: { ...message.reply_to, message_id: 8 } },
+    { ...message, media: [{ ...asset(36), public_url: '/storage/private/chat/36.png' }, asset(32)] }]) {
+    data = invalid;
+    await assert.rejects(send, /Invalid direct message response/);
+  }
+  data = { ...message, reactions: [{ emoji: '👍', count: 1, reacted_by_me: true }] };
+  assert.deepEqual(await api.v2SetDirectMessageReaction(11, 9, '👍', true), data);
+  assert.deepEqual(requests.at(-1), { path: '/api/v2/chat/direct-conversations/11/messages/9/reactions', method: 'POST', body: { emoji: '👍' } });
+  await assert.rejects(api.v2SetDirectMessageReaction(11, 9, '👍', false), /Invalid direct reaction receipt/);
+  data = { ...message, reactions: [{ emoji: '👍', count: 1, reacted_by_me: false }] };
+  assert.deepEqual(await api.v2SetDirectMessageReaction(11, 9, '👍', false), data);
+  assert.equal(requests.at(-1).method, 'DELETE');
+  assert.deepEqual(await api.v2ReadDirectMessage(11, 9), data);
+  assert.equal(requests.at(-1).path, '/api/v2/chat/direct-conversations/11/messages/9');
+  data = { ...message, message_id: 10 };
+  await assert.rejects(api.v2ReadDirectMessage(11, 9), /Invalid direct message receipt/);
+});
+
+test('direct history opts out of reads and explicit cursors confirm the caller and participant positions', async () => {
+  const requests = [];
+  const status = { conversation_id: 11, last_read_message_id: 70, participant_last_read_message_id: 52, unread_count: 3 };
+  let data = status;
+  globalThis.channelTransport = (path, options) => {
+    requests.push({ path, ...options });
+    return { code:200, data: path.endsWith('/messages') ? [] : data, meta: { page:1, page_size:20, total:0, has_next:false } };
+  };
+  const filters = {q:'hello',sender_id:21,start_at:'2026-09-21T00:00:00.000Z',end_at:'2026-09-22T00:00:00.000Z'};
+  await api.v2ListDirectMessages(11, { page:1, page_size:20, mark_read:false, ...filters });
+  await api.v2ListChatMessages(8, { page:1, page_size:20, ...filters });
+  assert.deepEqual(requests[0].query,{page:1,page_size:20,mark_read:false,...filters});
+  assert.deepEqual(requests[1].query,{page:1,page_size:20,...filters});
+  assert.deepEqual(await api.v2GetDirectReadStatus(11), status);
+  assert.deepEqual(await api.v2SetDirectReadStatus(11, 67), status);
+  assert.deepEqual(requests.at(-1), { path:'/api/v2/chat/direct-conversations/11/read-status', method:'PUT', body:{last_read_message_id:67} });
+  await assert.rejects(api.v2SetDirectReadStatus(11, 71), /Invalid direct read status/);
+  data = { ...status, conversation_id: 12 };
+  await assert.rejects(api.v2GetDirectReadStatus(11), /Invalid direct read status/);
 });
 test('channel writes confirm response identity and deletion before updating UI', async () => {
   const channel = { channel_id: 7, group_id: 42 };

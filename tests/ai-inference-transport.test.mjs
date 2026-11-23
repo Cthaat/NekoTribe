@@ -50,6 +50,69 @@ for (const item of [...fixture.cases, ...historyFixture.cases]) {
 }
 
 const base = fixture.cases[1];
+test('vision uses inline images on both adapters and requires model capability', async () => {
+  const image = {mime_type:'image/png',data:'iVBORw0KGgo='};
+  for (const adapter of ['openai-compatible','ollama']) {
+    const item = fixture.cases.find(row => row.id === (adapter === 'ollama' ? 'TRANSPORT-O01' : 'TRANSPORT-C01'));
+    const messages = [{role:'system',content:'describe'}, {role:'user',content:'caption'}];
+    const transport = new AiInferenceTransport(ref => item.credentials[ref]);
+    let calls = 0;
+    await serverFor(async (req,res) => {
+      calls++;
+      let body = '';
+      for await (const chunk of req) body += chunk;
+      const input = JSON.parse(body).messages;
+      assert.deepEqual(input[0], messages[0]);
+      assert.deepEqual(input[1], adapter === 'ollama'
+        ? {...messages[1],images:[image.data]}
+        : {role:'user',content:[{type:'text',text:'caption'},
+          {type:'image_url',image_url:{url:'data:image/png;base64,'+image.data}}]});
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify(item.response));
+    }, async origin => {
+      const selection = {...item.selection,baseUrl:origin,capabilities:[]};
+      await assert.rejects(transport.infer(selection,{messages,images:[image]}),safeError('UNSUPPORTED_CAPABILITY'));
+      const capable = {...selection,capabilities:['vision']};
+      await assert.rejects(transport.infer(capable,{messages,images:[{...image,data:'https://example.test/image'}]}),safeError('INVALID_REQUEST'));
+      const result = await transport.infer(capable,{messages,images:[image]});
+      assert.equal(result.finishReason,'stop');
+    });
+    assert.equal(calls,1);
+  }
+});
+test('streamed inference delivers provider deltas and assembles a terminal result', async () => {
+  for (const adapter of ['openai-compatible', 'ollama']) {
+    const item = fixture.cases.find(item => item.id === (adapter === 'ollama' ? 'TRANSPORT-O01' : 'TRANSPORT-C01'));
+    const first = adapter === 'ollama'
+      ? '{"message":{"content":"你"},"done":false}\n'
+      : 'data: {"choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null}]}\n\n';
+    const last = adapter === 'ollama'
+      ? '{"message":{"content":"好"},"done":true,"done_reason":"stop"}\n'
+      : 'data: {"choices":[{"index":0,"delta":{"content":"好"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n';
+    let resume;
+    const next = new Promise(resolve => { resume = resolve; });
+    await serverFor(async (req, res) => {
+      let input = '';
+      for await (const chunk of req) input += chunk;
+      assert.equal(JSON.parse(input).stream, true);
+      res.writeHead(200, { 'content-type': adapter === 'ollama' ? 'application/x-ndjson' : 'text/event-stream' });
+      res.write(first);
+      await next;
+      res.end(last);
+    }, async origin => {
+      const transport = new AiInferenceTransport(ref => item.credentials[ref], 5000);
+      const deltas = [];
+      const result = await transport.infer({ ...item.selection, baseUrl: origin }, item.request, undefined, text => {
+        deltas.push(text);
+        resume();
+      });
+      assert.deepEqual(deltas, ['你', '好']);
+      assert.equal(result.text, '你好');
+      assert.equal(result.finishReason, 'stop');
+    });
+  }
+});
+
 test('provider tool proposal can be sent back with its result on both adapters', async () => {
   for (const adapter of ['ollama','openai-compatible']) {
     const first=fixture.cases.find(v=>v.id===(adapter==='ollama'?'TRANSPORT-O03':'TRANSPORT-C03'));

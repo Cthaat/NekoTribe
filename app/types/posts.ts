@@ -1,4 +1,6 @@
 import type {
+  V2CreatePostPoll,
+  V2PostPoll,
   V2PostSort,
   V2PostVisibility
 } from '@/types/v2';
@@ -73,6 +75,8 @@ export interface PostViewerStateVM {
 }
 
 export interface PostVM {
+  markdown?: string;
+  poll?: V2PostPoll;
   id: number;
   author: PostAuthorVM;
   content: string;
@@ -130,6 +134,8 @@ export interface PreviewPostVM {
 }
 
 export interface CreatePostFormVM {
+  markdown?: string;
+  poll?: V2CreatePostPoll;
   content?: string;
   visibility?: V2PostVisibility;
   mediaIds?: number[];
@@ -142,6 +148,7 @@ export interface CreatePostFormVM {
 }
 
 export interface UpdatePostFormVM {
+  markdown?: string | null;
   content?: string;
   visibility?: V2PostVisibility;
   language?: string;

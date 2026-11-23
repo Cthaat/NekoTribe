@@ -132,6 +132,10 @@ function validateRoutes(projectRoot, inventory) {
     if (path.startsWith('/api/v2/')) {
       requireThat(routes.has(key), `Documented operation has no explicit source route: ${key}`);
       if (source) requireThat(source === routes.get(key), `Wrong implementation source: ${key}`);
+    } else if (path === '/metrics') {
+      requireThat(key === 'GET /metrics' && source === 'server/routes/metrics.get.ts', `Wrong metrics implementation source: ${key}`);
+      requireThat(statSync(resolve(projectRoot, source)).isFile(), `Missing metrics route: ${source}`);
+      routes.set(key, source);
     }
   }
   return { explicitRoutes: routes.size, catchalls };

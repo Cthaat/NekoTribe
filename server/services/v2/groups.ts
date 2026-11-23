@@ -1,5 +1,8 @@
 import { requirePublishAccess } from './moderation-publish-policy';
+import { attachPostPoll, readPollCreation, readPostPoll } from './post-polls';
+import { attachPostMarkdown, readPostMarkdown, readPostMarkdownInput } from './post-markdown';
 import mediaReferences from '../../../specifications/requirements/media-delete-references.json';
+import homeFeedSql from '../../../specifications/requirements/home-feed.json';
 import { managedPublicUrlToStorageKey } from '~/server/storage';
 import { randomBytes } from 'node:crypto';
 import { requireFeatureSchema } from '~/server/database/readiness';
@@ -99,7 +102,7 @@ function v2GroupCategoryOrNull(
   v2BadRequest('category 参数错误');
 }
 
-async function v2EnsureGroupFeatureSchema(
+export async function v2EnsureGroupFeatureSchema(
   connection: oracledb.Connection
 ): Promise<void> {
   await requireFeatureSchema(connection, 'groups');
@@ -171,7 +174,7 @@ WHERE g.group_id=:group_id AND m.status='active' AND m.user_id<>:actor_id AND NV
        OR (b.target_user_id=m.user_id AND b.user_id=:actor_id))
 ORDER BY m.user_id`;
 
-async function v2NotifyGroupPostCreated(
+export async function v2NotifyGroupPostCreated(
   connection: oracledb.Connection,
   groupId: number,
   postId: number,
@@ -1327,16 +1330,14 @@ async function requireVisibleGroupAuthor(
   if (!row) v2NotFound(missing);
 }
 
-async function withGroupContentWrite<T>(
+export async function withGroupContentWrite<T>(
   connection: oracledb.Connection,
   userId: number,
   groupId: number,
   write: () => Promise<T>
 ): Promise<T> {
   try {
-    const group = await v2One(connection, `${groupContentSql} FOR UPDATE`, { group_id: groupId });
-    if (!group) v2NotFound('群组不存在');
-    await requireGroupContentAccess(connection, userId, groupId);
+    await lockGroupContentWrite(connection, userId, groupId);
     const result = await write();
     await connection.commit();
     return result;
@@ -1344,6 +1345,12 @@ async function withGroupContentWrite<T>(
     await connection.rollback();
     throw error;
   }
+}
+
+async function lockGroupContentWrite(connection: oracledb.Connection, userId: number, groupId: number) {
+  const group = await v2One(connection, `${groupContentSql} FOR UPDATE`, { group_id: groupId });
+  if (!group) v2NotFound('群组不存在');
+  await requireGroupContentAccess(connection, userId, groupId);
 }
 
 const groupContentPostsSql = `WITH allowed_group AS (
@@ -1428,7 +1435,10 @@ async function v2MapGroupPost(
   row: V2DbRecord
 ): Promise<V2GroupPost> {
   const postId = v2Number(row.POST_ID);
+  const poll = await readPostPoll(connection, viewerId, 'group', postId, true);
+  const markdown = await readPostMarkdown(connection, 'group', postId);
   return {
+    ...(markdown === undefined ? {} : { markdown }),
     post_id: postId,
     group_id: v2Number(row.GROUP_ID),
     author: await v2RequirePublicUser(
@@ -1437,6 +1447,7 @@ async function v2MapGroupPost(
       v2Number(row.AUTHOR_ID)
     ),
     content: v2String(row.CONTENT),
+    ...(poll ? {poll} : {}),
     media_urls: v2MediaUrlArray(row.MEDIA_URLS),
     is_pinned: v2Boolean(row.IS_PINNED),
     is_announcement: v2Boolean(row.IS_ANNOUNCEMENT),
@@ -1477,6 +1488,23 @@ export async function v2GroupPosts(
   );
 }
 
+export async function v2HomeGroupActivity(
+  event: H3Event,
+  connection: oracledb.Connection,
+): Promise<V2Response<(V2GroupPost & { group_name: string })[]>> {
+  setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  const { userId } = v2Auth(event);
+  const page = v2Page(event);
+  const result = await v2Rows(connection, homeFeedSql.groupActivity, {
+    viewer_id: userId, start_row: page.start, end_row: page.end,
+  });
+  const posts = await Promise.all(result.filter(row => row.POST_ID != null).map(async row => ({
+    ...await v2MapGroupPost(connection, userId, row),
+    group_name: v2String(row.GROUP_NAME),
+  })));
+  return v2Ok(posts, 'success', v2PageMeta(page.page, page.page_size, v2Number(result[0]?.TOTAL)));
+}
+
 export async function v2CreateGroupPost(
   event: H3Event,
   connection: oracledb.Connection
@@ -1485,7 +1513,26 @@ export async function v2CreateGroupPost(
   setResponseHeader(event, 'Cache-Control', 'private, no-store');
   const auth = v2Auth(event);
   const groupId = groupAdmissionId(event, 'id', 'id 参数错误');
-  const body = await groupModerationBody(event);
+  const payload = readGroupPostWrite(await groupModerationBody(event));
+  if (payload.poll) await requireFeatureSchema(connection, 'post-polls');
+  let post: V2GroupPost;
+  let postId: number;
+  try {
+    postId = await v2InsertGroupPost(connection, auth.userId, groupId, payload);
+    post = await v2RequireGroupPost(connection, auth.userId, groupId, postId).catch(() => v2ServerError());
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
+  await v2NotifyGroupPostCreated(connection, groupId, postId, auth.userId, payload.content)
+    .catch(() => logWarn('group-post:notification-failed', { groupId, postId }));
+  return v2Ok(post, 'group post created');
+}
+
+export function readGroupPostWrite(body: Record<string, unknown>) {
+  const poll = readPollCreation(body.poll);
+  const markdown = readPostMarkdownInput(body.markdown);
   const content = typeof body.content === 'string' ? body.content.trim() : '';
   if (!content || Buffer.byteLength(content) > 4000) v2BadRequest('content 参数错误');
   const announcement = body.is_announcement === undefined ? false : body.is_announcement;
@@ -1496,18 +1543,32 @@ export async function v2CreateGroupPost(
   }
   const mediaUrls = (media as string[]).map(url => url.trim()).filter(Boolean);
   if (Buffer.byteLength(mediaUrls.join(',')) > 2000) v2BadRequest('media_urls 参数错误');
-  const created = await withGroupContentWrite(connection, auth.userId, groupId, async () => {
+  return { content, announcement, mediaUrls, poll, markdown };
+}
+
+export async function requireGroupPostPublishAccess(
+  connection: oracledb.Connection, userId: number, groupId: number, announcement: boolean
+): Promise<void> {
+  await lockGroupContentWrite(connection, userId, groupId);
     const allowed = await v2One(
       connection,
       'SELECT fn_can_post_in_group(:user_id, :group_id) AS allowed FROM dual',
-      { user_id: auth.userId, group_id: groupId }
+      { user_id: userId, group_id: groupId }
     );
     if (!v2Boolean(allowed?.ALLOWED))
       v2Unprocessable('无权发帖');
-    if (announcement && !(await v2GroupPermission(connection, auth.userId, groupId, 'moderator'))) {
+    if (announcement && !(await v2GroupPermission(connection, userId, groupId, 'moderator'))) {
       v2Unprocessable('无权发布公告');
     }
-    await requirePublishAccess(connection, auth.userId);
+    await requirePublishAccess(connection, userId);
+}
+
+export async function v2InsertGroupPost(
+  connection: oracledb.Connection, userId: number, groupId: number, payload: ReturnType<typeof readGroupPostWrite>
+): Promise<number> {
+    const { content, announcement, mediaUrls, poll, markdown } = payload;
+    if (markdown !== undefined) await requireFeatureSchema(connection, 'post-markdown');
+    await requireGroupPostPublishAccess(connection, userId, groupId, announcement);
     const lockedUrls = await v2LockGroupMediaUrls(connection, mediaUrls, '群组附件不存在或已删除');
     const storedUrls = lockedUrls.join(',');
     if (lockedUrls.some(url => url.includes(',')) || Buffer.byteLength(storedUrls) > 2000)
@@ -1538,7 +1599,7 @@ export async function v2CreateGroupPost(
       {
         post_id: postId,
         group_id: groupId,
-        author_id: auth.userId,
+        author_id: userId,
         content,
         media_urls: storedUrls || null,
         is_announcement: announcement ? 1 : 0
@@ -1546,31 +1607,29 @@ export async function v2CreateGroupPost(
       false
     );
     if (inserted !== 1) v2ServerError();
-    const post = await v2RequireGroupPost(connection, auth.userId, groupId, postId).catch(() => v2ServerError());
-    return { postId, post };
-  });
-  await v2NotifyGroupPostCreated(
-    connection,
-    groupId,
-    created.postId,
-    auth.userId,
-    content
-  ).catch(() => logWarn('group-post:notification-failed', { groupId, postId: created.postId }));
-  return v2Ok(created.post, 'group post created');
+    if (poll) await attachPostPoll(connection, 'group', postId, poll);
+    if (markdown !== undefined) await attachPostMarkdown(connection, 'group', postId, markdown);
+    return postId;
 }
 
-export async function v2RequireGroupPost(
+export async function v2RequireGroupPostRow(
   connection: oracledb.Connection,
   viewerId: number,
   groupId: number,
   postId: number
-): Promise<V2GroupPost> {
+): Promise<V2DbRecord> {
   const row = await v2One(connection, groupContentPostsSql, {
     viewer_id: viewerId, group_id: groupId, post_id: postId, post_type: 'all', start_row: 1, end_row: 1
   });
   if (!v2Boolean(row?.GROUP_ALLOWED)) v2NotFound('群组不存在');
   if (!row || row.POST_ID == null) v2NotFound('群组帖子不存在');
-  return await v2MapGroupPost(connection, viewerId, row);
+  return row;
+}
+
+export async function v2RequireGroupPost(
+  connection: oracledb.Connection, viewerId: number, groupId: number, postId: number,
+): Promise<V2GroupPost> {
+  return v2MapGroupPost(connection, viewerId, await v2RequireGroupPostRow(connection, viewerId, groupId, postId));
 }
 
 export async function v2GetGroupPost(

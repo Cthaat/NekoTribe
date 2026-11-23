@@ -38,6 +38,21 @@ test('transitive historical dependency prevents restoring an answer after the ol
  const encoded=encodeKnowledgeMessage({answer:'derived answer',sources:[source,old]});
  await assert.rejects(()=>restoreKnowledgeMessage(encoded,async()=>[{...source,post_id:1,content:'still public'}]),/SOURCE_CHANGED/);
 });
+test('scoped history checks uncited dependencies and shows only cited sources',async()=>{
+ const groupId=9007199254740991;
+ const cited={kind:'group_post',id:11,version:'a'.repeat(64)};
+ const omitted={kind:'group_comment',id:22,version:'b'.repeat(64)};
+ const encoded=encodeKnowledgeMessage({answer:'scoped answer',sources:[cited],dependencies:[cited,omitted]});
+ assert.equal(JSON.parse(encoded).version,2);
+ const rows=[{...cited,group_id:groupId,post_id:11},{...omitted,group_id:groupId,post_id:11}];
+ const result=await restoreKnowledgeMessage(encoded,async refs=>{
+   assert.deepEqual(refs,[cited,omitted]);
+   return rows;
+ });
+ assert.deepEqual(result.citations,[rows[0]]);
+ assert.deepEqual(result.dependencyCitations,rows);
+ await assert.rejects(()=>restoreKnowledgeMessage(encoded,async()=>[rows[0]]),/SOURCE_CHANGED/);
+});
 test('invalid, missing or duplicate stored references never become visible',async()=>{
  let called=false;
  for(const raw of ['text',JSON.stringify({version:1,answer:'text',sources:[]}),JSON.stringify({version:1,answer:'text',sources:[source,source]})]) {

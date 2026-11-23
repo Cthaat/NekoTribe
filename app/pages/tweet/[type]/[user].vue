@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import type { PostVM } from '@/types/posts';
 import {
   AlertTriangle,
   AtSign,
@@ -8,17 +7,7 @@ import {
   Compass,
   Sparkles
 } from 'lucide-vue-next';
-import {
-  v2BookmarkPost,
-  v2CreateRetweet,
-  UnconfirmedRetweetError,
-  v2DeletePost,
-  v2LikePost,
-  v2ListTimelinePosts,
-  normalizePostTimelineType,
-  v2UnlikePost,
-  v2UnbookmarkPost
-} from '@/services/posts';
+import { v2ListTimelinePosts, normalizePostTimelineType } from '@/services/posts';
 import { usePostFeed } from '@/composables/usePostFeed';
 import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import TweetList from '@/components/TweetList.vue';
@@ -30,16 +19,14 @@ import {
   PaginationNext,
   PaginationPrevious
 } from '@/components/ui/pagination';
-import { toast } from 'vue-sonner';
+import { useTimelinePostActions } from '@/composables/useTimelinePostActions';
 import { useRoute } from 'vue-router';
 
 const localePath = useLocalePath();
 const route = useRoute();
 const { t } = useAppLocale();
 
-const isRetweetModalOpen = ref(false);
-const selectedTweetForRetweet = ref<PostVM | null>(null);
-const isSubmittingRetweet = ref(false);
+const account = usePreferenceStore();
 const hasMounted = ref(false);
 
 const timelineType = computed(() =>
@@ -112,104 +99,10 @@ watch(
   }
 );
 
-async function handleDeleteTweet(tweetId: number) {
-  try {
-    await v2DeletePost(tweetId);
-    toast.success(t('post.feedback.deleted'));
-    feed.removePost(tweetId);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : t('common.unknownError');
-    toast.error(t('post.feedback.deleteFailed'), {
-      description: message
-    });
-  }
-}
-
-function handleReplyTweet(tweet: PostVM) {
-  const detailPage = localePath(`/tweet/${tweet.id}?reply=1`);
-  return navigateTo(detailPage, { replace: true });
-}
-
-function handleRetweetTweet(tweet: PostVM) {
-  selectedTweetForRetweet.value = tweet;
-  isRetweetModalOpen.value = true;
-}
-
-async function handleSubmitRetweet({
-  content,
-  originalTweetId
-}: {
-  content: string;
-  originalTweetId: number;
-}) {
-  isSubmittingRetweet.value = true;
-  try {
-    await v2CreateRetweet(originalTweetId, {
-      content,
-      visibility: 'public'
-    });
-    toast.success(t('post.feedback.retweeted'));
-    await feed.refresh();
-  } catch (error) {
-    const message =
-      error instanceof UnconfirmedRetweetError
-        ? t('post.feedback.retweetUnconfirmed')
-        : error instanceof Error
-        ? error.message
-        : t('post.feedback.retweetFailed');
-    toast.error(message);
-  } finally {
-    isSubmittingRetweet.value = false;
-    isRetweetModalOpen.value = false;
-  }
-}
-
-async function handleLikeTweet(
-  tweet: PostVM,
-  action: 'like' | 'unlike'
-) {
-  try {
-    const result =
-      action === 'like'
-        ? await v2LikePost(tweet.id)
-        : await v2UnlikePost(tweet.id);
-    feed.patchPost(tweet.id, current => ({
-      ...current,
-      viewer: {
-        ...current.viewer,
-        hasLiked: result.isLiked
-      },
-      counts: {
-        ...current.counts,
-        likes: result.likesCount
-      }
-    }));
-  } catch {
-    toast.error(t('common.operationFailed'));
-  }
-}
-
-async function handleBookmarkTweet(
-  tweet: PostVM,
-  action: 'mark' | 'unmark'
-) {
-  try {
-    const result =
-      action === 'mark'
-        ? await v2BookmarkPost(tweet.id)
-        : await v2UnbookmarkPost(tweet.id);
-    feed.patchPost(tweet.id, current => ({
-      ...current,
-      viewer: {
-        ...current.viewer,
-        hasBookmarked: result.isBookmarked
-      }
-    }));
-  } catch {
-    toast.error(t('common.operationFailed'));
-  }
-}
+const {
+  isRetweetModalOpen, selectedTweetForRetweet, isSubmittingRetweet, handleDeleteTweet, handleReplyTweet,
+  handleRetweetTweet, handleSubmitRetweet, handleLikeTweet, handleBookmarkTweet,
+} = useTimelinePostActions(feed, () => `${account.authRevision()}:${account.preferences.user.id}:${route.path}:${feed.page}`);
 </script>
 
 <template>

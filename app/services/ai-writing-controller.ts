@@ -24,7 +24,7 @@ const validCitationId = (id: unknown): id is number =>
 export function citationTarget(source:KnowledgeCitation):CitationTarget|null {
   if(!source || !Number.isSafeInteger(source.id) || source.id<1 || source.id>999999999999999 || typeof source.version!=='string' || source.version.length!==64 || !/^[0-9a-f]{64}$/.test(source.version)) return null;
   if (source.kind === 'group_post' || source.kind === 'group_comment') {
-    if (!validCitationId(source.group_id) || !validCitationId(source.post_id) ||
+    if (typeof source.group_id !== 'number' || !Number.isSafeInteger(source.group_id) || source.group_id < 1 || !validCitationId(source.post_id) ||
         (source.kind === 'group_post' && source.post_id !== source.id)) return null;
     return source.kind === 'group_comment'
       ? {kind:'group',groupId:source.group_id,postId:source.post_id,commentId:source.id}
@@ -68,7 +68,7 @@ export interface WritingApi {
   create(signal?: AbortSignal, title?: string): Promise<{ conversation_id: string }>;
   read(id: string, signal?: AbortSignal): Promise<WritingConversation>;
   append(id: string, content: string, signal?: AbortSignal): Promise<number>;
-  generate(id: string, searchPhrase?: string, signal?: AbortSignal, selectSkill?: boolean, expectedSequence?: number): Promise<unknown>;
+  generate(id: string, searchPhrase?: string, signal?: AbortSignal, selectSkill?: boolean, expectedSequence?: number, onDelta?: (text: string) => void): Promise<unknown>;
   messages(id: string, after: number, signal?: AbortSignal, before?: number): Promise<WritingMessage[]>;
   list(after: string | null, signal?: AbortSignal): Promise<WritingPage>;
   remove(id: string, signal?: AbortSignal): Promise<unknown>;
@@ -84,10 +84,11 @@ export interface WritingState {
   historyCursor: string | null; historyLoaded: boolean; historyBusy: boolean;
   busy: boolean; refreshRequired: boolean; savedReplyPending: boolean; error: WritingError | null; insufficientEvidence: boolean;
   generating: boolean;
+  preview: string;
   quotaRetry: number;
 }
 export function initialWritingState(): WritingState {
-  return {availability:'loading',skill:undefined,modelConfigRevision:undefined,explicitSkill:false,id:null,draft:'',titleDraft:'',searchPhrase:'',messages:[],hasOlderMessages:false,history:[],historyCursor:null,historyLoaded:false,historyBusy:false,busy:false,generating:false,refreshRequired:false,savedReplyPending:false,error:null,insufficientEvidence:false,quotaRetry:0};
+  return {availability:'loading',skill:undefined,modelConfigRevision:undefined,explicitSkill:false,id:null,draft:'',titleDraft:'',searchPhrase:'',messages:[],hasOlderMessages:false,history:[],historyCursor:null,historyLoaded:false,historyBusy:false,busy:false,generating:false,preview:'',refreshRequired:false,savedReplyPending:false,error:null,insufficientEvidence:false,quotaRetry:0};
 }
 export function createWritingController(
   api: WritingApi, state: WritingState, purpose: 'writing' | 'knowledge' = 'writing',
@@ -145,7 +146,9 @@ export function createWritingController(
     try {
       const selectSkill = state.explicitSkill &&
         state.skill?.explicitSelection === true && state.skill.enabled;
-      const result = await request(() => api.generate(id, phrase, current.signal, selectSkill, expectedSequence));
+      const result = await request(() => api.generate(id, phrase, current.signal, selectSkill, expectedSequence, text => {
+        if (!signal.aborted && !current.signal.aborted) state.preview += text;
+      }));
       current.signal.throwIfAborted();
       if (purpose === 'knowledge') {
         if (!result || typeof result !== 'object' || !('status' in result) || !['generated', 'insufficient_evidence'].includes(String(result.status))) throw Error('invalid generation result');
@@ -166,12 +169,18 @@ export function createWritingController(
         return;
       }
       const retry = aiQuotaRetry(error);
-      if (retry === null) throw error;
+      if (retry === null) {
+        state.refreshRequired = true;
+        throw error;
+      }
       state.error = 'quota';
       state.quotaRetry = retry;
     } finally {
       generation = undefined;
-      if (!signal.aborted) state.generating = false;
+      if (!signal.aborted) {
+        state.generating = false;
+        state.preview = '';
+      }
     }
   }
   async function readMessagePage(id: string, after: number, before?: number): Promise<WritingMessage[]> {

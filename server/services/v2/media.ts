@@ -6,6 +6,7 @@ import path from 'node:path';
 import { classifyMultipartPartsByFilename, StorageHttpError } from '~/server/storage/http';
 import type oracledb from 'oracledb';
 import mediaDelete from '../../../specifications/requirements/media-delete-references.json';
+import { referencedByDirectMessage } from './direct-media-links';
 import {
   deleteStorageReference,
   ensureStorageTempDir,
@@ -203,7 +204,7 @@ export async function v2DeleteMedia(
 
       // A fresh read after acquiring the lock sees references committed by other writers.
       const reference = await v2One(connection, mediaDelete.checkReferences, { media_id: mediaId });
-      if (reference) v2Conflict('媒体正在使用');
+      if (reference || await referencedByDirectMessage(connection,mediaId)) v2Conflict('媒体正在使用');
 
       const deleted = await v2Execute(connection, `
         DELETE FROM n_media_assets WHERE media_id = :media_id AND owner_user_id = :user_id

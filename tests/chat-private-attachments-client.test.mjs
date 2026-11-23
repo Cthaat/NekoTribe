@@ -34,12 +34,18 @@ async function compileComponent(path) {
             error: message => ${fixture}.errors.push(message), success: () => {}
           };`,
           '@/stores/user': `export const usePreferenceStore = () => ${fixture}.store;`,
-          '@/composables/useRealtimeSocket': `export const useRealtimeSocket = () => ${fixture}.realtime;`
+          '@/composables/useRealtimeSocket': `export const useRealtimeSocket = () => ${fixture}.realtime;`,
+          '@/composables/useChatTyping': `export const useChatTyping = () => ({ stop() {}, edit() {}, receive() {}, reset() {} });`,
+          '@/composables/useDirectMessageViewport': `export const useDirectMessageViewport = () => {};`,
+          '@/composables/useWebRtcCalls': `export const useWebRtcCalls = () => ({});`
         };
         const custom = {
           v2UploadMedia: `(form, signal) => ${fixture}.upload(form, signal)`,
           v2CreateChatMessage: `(channel, payload) => ${fixture}.send(channel, payload)`,
+          v2CreateDirectMessage: `(conversation, payload) => ${fixture}.send(conversation, payload)`,
+          v2ListDirectConversations: `async () => ({ items: [], meta: { page: 1, has_next: false } })`,
           mapV2ChatMessage: 'message => ({ id: message.message_id })',
+          mergeDirectMessages: '(messages, updates) => [...messages, ...updates]',
           replaceChatMessage: '(messages, message) => [...messages, message]'
         };
         const names = imports.find(match => match[2] === path)?.[1].split(',')
@@ -55,10 +61,11 @@ async function compileComponent(path) {
   return (await import(url)).default;
 }
 
-const [ChatPage, ChatInput, ChatMessage] = await Promise.all([
+const [ChatPage, ChatInput, ChatMessage, ChatSearchFilters] = await Promise.all([
   compileComponent('../app/pages/chat.vue'),
   compileComponent('../app/components/ChatInput.vue'),
-  compileComponent('../app/components/ChatMessage.vue')
+  compileComponent('../app/components/ChatMessage.vue'),
+  compileComponent('../app/components/ChatSearchFilters.vue'),
 ]);
 const setupContext = { expose() {}, emit() {} };
 const media = id => ({ media_id: id, public_url: `/api/v2/media/${id}/content`, thumbnail_url: null });
@@ -90,6 +97,55 @@ test('channel composer rejects invalid batches and preserves selected files', t 
   pick([image]);
   assert.equal(composer.attachmentError, '');
   assert.deepEqual(composer.attachments, [draft, image]);
+});
+
+test('message search combines keyword, sender and both local dates, and can clear the results', t => {
+  globalThis.useAppLocale = () => ({ t: key => key });
+  const scope = effectScope();
+  t.after(() => scope.stop());
+  const events = [];
+  const form = scope.run(() => proxyRefs(ChatSearchFilters.setup({senders:[{id:43,label:'Peer'}]}, {
+    ...setupContext, emit: (name, value) => events.push([name,value]),
+  })));
+  form.keyword = '  team  ';
+  form.sender = 43;
+  form.start = form.end = '2026-09-21';
+  form.submit();
+  assert.deepEqual(events,[['search',{q:'team',sender_id:43,
+    start_at:new Date('2026-09-21T00:00:00').toISOString(),end_at:new Date('2026-09-22T00:00:00').toISOString()}]]);
+  form.end = '2026-09-20';
+  form.submit();
+  assert.equal(form.error,'rangeError');
+  assert.equal(events.length,1);
+  form.clear();
+  assert.deepEqual(events.at(-1),['search',null]);
+});
+
+test('a private composer sends attachment-only replies and cancels uploads after leaving', async t => {
+  const { fixture, state } = channelFixture(t);
+  const file = new File(['fixture'], 'photo.png', { type: 'image/png' });
+  const sent = [];
+  fixture.upload = async form => {
+    assert.equal(form.get('access_scope'), 'chat');
+    return media(11);
+  };
+  fixture.send = async (conversation, payload) => {
+    sent.push([conversation, payload]);
+    return { message_id: 60, conversation_id: conversation, author: { user_id: 42 }, content: '', media: [media(11)] };
+  };
+  state.directMessageTargetId = 43;
+  state.directConversationId = 8;
+  assert.equal(await state.handleSendDirectMessage(43, '', [file], 55), true);
+  assert.deepEqual(sent, [[8, { content: '', media_ids: [11], reply_to_message_id: 55 }]]);
+  assert.equal(state.directMessages[0].message_id, 60);
+  let finish, signal;
+  fixture.upload = (_form, request) => new Promise(resolve => { finish = resolve; signal = request; });
+  const pending = state.handleSendDirectMessage(43, '', [file]);
+  state.exitDirectMessageView();
+  assert(signal.aborted);
+  finish(media(12));
+  assert.equal(await pending, false);
+  assert.equal(sent.length, 1);
 });
 
 function channelFixture(t) {

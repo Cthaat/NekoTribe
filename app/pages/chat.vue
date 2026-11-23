@@ -18,13 +18,18 @@ import {
   Inbox,
   Link,
   Loader2,
+  Phone,
   Search,
-  UserPlus
+  UserPlus,
+  Video
 } from 'lucide-vue-next';
 import ChatChannelList from '@/components/ChatChannelList.vue';
 import ChatDirectConversationList from '@/components/ChatDirectConversationList.vue';
 import { notificationTargetId } from '@/utils/post-notification-target';
 import ChatRoom from '@/components/ChatRoom.vue';
+import ChatInput from '@/components/ChatInput.vue';
+import ChatMessage from '@/components/ChatMessage.vue';
+import ChatSearchFilters from '@/components/ChatSearchFilters.vue';
 import GroupManageModal from '@/components/GroupManageModal.vue';
 import {
   Avatar,
@@ -45,7 +50,6 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import AppSendButton from '@/components/app/AppSendButton.vue';
 import type {
   Channel,
   ChannelCategory
@@ -70,6 +74,10 @@ import {
   v2ListChatMessages,
   v2ListDirectConversations,
   v2ListDirectMessages,
+  v2GetDirectReadStatus,
+  v2ReadDirectMessage,
+  v2SetDirectReadStatus,
+  v2SetDirectMessageReaction,
   v2SetChatChannelMuteStatus,
   v2SetChatReadStatus,
   v2SetChatMessagePinStatus,
@@ -77,10 +85,13 @@ import {
   v2UpdateChatMessage,
   v2UploadMedia
 } from '@/api/v2';
+import type { ChatMessageFilters } from '@/api/v2/chat';
+import type { CallMode } from '@/api/v2/webrtc';
 import { getGroup } from '@/services/groups';
 import {
   buildChatChannelCategories,
   mapV2DirectConversationMember,
+  mapV2DirectMessage,
   mapV2ChatGroup,
   mapV2ChatMember,
   mapV2ChatMessage,
@@ -93,13 +104,17 @@ import { v2SearchUsers } from '@/services/users';
 import { groupInviteeId, normalizeGroupInviteCode } from '@/utils/group-invite';
 import { usePreferenceStore } from '@/stores/user';
 import { useRealtimeSocket } from '@/composables/useRealtimeSocket';
+import { useChatTyping } from '@/composables/useChatTyping';
+import { useDirectMessageViewport } from '@/composables/useDirectMessageViewport';
+import { useWebRtcCalls } from '@/composables/useWebRtcCalls';
 import type { RealtimeMessage } from '@/composables/useRealtimeSocket';
 import type { Group } from '@/types/groups';
 import type {
   V2CreateGroupInviteData,
   V2ChatMessage,
   V2DirectConversation,
-  V2DirectMessage
+  V2DirectMessage,
+  V2DirectReadStatus
 } from '@/types/v2';
 import type { PublicUserVM } from '@/types/users';
 import { confirmedChatUnread, displayedChatCursor } from '@/utils/chat-channel-read';
@@ -135,6 +150,7 @@ interface ChatWsEvent {
 
 const preferenceStore = usePreferenceStore();
 const realtime = useRealtimeSocket();
+const calls = useWebRtcCalls();
 const app = useNuxtApp();
 const groups = ref<ChatGroupVM[]>([]);
 const groupPage = ref(1);
@@ -164,7 +180,7 @@ let channelWriteRevision = 0;
 const errorMessage = ref('');
 const messagePage = ref(1);
 const hasMoreMessages = ref(false);
-const searchQuery = ref('');
+const channelSearch = ref<ChatMessageFilters | null>(null);
 let channelReadTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingChannelRead = 0;
 let channelReadReceipt = 0;
@@ -192,7 +208,14 @@ const groupSettingsModel = ref<Group | null>(null);
 const directConversationId = ref<number | null>(null);
 const directMessageTargetId = ref<number | null>(null);
 const directMessageStandaloneTarget = ref<ChatMember | null>(null);
-const directMessageContent = ref('');
+const directSearch = ref<ChatMessageFilters | null>(null);
+const standaloneDirectSearchOpen = ref(false);
+const standaloneDirectReplyId = ref<number | null>(null);
+const standaloneDirectReply = computed(() => {
+  const message = directMessages.value.find(item => item.message_id === standaloneDirectReplyId.value);
+  return message ? mapV2DirectMessage(message) : null;
+});
+let directAttachmentUpload: AbortController | null = null;
 let directSelectionRevision = 0;
 let directLinkRequest = 0;
 const directLinkStatus = ref<'loading' | 'failed' | null>(null);
@@ -207,14 +230,27 @@ const loadingOlderDirectMessages = ref(false);
 const isLoadingDirectConversations = ref(false);
 const isLoadingDirectMessages = ref(false);
 let directReadTimer: ReturnType<typeof setTimeout> | undefined;
-let pendingDirectRead: number | null = null;
-let syncingDirectRead = false;
+let pendingDirectRead = 0;
+let activeDirectReadWrite: number | null = null;
+let directReadRequest = 0;
+const directReadStatus = ref<V2DirectReadStatus | null>(null);
+const standaloneDirectList = ref<HTMLElement | null>(null);
+const directSheetOpen = ref(false);
 const isSendingDirectMessage = ref(false);
 const isMobileNavigationOpen = ref(true);
 
 const currentUserId = computed(
   () => preferenceStore.preferences.user.id
 );
+const channelTyping = useChatTyping('channel_id', () => activeChannel.value?.id, () => currentUserId.value, realtime.send);
+const directTyping = useChatTyping('conversation_id', () => directConversationId.value, () => currentUserId.value, realtime.send);
+const lastSeenOwnDirectMessage = computed(() => {
+  const through = directReadStatus.value?.participant_last_read_message_id ?? 0;
+  return directMessages.value.reduce((latest, message) => message.author.user_id === currentUserId.value &&
+    message.message_id <= through ? Math.max(latest, message.message_id) : latest, 0);
+});
+useDirectMessageViewport(standaloneDirectList, () => directMessages.value.map(item => item.message_id).join(','),
+  () => directMessageStandaloneTarget.value !== null && directSearch.value === null, markVisibleDirectMessage);
 const currentUserName = computed(
   () =>
     preferenceStore.preferences.user.name ||
@@ -276,7 +312,6 @@ let groupRequest = 0;
 let conversationRequest = 0;
 let conversationListRequest = 0;
 let chatRequest = 0;
-let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let inviteSearchTimer: ReturnType<typeof setTimeout> | null =
   null;
 let inviteSearchRequest: AbortController | undefined;
@@ -474,6 +509,8 @@ function removeChannelMessage(messageId: number): void {
 }
 
 let liveDirectChanges: Map<number, V2DirectMessage | null> | null = null;
+const pendingDirectReactions = new Map<number, boolean>();
+const directMessageRefreshes = new Map<number, AbortController>();
 const directDeleteTarget = ref<V2DirectMessage | null>(null);
 const deletingDirect = ref(false);
 
@@ -501,8 +538,7 @@ async function confirmDirectDelete(): Promise<void> {
   try {
     await v2DeleteDirectMessage(message.conversation_id, message.message_id);
     if (!current()) return;
-    liveDirectChanges?.set(message.message_id, null);
-    directMessages.value = directMessages.value.filter(item => item.message_id !== message.message_id);
+    removeDirectMessage(message.message_id);
     hideDeletedDirectPreview(message.conversation_id, message.message_id);
     closeDirectDelete();
     void loadDirectConversations(false);
@@ -517,6 +553,70 @@ function upsertDirectMessage(message: V2DirectMessage): void {
   if (liveDirectChanges?.get(message.message_id) === null) return;
   liveDirectChanges?.set(message.message_id, message);
   directMessages.value = mergeDirectMessages(directMessages.value, [message]);
+}
+
+function removeDirectMessage(messageId: number): void {
+  liveDirectChanges?.set(messageId, null);
+  directMessageRefreshes.get(messageId)?.abort();
+  directMessageRefreshes.delete(messageId);
+  if (standaloneDirectReplyId.value === messageId) standaloneDirectReplyId.value = null;
+  directMessages.value = directMessages.value.flatMap(message => {
+    if (message.message_id === messageId) return [];
+    if (message.reply_to?.message_id !== messageId) return [message];
+    const updated = { ...message, reply_to: undefined };
+    liveDirectChanges?.set(message.message_id, updated);
+    return [updated];
+  });
+}
+
+async function refreshDirectMessage(conversationId: number, messageId: number): Promise<void> {
+  const owner = captureChatOwner();
+  const selection = directSelectionRevision;
+  const current = () => owner() && selection === directSelectionRevision &&
+    directConversationId.value === conversationId &&
+    directMessages.value.some(message => message.message_id === messageId);
+  if (!current()) return;
+  if (pendingDirectReactions.has(messageId)) {
+    pendingDirectReactions.set(messageId, true);
+    return;
+  }
+  directMessageRefreshes.get(messageId)?.abort();
+  const request = new AbortController();
+  directMessageRefreshes.set(messageId, request);
+  try {
+    const updated = await v2ReadDirectMessage(conversationId, messageId, request.signal);
+    if (current() && directMessageRefreshes.get(messageId) === request) upsertDirectMessage(updated);
+  } catch {
+    // A deleted or no-longer-visible message may disappear during the refresh.
+  } finally {
+    if (directMessageRefreshes.get(messageId) === request) directMessageRefreshes.delete(messageId);
+  }
+}
+
+async function handleDirectReaction(messageId: number, emoji: string): Promise<void> {
+  const message = directMessages.value.find(item => item.message_id === messageId);
+  if (!message || pendingDirectReactions.has(messageId)) return;
+  const owner = captureChatOwner();
+  const selection = directSelectionRevision;
+  const current = () => owner() && selection === directSelectionRevision &&
+    directConversationId.value === message.conversation_id;
+  if (!current()) return;
+  directMessageRefreshes.get(messageId)?.abort();
+  directMessageRefreshes.delete(messageId);
+  pendingDirectReactions.set(messageId, false);
+  try {
+    const reacted = message.reactions?.some(item => item.emoji === emoji && item.reacted_by_me) ?? false;
+    const updated = await v2SetDirectMessageReaction(message.conversation_id, messageId, emoji, !reacted);
+    if (current() && directMessages.value.some(item => item.message_id === messageId)) upsertDirectMessage(updated);
+  } catch {
+    if (current()) toast.error(t('chat.feedback.reactionFailed'));
+  } finally {
+    if (current()) {
+      const refresh = pendingDirectReactions.get(messageId);
+      pendingDirectReactions.delete(messageId);
+      if (refresh) void refreshDirectMessage(message.conversation_id, messageId);
+    }
+  }
 }
 
 function hideDeletedDirectPreview(conversationId: number, messageId: number): void {
@@ -655,6 +755,20 @@ function updateMemberPresence(
 }
 
 function handleWsMessage(event: RealtimeMessage): void {
+  if (event.type === 'typing_start' || event.type === 'typing_stop') {
+    channelTyping.receive(event);
+    directTyping.receive(event);
+    return;
+  }
+  if (event.type === 'direct_read_updated') {
+    const conversationId = event.data?.conversation_id;
+    const reader = event.data?.reader_id;
+    if (typeof conversationId === 'number' && Number.isSafeInteger(conversationId) && conversationId > 0 &&
+        (conversationId === directConversationId.value || reader === currentUserId.value)) {
+      void refreshDirectReadStatus(conversationId);
+    }
+    return;
+  }
   const payload: ChatWsEvent = event;
   const channelId = payload.data?.channel_id;
   if (payload.type === 'system_notification' && payload.data?.code === 'chat_channel_ready') {
@@ -694,7 +808,7 @@ function handleWsMessage(event: RealtimeMessage): void {
       membersById.value
     );
     const existing = isActiveChannel ? messages.value.find(message => message.id === vm.id) : undefined;
-    if (isActiveChannel && !searchQuery.value.trim()) {
+    if (isActiveChannel && !channelSearch.value) {
       if (payload.data.viewer_neutral === true) {
         vm.canPin = canManage.value;
         vm.canDelete = canManage.value || vm.author.id === currentUserId.value;
@@ -707,10 +821,19 @@ function handleWsMessage(event: RealtimeMessage): void {
     if (payload.type === 'chat_message') {
       const own = vm.author.id === currentUserId.value;
       updateChannelPreview(payload.data.message, own || Boolean(existing));
-      if (channelId && isActiveChannel && !own && !existing && !searchQuery.value.trim()) {
+      if (channelId && isActiveChannel && !own && !existing && !channelSearch.value) {
         pendingChannelRead = Math.max(pendingChannelRead, vm.id);
         scheduleChannelRead();
       }
+    }
+    return;
+  }
+
+  if (payload.type === 'direct_message_updated') {
+    const { conversation_id: conversationId, message_id: messageId } = payload.data ?? {};
+    if (typeof conversationId === 'number' && Number.isSafeInteger(conversationId) && conversationId > 0 &&
+        typeof messageId === 'number' && Number.isSafeInteger(messageId) && messageId > 0) {
+      void refreshDirectMessage(conversationId, messageId);
     }
     return;
   }
@@ -723,8 +846,7 @@ function handleWsMessage(event: RealtimeMessage): void {
     const messageId = payload.data?.message_id ?? 0;
     if (conversationId <= 0 || messageId <= 0) return;
     if (directConversationId.value === conversationId) {
-      liveDirectChanges?.set(messageId, null);
-      directMessages.value = directMessages.value.filter(message => message.message_id !== messageId);
+      removeDirectMessage(messageId);
       if (directDeleteTarget.value?.message_id === messageId) closeDirectDelete();
     }
     hideDeletedDirectPreview(conversationId, messageId);
@@ -737,13 +859,8 @@ function handleWsMessage(event: RealtimeMessage): void {
     if (!isDirectMessageForConversation(payload.data?.conversation_id, directMessage)) return;
     const isActiveConversation =
       directMessage.conversation_id === directConversationId.value;
-    if (isActiveConversation) {
-      const isNew = !directMessages.value.some(message => message.message_id === directMessage.message_id);
+    if (isActiveConversation && !directSearch.value) {
       upsertDirectMessage(directMessage);
-      if (isNew && directMessage.author.user_id !== currentUserId.value) {
-        pendingDirectRead = directMessage.conversation_id;
-        scheduleDirectRead();
-      }
     }
     updateDirectConversationPreview(
       directMessage,
@@ -774,7 +891,7 @@ function captureChatOwner(): () => boolean {
 
 function isVisibleChannel(channelId: number): boolean {
   return activeChannel.value?.id === channelId && directConversationId.value === null &&
-    directMessageStandaloneTarget.value === null && !searchQuery.value.trim() &&
+    directMessageStandaloneTarget.value === null && !channelSearch.value &&
     document.visibilityState === 'visible' &&
     (!isMobileNavigationOpen.value || window.matchMedia('(min-width: 768px)').matches);
 }
@@ -827,15 +944,14 @@ function refreshVisibleChannel(): void {
 
 async function loadMessages(
   channelId: number,
-  reset = true,
-  q = searchQuery.value
+  reset = true
 ): Promise<void> {
   if (isLoadingMessages.value && !reset) return;
   const request = ++messageRequest;
   const ownsPage = captureChatOwner();
-  const query = q.trim();
+  const query = channelSearch.value;
   const current = () => ownsPage() && request === messageRequest &&
-    activeChannel.value?.id === channelId && searchQuery.value.trim() === query;
+    activeChannel.value?.id === channelId && channelSearch.value === query;
   const changes = new Map<number, ChatMessageType | null>();
   liveChannelChanges = changes;
   isLoadingMessages.value = true;
@@ -845,7 +961,7 @@ async function loadMessages(
     const result = await v2ListChatMessages(channelId, {
       page,
       page_size: 50,
-      q: query || undefined
+      ...query,
     });
     if (!current()) return;
     const mapped = result.items.map(message =>
@@ -931,11 +1047,12 @@ async function loadDirectMessagesForConversation(
   older = false,
   background = false
 ): Promise<void> {
-  if (older && (syncingDirectRead || loadingOlderDirectMessages.value || isLoadingDirectMessages.value || !hasOlderDirectMessages.value)) return;
+  if (older && (loadingOlderDirectMessages.value || isLoadingDirectMessages.value || !hasOlderDirectMessages.value)) return;
   const request = ++conversationRequest;
   const ownsPage = captureChatOwner();
+  const query = directSearch.value;
   const current = () => ownsPage() && request === conversationRequest &&
-    directConversationId.value === conversationId;
+    directConversationId.value === conversationId && directSearch.value === query;
   const changes = new Map<number, V2DirectMessage | null>();
   liveDirectChanges = changes;
   const page = older ? directHistoryPage.value + 1 : 1;
@@ -950,7 +1067,7 @@ async function loadDirectMessagesForConversation(
     }
   }
   try {
-    const result = await app.runWithContext(() => v2ListDirectMessages(conversationId, { page, page_size: 20 }));
+    const result = await app.runWithContext(() => v2ListDirectMessages(conversationId, { page, page_size: 20, mark_read: false, ...query }));
     if (!current()) return;
     if (result.meta?.page !== page) throw Error('UNEXPECTED_DIRECT_HISTORY_PAGE');
     const pageIds = background ? new Set(result.items.map(message => message.message_id)) : null;
@@ -961,14 +1078,6 @@ async function loadDirectMessagesForConversation(
       directHistoryPage.value = page;
       hasOlderDirectMessages.value = result.meta.has_next === true;
     }
-    if (older || !result.items.length) return;
-    if (pendingDirectRead === conversationId) return;
-    directConversations.value = directConversations.value.map(
-      conversation =>
-        conversation.conversation_id === conversationId
-          ? { ...conversation, unread_count: 0 }
-          : conversation
-    );
   } catch {
     if (current() && !background) toast.error(t('chat.feedback.loadDirectMessagesFailed'));
   } finally {
@@ -981,24 +1090,63 @@ async function loadDirectMessagesForConversation(
   }
 }
 
+function applyDirectReadStatus(status: V2DirectReadStatus): void {
+  if (status.conversation_id === directConversationId.value) {
+    const prior = directReadStatus.value;
+    if ((status.last_read_message_id ?? 0) < (prior?.last_read_message_id ?? 0) ||
+        (status.participant_last_read_message_id ?? 0) < (prior?.participant_last_read_message_id ?? 0)) return;
+    directReadStatus.value = status;
+  }
+  directConversations.value = directConversations.value.map(conversation =>
+    conversation.conversation_id === status.conversation_id ? { ...conversation, unread_count: status.unread_count } : conversation);
+}
+
+async function refreshDirectReadStatus(conversationId: number): Promise<void> {
+  const owner = captureChatOwner();
+  const active = conversationId === directConversationId.value;
+  const request = active ? ++directReadRequest : null;
+  try {
+    const status = await app.runWithContext(() => v2GetDirectReadStatus(conversationId));
+    if (!owner() || request !== null && (conversationId !== directConversationId.value || request !== directReadRequest)) return;
+    applyDirectReadStatus(status);
+  } catch { /* The current state is refreshed on the next successful read or reconnect. */ }
+}
+
+function directIsVisible(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'visible' &&
+    directSearch.value === null &&
+    (directSheetOpen.value || directMessageStandaloneTarget.value !== null) &&
+    (!isMobileNavigationOpen.value || window.matchMedia('(min-width: 768px)').matches);
+}
+
+function markVisibleDirectMessage(id: number): void {
+  pendingDirectRead = Math.max(id, pendingDirectRead);
+  scheduleDirectRead();
+}
+
 function scheduleDirectRead(): void {
-  const id = pendingDirectRead;
-  if (id === null || id !== directConversationId.value || directReadTimer || syncingDirectRead ||
-      isLoadingDirectMessages.value || loadingOlderDirectMessages.value || document.visibilityState !== 'visible' ||
-      (isMobileNavigationOpen.value && !window.matchMedia('(min-width: 768px)').matches)) return;
-  const current = captureChatOwner();
+  const conversationId = directConversationId.value;
+  if (!conversationId || pendingDirectRead <= (directReadStatus.value?.last_read_message_id ?? 0) ||
+      directReadTimer || activeDirectReadWrite !== null || !directIsVisible()) return;
+  const owner = captureChatOwner();
+  const selection = directSelectionRevision;
+  const current = () => owner() && selection === directSelectionRevision && conversationId === directConversationId.value;
   directReadTimer = setTimeout(async () => {
     directReadTimer = undefined;
-    if (!current() || directConversationId.value !== id || pendingDirectRead !== id ||
-        isLoadingDirectMessages.value || loadingOlderDirectMessages.value || document.visibilityState !== 'visible' ||
-        (isMobileNavigationOpen.value && !window.matchMedia('(min-width: 768px)').matches)) return;
-    pendingDirectRead = null;
-    syncingDirectRead = true;
+    if (!current() || !directIsVisible()) return;
+    const cursor = pendingDirectRead;
+    pendingDirectRead = 0;
+    if (cursor <= (directReadStatus.value?.last_read_message_id ?? 0) ||
+        !directMessages.value.some(message => message.message_id === cursor)) return;
+    const request = ++directReadRequest;
+    activeDirectReadWrite = request;
     try {
-      await loadDirectMessagesForConversation(id, false, false, true);
-    } finally {
-      syncingDirectRead = false;
-      scheduleDirectRead();
+      const status = await app.runWithContext(() => v2SetDirectReadStatus(conversationId, cursor));
+      if (current()) applyDirectReadStatus(status);
+    } catch { /* A future visible cursor or reconnect can refresh the read position. */ }
+    finally {
+      if (activeDirectReadWrite === request) activeDirectReadWrite = null;
+      if (current()) scheduleDirectRead();
     }
   }, 250);
 }
@@ -1150,7 +1298,7 @@ async function loadGroup(group: ChatGroupVM): Promise<Channel | null> {
     channelCategories.value = [];
     messages.value = [];
     members.value = [];
-    searchQuery.value = '';
+    channelSearch.value = null;
   }
   activeGroup.value = group;
   const current = () => owner() && groupRequest === request && activeGroup.value?.id === group.id;
@@ -1246,7 +1394,7 @@ async function handleSelectChannel(
     return;
   }
   activeChannel.value = channel;
-  searchQuery.value = '';
+  channelSearch.value = null;
   await loadMessages(channel.id);
 }
 
@@ -1297,11 +1445,13 @@ async function handleSendMessage(
 ): Promise<boolean> {
   if (
     !activeChannel.value ||
+    channelSearch.value !== null ||
     isSending.value ||
     !canSendActiveChannel.value
   ) {
     return false;
   }
+  channelTyping.stop();
   const channelId = activeChannel.value.id;
   const actorId = currentUserId.value;
   const revision = channelComposerRevision.value;
@@ -1331,9 +1481,7 @@ async function handleSendMessage(
           media.media_id === id && isPrivateMediaContent(id, media.public_url)))) {
       throw new Error('INVALID_CHAT_SEND_RECEIPT');
     }
-    upsertMessage(
-      mapV2ChatMessage(created, membersById.value)
-    );
+    if (!channelSearch.value) upsertMessage(mapV2ChatMessage(created, membersById.value));
     updateChannelPreview(created, true);
     for (const file of attachments) uploadedChannelAttachments.delete(file);
     toast.success(t('chat.feedback.sent'));
@@ -1593,17 +1741,28 @@ function clearMuteRequests(): void {
   confirmedMutes.clear();
 }
 
-function handleSearch(query: string): void {
-  searchQuery.value = query;
+function handleSearch(filters: ChatMessageFilters | null): void {
+  if (!filters && !channelSearch.value) return;
+  channelSearch.value = filters;
+  if (filters) channelTyping.stop();
   const channelId = activeChannel.value?.id;
-  if (channelId === undefined) return;
-  if (searchTimer) clearTimeout(searchTimer);
-  const ownsPage = captureChatOwner();
-  searchTimer = setTimeout(() => {
-    if (ownsPage() && activeChannel.value?.id === channelId && searchQuery.value === query) {
-      void loadMessages(channelId, true, query);
-    }
-  }, 300);
+  if (channelId !== undefined) void loadMessages(channelId);
+}
+
+function handleDirectSearch(filters: ChatMessageFilters | null): void {
+  if (!filters && !directSearch.value) return;
+  directSearch.value = filters;
+  clearTimeout(directReadTimer);
+  directReadTimer = undefined;
+  pendingDirectRead = 0;
+  if (filters) directTyping.stop();
+  const id = directConversationId.value;
+  if (id !== null) void loadDirectMessagesForConversation(id);
+}
+
+function toggleStandaloneDirectSearch(): void {
+  standaloneDirectSearchOpen.value = !standaloneDirectSearchOpen.value;
+  if (!standaloneDirectSearchOpen.value) handleDirectSearch(null);
 }
 
 function clearInviteSearch(): void {
@@ -1751,6 +1910,18 @@ function openMemberProfile(userId: number): void {
   void navigateTo(localePath(`/user/${userId}/profile`));
 }
 
+async function startChatCall(member: ChatMember, mode: CallMode): Promise<void> {
+  if (member.id === currentUserId.value) return;
+  const current = captureChatOwner();
+  try {
+    const existing = member.id === directMessageTargetId.value ? directConversationId.value : null;
+    const id = existing ?? (await app.runWithContext(() => v2CreateDirectConversation({target_user_id:member.id}))).conversation_id;
+    if (current()) await calls.start(id,member.id,member.nickname || member.username,mode);
+  } catch {
+    if (current()) toast.error(t('chat.calls.problem.unavailable'));
+  }
+}
+
 async function handleOpenDirectMessage(
   member: ChatMember,
   standalone = false
@@ -1788,10 +1959,18 @@ async function handleOpenDirectMessageStandalone(
 ): Promise<void> {
   if (directMessageTargetId.value === member.id && directConversationId.value) {
     directMessageStandaloneTarget.value = member;
+    directSheetOpen.value = false;
+    handleDirectSearch(null);
     showMobileContent();
     return;
   }
   await handleOpenDirectMessage(member, true);
+}
+
+function onDirectSheetVisibility(open: boolean): void {
+  directSheetOpen.value = open;
+  if (!open && !directMessageStandaloneTarget.value) exitDirectMessageView();
+  if (open) channelTyping.stop();
 }
 
 async function handleSelectDirectConversation(
@@ -1812,10 +1991,17 @@ function exitDirectMessageView(): void {
   directLinkStatus.value = null;
   conversationRequest++;
   isSendingDirectMessage.value = false;
+  directAttachmentUpload?.abort();
+  directAttachmentUpload = null;
+  pendingDirectReactions.clear();
+  for (const request of directMessageRefreshes.values()) request.abort();
+  directMessageRefreshes.clear();
   closeDirectDelete();
   liveDirectChanges = null;
   directMessageStandaloneTarget.value = null;
-  directMessageContent.value = '';
+  directSearch.value = null;
+  standaloneDirectSearchOpen.value = false;
+  standaloneDirectReplyId.value = null;
   directConversationId.value = null;
   directMessageTargetId.value = null;
   directMessages.value = [];
@@ -1823,39 +2009,37 @@ function exitDirectMessageView(): void {
   hasOlderDirectMessages.value = loadingOlderDirectMessages.value = isLoadingDirectMessages.value = false;
 }
 
-function handleSendDirectMessageKeydown(
-  event: KeyboardEvent
-): void {
-  if (event.key !== 'Enter' || event.shiftKey) return;
-  event.preventDefault();
-  void submitStandaloneDirectMessage();
-}
-
-async function submitStandaloneDirectMessage(): Promise<void> {
+async function submitStandaloneDirectMessage(content: string, attachments?: File[]): Promise<boolean> {
   const target = directMessageStandaloneTarget.value;
-  const draft = directMessageContent.value;
-  const content = draft.trim();
-  if (!target || !content) return;
-
-  const sent = await handleSendDirectMessage(target.id, content);
-  if (sent && directMessageStandaloneTarget.value?.id === target.id &&
-      directMessageContent.value === draft) {
-    directMessageContent.value = '';
+  if (!target) return false;
+  const selection = directSelectionRevision;
+  const replyId = standaloneDirectReply.value?.id;
+  const sent = await handleSendDirectMessage(target.id, content, attachments, replyId);
+  if (sent && selection === directSelectionRevision && standaloneDirectReplyId.value === replyId) {
+    standaloneDirectReplyId.value = null;
   }
+  return sent;
 }
 
 async function handleSendDirectMessage(
   targetUserId: number,
-  content: string
+  content: string,
+  attachments: File[] = [],
+  replyToMessageId?: number,
 ): Promise<boolean> {
-  if (isSendingDirectMessage.value || isLoadingDirectMessages.value ||
+  if (isSendingDirectMessage.value || isLoadingDirectMessages.value || directSearch.value ||
       directMessageTargetId.value !== targetUserId) return false;
+  directTyping.stop();
   const owner = captureChatOwner();
   const selection = directSelectionRevision;
+  const authRevision = preferenceStore.authRevision();
+  const actorId = currentUserId.value;
   const current = () => owner() && selection === directSelectionRevision &&
     directMessageTargetId.value === targetUserId;
   if (!current()) return false;
   isSendingDirectMessage.value = true;
+  const upload = new AbortController();
+  directAttachmentUpload = upload;
 
   try {
     let conversationId = directConversationId.value;
@@ -1869,12 +2053,18 @@ async function handleSendDirectMessage(
       upsertDirectConversation(conversation);
     }
 
+    const mediaIds = await uploadAttachments(attachments, authRevision, upload.signal, current);
+    if (!mediaIds || !current()) return false;
     const created = await v2CreateDirectMessage(conversationId, {
-      content
-    });
+      content,
+      media_ids: mediaIds,
+      reply_to_message_id: replyToMessageId ?? null,
+    }, upload.signal);
     if (!current()) return false;
+    if (created.author.user_id !== actorId) throw new Error('INVALID_DIRECT_MESSAGE_AUTHOR');
+    for (const file of attachments) uploadedChannelAttachments.delete(file);
     const isActive = directConversationId.value === conversationId;
-    if (isActive) upsertDirectMessage(created);
+    if (isActive && !directSearch.value) upsertDirectMessage(created);
     updateDirectConversationPreview(created, isActive);
     void loadDirectConversations(false);
     toast.success(t('chat.feedback.directMessageSent'));
@@ -1883,6 +2073,7 @@ async function handleSendDirectMessage(
     if (current()) toast.error(t('chat.feedback.directMessageFailed'));
     return false;
   } finally {
+    if (directAttachmentUpload === upload) directAttachmentUpload = null;
     if (current()) isSendingDirectMessage.value = false;
   }
 }
@@ -1899,11 +2090,18 @@ watch(directConversationId, () => {
   closeDirectDelete();
   clearTimeout(directReadTimer);
   directReadTimer = undefined;
-  pendingDirectRead = null;
+  pendingDirectRead = 0;
+  activeDirectReadWrite = null;
+  directReadRequest++;
+  directReadStatus.value = null;
 }, {flush:'sync'});
+watch(directConversationId, id => { if (id !== null) void refreshDirectReadStatus(id); });
 watch(isMobileNavigationOpen, scheduleDirectRead);
+watch(isMobileNavigationOpen, open => {
+  if (open) { directTyping.stop(); channelTyping.stop(); }
+});
 watch([isMobileNavigationOpen, directConversationId, directMessageStandaloneTarget], scheduleChannelRead);
-watch([() => activeChannel.value?.id, () => searchQuery.value.trim(), realtime.ownerRevision], () => {
+watch([() => activeChannel.value?.id, channelSearch, realtime.ownerRevision], () => {
   messageRequest++;
   liveChannelChanges = null;
   isLoadingMessages.value = false;
@@ -1913,7 +2111,7 @@ watch([() => activeChannel.value?.id, () => searchQuery.value.trim(), realtime.o
   hasMoreMessages.value = false;
 }, { flush: 'sync' });
 
-watch([() => activeChannel.value?.id, realtime.ownerRevision, searchQuery], () => {
+watch([() => activeChannel.value?.id, realtime.ownerRevision, channelSearch], () => {
   clearTimeout(channelReadTimer);
   channelReadTimer = undefined;
   pendingChannelRead = 0;
@@ -1942,6 +2140,8 @@ watch(
 );
 
 watch(realtime.ownerRevision, () => {
+  directTyping.reset(false);
+  channelTyping.reset(false);
   clearMuteRequests();
   activeGroup.value = null;
   loadingGroupChannels.value = false;
@@ -1964,8 +2164,7 @@ watch(realtime.ownerRevision, () => {
   isSendingDirectMessage.value = false;
   messagePage.value = 1;
   hasMoreMessages.value = false;
-  searchQuery.value = '';
-  if (searchTimer) clearTimeout(searchTimer);
+  channelSearch.value = null;
   inviteDialogOpen.value = false;
   groupSettingsOpen.value = false;
   groupSettingsModel.value = null;
@@ -1988,8 +2187,10 @@ watch(realtime.recoveryRevision, () => {
   void app.runWithContext(() => {
     void loadDirectConversations(false);
     if (activeChannel.value) void loadMessages(activeChannel.value.id);
-    if (directConversationId.value) {
-      void loadDirectMessagesForConversation(directConversationId.value, false);
+    const id = directConversationId.value;
+    if (id !== null) {
+      void loadDirectMessagesForConversation(id, false, false, true);
+      void refreshDirectReadStatus(id);
     }
   });
 });
@@ -2006,14 +2207,15 @@ watch(
 onBeforeUnmount(() => {
   disposed = true;
   channelAttachmentUpload?.abort();
+  directAttachmentUpload?.abort();
+  for (const request of directMessageRefreshes.values()) request.abort();
   clearMuteRequests();
   document.removeEventListener('visibilitychange', refreshVisibleChannel);
   document.removeEventListener('visibilitychange', scheduleChannelRead);
   document.removeEventListener('visibilitychange', scheduleDirectRead);
   clearTimeout(directReadTimer);
   clearTimeout(channelReadTimer);
-  pendingDirectRead = null;
-  if (searchTimer) clearTimeout(searchTimer);
+  pendingDirectRead = 0;
   inviteDialogOpen.value = false;
   syncChatChannel(realtime.serverReady.value, null);
   unsubscribeRealtime?.();
@@ -2682,7 +2884,20 @@ onBeforeUnmount(() => {
             >
               {{ t('chat.directMessage.title') }}
             </span>
+            <Button type="button" variant="ghost" size="icon" :aria-label="t('chat.actions.searchMessages')"
+              :aria-expanded="standaloneDirectSearchOpen" @click="toggleStandaloneDirectSearch">
+              <Search class="h-4 w-4" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon" :aria-label="t('chat.actions.startVoiceCall')"
+              @click="startChatCall(directMessageStandaloneTarget,'voice')"><Phone class="h-4 w-4" /></Button>
+            <Button type="button" variant="ghost" size="icon" :aria-label="t('chat.actions.startVideoCall')"
+              @click="startChatCall(directMessageStandaloneTarget,'video')"><Video class="h-4 w-4" /></Button>
           </div>
+
+          <ChatSearchFilters v-if="standaloneDirectSearchOpen" :senders="[
+            { id: currentUserId, label: currentUserName },
+            { id: directMessageStandaloneTarget.id, label: directMessageStandaloneTarget.nickname },
+          ]" @search="handleDirectSearch" />
 
           <div class="relative min-h-0 flex-1">
             <ScrollArea class="h-full">
@@ -2702,68 +2917,54 @@ onBeforeUnmount(() => {
                   class="flex min-h-[40vh] flex-col items-center justify-center text-center text-muted-foreground"
                 >
                   <div class="font-medium text-foreground">
-                    {{ t('chat.directMessage.emptyTitle') }}
+                    {{ t(directSearch ? 'chat.messageSearch.empty' : 'chat.directMessage.emptyTitle') }}
                   </div>
-                  <div class="mt-1 text-sm">
+                  <div v-if="!directSearch" class="mt-1 text-sm">
                     {{ t('chat.directMessage.emptyDescription') }}
                   </div>
                 </div>
 
-                <div v-else class="flex flex-col gap-3 pb-4">
+                <div v-else ref="standaloneDirectList" class="flex flex-col gap-3 pb-4">
                   <div
                     v-for="message in directMessages"
                     :key="message.message_id"
-                    class="flex"
-                    :class="{ 'justify-end': message.author.user_id === currentUserId }"
+                    :data-incoming-direct-message-id="message.author.user_id !== currentUserId ? message.message_id : undefined"
                   >
-                    <div class="max-w-[72%]">
-                      <div
-                        class="rounded-xl border px-4 py-3 text-sm leading-6 shadow-xs"
-                        :class="
-                          message.author.user_id === currentUserId
-                            ? 'ml-auto border-primary/60 bg-primary text-primary-foreground'
-                            : 'border-border/70 bg-muted text-foreground dark:bg-muted/80'
-                        "
-                      >
-                        <div class="whitespace-pre-wrap break-words">
-                          {{ message.content }}
-                        </div>
-                      </div>
-                      <div
-                        class="mt-1 px-1 text-[11px] text-muted-foreground"
-                        :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
-                      >
-                        {{ new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
-                        <button v-if="canDeleteDirectMessage(message)" type="button" class="ml-2 underline underline-offset-2" @click="requestDirectDelete(message)">
-                          {{ t('chat.actions.deleteMessage') }}
-                        </button>
-                      </div>
-                    </div>
+                    <ChatMessage
+                      :message="mapV2DirectMessage(message)"
+                      :is-own="message.author.user_id === currentUserId"
+                      :allow-edit="false"
+                      :hide-reply="directSearch !== null"
+                      :allow-delete="canDeleteDirectMessage(message)"
+                      show-avatar
+                      is-first-in-group
+                      @reply="standaloneDirectReplyId = $event.id"
+                      @react="handleDirectReaction"
+                      @delete="requestDirectDelete(message)"
+                      @view-profile="openMemberProfile"
+                    />
+                    <p v-if="!directSearch && message.message_id === lastSeenOwnDirectMessage" class="px-4 text-right text-xs text-muted-foreground">
+                      {{ t('chat.directMessage.read') }}
+                    </p>
                   </div>
                 </div>
               </div>
             </ScrollArea>
           </div>
 
-          <div class="relative z-20 border-t bg-background p-3">
-            <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-full border bg-card/80 px-3 py-2 shadow-sm">
-              <Input
-                v-model="directMessageContent"
-                :placeholder="t('chat.directMessage.placeholder', { user: directMessageStandaloneTarget.nickname })"
-                class="h-11 min-w-0 border-0 bg-transparent px-1 py-0 leading-none shadow-none focus-visible:ring-0"
-                @keydown="handleSendDirectMessageKeydown"
-              />
-              <AppSendButton
-                :loading="isSendingDirectMessage"
-                :disabled="isLoadingDirectMessages || isSendingDirectMessage || !directMessageContent.trim()"
-                type="button"
-                class="relative z-30 h-11 shrink-0 rounded-full px-4 pointer-events-auto"
-                @click="submitStandaloneDirectMessage"
-              >
-                {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
-              </AppSendButton>
-            </div>
-          </div>
+          <p v-if="!directSearch && directTyping.typingCount.value" class="px-4 py-1 text-xs text-muted-foreground" role="status">
+            {{ t('chat.directMessage.typing', { user: directMessageStandaloneTarget.nickname }) }}
+          </p>
+          <ChatInput
+            v-show="!directSearch"
+            :key="directSelectionRevision"
+            :placeholder="t('chat.directMessage.placeholder', { user: directMessageStandaloneTarget.nickname })"
+            :disabled="isLoadingDirectMessages"
+            :reply-to="standaloneDirectReply"
+            :send-message="submitStandaloneDirectMessage"
+            @typing="directTyping.edit"
+            @cancel-reply="standaloneDirectReplyId = null"
+          />
         </div>
 
         <ChatRoom
@@ -2779,10 +2980,15 @@ onBeforeUnmount(() => {
           :is-sending="isSending"
           :current-user-id="currentUserId"
           :direct-messages="directMessages"
+          :channel-search-active="channelSearch !== null"
+          :direct-search-active="directSearch !== null"
+          :current-user-name="currentUserName"
+          :channel-typing-count="channelTyping.typingCount.value"
+          :direct-typing="directTyping.typingCount.value > 0"
+          :last-seen-own-direct-message="lastSeenOwnDirectMessage"
           :is-loading-direct-messages="isLoadingDirectMessages"
           :has-older-direct-messages="hasOlderDirectMessages"
           :loading-older-direct-messages="loadingOlderDirectMessages"
-          :is-sending-direct-message="isSendingDirectMessage"
           :channels="chatChannels"
           :show-mobile-navigation-toggle="true"
           :composer-revision="channelComposerRevision"
@@ -2795,11 +3001,18 @@ onBeforeUnmount(() => {
           @pin="handlePinMessage"
           @toggle-mute="() => handleToggleChannelMute()"
           @search="handleSearch"
+          @direct-search="handleDirectSearch"
           @show-navigation="showMobileNavigation"
           @view-profile="openMemberProfile"
           @open-direct-message="handleOpenDirectMessage"
           @open-direct-message-standalone="handleOpenDirectMessageStandalone"
           :send-direct-message="handleSendDirectMessage"
+          @react-direct-message="handleDirectReaction"
+          @typing-channel="channelTyping.edit"
+          @typing-direct="directTyping.edit"
+          @direct-visibility="onDirectSheetVisibility"
+          @direct-message-visible="markVisibleDirectMessage"
+          @start-call="startChatCall"
           @delete-direct-message="requestDirectDelete"
           @load-older-direct-messages="loadOlderDirectMessages"
         />

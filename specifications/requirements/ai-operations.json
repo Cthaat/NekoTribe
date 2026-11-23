@@ -1,0 +1,9 @@
+{
+  "id": "AI-OPERATIONS",
+  "revision": 1,
+  "roles": ["knowledge", "writing", "group", "moderation"],
+  "healthTimeoutMilliseconds": 2500,
+  "indexTimeoutMilliseconds": 5000,
+  "indexStatusPath": "/internal/v1/knowledge/ready?detail=1",
+  "feedbackSql": "SELECT m.model_id, m.model_version, m.config_revision, COUNT(CASE WHEN f.rating = 'helpful' THEN 1 END) AS helpful, COUNT(CASE WHEN f.rating = 'incorrect' THEN 1 END) AS incorrect, COUNT(CASE WHEN f.rating = 'insufficient' THEN 1 END) AS insufficient FROM n_ai_moderation_feedback f JOIN n_ai_messages m ON m.message_id = f.message_id GROUP BY m.model_id, m.model_version, m.config_revision ORDER BY m.config_revision DESC NULLS LAST, m.model_id, m.model_version FETCH FIRST 100 ROWS ONLY"
+}

@@ -6,12 +6,14 @@ const root=fileURLToPath(new URL('../../',import.meta.url));
 const stubs={
  '~/server/services/v2/auth':`export function v2VerifyAccessToken(token){const s=globalThis.__wsRoute;const userId=token==='valid'?42:/^user[0-9]+$/.test(token)?Number(token.slice(4)):0;return userId&&!s.expired?{userId,sessionId:'auth-'+userId,jti:'jti-'+userId,type:'access'}:null;}`,
  '~/server/services/v2/chat':`export async function v2CanAccessChatChannel(){const s=globalThis.__wsRoute;if(s.chatGate)await s.chatGate;return s.chatAccess!==false;}
- export async function v2CanDeliverDirectMessage(_connection,user,conversation,message,deleted){return globalThis.__wsRoute.directAccess?.(user,conversation,message,deleted)??false;}`,
+ export async function v2CanDeliverDirectMessage(_connection,user,conversation,message,deleted){return globalThis.__wsRoute.directAccess?.(user,conversation,message,deleted)??false;}
+ export async function v2DirectTypingPeer(_connection,user,conversation){return globalThis.__wsRoute.directTypingPeer?.(user,conversation)??null;}
+ export async function v2CanDeliverDirectRead(_connection,user,conversation,reader,message){return globalThis.__wsRoute.directReadAccess?.(user,conversation,reader,message)??false;}`,
  '~/server/services/v2/presence':`export async function v2PublishUserPresence(){const s=globalThis.__wsRoute;s.presenceCalls=(s.presenceCalls??0)+1;}export async function v2TouchAuthSession(){const s=globalThis.__wsRoute;s.touchCalls=(s.touchCalls??0)+1;}`,
  '~/server/utils/oracle':`export const getOracleConnection=async()=>({close:async()=>{},async execute(sql){const s=globalThis.__wsRoute;if(s.authGate)await s.authGate;if(s.authError)throw s.authError;if(!sql.includes("u.status = 'active'")||!sql.includes('u.is_active = 1'))throw Error('Missing account predicate');return {rowsAffected:s.active&&!s.accountDisabled?1:0};}});`,
  '~/server/utils/oracle-query-cache':'export const attachOracleQueryCacheWithSource=(_options,connection)=>connection;',
  // Legacy exports deliberately fail; the integrated route must use the owned transport.
- '~/server/utils/redis':`export const getRedisClient=()=>null;export const getRedisSubscriber=()=>null;export const subscribeToChannel=async()=>false;export const REDIS_CHANNELS={BROADCAST:'ws:broadcast',SYSTEM_NOTIFICATION:'ws:system',PRESENCE:'ws:presence',CHAT_CHANNEL:'ws:chat:channel:',USER_MESSAGE:'ws:user:'};`,
+ '~/server/utils/redis':`export const getRedisClient=()=>globalThis.__wsRoute.callRedis??null;export const getRedisSubscriber=()=>null;export const subscribeToChannel=async()=>false;export const publishMessage=async(channel,frame)=>{const s=globalThis.__wsRoute;s.published??=[];s.published.push([channel,frame]);};export const REDIS_CHANNELS={BROADCAST:'ws:broadcast',SYSTEM_NOTIFICATION:'ws:system',PRESENCE:'ws:presence',CHAT_CHANNEL:'ws:chat:channel:',USER_MESSAGE:'ws:user:'};`,
  '~/server/utils/realtime-redis':`
  export function createRedisRealtimeTransport(){
   const s=globalThis.__wsRoute;s.transports??=[];s.listenerSets??=new Map();const own=new Map();let closed=false,message;

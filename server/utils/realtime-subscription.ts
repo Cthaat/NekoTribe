@@ -1,3 +1,6 @@
+import { parseChatRealtimeDetail } from './chat-realtime-details';
+import { isCallServerEvent, parseCallEvent } from './webrtc-signaling';
+
 export type RemoteRealtimeState = 'connecting' | 'connected' | 'unavailable';
 
 export interface RealtimeTransport {
@@ -46,6 +49,18 @@ export function allowRealtimeFrame(
       !Number.isSafeInteger(event.timestamp) || (event.timestamp as number) < 0) return false;
   if (event.type === 'system_notification' &&
       (event.data.code === 'realtime_status' || event.data.code === 'chat_channel_ready')) return false;
+  if (isCallServerEvent(event.type)) {
+    const call = parseCallEvent(event.type,event.data);
+    return !!call && Object.keys(event).length === 3 && channel === 'ws:user:' + userId &&
+      (call.caller_id === userId || call.callee_id === userId) &&
+      event.type !== 'call_busy' && event.type !== 'call_unavailable';
+  }
+  const detail = parseChatRealtimeDetail(event.type, event.data);
+  if (detail !== undefined) {
+    if (!detail || Object.keys(event).length !== 3) return false;
+    if ('typing' in detail && 'channel_id' in detail.typing) return channel === chatPrefix + detail.typing.channel_id;
+    return channel === 'ws:user:' + userId;
+  }
   if (channel === 'ws:presence') {
     const data = event.data;
     return event.type === 'presence_update' && Object.keys(event).length === 3 &&
@@ -57,7 +72,7 @@ export function allowRealtimeFrame(
   }
   if (channel === 'ws:user:' + userId) {
     if (notifications.has(event.type)) return true;
-    if (event.type === 'direct_message_deleted') {
+    if (event.type === 'direct_message_deleted' || event.type === 'direct_message_updated') {
       return positiveId(event.data.conversation_id) && positiveId(event.data.message_id) &&
         (event.data.server_id === undefined || typeof event.data.server_id === 'string' && event.data.server_id.length > 0) &&
         Object.keys(event.data).every(key => ['conversation_id', 'message_id', 'server_id'].includes(key));

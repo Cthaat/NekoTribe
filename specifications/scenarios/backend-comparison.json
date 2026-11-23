@@ -1,0 +1,29 @@
+{
+  "id": "BACKEND-COMPARISON",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "password-session-rotation",
+      "assertion": "Fixture account login creates an active session. Refresh rotates its stored credential and invalidates the old refresh token.",
+      "steps": [
+        { "id": "login", "method": "POST", "path": "/api/v2/auth/tokens", "status": 200, "body": { "account": "$account", "password": "$password", "remember_me": true }, "capture": { "userId": "data.user.user_id", "sessionId": "data.tokens.session_id", "accessToken": "data.tokens.access_token", "refreshToken": "data.tokens.refresh_token" }, "probe": "sessionActive" },
+        { "id": "refresh", "method": "PATCH", "path": "/api/v2/auth/tokens/current", "status": 200, "body": { "refresh_token": "$refreshToken" }, "capture": { "accessToken": "data.access_token", "rotatedRefreshToken": "data.refresh_token" }, "probe": "sessionRotated" },
+        { "id": "reject-old-refresh", "method": "PATCH", "path": "/api/v2/auth/tokens/current", "status": 401, "body": { "refresh_token": "$refreshToken" }, "probe": "sessionRotated" },
+        { "id": "self-profile", "method": "GET", "path": "/api/v2/users/me", "status": 200, "auth": true }
+      ]
+    },
+    {
+      "id": "post-and-idempotent-like",
+      "assertion": "A fresh public fixture post is readable. Liking it twice persists one relationship, unlike removes it, and delete sets its deletion flag.",
+      "steps": [
+        { "id": "create", "method": "POST", "path": "/api/v2/posts", "status": 200, "auth": true, "body": { "content": "$postContent", "visibility": "public" }, "capture": { "postId": "data.post_id" }, "probe": "postCreated" },
+        { "id": "read-profile", "method": "GET", "path": "/api/v2/users/{userId}", "status": 200, "auth": true },
+        { "id": "read-feed", "method": "GET", "path": "/api/v2/posts?timeline=home&page_size=5&q={postContent}", "status": 200, "auth": true },
+        { "id": "like", "method": "POST", "path": "/api/v2/posts/{postId}/likes", "status": 200, "auth": true, "probe": "likePresent" },
+        { "id": "like-again", "method": "POST", "path": "/api/v2/posts/{postId}/likes", "status": 200, "auth": true, "probe": "likePresent" },
+        { "id": "unlike", "method": "DELETE", "path": "/api/v2/posts/{postId}/likes", "status": 200, "auth": true, "probe": "likeAbsent" },
+        { "id": "delete", "method": "DELETE", "path": "/api/v2/posts/{postId}", "status": 200, "auth": true, "probe": "postDeleted" }
+      ]
+    }
+  ]
+}

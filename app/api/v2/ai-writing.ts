@@ -34,12 +34,12 @@ export const writingApi: WritingApi = {
   read: (id,signal) => v2RequestData<WritingConversation>(path(id),{signal}),
   append: async (id,content,signal) => validateUserReceipt(
     await v2RequestData<unknown,{content:string}>(`${path(id)}/messages`,{signal,method:'POST',body:{content}}), id),
-  generate: async (id,_phrase,signal,selectSkill,expectedSequence) => {
+  generate: async (id,_phrase,signal,selectSkill,expectedSequence,onDelta) => {
     const result = await v2RequestData<unknown,{skill_id?:'writing-draft';expected_sequence?:number}>(
       `${path(id)}/generate`,{signal,method:'POST',...(selectSkill || expectedSequence !== undefined ? {body:{
         ...(selectSkill ? {skill_id:'writing-draft'} : {}),
         ...(expectedSequence !== undefined ? {expected_sequence:expectedSequence} : {})
-      }} : {})});
+      }} : {}), ...(onDelta ? {onDelta} : {})});
     validateAssistantReceipt(result, id, expectedSequence);
     return result;
   },

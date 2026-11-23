@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { AiModelRouter } from '../server/services/ai/model-configuration.ts';
 import { configuredModelRouter, parseModelConfigBytes } from '../server/services/ai/model-source.ts';
+import { packageAiModelTools } from '../scripts/package-ai-model-tools.mjs';
 import { mkdtemp, readFile, rename, rm, rmdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +17,19 @@ const fixture = JSON.parse(readFileSync(new URL('../specifications/scenarios/ai-
 assert.equal(fixture.cases.length, 61);
 const runModelConfig = promisify(execFile);
 const commandPath = fileURLToPath(new URL('../scripts/ai-model-config.mjs', import.meta.url));
+
+test('standalone model tools check and list their packaged example offline', async t => {
+  const folder = await mkdtemp(join(tmpdir(), 'neko-model-tools-'));
+  t.after(() => rm(folder, { recursive:true, force:true }));
+  const bundle = join(folder, 'bundle');
+  await packageAiModelTools(bundle);
+  const run = (action) => runModelConfig(process.execPath, [
+    '--experimental-strip-types', 'scripts/ai-model-config.mjs', action, 'model.example.json'
+  ], { cwd:bundle });
+  assert.deepEqual(JSON.parse((await run('check')).stdout), { command:'check', revision:1 });
+  const listed = JSON.parse((await run('list')).stdout);
+  assert.equal(listed.revision, 1);
+});
 
 test('raw model JSON rejects ambiguous fields and invalid Unicode on both inputs', async () => {
   const base = JSON.stringify(fixture.cases[0].config);

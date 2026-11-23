@@ -340,6 +340,7 @@ interface V2ViewerPostState {
 }
 
 interface V2Post {
+  markdown?: string;
   post_id: number;
   author: V2PublicUser;
   content: string;
@@ -509,6 +510,8 @@ interface V2CreateReportPayload {
 }
 
 interface V2CreatePostPayload {
+  markdown?: string;
+  poll?: import('../../app/types/v2').V2CreatePostPoll;
   content?: string;
   visibility?:
     | 'public'
@@ -753,6 +756,7 @@ interface V2GroupMemberStatusData {
 }
 
 interface V2GroupPost {
+  markdown?: string;
   post_id: number;
   group_id: number;
   author: V2PublicUser;

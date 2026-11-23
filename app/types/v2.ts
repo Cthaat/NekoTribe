@@ -38,7 +38,7 @@ export type V2PostVisibility =
   | 'mentioned'
   | 'private';
 export type V2PostSort = 'newest' | 'oldest' | 'popular';
-export type V2TimelineMode = 'home' | 'mentions';
+export type V2TimelineMode = 'home' | 'recommended' | 'following' | 'mentions';
 export type V2NotificationTypeFilter =
   | 'all'
   | 'like'
@@ -372,6 +372,8 @@ export interface V2ViewerPostState {
 }
 
 export interface V2Post {
+  markdown?: string;
+  poll?: V2PostPoll;
   post_id: number;
   author: V2PublicUser;
   content: string;
@@ -462,6 +464,7 @@ export interface V2ModerationContentItem {
   likes_count: number;
   retweets_count: number;
   replies_count: number;
+  sentiment_signal?: {label:'negative'|'neutral'|'positive';confidence:number};
 }
 
 export interface V2ModerationStats {
@@ -557,6 +560,8 @@ export interface V2CreateReportPayload {
 }
 
 export interface V2CreatePostPayload {
+  markdown?: string;
+  poll?: V2CreatePostPoll;
   content?: string;
   visibility?: V2PostVisibility;
   media_ids?: number[];
@@ -569,6 +574,7 @@ export interface V2CreatePostPayload {
 }
 
 export interface V2UpdatePostPayload {
+  markdown?: string | null;
   content?: string;
   visibility?: V2PostVisibility;
   language?: string;
@@ -805,6 +811,8 @@ export interface V2TransferGroupOwnershipData {
 }
 
 export interface V2GroupPost {
+  markdown?: string;
+  poll?: V2PostPoll;
   post_id: number;
   group_id: number;
   author: V2PublicUser;
@@ -821,9 +829,61 @@ export interface V2GroupPost {
 }
 
 export interface V2CreateGroupPostPayload {
+  markdown?: string;
+  poll?: V2CreatePostPoll;
   is_announcement?: boolean;
   content: string;
   media_urls?: string[];
+}
+
+export interface V2CreatePostPoll {
+  options: string[];
+  multiple: boolean;
+  closes_at: string;
+}
+
+interface V2PostDraftBase {
+  content: string;
+  poll?: V2CreatePostPoll;
+  markdown?: string;
+}
+
+export type V2PostDraftInput = V2PostDraftBase & ({
+  group_id: null;
+  visibility?: 'public' | 'followers' | 'mentioned' | 'private';
+  media_ids?: number[];
+  tag_names?: string[];
+  mention_user_ids?: number[];
+  location?: string;
+} | {
+  group_id: number;
+  media_urls?: string[];
+  is_announcement?: boolean;
+});
+
+export interface V2PostDraft {
+  draft_id: number;
+  payload: V2PostDraftInput;
+  status: 'draft' | 'scheduled' | 'failed' | 'published';
+  scheduled_at: string | null;
+  published_post_id: number | null;
+  last_error: 'permission_denied' | 'content_unavailable' | null;
+  updated_at: string;
+}
+
+export interface V2PostDraftList {
+  items: V2PostDraft[];
+  next_before_id: number | null;
+}
+
+export interface V2PostPoll {
+  poll_id: number;
+  multiple: boolean;
+  closes_at: string;
+  closed: boolean;
+  total_ballots: number;
+  my_option_ids: number[];
+  options: { option_id: number; text: string; votes_count: number; percent: number }[];
 }
 
 export interface V2GroupPostPinStatusData {
@@ -1134,6 +1194,9 @@ export interface V2DirectMessage {
   conversation_id: number;
   content: string;
   author: V2PublicUser;
+  reply_to?: V2ChatMessageReply;
+  media?: V2MediaAsset[];
+  reactions?: V2ChatReactionSummary[];
   is_deleted: boolean;
   can_delete: boolean;
   created_at: string;
@@ -1142,12 +1205,21 @@ export interface V2DirectMessage {
   deleted_at: string | null;
 }
 
+export interface V2DirectReadStatus {
+  conversation_id: number;
+  last_read_message_id: number | null;
+  participant_last_read_message_id: number | null;
+  unread_count: number;
+}
+
 export interface V2CreateDirectConversationPayload {
   target_user_id: number;
 }
 
 export interface V2CreateDirectMessagePayload {
-  content: string;
+  content?: string;
+  media_ids?: number[];
+  reply_to_message_id?: number | null;
 }
 
 export interface V2FollowUserData {

@@ -10,6 +10,10 @@ import { clearOracleQueryCacheSource } from '~/server/utils/oracle-query-cache';
 
 let pool: oracledb.Pool | null = null;
 
+export function oraclePoolMetrics() {
+  return { open: pool?.connectionsOpen ?? 0, inUse: pool?.connectionsInUse ?? 0 };
+}
+
 export async function initOraclePool(): Promise<oracledb.Pool> {
   if (pool) return pool;
 

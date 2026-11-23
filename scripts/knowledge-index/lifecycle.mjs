@@ -65,9 +65,9 @@ async function readLedger(activePath) {
 
 const fingerprintOf = profile => profile === undefined ? null : profileFingerprint(profile);
 
-export async function activeProfileFingerprint(activePath) {
+export async function activeProfileFingerprint(activePath, scope) {
   if (!activePath) throw Error('ACTIVE_PROFILE_REQUIRED');
-  return fingerprintOf(await readOptional(activePath, readProfile));
+  return fingerprintOf(await readOptional(activePath, path => readProfile(path,scope)));
 }
 
 async function reconcilePublication(activePath, current) {
@@ -97,7 +97,7 @@ export async function recover(activePath) {
 
 export async function publish(activePath, profile, {expected,managed=false} = {}) {
   return withActivationLock(activePath, async ()=>{
-    const current = await readOptional(activePath, readProfile);
+    const current = await readOptional(activePath, path => readProfile(path,profile.scope));
     await reconcilePublication(activePath,current);
     const previousFingerprint = fingerprintOf(current);
     if (expected !== undefined && previousFingerprint !== expected) throw Error('ACTIVE_PROFILE_CHANGED');

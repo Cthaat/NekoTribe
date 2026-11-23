@@ -1,3 +1,4 @@
+import type { GenerationDelta } from './ai-stream';
 import { v2RequestData } from './client';
 import { validateAiConversationPage } from '../../utils/ai-conversation-page';
 import { citationTarget } from '@/services/ai-writing-controller';
@@ -14,7 +15,8 @@ type Rule = { id: number; version: string; href: string };
 export type ModerationAdviceSource = { postId: number; groupId: number | null; commentId: number | null };
 type Advice = {
   risk: typeof risks[number]; reason: string; recommendation: typeof recommendations[number];
-  rules: Rule[]; source: ModerationAdviceSource | null
+  rules: Rule[]; source: ModerationAdviceSource | null;
+  analysisMode: 'text_only' | 'text_and_images';
 };
 export type ModerationAdviceMessage = {
   id: string;
@@ -62,10 +64,11 @@ export function moderationAdviceTarget(kind: unknown, id: unknown): ModerationAd
 
 function parseAdvice(raw: unknown, target: ModerationAdviceTarget): Advice | null {
   if (raw === null || raw === undefined) return null;
-  const {risk, reason, recommendation, rules, rule_ids, target: rawTarget} = record(raw);
+  const {risk, reason, recommendation, rules, rule_ids, target: rawTarget, analysis_mode: mode} = record(raw);
   const {kind, id, post_id: postId, group_id: groupId} = record(rawTarget);
   if (kind !== target.kind || id !== target.id) return null;
   if (!oneOf(risks, risk) || !oneOf(recommendations, recommendation) ||
+      (mode !== undefined && mode !== 'text_only' && mode !== 'text_and_images') ||
       typeof reason !== 'string' || !reason.trim() || new TextEncoder().encode(reason).length > 1200 ||
       !Array.isArray(rules) || !rules.length || rules.length > 4 || !Array.isArray(rule_ids) ||
       rule_ids.length !== rules.length || new Set(rule_ids).size !== rules.length) {
@@ -78,7 +81,7 @@ function parseAdvice(raw: unknown, target: ModerationAdviceTarget): Advice | nul
     (grouped ? isId(groupId) : groupId == null)
     ? { postId, groupId: isId(groupId) ? groupId : null, commentId: comment ? target.id : null }
     : null;
-  return {risk, reason, recommendation, source, rules: rules.map(rawRule => {
+  return {risk, reason, recommendation, source, analysisMode: mode ?? 'text_only', rules: rules.map(rawRule => {
     const {kind, id, version} = record(rawRule);
     if (kind !== 'terms' || !isId(id) || !unseen.delete(id) || typeof version !== 'string') {
       throw new Error('Invalid moderation rule');
@@ -240,13 +243,12 @@ export function createModerationAdviceApi(run: <T>(request: () => Promise<T>) =>
       }
       return data.conversation_id;
     },
-    async generate(id: string, target: ModerationAdviceTarget, locale: 'zh' | 'en', sequence: number, signal: AbortSignal, skillId?: 'moderation-advice') {
+    async generate(id: string, target: ModerationAdviceTarget, locale: 'zh' | 'en', sequence: number, signal: AbortSignal, skillId?: 'moderation-advice', onDelta?: GenerationDelta) {
       const result = record(await run(() => v2RequestData<unknown, {
         target_type: TargetType; target_id: number; locale: 'zh' | 'en'; expected_sequence: number; skill_id?: 'moderation-advice';
       }>(`${path(id)}/moderation-generate`, {
         method: 'POST', signal,
-        body: {target_type: target.kind, target_id: target.id, locale, expected_sequence: sequence, ...(skillId ? {skill_id: skillId} : {})},
-      })));
+        body: {target_type: target.kind, target_id: target.id, locale, expected_sequence: sequence, ...(skillId ? {skill_id: skillId} : {})}, ...(onDelta ? {onDelta} : {})})));
       if (result.status === 'insufficient_evidence' && result.message === null) return false;
       const receipt = record(result.message);
       if (result.status === 'generated' && isUuid(receipt.message_id) &&

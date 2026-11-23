@@ -578,6 +578,10 @@ function isAuthEntryPath(path: string): boolean {
     normalizedPath === '/api/v2/auth/otp/verification' ||
     normalizedPath === '/api/v2/auth/registration' ||
     normalizedPath === '/api/v2/auth/tokens' ||
+    normalizedPath.startsWith('/api/v2/auth/passkeys/authentication/') ||
+    normalizedPath === '/api/v2/auth/passkeys/registration/verification' ||
+    normalizedPath.startsWith('/api/v2/auth/oauth/github/login/flows') ||
+    /^\/api\/v2\/users\/me\/oauth\/github\/flows\/[^/]+\/complete$/u.test(normalizedPath) ||
     normalizedPath === '/api/v2/auth/two-factor/challenges' ||
     /^\/api\/v2\/auth\/two-factor\/challenges\/[^/]+$/u.test(
       normalizedPath
@@ -686,10 +690,14 @@ export const apiFetch = async <T, R extends 'json' | 'blob' | 'stream' = 'json'>
     requestId,
     method: String(options.method ?? 'GET'),
     path,
-    query: queryPayload(options),
+    query: normalizeApiPath(path) === '/api/v2/links/preview' ? '[redacted]' : queryPayload(options),
     route: route?.fullPath ?? null,
     component: componentName ?? null,
     platform: isServer ? 'server' : 'client'
+  };
+  const errorForLog = (error: unknown) => {
+    const details = serializeApiError(error);
+    return requestLogPayload.query === '[redacted]' ? { statusCode: details.statusCode } : details;
   };
 
   logApiRequest(requestLogPayload);
@@ -752,7 +760,7 @@ export const apiFetch = async <T, R extends 'json' | 'blob' | 'stream' = 'json'>
           ...requestLogPayload,
           durationMs: Date.now() - startAt,
           phase: 'refresh-retry',
-          error: serializeApiError(retryError)
+          error: errorForLog(retryError)
         });
         throw normalizeApiError(retryError);
       }
@@ -762,7 +770,7 @@ export const apiFetch = async <T, R extends 'json' | 'blob' | 'stream' = 'json'>
       ...requestLogPayload,
       durationMs: Date.now() - startAt,
       phase: 'request',
-      error: serializeApiError(error)
+      error: errorForLog(error)
     });
     throw normalizeApiError(error);
   }

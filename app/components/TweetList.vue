@@ -6,6 +6,9 @@ const props = withDefaults(
   defineProps<{
     tweets: PostVM[];
     showRelationContext?: boolean;
+    pinnedPostId?: number;
+    canManageProfilePin?: boolean;
+    profilePinPending?: boolean;
   }>(),
   {
     showRelationContext: true
@@ -17,7 +20,8 @@ const emit = defineEmits([
   'reply-tweet',
   'retweet-tweet',
   'like-tweet',
-  'bookmark-tweet'
+  'bookmark-tweet',
+  'toggle-profile-pin'
 ]);
 
 function handleDeleteTweet(tweetId: number) {
@@ -57,8 +61,12 @@ function handleBookmarkTweet(
       @retweet-tweet="handleRetweetTweet"
       @like-tweet="handleLikeTweet"
       @bookmark-tweet="handleBookmarkTweet"
+      @toggle-profile-pin="emit('toggle-profile-pin',$event)"
       :tweet="tweet"
       :show-relation-context="showRelationContext"
+      :pinned-on-profile="tweet.id === pinnedPostId"
+      :can-manage-profile-pin="canManageProfilePin"
+      :profile-pin-pending="profilePinPending"
     />
   </div>
 </template>

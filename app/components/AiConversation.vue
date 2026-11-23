@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { writingApi } from '@/api/v2/ai-writing';
-import { knowledgeApi } from '@/api/v2/ai-knowledge';
+import { knowledgeApi, scopedKnowledgeApi, type KnowledgeScope } from '@/api/v2/ai-knowledge';
 import { aiMessageBytes, aiMessageContent, aiMessageMaxBytes, citationTarget, createWritingController, initialWritingState } from '@/services/ai-writing-controller';
 import type { KnowledgeCitation } from '@/services/ai-writing-controller';
 import { aiModelVersion, isAiReplyConfigRevision } from '@/utils/ai-model-version';
@@ -15,7 +15,7 @@ import { stageAiPostDraft } from '@/utils/ai-post-draft';
 import { takeDiscussionDraft } from '@/utils/ai-discussion-draft';
 import AiSkillStatus from '@/components/AiSkillStatus.vue';
 
-const props = defineProps<{ purpose: 'writing' | 'knowledge'; composerDraft?: string }>();
+const props = defineProps<{ purpose: 'writing' | 'knowledge'; composerDraft?: string; knowledgeScope?: KnowledgeScope; knowledgeGroupId?: number }>();
 const emit = defineEmits<{ applyDraft: [text: string] }>();
 const embedded = computed(() => props.composerDraft !== undefined);
 const { t } = useAppLocale();
@@ -25,7 +25,9 @@ const router = useRouter();
 const label = (key: string) => t(`${props.purpose === 'knowledge' ? 'aiKnowledge' : 'aiWriting'}.${key}`);
 const state = reactive(initialWritingState());
 const controller = createWritingController(
-  props.purpose === 'knowledge' ? knowledgeApi : writingApi, state, props.purpose,
+  props.purpose === 'knowledge'
+    ? (props.knowledgeScope ? scopedKnowledgeApi(props.knowledgeScope, props.knowledgeGroupId) : knowledgeApi)
+    : writingApi, state, props.purpose,
   id => {
     if (routeConversation(route.query.conversation) === id) void updateLocation(null).catch(() => {});
   }
@@ -65,7 +67,7 @@ function citationHref(source: KnowledgeCitation): string | null {
       query: {
         group: target.groupId,
         post: target.postId,
-        source: 'knowledge',
+        ...(props.knowledgeScope === 'group' ? {} : { source: 'knowledge' }),
         ...(target.commentId === undefined ? {} : {comments:'1',comment:target.commentId}),
       },
     });
@@ -239,7 +241,7 @@ async function submit() {
           <Button v-if="state.hasOlderMessages" variant="ghost" size="sm" class="w-full" :disabled="state.busy || state.savedReplyPending" @click="controller.loadOlderMessages()">
             {{ t('chat.directMessage.loadOlder') }}
           </Button>
-          <div v-if="!state.messages.length" class="flex min-h-48 items-center justify-center text-center text-sm text-muted-foreground">{{ label('empty') }}</div>
+          <div v-if="!state.messages.length && !state.preview" class="flex min-h-48 items-center justify-center text-center text-sm text-muted-foreground">{{ label('empty') }}</div>
           <div v-for="message in state.messages" :key="message.message_id" class="flex" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
             <div class="max-w-[90%] rounded-2xl px-4 py-3 sm:max-w-[80%]" :class="message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'">
               <div class="mb-1 text-xs font-medium opacity-70">{{ message.role === 'user' ? label('you') : label('assistant') }}</div>
@@ -272,6 +274,7 @@ async function submit() {
             </div>
           </div>
         </div>
+        <p v-if="state.preview" class="max-h-40 overflow-y-auto whitespace-pre-wrap break-words border-t bg-muted px-4 py-3 text-sm">{{ state.preview }}</p>
         <div class="border-t p-4 sm:p-6">
           <p v-if="state.insufficientEvidence" role="status" class="mb-3 text-sm text-muted-foreground">{{ label('insufficientEvidence') }}</p>
           <p v-if="state.error === 'generation-stopped'" role="status" class="mb-3 text-sm text-muted-foreground">{{ errorText }}</p>

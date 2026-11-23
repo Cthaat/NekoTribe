@@ -15,7 +15,7 @@ const bulk = {
   })),
 };
 const stubs = {
-  '~/server/utils/logging': `export const logInfo=()=>{};`,
+  '~/server/utils/logging': `export const logInfo=()=>{}; export const getRequestLogContext=()=>null;`,
   h3: `export const defineEventHandler=f=>f,setResponseHeader=(e,k,v)=>e.headers[k]=v,createError=x=>Object.assign(Error(),x);`,
   '~/server/utils/auth-entry-errors': `export const safeV2Action=f=>f();`,
   '~/server/utils/v2': `
@@ -47,6 +47,11 @@ const stubs = {
       const evidence=${JSON.stringify(fixture.evidence)};
       if(e.condition==='trimmed') return ${JSON.stringify(bulk)};
       return e.condition==='empty'||(e.condition==='evidence_gone'&&e.loads===2)?{...evidence,examples:[]}:evidence;
+    };
+    export const readGroupSentimentEvidence=(e,c,id,query)=>{
+      const current=${JSON.stringify(fixture.evidence)};
+      if(id!==8 || query.windowEnd!==current.window_end)throw Error('Wrong authenticated sentiment context');
+      return {current,previous:{...current,window_end:current.window_start,examples:[]}};
     };
   `,
   './skill-conversation': `export const selectConfiguredConversationSkill=(e,c,scope,skill)=>{
@@ -89,6 +94,7 @@ const route = (await import(`data:text/javascript;base64,${Buffer.from(routes.ou
 test('group draft route keeps model and storage behind auth, scope and optimistic sequence checks', async t => {
   const environment = {
     AI_MODEL_CONFIG_JSON:'{}',
+    AI_SENTIMENTFLOW_ENABLED:'0',
     AI_QUOTA_ACTOR_PER_MINUTE:String(quota.actorLimit),
     AI_QUOTA_SERVICE_PER_MINUTE:String(quota.serviceLimit),
   };
@@ -160,5 +166,47 @@ test('group draft route keeps model and storage behind auth, scope and optimisti
         assert.equal(event.appended.draft.match_excerpt, true);
       }
     } else assert.equal(event.appended, undefined);
+  }
+});
+
+test('the optional group tool preserves drafts on upstream failure and saves only verified sample use', async t => {
+  const env = {AI_SENTIMENTFLOW_ENABLED:'1',AI_SENTIMENTFLOW_URL:'http://sentiment.fixture.test/predict/'};
+  const previous = Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));
+  Object.assign(process.env,env);
+  t.after(()=>{
+    for (const [key,value] of Object.entries(previous)) {
+      if (value===undefined) delete process.env[key]; else process.env[key]=value;
+    }
+    delete globalThis.__groupDraftTestEvent;
+  });
+  let available = true;
+  t.mock.method(globalThis,'fetch',async (url,options) => {
+    assert.equal(url.href,env.AI_SENTIMENTFLOW_URL);
+    assert.equal(options.redirect,'error');
+    assert(fixture.evidence.examples.some(example=>example.excerpt===JSON.parse(options.body).text));
+    return available ? Response.json({prediction:{label:'slightly_negative',confidence:0.8}}) : new Response(null,{status:503});
+  });
+  const name = 'community_sentiment_summary';
+  const body = '{"kind":"weekly_report","expected_sequence":0}';
+  for (const success of [true,false]) {
+    available = success;
+    const event = {condition:'sentiment',scenario:{body,tools:[...fixture.defaultTools,{id:'sentiment-tool',name,arguments:{}}]},
+      id:'conversation',headers:{},loads:0,inferences:[],
+      node:{req:Readable.from([Buffer.from(body)]),res:new EventEmitter()},
+      context:{aiQuotaRedis:{eval:async()=>0}}};
+    assert.equal((await route(event)).data.status,'generated');
+    const input = event.inferences.at(-1).messages.find(message=>message.toolCallId==='sentiment-tool');
+    const actual = JSON.parse(input.content);
+    if (success) {
+      assert.equal(actual.status,'available');
+      assert.equal(actual.current.negative,fixture.evidence.examples.length);
+      assert.equal(actual.negative_share_change,null);
+      assert.match(event.appended.draft.sentiment_source_digest,/^[0-9a-f]{64}$/);
+      assert(event.appended.draft.tools_used.includes(name));
+    } else {
+      assert.deepEqual(actual,{status:'unavailable'});
+      assert.equal(event.appended.draft.sentiment_source_digest,undefined);
+      assert(!event.appended.draft.tools_used.includes(name));
+    }
   }
 });

@@ -7,6 +7,7 @@ import groupSourceQueries from '../../../specifications/requirements/ai-group-kn
 import {parseTermsCatalog,hydratePublicTerms,discoverPublicTerms} from './public-terms-source';
 import {readTermsAuthority} from './public-terms-authority';
 import {isGroupKnowledgeKind, isKnowledgeKind} from './knowledge-citations';
+import { publicKnowledge, scopedKnowledgeSql, type KnowledgeFilter } from './knowledge-scope';
 
 type SourceKind = 'post' | 'comment' | 'group_post' | 'group_comment';
 type KnowledgeKind = SourceKind | 'terms';
@@ -28,12 +29,16 @@ export function sourceVersion(kind: SourceKind, id: number, postId: number, cont
 }
 
 /** Internal exact-text discovery; revalidate results immediately before and after generation. */
-export async function discoverKnowledgeSources(event: H3Event, connection: oracledb.Connection, query: unknown, limit: unknown): Promise<KnowledgeSource[]> {
+export async function discoverKnowledgeSources(event: H3Event, connection: oracledb.Connection, query: unknown, limit: unknown, scope = publicKnowledge): Promise<KnowledgeSource[]> {
   const actor = v2Auth(event);
   if (typeof query !== 'string' || !query.isWellFormed() || typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 20) v2BadRequest('知识检索参数错误');
   const term = query.trim();
   if (!term || /[\u0000-\u001f\u007f]/.test(term) || Buffer.byteLength(term, 'utf8') > 256) v2BadRequest('知识检索参数错误');
-  const queries: [SourceKind, string][] = [
+  const queries: [SourceKind, string][] = scope.kind === 'personal'
+    ? [['post', scopedKnowledgeSql.search_personal_post]]
+    : scope.kind === 'group'
+    ? [['group_post', scopedKnowledgeSql.search_group_post], ['group_comment', scopedKnowledgeSql.search_group_comment]]
+    : [
     ['post', `SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p ${activePostAuthor}
       WHERE p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1
       AND p.post_id BETWEEN 1 AND :max_id
@@ -51,7 +56,8 @@ export async function discoverKnowledgeSources(event: H3Event, connection: oracl
   ];
   const lists: KnowledgeSource[][] = [];
   for (const [kind, sql] of queries) {
-    const result = await connection.execute<Record<string, unknown>>(sql, {viewer_id:actor.userId,term,row_limit:limit,max_id:MAX_ID}, {
+    const result = await connection.execute<Record<string, unknown>>(sql, {viewer_id:actor.userId,term,row_limit:limit,max_id:MAX_ID,
+      ...(scope.kind === 'group' ? {group_id:scope.groupId} : {})}, {
       outFormat:oracledb.OUT_FORMAT_OBJECT,
       fetchTypeHandler: metadata => metadata.name === 'CONTENT' ? {type:oracledb.STRING} : undefined
     });
@@ -63,7 +69,7 @@ export async function discoverKnowledgeSources(event: H3Event, connection: oracl
       const id = Number(row.SOURCE_ID), postId = Number(row.POST_ID), content = row.CONTENT;
       const groupId = isGroupKnowledgeKind(kind) ? Number(row.GROUP_ID) : undefined;
       if (!validId(id) || !validId(postId) || ((kind === 'post' || kind === 'group_post') && id !== postId) ||
-          (isGroupKnowledgeKind(kind) && !validId(groupId)) ||
+          (isGroupKnowledgeKind(kind) && (scope.kind === 'group' ? groupId !== scope.groupId : !validId(groupId))) ||
           seen.has(id) || typeof content !== 'string' || !content.isWellFormed()) v2ServerError();
       seen.add(id);
       if (!content || Buffer.byteLength(content, 'utf8') > 65536) continue;
@@ -71,7 +77,7 @@ export async function discoverKnowledgeSources(event: H3Event, connection: oracl
     }
     lists.push(sources);
   }
-  const terms=discoverPublicTerms(parseTermsCatalog(termsCatalog),term,limit);
+  const terms=scope.kind === 'public' ? discoverPublicTerms(parseTermsCatalog(termsCatalog),term,limit) : [];
   if(terms.length) await readTermsAuthority(event,connection,termsCatalog);
   lists.splice(2, 0, terms.map<KnowledgeSource>(row=>({kind:'terms',id:row.id,version:row.version,content:[row.title,...row.blocks].join('\n')})).filter(row=>Buffer.byteLength(row.content,'utf8')<=65536));
   const output: KnowledgeSource[] = [];
@@ -82,8 +88,9 @@ export async function discoverKnowledgeSources(event: H3Event, connection: oracl
 }
 
 /** Reload index candidates from live business tables; stale or invisible rows are omitted. */
-export async function hydrateKnowledgeSources(event: H3Event, connection: oracledb.Connection, input: unknown, options:{lockTerms?:boolean}={}): Promise<KnowledgeSource[]> {
+export async function hydrateKnowledgeSources(event: H3Event, connection: oracledb.Connection, input: unknown, options:{lockTerms?:boolean; scope?:KnowledgeFilter}={}): Promise<KnowledgeSource[]> {
   const actor = v2Auth(event);
+  const scope = options.scope ?? publicKnowledge;
   if (!Array.isArray(input) || input.length > 20) v2BadRequest('知识来源参数错误');
   const candidates: IndexedSource[] = [];
   const seen = new Set<string>();
@@ -97,6 +104,8 @@ export async function hydrateKnowledgeSources(event: H3Event, connection: oracle
     const key = `${candidate.kind}:${candidate.id}`;
     if (seen.has(key)) v2BadRequest('知识来源参数错误');
     seen.add(key);
+    if (scope.kind === 'group' && !isGroupKnowledgeKind(candidate.kind)) continue;
+    if (scope.kind === 'personal' && candidate.kind !== 'post') continue;
     candidates.push({kind:candidate.kind,id:candidate.id,version:candidate.version});
   }
   const terms=candidates.filter(candidate=>candidate.kind==='terms');
@@ -115,7 +124,9 @@ export async function hydrateKnowledgeSources(event: H3Event, connection: oracle
       }
       continue;
     }
-    const sql = isGroupKnowledgeKind(candidate.kind)
+    const sql = scope.kind === 'personal' ? scopedKnowledgeSql.personal_post
+      : scope.kind === 'group' && isGroupKnowledgeKind(candidate.kind) ? scopedKnowledgeSql[candidate.kind]
+      : isGroupKnowledgeKind(candidate.kind)
       ? groupSourceQueries[candidate.kind]
       : candidate.kind === 'post'
       ? `SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p ${activePostAuthor}
@@ -125,7 +136,8 @@ export async function hydrateKnowledgeSources(event: H3Event, connection: oracle
          WHERE c.comment_id=:source_id AND c.is_deleted=0 AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1
          AND p.post_id BETWEEN 1 AND :max_id
          ${visibleCommentAuthor}`;
-    const result = await connection.execute<Record<string, unknown>>(sql, {source_id:candidate.id,viewer_id:actor.userId,max_id:MAX_ID}, {
+    const result = await connection.execute<Record<string, unknown>>(sql, {source_id:candidate.id,viewer_id:actor.userId,max_id:MAX_ID,
+      ...(scope.kind === 'group' ? {group_id:scope.groupId} : {})}, {
       outFormat:oracledb.OUT_FORMAT_OBJECT,
       fetchTypeHandler: metadata => metadata.name === 'CONTENT' ? {type:oracledb.STRING} : undefined
     });
@@ -138,7 +150,7 @@ export async function hydrateKnowledgeSources(event: H3Event, connection: oracle
     if (!validId(id) || id !== candidate.id || !validId(postId) ||
         ((candidate.kind === 'post' || candidate.kind === 'group_post') && postId !== id) ||
         typeof content !== 'string' || !content.isWellFormed()) v2ServerError();
-    if (isGroupKnowledgeKind(candidate.kind) && !validId(groupId)) v2ServerError();
+    if (isGroupKnowledgeKind(candidate.kind) && (scope.kind === 'group' ? groupId !== scope.groupId : !validId(groupId))) v2ServerError();
     if (!content || Buffer.byteLength(content,'utf8') > 65536) continue;
     const version = sourceVersion(candidate.kind,id,postId,content);
     if (version === candidate.version) output.push({kind:candidate.kind,id,post_id:postId,content,version,...(groupId === undefined ? {} : {group_id:groupId})});

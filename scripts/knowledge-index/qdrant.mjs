@@ -1,4 +1,4 @@
-import { baseUrl, credential, groupSourceKinds, profileFingerprint, validCandidate, versionPattern } from './config.mjs';
+import { baseUrl, credential, groupSourceKinds, profileFingerprint, validCandidate, validGroupId, versionPattern } from './config.mjs';
 import { assertMatchingProbe, validVector } from './embedding.mjs';
 import { requestJson } from './http.mjs';
 
@@ -15,6 +15,7 @@ export function indexStore(profile) {
   const {url,headers} = indexStoreConnection();
   const root = `${url}/collections/${profile.collection}`;
   const fingerprint = profileFingerprint(profile);
+  const group = profile.scope === 'group';
 
   async function call(path, options) {
     const signal = options?.signal;
@@ -49,14 +50,20 @@ export function indexStore(profile) {
     if (result?.status !== 'completed') throw Error('INDEX_WRITE_INCOMPLETE');
   }
 
-  async function search(vector, limit, signal, {includeGroups = true} = {}) {
+  async function query(vector, limit, signal, {includeGroups = true, groupId} = {}) {
     const pointLimit = Math.min(256,limit*12);
-    const excluded = [{has_id:[markerId]}];
-    if (!includeGroups) excluded.push({key:'kind',match:{any:groupSourceKinds}});
+    const filter = {must_not:[{has_id:[markerId]}]};
+    const withPayload = ['kind','id','version','chunk'];
+    if (group) {
+      filter.must = [{key:'scope',match:{value:'group'}},{key:'kind',match:{any:groupSourceKinds}}];
+      if (groupId !== undefined) filter.must.push({key:'group_id',match:{value:groupId}});
+      withPayload.push('scope','group_id');
+    } else if (!includeGroups) {
+      filter.must_not.push({key:'kind',match:{any:groupSourceKinds}});
+    }
     const result = await call('/points/query',{
       method:'POST',signal,timeout:5000,limit:131072,
-      body:{query:vector,limit:pointLimit,with_payload:['kind','id','version','chunk'],with_vector:false,
-        filter:{must_not:excluded}},
+      body:{query:vector,limit:pointLimit,with_payload:withPayload,with_vector:false,filter},
     });
     if (!Array.isArray(result?.points) || result.points.length > pointLimit) throw Error('INDEX_RESPONSE_INVALID');
     const seen = new Set(), candidates = [];
@@ -64,13 +71,15 @@ export function indexStore(profile) {
       const payload = point?.payload;
       if (!validCandidate(payload)) throw Error('INDEX_CANDIDATE_INVALID');
       const {kind,id,version,chunk} = payload;
+      if (group && (!groupSourceKinds.includes(kind) || payload.scope !== 'group' || !validGroupId(payload.group_id) ||
+          (groupId !== undefined && payload.group_id !== groupId))) throw Error('INDEX_CANDIDATE_INVALID');
       if (!includeGroups && groupSourceKinds.includes(kind)) throw Error('INDEX_CANDIDATE_INVALID');
       if (chunk !== undefined && (!Number.isInteger(chunk) || chunk < 0 || chunk > 102)) throw Error('INDEX_CANDIDATE_INVALID');
       const key = `${kind}:${id}`;
-      if (!seen.has(key)) {
+      if (candidates.length < limit && !seen.has(key)) {
         seen.add(key);
         candidates.push({kind,id,version,...(chunk === undefined ? {} : {chunk})});
-        if (candidates.length === limit) break;
+        if (!group && candidates.length === limit) break;
       }
     }
     return candidates;
@@ -114,7 +123,15 @@ export function indexStore(profile) {
       signal?.throwIfAborted();
       if (await call('',{method:'PUT',body:{vectors:{size:profile.dimensions,distance:'Cosine'}},signal}) !== true) throw Error('INDEX_CREATE_FAILED');
     },
-    upsert, search, checkMarker, readEmbeddingMarker, checkEmbedding,
+    upsert, checkMarker, readEmbeddingMarker, checkEmbedding,
+    async search(vector, limit, signal, options) {
+      if (group) throw Error('INDEX_SCOPE_MISMATCH');
+      return query(vector,limit,signal,options);
+    },
+    async searchGroup(vector, limit, signal, groupId) {
+      if (!group || !validGroupId(groupId)) throw Error('INDEX_SCOPE_MISMATCH');
+      return query(vector,limit,signal,{groupId});
+    },
     async removeRetired() {
       if (!await exists()) return null;
       try {
@@ -139,13 +156,13 @@ export function indexStore(profile) {
       return result;
     },
     async seal(points, probe, snapshot, signal) {
-      if (await count(signal) !== points || (await search(probe,1,signal)).length !== (points > 0 ? 1 : 0)) throw Error('INDEX_VERIFICATION_FAILED');
+      if (await count(signal) !== points || (await query(probe,1,signal)).length !== (points > 0 ? 1 : 0)) throw Error('INDEX_VERIFICATION_FAILED');
       signal?.throwIfAborted();
       await upsert([{id:markerId,vector:probe,payload:{fingerprint,points,snapshot}}],signal);
     },
     async verify(probe, signal) {
       const {points} = await checkEmbedding(probe,signal);
-      if (!await hasExpectedPoints(points,signal) || (await search(probe,1,signal)).length !== (points > 0 ? 1 : 0)) throw Error('INDEX_VERIFICATION_FAILED');
+      if (!await hasExpectedPoints(points,signal) || (await query(probe,1,signal)).length !== (points > 0 ? 1 : 0)) throw Error('INDEX_VERIFICATION_FAILED');
       return points;
     },
   };

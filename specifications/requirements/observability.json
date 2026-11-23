@@ -1,0 +1,23 @@
+{
+  "id": "OBSERVABILITY",
+  "revision": 1,
+  "requestIdHeader": "X-Request-Id",
+  "requestIdPattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+  "metricsPath": "/metrics",
+  "tokenEnvironmentVariable": "METRICS_TOKEN",
+  "contentType": "text/plain; version=0.0.4; charset=utf-8",
+  "bucketsSeconds": [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  "httpMethods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "OTHER"],
+  "aiOperations": ["knowledge_answer", "writing_draft", "group_draft", "moderation_advice", "image_description"],
+  "metricFamilies": {
+    "nekotribe_http_requests_total": { "type": "counter", "labels": ["method", "status"] },
+    "nekotribe_http_request_duration_seconds": { "type": "histogram", "labels": ["method", "status"] },
+    "nekotribe_oracle_pool_connections": { "type": "gauge", "labels": ["state"], "states": ["open", "in_use", "idle"] },
+    "nekotribe_redis_operations_total": { "type": "counter", "labels": ["result"], "results": ["hit", "miss", "degraded"] },
+    "nekotribe_websocket_connections": { "type": "gauge", "labels": [] },
+    "nekotribe_websocket_channels": { "type": "gauge", "labels": [] },
+    "nekotribe_ai_requests_total": { "type": "counter", "labels": ["operation", "result"], "results": ["success", "failure", "cancelled"] },
+    "nekotribe_ai_request_duration_seconds": { "type": "histogram", "labels": ["operation"] },
+    "nekotribe_ai_quota_rejections_total": { "type": "counter", "labels": ["operation"] }
+  }
+}

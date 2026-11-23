@@ -28,6 +28,7 @@ export interface V2ModerationContentQuery
   reason?: string;
   date_range?: string;
   sort?: string;
+  sentiment_signal?: '0' | '1';
   page?: number;
   page_size?: number;
 }

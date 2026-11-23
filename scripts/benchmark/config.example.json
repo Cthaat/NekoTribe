@@ -1,0 +1,103 @@
+{
+  "targets": {
+    "nuxt": {
+      "baseUrl": "http://127.0.0.1:3100",
+      "accountEnv": "NK_BENCH_NUXT_ACCOUNT",
+      "passwordEnv": "NK_BENCH_NUXT_ACCOUNT_PASSWORD",
+      "chatChannelId": 1,
+      "oracle": {
+        "userEnv": "NK_BENCH_NUXT_READER_USER",
+        "passwordEnv": "NK_BENCH_NUXT_READER_PASSWORD",
+        "connectStringEnv": "NK_BENCH_NUXT_READER_CONNECT_STRING"
+      },
+      "launch": {
+        "command": "node",
+        "args": [".output/server/index.mjs"],
+        "cwd": ".",
+        "env": {
+          "HOST": "127.0.0.1",
+          "PORT": "3100",
+          "NODE_ENV": "production",
+          "NUXT_NODE_ENV": "production",
+          "NUXT_COOKIE_SECURE": "false"
+        },
+        "envFrom": {
+          "NUXT_ORACLE_HOST": "NK_BENCH_NUXT_ORACLE_HOST",
+          "NUXT_ORACLE_PORT": "NK_BENCH_NUXT_ORACLE_PORT",
+          "NUXT_ORACLE_SERVICE_NAME": "NK_BENCH_NUXT_ORACLE_SERVICE_NAME",
+          "NUXT_ORACLE_USER": "NK_BENCH_NUXT_APP_USER",
+          "NUXT_ORACLE_PASSWORD": "NK_BENCH_NUXT_APP_PASSWORD",
+          "NUXT_REDIS_URL": "NK_BENCH_NUXT_REDIS_URL",
+          "NUXT_ACCESS_SECRET": "NK_BENCH_ACCESS_SECRET",
+          "NUXT_REFRESH_SECRET": "NK_BENCH_REFRESH_SECRET",
+          "AI_MODEL_CONFIG_FILE": "NK_BENCH_AI_MODEL_CONFIG_FILE"
+        }
+      }
+    },
+    "go": {
+      "baseUrl": "http://127.0.0.1:3101",
+      "accountEnv": "NK_BENCH_GO_ACCOUNT",
+      "passwordEnv": "NK_BENCH_GO_ACCOUNT_PASSWORD",
+      "chatChannelId": 1,
+      "oracle": {
+        "userEnv": "NK_BENCH_GO_READER_USER",
+        "passwordEnv": "NK_BENCH_GO_READER_PASSWORD",
+        "connectStringEnv": "NK_BENCH_GO_READER_CONNECT_STRING"
+      },
+      "launch": {
+        "command": "../go/nekotribe-go.exe",
+        "args": [],
+        "cwd": "../go",
+        "env": { "HOST": "127.0.0.1", "GO_BACKEND_PORT": "3101", "COOKIE_SECURE": "false" },
+        "envFrom": {
+          "ORACLE_HOST": "NK_BENCH_GO_ORACLE_HOST",
+          "ORACLE_PORT": "NK_BENCH_GO_ORACLE_PORT",
+          "ORACLE_SERVICE_NAME": "NK_BENCH_GO_ORACLE_SERVICE_NAME",
+          "ORACLE_USER": "NK_BENCH_GO_APP_USER",
+          "ORACLE_PASSWORD": "NK_BENCH_GO_APP_PASSWORD",
+          "REDIS_URL": "NK_BENCH_GO_REDIS_URL",
+          "ACCESS_SECRET": "NK_BENCH_ACCESS_SECRET",
+          "REFRESH_SECRET": "NK_BENCH_REFRESH_SECRET",
+          "AI_MODEL_CONFIG_FILE": "NK_BENCH_AI_MODEL_CONFIG_FILE"
+        }
+      }
+    },
+    "rust": {
+      "baseUrl": "http://127.0.0.1:3102",
+      "accountEnv": "NK_BENCH_RUST_ACCOUNT",
+      "passwordEnv": "NK_BENCH_RUST_ACCOUNT_PASSWORD",
+      "chatChannelId": 1,
+      "oracle": {
+        "userEnv": "NK_BENCH_RUST_READER_USER",
+        "passwordEnv": "NK_BENCH_RUST_READER_PASSWORD",
+        "connectStringEnv": "NK_BENCH_RUST_READER_CONNECT_STRING"
+      },
+      "launch": {
+        "command": "../rust/nekotribe-rust.exe",
+        "args": [],
+        "cwd": "../rust",
+        "env": { "HOST": "127.0.0.1", "RUST_BACKEND_PORT": "3102", "COOKIE_SECURE": "false" },
+        "envFrom": {
+          "ORACLE_HOST": "NK_BENCH_RUST_ORACLE_HOST",
+          "ORACLE_PORT": "NK_BENCH_RUST_ORACLE_PORT",
+          "ORACLE_SERVICE_NAME": "NK_BENCH_RUST_ORACLE_SERVICE_NAME",
+          "ORACLE_USER": "NK_BENCH_RUST_APP_USER",
+          "ORACLE_PASSWORD": "NK_BENCH_RUST_APP_PASSWORD",
+          "REDIS_HOST": "NK_BENCH_RUST_REDIS_HOST",
+          "REDIS_PORT": "NK_BENCH_RUST_REDIS_PORT",
+          "REDIS_DB": "NK_BENCH_RUST_REDIS_DB",
+          "REDIS_PASSWORD": "NK_BENCH_RUST_REDIS_PASSWORD",
+          "ACCESS_SECRET": "NK_BENCH_ACCESS_SECRET",
+          "REFRESH_SECRET": "NK_BENCH_REFRESH_SECRET",
+          "AI_MODEL_CONFIG_FILE": "NK_BENCH_AI_MODEL_CONFIG_FILE"
+        }
+      }
+    }
+  },
+  "benchmark": {
+    "requests": 20,
+    "concurrency": 2,
+    "timeoutMs": 8000,
+    "startupTimeoutMs": 60000
+  }
+}

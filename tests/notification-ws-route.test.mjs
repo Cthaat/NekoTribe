@@ -45,6 +45,52 @@ test('local and Redis direct messages require current message access',async()=>{
  } finally {if(peer.sessionId)subject.sessionManager.removeSession(peer.sessionId);delete globalThis.__wsRoute;}
 });
 
+test('authenticated typing emits only to the current peer or an authorized joined member', async () => {
+ const state = routeState({directTypingPeer: (user, id) => id === 12 ? ({42:43, 43:42}[user] ?? null) : null});
+ globalThis.__wsRoute = state;
+ const actor = fakePeer(), receiver = fakePeer('user43'), unrelated = fakePeer('user44');
+ const peers = [actor, receiver, unrelated];
+ const send = (peer, type, data) => subject.handler.message(peer, {text:() => JSON.stringify({type,data})});
+ const typing = peer => peer.messages.filter(frame => frame.type.startsWith('typing_'));
+ try {
+  for (const peer of peers) await subject.handler.open(peer);
+  await Promise.all(peers.map(peer => waitFor(() => hasState(peer, 'connected'))));
+  await send(actor, 'typing_start', {conversation_id:12,user_id:99});
+  await send(actor, 'typing_start', {conversation_id:12});
+  await send(actor, 'typing_start', {conversation_id:12});
+  await send(unrelated, 'typing_start', {conversation_id:12});
+  await send(actor, 'typing_stop', {conversation_id:12});
+  assert.deepEqual(typing(receiver).map(frame => [frame.type,frame.data.user_id]), [['typing_start',42],['typing_stop',42]]);
+  assert.equal(typing(actor).length + typing(unrelated).length, 0);
+  assert.deepEqual(state.published.map(([channel]) => channel), ['ws:user:43','ws:user:43']);
+
+  await Promise.all([actor, receiver].map(peer => send(peer,'chat_join_channel',{channel_id:7})));
+  await send(receiver, 'typing_start', {channel_id:7});
+  assert.equal(typing(actor).at(-1).data.channel_id, 7);
+  assert.equal(typing(unrelated).length, 0);
+ } finally {
+  for (const peer of peers) if (peer.sessionId) subject.sessionManager.removeSession(peer.sessionId);
+  delete globalThis.__wsRoute;
+ }
+});
+
+test('direct read frames require the recipient and the current stored cursor', async () => {
+ globalThis.__wsRoute = routeState({directReadAccess:(user,conversation,reader,message)=>
+   user === 42 && conversation === 12 && reader === 43 && message === 31});
+ const peer = fakePeer();
+ const frame = last_read_message_id => ({ type:'direct_read_updated',timestamp:10,
+   data:{conversation_id:12,reader_id:43,last_read_message_id} });
+ try {
+  await subject.handler.open(peer);
+  await waitFor(() => hasState(peer, 'connected'));
+  await subject.sendWsToUser(42, frame(32));
+  const remote = globalThis.__wsRoute.subscriptions.get('ws:user:42');
+  remote(frame(31));
+  await waitFor(() => peer.messages.some(event => event.type === 'direct_read_updated'));
+  assert.deepEqual(peer.messages.filter(event => event.type === 'direct_read_updated'), [frame(31)]);
+ } finally { if (peer.sessionId) subject.sessionManager.removeSession(peer.sessionId); delete globalThis.__wsRoute; }
+});
+
 test('heartbeat refuses to respond after the session is revoked',async()=>{
  globalThis.__wsRoute=routeState();const peer=fakePeer();const ping={text:()=>JSON.stringify({type:'ping'})};
  try{
@@ -70,7 +116,8 @@ test('upgrade permits absent, same-origin or explicitly allowed origins and reje
   globalThis.__wsRoute=routeState();
   try {
     for (const origin of [null,'http://api.example:3000','https://allowed.example','https://neko.example:8443']) {
-      assert.equal(await subject.handler.upgrade(request(origin)),undefined,String(origin));
+      const accepted=await subject.handler.upgrade(request(origin));
+      assert.match(new Headers(accepted.headers).get('x-request-id'),/^[a-f0-9-]{36}$/,String(origin));
     }
     for (const origin of ['', 'https://evil.example','null','http://api.example:3000/path','https://api.example:3000','http://api.example:3000, https://evil.example','https://neko.example','https://neko.example:8443/']) {
       const response=await subject.handler.upgrade(request(origin,{'x-forwarded-proto':'https'}));

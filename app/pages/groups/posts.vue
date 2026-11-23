@@ -11,6 +11,14 @@ import {
 import { toast } from 'vue-sonner';
 import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import GroupPostCard from '@/components/GroupPostCard.vue';
+import PostDraftsDialog from '@/components/PostDraftsDialog.vue';
+import PostPollEditor from '@/components/PostPollEditor.vue';
+import PostPollPanel from '@/components/PostPollPanel.vue';
+import PostMarkdown from '@/components/PostMarkdown.vue';
+import { openPostPollDraft, postPollPayload, type PostPollDraft } from '@/utils/post-poll-draft';
+import { markdownBytes, markdownExcerpt, maxMarkdownBytes, validMarkdownBody } from '@/utils/post-markdown';
+import { v2PublishPostDraft, v2SavePostDraft } from '@/api/v2/post-drafts';
+import type { V2PostDraft } from '@/types/v2';
 import CommentSection from '@/components/CommentSection.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +39,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  canPublishGroupPost as canPublish,
   createGroupPost,
   createGroupPostComment,
   deleteGroupPost,
@@ -99,13 +108,20 @@ const reportDescription = ref('');
 const isSubmittingReport = ref(false);
 const composerGroup = ref<Group | null>(null);
 const composeContent = ref('');
+const composePoll = ref<PostPollDraft | null>(null);
+const composeMarkdown = ref(false);
 const composeAnnouncement = ref(false);
+const draftListOpen = ref(false);
+const savedDraftId = ref<number | null>(null);
 let composeRequest: AbortController | undefined;
 let attachmentRequest: AbortController | undefined;
 const uploadingAttachment = ref(false);
 const attachments = ref<Array<{ url: string; name: string }>>([]);
 const publishing = ref(false);
-const composeBytes = computed(() => new TextEncoder().encode(composeContent.value.trim()).length);
+const composeBytes = computed(() => markdownBytes(composeMarkdown.value ? composeContent.value : composeContent.value.trim()));
+const composeLimit = computed(() => composeMarkdown.value ? maxMarkdownBytes : 4000);
+const markdownReady = computed(() => !composeMarkdown.value || validMarkdownBody(composeContent.value));
+const canSubmitPoll = computed(() => !composePoll.value || !!postPollPayload(composePoll.value));
 
 const typeOptions: {
   value: V2GroupPostListType;
@@ -149,14 +165,6 @@ const selectedGroup = computed(() => {
   return groups.value.find(group => group.id === id) ?? null;
 });
 
-function canPublish(group: Group): boolean {
-  if (group.membershipStatus !== 'active') return false;
-  return group.postPermission === 'all' ||
-    (group.postPermission === 'moderator_up' && canPublishAnnouncement(group)) ||
-    (group.postPermission === 'admin_only' &&
-      (group.membershipRole === 'admin' || group.membershipRole === 'owner'));
-}
-
 function canPublishAnnouncement(group: Group): boolean {
   return group.membershipStatus === 'active' &&
     ['owner', 'admin', 'moderator'].some(role => role === group.membershipRole);
@@ -172,7 +180,11 @@ function closeComposer(): void {
   publishing.value = false;
   composerGroup.value = null;
   composeContent.value = '';
+  composePoll.value = null;
+  composeMarkdown.value = false;
   composeAnnouncement.value = false;
+  draftListOpen.value = false;
+  savedDraftId.value = null;
 }
 
 async function attachGroupImage(event: Event): Promise<void> {
@@ -221,11 +233,25 @@ async function attachGroupImage(event: Event): Promise<void> {
   }
 }
 
-async function publishGroupPost(): Promise<void> {
+function resumeGroupDraft(draft: V2PostDraft) {
+  const {payload} = draft;
+  if (payload.group_id === null || payload.group_id !== composerGroup.value?.id || publishing.value) return;
+  savedDraftId.value = draft.draft_id;
+  composeMarkdown.value = payload.markdown !== undefined;
+  composeContent.value = payload.markdown ?? payload.content;
+  composeAnnouncement.value = payload.is_announcement ?? false;
+  composePoll.value = payload.poll ? openPostPollDraft(payload.poll) : null;
+  attachments.value = (payload.media_urls ?? []).map((url,index) => ({url,name:t('post.drafts.attachment',{index:index+1})}));
+}
+
+async function submitGroupPost(purpose: 'publish' | 'save'): Promise<void> {
   const group = composerGroup.value;
   if (!group || selectedGroup.value?.id !== group.id || !canPublish(selectedGroup.value) ||
-      publishing.value || uploadingAttachment.value || !composeBytes.value || composeBytes.value > 4000 ||
+      publishing.value || uploadingAttachment.value || (purpose === 'publish' && !composeBytes.value) ||
+      composeBytes.value > composeLimit.value || !markdownReady.value ||
       authQueueFor(app).isIdentityChanging) return;
+  const poll = postPollPayload(composePoll.value);
+  if (composePoll.value && !poll) return;
   const revision = preferenceStore.authRevision();
   const controller = new AbortController();
   composeRequest = controller;
@@ -233,19 +259,34 @@ async function publishGroupPost(): Promise<void> {
   const current = () => composeRequest === controller &&
     preferenceStore.isAuthCurrent(revision) && composerGroup.value?.id === group.id;
   try {
-    await createGroupPost(group.id, {
-      content: composeContent.value.trim(),
+    const markdown = composeMarkdown.value ? composeContent.value : undefined;
+    const payload = {
+      ...(poll ? {poll} : {}),
+      ...(markdown === undefined ? {} : {markdown}),
+      content: markdown === undefined ? composeContent.value.trim() : markdownExcerpt(markdown),
       media_urls: attachments.value.map(item => item.url),
       is_announcement: composeAnnouncement.value && canPublishAnnouncement(selectedGroup.value)
-    }, controller.signal);
+    };
+    if (purpose === 'save' || savedDraftId.value !== null) {
+      const saved = await app.runWithContext(() => v2SavePostDraft({group_id:group.id,...payload},savedDraftId.value,controller.signal));
+      if (!current()) return;
+      savedDraftId.value = saved.draft_id;
+      if (purpose === 'save') {
+        toast.success(t('post.drafts.saved'));
+        return;
+      }
+      await app.runWithContext(() => v2PublishPostDraft(saved.draft_id,controller.signal));
+    } else {
+      await createGroupPost(group.id, payload, controller.signal);
+    }
     if (!current()) return;
     closeComposer();
     toast.success(t('groups.posts.manualPublished'));
     await app.runWithContext(refreshPosts);
   } catch {
     if (current()) {
-      closeComposer();
-      toast.error(t('groups.posts.manualPublishFailed'));
+      if (purpose === 'publish' && savedDraftId.value === null) closeComposer();
+      toast.error(t(purpose === 'save' ? 'post.drafts.saveFailed' : 'groups.posts.manualPublishFailed'));
     }
   } finally {
     if (composeRequest === controller) {
@@ -919,7 +960,16 @@ async function openRouteTarget() {
         </DialogHeader>
         <Label for="manual-group-post">{{ t('groups.posts.manualContent') }}</Label>
         <Textarea id="manual-group-post" v-model="composeContent" :disabled="publishing" rows="5" />
-        <p v-if="composeBytes > 4000" class="text-sm text-destructive" role="alert">
+        <PostPollEditor v-model="composePoll" :disabled="publishing || uploadingAttachment" />
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="flex items-center gap-2 text-sm">
+            <input v-model="composeMarkdown" type="checkbox" :disabled="publishing" />{{ t('post.markdown.mode') }}
+          </label>
+          <span v-if="composeMarkdown" class="text-xs" :class="composeBytes > composeLimit ? 'text-destructive' : 'text-muted-foreground'">
+            {{ t('post.markdown.size', {used:composeBytes,limit:composeLimit}) }}
+          </span>
+        </div>
+        <p v-if="!composeMarkdown && composeBytes > composeLimit" class="text-sm text-destructive" role="alert">
           {{ t('groups.posts.manualTooLong') }}
         </p>
         <label v-if="canPublishAnnouncement(composerGroup)" class="flex items-center gap-2 text-sm">
@@ -943,8 +993,15 @@ async function openRouteTarget() {
             </li>
           </ul>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" variant="outline" :disabled="publishing || uploadingAttachment" @click="draftListOpen = true">{{ t('post.drafts.title') }}</Button>
+          <Button type="button" size="sm" variant="outline" :disabled="publishing || uploadingAttachment || composeBytes > composeLimit || !markdownReady || !canSubmitPoll" @click="submitGroupPost('save')">{{ t('post.drafts.save') }}</Button>
+          <span v-if="savedDraftId !== null" class="text-xs text-muted-foreground">{{ t('post.drafts.editing') }}</span>
+        </div>
+        <PostDraftsDialog v-model:open="draftListOpen" :group-id="composerGroup.id" @resume="resumeGroupDraft"
+          @removed="id => { if (id === savedDraftId) savedDraftId = null }" />
         <DialogFooter>
-          <Button :disabled="publishing || uploadingAttachment || !composeBytes || composeBytes > 4000" @click="publishGroupPost">
+          <Button :disabled="publishing || uploadingAttachment || !composeBytes || composeBytes > composeLimit || !markdownReady || !canSubmitPoll" @click="submitGroupPost('publish')">
             {{ t('groups.posts.manualPublish') }}
           </Button>
         </DialogFooter>
@@ -1022,6 +1079,7 @@ async function openRouteTarget() {
         :key="`${post.group?.id ?? 'group'}-${post.id}`"
         :post="post"
         :can-manage="!!post.group?.canManage"
+        :can-vote="groups.some(group => group.id === post.groupId && canPublish(group))"
         :is-author="post.author.id === currentUserId"
         :mutation-pending="pendingPostMutations.has(post.id)"
         @like="handleLike"
@@ -1072,7 +1130,11 @@ async function openRouteTarget() {
           >
             {{ commentPost.group.name }}
           </p>
-          <p v-if="commentPost" class="max-h-32 overflow-y-auto whitespace-pre-wrap break-words pl-9 text-sm">{{ commentPost.content }}</p>
+          <div v-if="commentPost?.markdown" class="max-h-52 overflow-y-auto pl-9"><PostMarkdown :source="commentPost.markdown" /></div>
+          <p v-else-if="commentPost" class="max-h-32 overflow-y-auto whitespace-pre-wrap break-words pl-9 text-sm">{{ commentPost.content }}</p>
+          <PostPollPanel v-if="commentPost?.poll && commentPost.groupId" :key="commentPost.poll.poll_id"
+            :poll="commentPost.poll" :post-id="commentPost.id" :group-id="commentPost.groupId"
+            :can-vote="groups.some(group => group.id === commentPost?.groupId && canPublish(group))" />
           <Button v-if="canSummarizeDiscussion" variant="outline" size="sm"
             class="w-fit" :disabled="summaryPending" @click="summarizeGroupDiscussion">
             {{ t(summaryPending ? 'common.loading' : 'aiWriting.summarizePost') }}

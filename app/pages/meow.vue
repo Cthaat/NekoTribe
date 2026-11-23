@@ -136,12 +136,7 @@ async function handleTweetSubmit(
     });
 
     if (!isCurrent()) return;
-    toast.success(t('post.composePage.publishSuccess'));
-    tweetToReply.value = undefined;
-    tweetToQuote.value = undefined;
-
-    // 跳转到推文页
-    await navigateTo(localePath('/'));
+    await finishPublication();
   } catch (err) {
     if (!isCurrent()) return;
     if (err instanceof UnconfirmedPostError) {
@@ -161,6 +156,13 @@ async function handleTweetSubmit(
   } finally {
     if (composerActive) isSubmitting.value = false;
   }
+}
+
+async function finishPublication() {
+  toast.success(t('post.composePage.publishSuccess'));
+  tweetToReply.value = undefined;
+  tweetToQuote.value = undefined;
+  await navigateTo(localePath('/'));
 }
 </script>
 
@@ -207,6 +209,7 @@ async function handleTweetSubmit(
           @clear-quote="tweetToQuote = undefined"
           @clear-reply="tweetToReply = undefined"
           @submit="handleTweetSubmit"
+          @draft-published="finishPublication"
           :quote-to="tweetToQuote"
           :reply-to="tweetToReply"
           :is-submitting="isSubmitting"

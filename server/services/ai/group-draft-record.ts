@@ -3,7 +3,8 @@ import type { H3Event } from 'h3';
 import type { Connection } from 'oracledb';
 import contract from '../../../specifications/requirements/ai-group-draft.json';
 import { v2Conflict } from '~/server/utils/v2';
-import { readGroupEvidence, type GroupEvidence } from './group-evidence';
+import { readGroupEvidence, readGroupSentimentEvidence, type GroupEvidence } from './group-evidence';
+import { communitySentimentTool } from './sentiment-flow';
 
 export type GroupDraftKind = keyof typeof contract.lookbackDays;
 export interface GroupDraftRecord {
@@ -17,18 +18,23 @@ export interface GroupDraftRecord {
   tools_used?: string[];
   search_term?: string;
   match_excerpt?: true;
+  sentiment_source_digest?: string;
 }
-export const groupDraftSystem = (kind: GroupDraftKind) => kind === 'activity_plan'
-  ? `${contract.system}\n${contract.activityPlanInstruction}`
-  : contract.system;
+export function groupDraftSystem(kind: GroupDraftKind, sentiment = false) {
+  return [contract.system,
+    ...(kind === 'activity_plan' ? [contract.activityPlanInstruction] : []),
+    ...(sentiment ? ['需要讨论情绪变化时可一并请求 community_sentiment_summary，只传空对象。将结果标明为样本趋势。服务不可用时利用其它资料继续，不编造情绪统计。'] : []),
+  ].join('\n');
+}
 export const groupDraftTools = contract.tools;
 export const groupDraftExamplesTool = contract.requiredTool;
 export const validGroupSearchTerm = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value === value.trim() &&
   value.isWellFormed() && Buffer.byteLength(value) <= 256 && !/[\u0000-\u001f\u007f]/.test(value);
 export function validGroupDraftTools(names: readonly unknown[]): boolean {
-  return names.length <= groupDraftTools.length && names.includes(groupDraftExamplesTool) &&
-    new Set(names).size === names.length && names.every(name => groupDraftTools.some(tool => tool.name === name));
+  return names.length <= groupDraftTools.length + 1 && names.includes(groupDraftExamplesTool) &&
+    new Set(names).size === names.length &&
+    names.every(name => name === communitySentimentTool.name || groupDraftTools.some(tool => tool.name === name));
 }
 export function isGroupDraftKind(value: unknown): value is GroupDraftKind {
   return typeof value === 'string' && Object.hasOwn(contract.lookbackDays, value);
@@ -50,6 +56,10 @@ export function groupEvidenceDigest(data: GroupEvidence): string {
   }
   return hash.digest('hex');
 }
+export function groupSentimentDigest(evidence: {current:GroupEvidence;previous:GroupEvidence}) {
+  return createHash('sha256').update(groupEvidenceDigest(evidence.current))
+    .update('\n').update(groupEvidenceDigest(evidence.previous)).digest('hex');
+}
 export function decodeGroupDraft(content: string): GroupDraftRecord | null {
   try {
     const input = JSON.parse(content) as Partial<GroupDraftRecord> | null;
@@ -64,6 +74,9 @@ export function decodeGroupDraft(content: string): GroupDraftRecord | null {
         (input.tools_used !== undefined && (!Array.isArray(input.tools_used) || !validGroupDraftTools(input.tools_used))) ||
         (input.search_term !== undefined && !validGroupSearchTerm(input.search_term)) ||
         (input.match_excerpt !== undefined && (input.match_excerpt !== true || input.search_term === undefined))) return null;
+    const hasSentiment = input.tools_used?.includes(communitySentimentTool.name) ?? false;
+    if (hasSentiment !== (typeof input.sentiment_source_digest === 'string' && /^[a-f0-9]{64}$/.test(input.sentiment_source_digest)) ||
+        (!hasSentiment && input.sentiment_source_digest !== undefined)) return null;
     return input as GroupDraftRecord;
   } catch {
     return null;
@@ -72,13 +85,19 @@ export function decodeGroupDraft(content: string): GroupDraftRecord | null {
 export async function recheckGroupDraft(
   event: H3Event, connection: Connection, groupId: number, draft: GroupDraftRecord
 ) {
-  const evidence = await readGroupEvidence(event, connection, groupId, {
+  const options = {
     lookbackDays: groupLookback(draft.kind), windowEnd: draft.window_end,
     ...(draft.search_term === undefined ? {} : {searchTerm:draft.search_term}),
     matchExcerpt: draft.match_excerpt === true,
-  });
+  };
+  const evidence = await readGroupEvidence(event, connection, groupId, options);
   evidence.examples = evidence.examples.slice(0, draft.example_count);
-  return groupEvidenceDigest(evidence) === draft.source_digest ? evidence : null;
+  if (groupEvidenceDigest(evidence) !== draft.source_digest) return null;
+  if (draft.sentiment_source_digest) {
+    const samples = await readGroupSentimentEvidence(event,connection,groupId,options);
+    if (groupSentimentDigest(samples) !== draft.sentiment_source_digest) return null;
+  }
+  return evidence;
 }
 export async function requireCurrentGroupDraft(
   event: H3Event, connection: Connection, groupId: number, draft: GroupDraftRecord

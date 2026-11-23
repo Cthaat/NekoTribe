@@ -9,6 +9,7 @@ const stubs = {
     export const v2Auth=e=>{if(!e.userId)throw Error('unauthorized');return {userId:e.userId}};
     export const v2BadRequest=m=>{throw Error('400:'+m)};
     export const v2Forbidden=m=>{throw Error('403:'+m)};
+    export const v2Conflict=()=>{throw Error('409')}; export const v2One=async(c,sql,binds)=>(await c.execute(sql,binds)).rows?.[0];
     export const v2NotFound=m=>{throw Error('404:'+m)};`,
   '~/server/services/v2/groups': `export const v2GroupPermission=async(c,user,group,role)=>{c.calls.push({user,group,role});return c.allowed};`,
   '~/server/services/v2/moderation': `export const requireModerationAccess=async(e,c)=>{c.moderation++;if(!c.moderator)throw Error('403:需要审核权限')};`
@@ -38,6 +39,23 @@ test('group access rechecks administrator permission on every call', async () =>
   await assert.rejects(() => authorizeConversationScope({ userId: 42 }, conn, scope), /403:需要群管理员权限/);
   assert.deepEqual(conn.calls, [{ user: 42, group: 7, role: 'admin' }, { user: 42, group: 7, role: 'admin' }]);
   await assert.rejects(() => authorizeConversationScope({ userId: 42 }, conn, { ...scope, groupId: -1 }), /400:群组参数错误/);
+});
+
+test('group knowledge uses current membership rather than the Agent administrator role', async () => {
+  const conn = db();
+  let active = true;
+  conn.allowed = false;
+  conn.execute = async (sql, binds) => {
+    assert.match(sql, /gm.status='active'/);
+    assert.match(sql, /g.is_active=1 AND g.is_deleted=0/);
+    assert.deepEqual(binds, {viewer_id:42,group_id:7});
+    return {rows:active ? [{MEMBER_ID:1}] : []};
+  };
+  const scope = {ownerUserId:42,purpose:'knowledge',groupId:7,knowledgeScope:'group'};
+  await authorizeConversationScope({userId:42}, conn, scope);
+  active = false;
+  await assert.rejects(() => authorizeConversationScope({userId:42}, conn, scope), /403/);
+  assert.deepEqual(conn.calls, []);
 });
 
 test('moderation and malformed scopes fail closed', async () => {

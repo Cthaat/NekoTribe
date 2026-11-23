@@ -12,7 +12,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const stubs = {
   '~/server/database/readiness': `export const requireFeatureSchema=async()=>{};`,
   oracledb: `export default {OUT_FORMAT_OBJECT:4002,STRING:{num:2001}};`,
-  '~/server/utils/v2': `export const v2Auth=e=>{if(!e.userId)throw Error('401');return {userId:e.userId}};export const v2BadRequest=()=>{throw Error('400')};export const v2ServerError=()=>{throw Error('500')};`
+  '~/server/utils/v2': `export const v2Auth=e=>{if(!e.userId)throw Error('401');return {userId:e.userId}};export const v2BadRequest=()=>{throw Error('400')};export const v2ServerError=()=>{throw Error('500')};export const v2Forbidden=()=>{throw Error('403')};export const v2Conflict=()=>{throw Error('409')}; export const v2One=async(c,sql,binds)=>(await c.execute(sql,binds)).rows?.[0];`
 };
 const built = await build({stdin:{contents:`export * from './server/services/ai/knowledge-source.ts';export {runKnowledgeTurn} from './server/services/ai/knowledge-turn.ts';export {discoverIndexedSources} from './server/services/ai/knowledge-index.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'discovery-stubs',setup(b){b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js'}))}}]});
 const {discoverKnowledgeSources,hydrateKnowledgeSources,sourceVersion,runKnowledgeTurn,discoverIndexedSources} = await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);

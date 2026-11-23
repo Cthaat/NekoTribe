@@ -61,6 +61,23 @@ publicMessages[400] = new Set([...publicMessages[400]!, '审核反馈参数错�
 publicMessages[400] = new Set([...publicMessages[400]!, 'comment_id 参数错误']);
 publicMessages[429] = new Set([...publicMessages[429]!, 'AI 请求额度已用完，请稍后重试']);
 publicMessages[403] = new Set([...publicMessages[403]!, '权限不足']);
+publicMessages[400] = new Set([...publicMessages[400]!, '图片参数错误', '图片类型或大小不支持', '个人 AI 连接参数错误']);
+publicMessages[404] = new Set([...publicMessages[404]!, '图片不存在', '个人 AI 连接不存在']);
+publicMessages[409] = new Set([...publicMessages[409]!, '图片已关联', '个人 AI 连接已变更，请重新填写密钥']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'Passkey 参数错误']);
+publicMessages[404] = new Set([...publicMessages[404]!, 'Passkey 不存在']);
+publicMessages[409] = new Set([...publicMessages[409]!, 'Passkey 已登记', '请保留至少一种登录方式']);
+publicMessages[400] = new Set([...publicMessages[400]!, 'GitHub 授权参数错误']);
+publicMessages[404] = new Set([...publicMessages[404]!, 'GitHub 绑定不存在']);
+publicMessages[409] = new Set([...publicMessages[409]!, 'GitHub 账号已绑定']);
+
+export function v2ServiceUnavailable(): never {
+  throw createError({
+    statusCode: 503,
+    statusMessage: 'Service temporarily unavailable',
+    data: {code:50301,message:'服务暂不可用，请稍后重试。',data:null,meta:null},
+  });
+}
 
 function sanitizedPublicError(error: unknown): ReturnType<typeof createError> | null {
   if (!isError(error)) return null;

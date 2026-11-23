@@ -12,7 +12,9 @@ const validId = (id: unknown): id is number =>
 export function validCitationLocation(source: RestoredCitation): boolean {
   if (source.kind === 'terms') return source.id <= 8 && !('post_id' in source) && !('group_id' in source);
   if (!validId(source.post_id) || ((source.kind === 'post' || source.kind === 'group_post') && source.id !== source.post_id)) return false;
-  return isGroupKnowledgeKind(source.kind) ? validId(source.group_id) : !('group_id' in source);
+  return isGroupKnowledgeKind(source.kind)
+    ? typeof source.group_id === 'number' && Number.isSafeInteger(source.group_id) && source.group_id >= 1
+    : !('group_id' in source);
 }
 export class KnowledgeCitationError extends Error {
   constructor() {super('INVALID_CITATIONS');this.name='KnowledgeCitationError';}

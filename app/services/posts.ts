@@ -9,6 +9,7 @@ import type {
   V2PostAnalytics,
   V2PublicUser,
   V2RetweetPayload,
+  V2TimelineMode,
   V2UpdatePostPayload
 } from '@/types/v2';
 import type {
@@ -140,6 +141,8 @@ export function mapMediaToPostMedia(
 export function mapPost(dto: V2Post): PostVM {
   return {
     id: dto.post_id,
+    ...(dto.poll ? {poll:dto.poll} : {}),
+    ...(dto.markdown === undefined ? {} : {markdown:dto.markdown}),
     author: mapPublicUserToPostAuthor(dto.author),
     content: dto.content,
     postType: dto.post_type,
@@ -245,6 +248,8 @@ function mapCreatePostForm(
   form: CreatePostFormVM
 ): V2CreatePostPayload {
   return {
+    ...(form.poll ? {poll:form.poll} : {}),
+    ...(form.markdown === undefined ? {} : {markdown:form.markdown}),
     content: form.content,
     visibility: form.visibility,
     media_ids: form.mediaIds,
@@ -261,6 +266,7 @@ function mapUpdatePostForm(
   form: UpdatePostFormVM
 ): V2UpdatePostPayload {
   return {
+    ...(form.markdown === undefined ? {} : {markdown:form.markdown}),
     content: form.content,
     visibility: form.visibility,
     language: form.language,
@@ -311,7 +317,7 @@ export async function v2ListPosts(query: {
   page?: number;
   pageSize?: number;
   sort?: 'newest' | 'oldest' | 'popular';
-  timeline?: 'home' | 'mentions';
+  timeline?: V2TimelineMode;
   q?: string;
 } = {}): Promise<PostPageVM> {
   return mapPostPage(await apiListPosts({

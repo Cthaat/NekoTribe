@@ -8,6 +8,8 @@ import {
   v2Register as apiRegister,
   v2VerifyOtp as apiVerifyOtp
 } from '@/api/v2/auth';
+import { authenticatePasskey } from '@/api/v2/passkeys';
+import { authenticateGitHub } from '@/api/v2/github-oauth';
 import type {
   V2AuthOtpPayload,
   V2AuthOtpVerificationPayload,
@@ -151,6 +153,18 @@ export async function v2Login(
   form: LoginFormVM
 ): Promise<LoginResultVM> {
   const result = await apiLogin(mapLoginForm(form));
+  validateLoginResponse(result);
+  return mapTwoFactorChallenge(result) ?? mapLogin(result);
+}
+
+export async function v2LoginWithPasskey(rememberMe: boolean, current: () => boolean): Promise<LoginResultVM> {
+  const result = await authenticatePasskey(rememberMe, current);
+  validateLoginResponse(result);
+  return mapTwoFactorChallenge(result) ?? mapLogin(result);
+}
+
+export async function v2LoginWithGitHub(client: Parameters<typeof authenticateGitHub>[0], rememberMe: boolean): Promise<LoginResultVM> {
+  const result = await authenticateGitHub(client, rememberMe);
   validateLoginResponse(result);
   return mapTwoFactorChallenge(result) ?? mapLogin(result);
 }

@@ -12,11 +12,13 @@ import {lockSkillRegistry} from './skill-config-store';
 import {decodeGroupDraft, recheckGroupDraft, requireCurrentGroupDraft, type GroupDraftRecord} from './group-draft-record';
 import {currentModerationAdvice, decodeModerationAdvice, requireCurrentModerationAdvice, type ModerationAdviceRecord} from './moderation-advice-record';
 import { feedbackSql, feedbackTablePresent, feedbackUnavailable, readModerationRating, type ModerationRating } from './moderation-feedback';
+import { isKnowledgeScope, lockKnowledgeMembership, type KnowledgeFilter, type KnowledgeScope } from './knowledge-scope';
 
 export interface ConversationRecord {
   conversation_id: string;
   purpose: ConversationPurpose;
   group_id: number | null;
+  knowledge_scope?: KnowledgeScope;
   title: string | null;
   created_at: string;
   updated_at: string;
@@ -50,6 +52,7 @@ function mapRow(row: Record<string, unknown>): ConversationRecord {
   return {
     conversation_id: v2String(row.CONVERSATION_ID),
     purpose: v2String(row.PURPOSE) as ConversationPurpose,
+    ...(row.PURPOSE === 'knowledge' ? { knowledge_scope: isKnowledgeScope(row.KNOWLEDGE_SCOPE) ? row.KNOWLEDGE_SCOPE : 'public' } : {}),
     group_id: row.GROUP_ID === null || row.GROUP_ID === undefined ? null : v2Number(row.GROUP_ID),
     title: row.TITLE === null || row.TITLE === undefined ? null : v2String(row.TITLE),
     created_at: v2DateString(row.CREATED_AT) || '',
@@ -57,15 +60,23 @@ function mapRow(row: Record<string, unknown>): ConversationRecord {
   };
 }
 
+export function knowledgeFilter(record: ConversationRecord): KnowledgeFilter {
+  return { kind: record.knowledge_scope ?? 'public', groupId: record.group_id };
+}
+
 function forbidden(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'statusCode' in error && error.statusCode === 403;
 }
 
 /** List owned, currently authorized conversations without exposing inaccessible cursor IDs. */
-export async function listConversations(event: H3Event, connection: oracledb.Connection, after: string, limit: number, purpose?: ConversationPurpose, groupId?: number, targetTitle?: string): Promise<ConversationPage> {
+export async function listConversations(event: H3Event, connection: oracledb.Connection, after: string, limit: number, purpose?: ConversationPurpose, groupId?: number, targetTitle?: string, knowledgeScope?: KnowledgeScope): Promise<ConversationPage> {
   const actor = v2Auth(event);
   if ((after !== '' && !validId(after)) || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) v2BadRequest('分页参数错误');
-  if (groupId !== undefined && (purpose !== 'group' || !Number.isSafeInteger(groupId) || groupId < 1)) v2BadRequest('群组参数错误');
+  if (knowledgeScope !== undefined) {
+    if (!isKnowledgeScope(knowledgeScope) || (purpose !== undefined && purpose !== 'knowledge')) v2BadRequest('会话参数错误');
+    purpose = 'knowledge';
+  }
+  if (groupId !== undefined && ((purpose !== 'group' && knowledgeScope !== 'group') || !Number.isSafeInteger(groupId) || groupId < 1)) v2BadRequest('群组参数错误');
   if (targetTitle !== undefined && purpose !== 'moderation') v2BadRequest('审核对象错误');
   await requireFeatureSchema(connection, 'ai-conversations');
   let moderationAllowed = 1;
@@ -79,28 +90,34 @@ export async function listConversations(event: H3Event, connection: oracledb.Con
   let scanAfter = after.toLowerCase();
   for (let batch = 0; batch < 10; batch++) {
     const result = await connection.execute<Record<string, unknown>>(
-      `SELECT c.conversation_id,c.owner_user_id,c.purpose,c.group_id,c.title,c.created_at,c.updated_at
+      `SELECT c.conversation_id,c.owner_user_id,c.purpose,c.group_id,c.title,c.created_at,c.updated_at,c.knowledge_scope
        FROM n_ai_conversations c WHERE c.owner_user_id=:owner_user_id
        AND (:after_id IS NULL OR c.conversation_id>:after_id)
        AND (:purpose IS NULL OR c.purpose=:purpose)
        AND (:group_id IS NULL OR c.group_id=:group_id)
+       AND (:knowledge_scope IS NULL OR c.knowledge_scope=:knowledge_scope)
        AND (:target_title IS NULL OR (c.title=:target_title AND c.group_id IS NULL))
-       AND (c.purpose IN ('knowledge','writing') OR
+       AND (c.purpose='writing' OR
+            (c.purpose='knowledge' AND (c.knowledge_scope<>'group' OR EXISTS (
+              SELECT 1 FROM n_group_members gm JOIN n_groups g ON g.group_id=gm.group_id
+              WHERE gm.group_id=c.group_id AND gm.user_id=:owner_user_id AND gm.status='active' AND g.is_active=1 AND g.is_deleted=0
+            ))) OR
             (c.purpose='group' AND fn_has_group_permission(:owner_user_id,c.group_id,'admin')=1) OR
             (c.purpose='moderation' AND :moderation_allowed=1))
        ORDER BY c.conversation_id ASC FETCH FIRST :row_limit ROWS ONLY`,
-      {owner_user_id: actor.userId, after_id: scanAfter || null, purpose: purpose ?? null, group_id: groupId ?? null, target_title: targetTitle ?? null, moderation_allowed: moderationAllowed, row_limit: limit + 1},
+      {owner_user_id: actor.userId, after_id: scanAfter || null, purpose: purpose ?? null, group_id: groupId ?? null, knowledge_scope: knowledgeScope ?? null, target_title: targetTitle ?? null, moderation_allowed: moderationAllowed, row_limit: limit + 1},
       {outFormat: oracledb.OUT_FORMAT_OBJECT}
     );
     const rows = result.rows ?? [];
     for (const row of rows) {
       const record = mapRow(row);
-      if ((purpose && record.purpose !== purpose) || (groupId !== undefined && record.group_id !== groupId)) v2ServerError();
+      if ((purpose && record.purpose !== purpose) || (groupId !== undefined && record.group_id !== groupId) ||
+          (knowledgeScope !== undefined && record.knowledge_scope !== knowledgeScope)) v2ServerError();
       if (targetTitle !== undefined && (record.title !== targetTitle || record.group_id !== null)) v2ServerError();
       if (v2Number(row.OWNER_USER_ID) !== actor.userId || !validId(record.conversation_id) || record.conversation_id <= scanAfter) v2ServerError();
       scanAfter = record.conversation_id;
       try {
-        await authorizeConversationScope(event, connection, {ownerUserId: actor.userId, purpose: record.purpose, groupId: record.group_id});
+        await authorizeConversationScope(event, connection, {ownerUserId: actor.userId, purpose: record.purpose, groupId: record.group_id, knowledgeScope: record.knowledge_scope});
       } catch (error) {
         if (forbidden(error)) continue;
         throw error;
@@ -118,12 +135,12 @@ export async function readConversation(event: H3Event, connection: oracledb.Conn
   const actor = v2Auth(event);
   if (!validId(id)) v2NotFound('会话不存在');
   await requireFeatureSchema(connection, 'ai-conversations');
-  const row = await v2One(connection, `SELECT conversation_id,owner_user_id,purpose,group_id,title,created_at,updated_at
+  const row = await v2One(connection, `SELECT conversation_id,owner_user_id,purpose,group_id,title,created_at,updated_at,knowledge_scope
     FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`,
     { conversation_id: id, owner_user_id: actor.userId });
   if (!row) v2NotFound('会话不存在');
   const record = mapRow(row);
-  await authorizeConversationScope(event, connection, { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: record.purpose, groupId: record.group_id });
+  await authorizeConversationScope(event, connection, { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: record.purpose, groupId: record.group_id, knowledgeScope: record.knowledge_scope });
   return record;
 }
 
@@ -173,12 +190,12 @@ export async function deleteConversation(event: H3Event, connection: oracledb.Co
   await requireFeatureSchema(connection, 'ai-conversations');
   let commitStarted = false;
   try {
-    const row = await v2One(connection, `SELECT conversation_id,owner_user_id,purpose,group_id,title,created_at,updated_at
+    const row = await v2One(connection, `SELECT conversation_id,owner_user_id,purpose,group_id,title,created_at,updated_at,knowledge_scope
       FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id FOR UPDATE`,
       { conversation_id: id, owner_user_id: actor.userId });
     if (!row) v2NotFound('会话不存在');
     const record = mapRow(row);
-    const scope = { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: record.purpose, groupId: record.group_id };
+    const scope = { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: record.purpose, groupId: record.group_id, knowledgeScope: record.knowledge_scope };
     await authorizeConversationScope(event, connection, scope);
     const deleted = await v2Execute(connection, `DELETE FROM n_ai_conversations
       WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`,
@@ -211,7 +228,7 @@ export async function listRecentConversationMessages(event: H3Event, connection:
 }
 async function readMessages(
   event: H3Event, connection: oracledb.Connection, id: string, afterSequence: number, limit: number, newest: boolean,
-  beforeSequence = 0
+  beforeSequence = 0, includeDependencies = newest
 ): Promise<ConversationMessageRecord[]> {
   const actor = v2Auth(event);
   if (!Number.isSafeInteger(afterSequence) || afterSequence < 0 || afterSequence > 9999999999 ||
@@ -251,14 +268,14 @@ async function readMessages(
     if(conversation.purpose==='knowledge' && message.role==='tool') v2ServerError();
     if(conversation.purpose==='knowledge' && message.role==='assistant') {
       try {
-        const restored=await restoreKnowledgeMessage(message.content,refs=>hydrateKnowledgeSources(event,connection,refs));
+        const restored=await restoreKnowledgeMessage(message.content,refs=>hydrateKnowledgeSources(event,connection,refs,{scope:knowledgeFilter(conversation)}));
         message.content=restored.answer;
-        message.citations=restored.citations;
+        message.citations=(includeDependencies ? restored.dependencyCitations : undefined) ?? restored.citations;
       } catch (error) {
         if (!(error instanceof KnowledgeHistoryError)) v2ServerError();
         // For model context the rows are newest first. Keep only the contiguous newer suffix.
         if (newest) break;
-        message.content='公开资料已变更，历史回答不可用。';
+        message.content=conversation.knowledge_scope==='public' ? '公开资料已变更，历史回答不可用。' : '资料已变更，历史回答不可用。';
       }
     }
     if (conversation.purpose === 'group' && message.role === 'assistant') {
@@ -301,22 +318,24 @@ export async function createConversation(event: H3Event, connection: oracledb.Co
   const actor = v2Auth(event);
   if (!input || typeof input !== 'object' || Array.isArray(input)) v2BadRequest('会话参数错误');
   const body = input as Record<string, unknown>;
-  if (Object.keys(body).some(key => !['purpose', 'group_id', 'title'].includes(key))) v2BadRequest('会话参数错误');
+  if (Object.keys(body).some(key => !['purpose', 'group_id', 'title', 'knowledge_scope'].includes(key))) v2BadRequest('会话参数错误');
   const purpose = body.purpose;
   if (typeof purpose !== 'string' || !['knowledge', 'writing', 'group', 'moderation'].includes(purpose)) v2BadRequest('会话用途错误');
   const groupId = body.group_id === undefined || body.group_id === null ? null : body.group_id;
+  const knowledgeScope = body.knowledge_scope === undefined ? 'public' : body.knowledge_scope;
+  if (!isKnowledgeScope(knowledgeScope) || (body.knowledge_scope !== undefined && purpose !== 'knowledge')) v2BadRequest('会话参数错误');
   if (groupId !== null && (typeof groupId !== 'number' || !Number.isSafeInteger(groupId) || groupId <= 0)) v2BadRequest('群组参数错误');
   if (body.title !== undefined && body.title !== null && typeof body.title !== 'string') v2BadRequest('会话标题错误');
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   if (title.length > 200) v2BadRequest('会话标题过长');
-  await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: purpose as ConversationPurpose, groupId });
+  await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: purpose as ConversationPurpose, groupId, knowledgeScope });
   await requireFeatureSchema(connection, 'ai-conversations');
   const id = randomUUID();
   let commitStarted = false;
   try {
-    const inserted = await v2Execute(connection, `INSERT INTO n_ai_conversations (conversation_id,owner_user_id,purpose,group_id,title)
-      VALUES (:conversation_id,:owner_user_id,:purpose,:group_id,:title)`,
-      { conversation_id: id, owner_user_id: actor.userId, purpose, group_id: groupId, title: title || null }, false);
+    const inserted = await v2Execute(connection, `INSERT INTO n_ai_conversations (conversation_id,owner_user_id,purpose,group_id,title,knowledge_scope)
+      VALUES (:conversation_id,:owner_user_id,:purpose,:group_id,:title,:knowledge_scope)`,
+      { conversation_id: id, owner_user_id: actor.userId, purpose, group_id: groupId, title: title || null, knowledge_scope: knowledgeScope }, false);
     if (inserted !== 1) v2ServerError();
     const result = await readConversation(event, connection, id);
     commitStarted = true;
@@ -383,14 +402,14 @@ export async function appendModerationAdvice(
 /** Trusted knowledge generation path; references are checked inside the write transaction. */
 export async function appendKnowledgeAssistantMessage(
   event:H3Event,connection:oracledb.Connection,id:string,
-  input:{answer:string;sources:IndexedSource[];contextSources?:IndexedSource[];contextSnapshot?:HistoryMessage[];expectedSequence:number;modelId:string;modelVersion?:string;configRevision:number;skillGeneration:number;signal?:AbortSignal}
+  input:{answer:string;sources:IndexedSource[];dependencies?:IndexedSource[];contextSources?:IndexedSource[];contextSnapshot?:HistoryMessage[];expectedSequence:number;modelId:string;modelVersion?:string;configRevision:number;skillGeneration:number;signal?:AbortSignal}
 ):Promise<{message_id:string;conversation_id:string;sequence_no:number;role:'assistant'}> {
   validateAssistantInput(input);
   if(!Number.isSafeInteger(input.skillGeneration) || input.skillGeneration<1 || input.skillGeneration>999_999_999_999_999) v2BadRequest('技能配置错误');
   let content:string;
   let contextGuard:string|undefined;
   let contextSnapshot:HistoryMessage[]|undefined;
-  try {content=encodeKnowledgeMessage({answer:input.answer,sources:input.sources});} catch {v2BadRequest('知识回复参数错误');}
+  try {content=encodeKnowledgeMessage({answer:input.answer,sources:input.sources,...(input.dependencies ? {dependencies:input.dependencies} : {})});} catch {v2BadRequest('知识回复参数错误');}
   try {
     if(input.contextSources!==undefined) {
       if(!Array.isArray(input.contextSources)) throw new Error('invalid context sources');
@@ -408,14 +427,17 @@ export async function appendKnowledgeAssistantMessage(
   return appendMessage(event,connection,id,{role:'assistant',content,expectedSequence:input.expectedSequence,modelId:input.modelId,modelVersion:input.modelVersion,configRevision:input.configRevision,knowledge:true,skillGeneration:input.skillGeneration,contextGuard,contextSnapshot,signal:input.signal});
 }
 async function checkContextSnapshot(event:H3Event,connection:oracledb.Connection,id:string,snapshot:HistoryMessage[]) {
-  const messages=await listConversationMessages(event,connection,id,snapshot[0]!.sequence_no-1,snapshot.length);
+  const messages=await readMessages(event,connection,id,snapshot[0]!.sequence_no-1,snapshot.length,false,0,true);
   const actual=messages.map(message=>({sequence_no:message.sequence_no,role:message.role,content:message.content,
     ...(message.citations ? {citations:message.citations.map(source=>({...source}))} : {})}));
   if(JSON.stringify(actual)!==JSON.stringify(snapshot)) v2Conflict('会话已变更，请重试');
 }
-async function safeRestoreKnowledge(event:H3Event,connection:oracledb.Connection,content:string,lockTerms=false) {
-  try {return await restoreKnowledgeMessage(content,refs=>hydrateKnowledgeSources(event,connection,refs,{lockTerms}));}
-  catch {v2ServerError();}
+async function safeRestoreKnowledge(event:H3Event,connection:oracledb.Connection,content:string,scope:KnowledgeFilter,lockTerms=false) {
+  try {return await restoreKnowledgeMessage(content,refs=>hydrateKnowledgeSources(event,connection,refs,{lockTerms,scope}));}
+  catch (error) {
+    if (scope.kind !== 'public' && error instanceof KnowledgeHistoryError) v2Conflict('会话已变更，请重试');
+    v2ServerError();
+  }
 }
 
 type AppendInput = { role: 'user'; content: unknown } |
@@ -433,12 +455,15 @@ async function appendMessage<T extends AppendInput>(
   await requireFeatureSchema(connection, 'ai-conversations');
   let commitStarted = false;
   try {
-    const row = await v2One(connection, `SELECT conversation_id,owner_user_id,purpose,group_id,title,created_at,updated_at
+    const row = await v2One(connection, `SELECT conversation_id,owner_user_id,purpose,group_id,title,created_at,updated_at,knowledge_scope
       FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id FOR UPDATE`,
       { conversation_id: id, owner_user_id: actor.userId });
     if (!row) v2NotFound('会话不存在');
     const scope = mapRow(row);
-    await authorizeConversationScope(event, connection, { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: scope.purpose, groupId: scope.group_id });
+    if (scope.knowledge_scope === 'group' && scope.group_id !== null) {
+      await lockKnowledgeMembership(connection, actor.userId, scope.group_id);
+    }
+    await authorizeConversationScope(event, connection, { ownerUserId: v2Number(row.OWNER_USER_ID), purpose: scope.purpose, groupId: scope.group_id, knowledgeScope: scope.knowledge_scope });
     if(input.role==='assistant' && (scope.purpose==='knowledge')!==Boolean(input.knowledge)) v2Conflict('会话已变更，请重试');
     const groupDraft = input.role === 'assistant' ? input.draft : undefined;
     const review = input.role === 'assistant' ? input.review : undefined;
@@ -453,13 +478,13 @@ async function appendMessage<T extends AppendInput>(
       const config=await lockSkillRegistry(event,connection);
       if(config.generation!==input.skillGeneration) v2Conflict('会话已变更，请重试');
       const skillId = review ? 'moderation-advice' : groupDraft ? 'group-brief' : input.knowledge ? 'knowledge-answer' : 'writing-draft';
-      await config.registry.select({actorId:actor.userId,purpose:scope.purpose,groupId:scope.group_id,skillId},async()=>{
-        await authorizeConversationScope(event,connection,{ownerUserId:actor.userId,purpose:scope.purpose,groupId:scope.group_id});return true;
+      await config.registry.select({actorId:actor.userId,purpose:scope.purpose,groupId:scope.purpose === 'group' ? scope.group_id : null,skillId},async()=>{
+        await authorizeConversationScope(event,connection,{ownerUserId:actor.userId,purpose:scope.purpose,groupId:scope.group_id,knowledgeScope:scope.knowledge_scope});return true;
       });
     }
     if (review) await requireCurrentModerationAdvice(event, connection, review, true);
-    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content,true);
-    if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard,true);
+    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content,knowledgeFilter(scope),true);
+    if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard,knowledgeFilter(scope),true);
     const next = await v2One(connection, 'SELECT NVL(MAX(sequence_no),0)+1 AS next_sequence FROM n_ai_messages WHERE conversation_id=:conversation_id', { conversation_id: id });
     const sequenceNo = v2Number(next?.NEXT_SEQUENCE);
     if (!Number.isSafeInteger(sequenceNo) || sequenceNo <= 0 || sequenceNo > 9999999999) v2ServerError();
@@ -478,9 +503,9 @@ async function appendMessage<T extends AppendInput>(
       WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`,
       { conversation_id: id, owner_user_id: actor.userId }, false);
     if (updated !== 1) v2ServerError();
-    await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: scope.purpose, groupId: scope.group_id });
-    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content,true);
-    if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard,true);
+    await authorizeConversationScope(event, connection, { ownerUserId: actor.userId, purpose: scope.purpose, groupId: scope.group_id, knowledgeScope: scope.knowledge_scope });
+    if(input.role==='assistant' && input.knowledge) await safeRestoreKnowledge(event,connection,content,knowledgeFilter(scope),true);
+    if(input.role==='assistant' && input.knowledge && input.contextGuard) await safeRestoreKnowledge(event,connection,input.contextGuard,knowledgeFilter(scope),true);
     if(input.role==='assistant' && input.contextSnapshot) await checkContextSnapshot(event,connection,id,input.contextSnapshot);
     if (groupDraft && scope.group_id !== null) await requireCurrentGroupDraft(event, connection, scope.group_id, groupDraft);
     if (review) await requireCurrentModerationAdvice(event, connection, review);

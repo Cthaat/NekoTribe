@@ -4,6 +4,8 @@ import { useNuxtApp } from '#app';
 import { usePreferenceStore } from '@/stores/user';
 import { authQueueFor } from '@/services/auth-request-queue';
 import { setUserVisibility } from '@/api/v2/user-visibility';
+import { v2ClearProfilePin, v2GetProfilePin, v2SetProfilePin } from '@/api/v2/profile-pinned-post';
+import { mapPost } from '@/services/posts';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import TweetList from '@/components/TweetList.vue';
@@ -118,6 +120,7 @@ let disposed = false;
 let profileLoad = 0;
 let analyticsLoad = 0;
 let tweetsLoad = 0;
+let pinLoad = 0;
 let relationshipIntent = 0;
 let observedRevision = queue.revision;
 const isCurrent = (id: number, revision: number) => !disposed && !queue.isIdentityChanging &&
@@ -137,6 +140,9 @@ function resetRelationship(): void {
   profileLoading.value = true;
   profileError.value = false;
   tweetsLoad++;
+  pinLoad++;
+  pinnedTweet.value = null;
+  profilePinPending.value = false;
   tweetsLoading.value = false;
   tweetsError.value = null;
   fullTweets.value = [];
@@ -168,6 +174,16 @@ onUnmounted(() => { disposed = true; unsubscribe(); });
 const page = ref(1);
 const pageSize = ref(10);
 const fullTweets = ref<PostVM[]>([]);
+const pinnedTweet = ref<PostVM | null>(null);
+const profilePinPending = ref(false);
+const canManageProfilePin = computed(() => profileReady.value && preferenceStore.isLoggedIn &&
+  preferenceStore.preferences.user.id === userId.value);
+const visibleProfileTweets = computed(() => {
+  const pin = pinnedTweet.value;
+  if (!pin || blockedByViewer.value || blockedByTarget.value) return fullTweets.value;
+  const other = fullTweets.value.filter(tweet => tweet.id !== pin.id);
+  return page.value === 1 ? [fullTweets.value.find(tweet => tweet.id === pin.id) ?? pin,...other] : other;
+});
 const tweetsLoading = ref(false);
 const tweetsError = ref<string | null>(null);
 const totalTweetsCount = ref(0);
@@ -277,11 +293,43 @@ watch(page, () => {
   void loadTweets();
 });
 
+async function loadPinnedTweet() {
+  const id = userId.value, revision = queue.revision, load = ++pinLoad;
+  if (!profileReady.value || !isCurrent(id,revision)) return;
+  const current = () => load === pinLoad && profileReady.value && isCurrent(id,revision);
+  try {
+    const pin = await app.runWithContext(() => v2GetProfilePin(id));
+    if (current()) pinnedTweet.value = pin ? mapPost(pin) : null;
+  } catch {
+    if (current()) pinnedTweet.value = null;
+  }
+}
+
+async function handleToggleProfilePin(tweet: PostVM) {
+  const id = userId.value, revision = queue.revision;
+  if (!canManageProfilePin.value || tweet.author.id !== id || profilePinPending.value || !isCurrent(id,revision)) return;
+  const clear = pinnedTweet.value?.id === tweet.id;
+  pinLoad++;
+  profilePinPending.value = true;
+  try {
+    await app.runWithContext(() => clear ? v2ClearProfilePin() : v2SetProfilePin(tweet.id));
+    if (!isCurrent(id,revision)) return;
+    pinnedTweet.value = clear ? null : tweet;
+    if (!clear) page.value = 1;
+    toast.success(t(clear ? 'post.profilePin.cleared' : 'post.profilePin.saved'));
+  } catch {
+    if (isCurrent(id,revision)) toast.error(t('common.operationFailed'));
+  } finally {
+    if (isCurrent(id,revision)) profilePinPending.value = false;
+  }
+}
+
 async function refreshProfilePage(): Promise<void> {
   if (!await loadUserProfile()) return;
   await Promise.all([
     loadUserAnalytics(),
-    loadTweets()
+    loadTweets(),
+    loadPinnedTweet()
   ]);
 }
 
@@ -296,6 +344,10 @@ async function handleDeleteTweet(tweetId: number) {
     fullTweets.value = fullTweets.value.filter(
       tweet => tweet.id !== tweetId
     );
+    if (pinnedTweet.value?.id === tweetId) {
+      pinLoad++;
+      pinnedTweet.value = null;
+    }
     totalTweetsCount.value = Math.max(totalTweetsCount.value - 1, 0);
   } catch {
     toast.error(t('post.feedback.deleteFailed'));
@@ -312,6 +364,11 @@ function handleRetweetTweet(tweet: PostVM) {
   return navigateTo(detailPage);
 }
 
+function updateProfileTweet(id: number, update: (tweet: PostVM) => PostVM) {
+  fullTweets.value = fullTweets.value.map(tweet => tweet.id === id ? update(tweet) : tweet);
+  if (pinnedTweet.value?.id === id) pinnedTweet.value = update(pinnedTweet.value);
+}
+
 async function handleLikeTweet(
   tweet: PostVM,
   action: 'like' | 'unlike'
@@ -321,13 +378,7 @@ async function handleLikeTweet(
       action === 'like'
         ? await v2LikePost(tweet.id)
         : await v2UnlikePost(tweet.id);
-    const index = fullTweets.value.findIndex(
-      item => item.id === tweet.id
-    );
-    if (index !== -1) {
-      const currentTweet = fullTweets.value[index];
-      if (!currentTweet) return;
-      fullTweets.value[index] = {
+    updateProfileTweet(tweet.id,currentTweet => ({
         ...currentTweet,
         viewer: {
           ...currentTweet.viewer,
@@ -337,8 +388,7 @@ async function handleLikeTweet(
           ...currentTweet.counts,
           likes: result.likesCount
         }
-      };
-    }
+    }));
   } catch {
     toast.error(t('common.operationFailed'));
   }
@@ -353,20 +403,13 @@ async function handleBookmarkTweet(
       action === 'mark'
         ? await v2BookmarkPost(tweet.id)
         : await v2UnbookmarkPost(tweet.id);
-    const index = fullTweets.value.findIndex(
-      item => item.id === tweet.id
-    );
-    if (index !== -1) {
-      const currentTweet = fullTweets.value[index];
-      if (!currentTweet) return;
-      fullTweets.value[index] = {
+    updateProfileTweet(tweet.id,currentTweet => ({
         ...currentTweet,
         viewer: {
           ...currentTweet.viewer,
           hasBookmarked: result.isBookmarked
         }
-      };
-    }
+    }));
   } catch {
     toast.error(t('common.operationFailed'));
   }
@@ -443,6 +486,8 @@ async function applyVisibility(target: { id: number; revision: number }, action:
     profileLoad++;
     if (action === 'block') {
       analyticsLoad++;
+      pinLoad++;
+      pinnedTweet.value = null;
       userAnalytics.value = null;
       user.value.point = 0;
       blockedByViewer.value = true;
@@ -558,14 +603,18 @@ async function applyVisibility(target: { id: number; revision: number }, action:
         <Button variant="outline" size="sm" @click="loadTweets">{{ t('common.retry') }}</Button>
       </div>
 
-      <div v-else-if="fullTweets.length > 0">
+      <div v-else-if="visibleProfileTweets.length > 0">
         <TweetList
-          :tweets="fullTweets"
+          :tweets="visibleProfileTweets"
+          :pinned-post-id="pinnedTweet?.id"
+          :can-manage-profile-pin="canManageProfilePin"
+          :profile-pin-pending="profilePinPending"
           @delete-tweet="handleDeleteTweet"
           @reply-tweet="handleReplyTweet"
           @retweet-tweet="handleRetweetTweet"
           @like-tweet="handleLikeTweet"
           @bookmark-tweet="handleBookmarkTweet"
+          @toggle-profile-pin="handleToggleProfilePin"
         />
       </div>
 

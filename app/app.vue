@@ -2,6 +2,7 @@
   <div>
     <ClientOnly>
       <Toaster richColors position="bottom-right" />
+      <WebRtcCallDialog />
     </ClientOnly>
     <NuxtLayout>
       <NuxtPage />
@@ -10,6 +11,7 @@
 </template>
 
 <script setup lang="ts">
+import WebRtcCallDialog from '@/components/WebRtcCallDialog.vue'
 import { Toaster } from "@/components/ui/sonner"
 const { t, locale } = useAppLocale()
 

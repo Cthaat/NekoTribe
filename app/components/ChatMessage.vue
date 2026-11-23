@@ -76,12 +76,18 @@ export interface ChatMessageType {
   }>;
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   message: ChatMessageType;
   isOwn?: boolean;
   showAvatar?: boolean;
   isFirstInGroup?: boolean;
-}>();
+  allowEdit?: boolean;
+  allowDelete?: boolean;
+  hideReply?: boolean;
+}>(), { allowEdit: undefined, allowDelete: undefined });
+
+const showDeleteAction = computed(() => props.allowDelete ?? (props.isOwn || props.message.canDelete));
+const showEditAction = computed(() => props.isOwn && props.message.type === 'text' && props.allowEdit !== false);
 
 const emit = defineEmits<{
   (e: 'reply', message: ChatMessageType): void;
@@ -314,6 +320,8 @@ const handleViewProfile = () => {
           </span>
         </div>
 
+        <LinkPreviewCard :text="message.content" />
+
         <!-- 图片附件 -->
         <div
           v-if="publicImages.length"
@@ -429,7 +437,7 @@ const handleViewProfile = () => {
           </TooltipContent>
         </Tooltip>
 
-        <Tooltip>
+        <Tooltip v-if="!hideReply">
           <TooltipTrigger as-child>
             <Button
               variant="ghost"
@@ -471,16 +479,16 @@ const handleViewProfile = () => {
                   : t('chat.actions.pinMessage')
               }}
             </DropdownMenuItem>
-            <DropdownMenuSeparator v-if="isOwn || message.canDelete" />
+            <DropdownMenuSeparator v-if="showEditAction || showDeleteAction" />
             <DropdownMenuItem
-              v-if="isOwn && message.type === 'text'"
+              v-if="showEditAction"
               @click="emit('edit', message)"
             >
               <Edit3 class="h-4 w-4" />
               {{ t('chat.actions.editMessage') }}
             </DropdownMenuItem>
             <DropdownMenuItem
-              v-if="isOwn || message.canDelete"
+              v-if="showDeleteAction"
               class="text-destructive focus:text-destructive"
               @click="emit('delete', message.id)"
             >

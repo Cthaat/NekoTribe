@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const stubs={
- '~/server/utils/logging':`export const logInfo=(scope,event)=>globalThis.__aiWritingAudit.push({scope,...event});`,
+ '~/server/utils/logging':`export const logInfo=(scope,event)=>globalThis.__aiWritingAudit.push({scope,...event}); export const getRequestLogContext=()=>null;`,
  '~/server/utils/ai-model-quota':`export class AiQuotaError extends Error {} export const requireAiModelQuota=async(e,actor,cost)=>{if(actor!==42||cost!==1)throw Error('quota');e.events.push('reserve')};`,
  '~/server/utils/v2':`export const v2Auth=e=>{if(!e.user)throw Error('401');return {userId:42}}; export const v2Connection=async e=>e.open(); export const v2ServerError=()=>{throw Error('500')};`,
  './skill-conversation':`export async function selectConfiguredConversationSkill(e,c,scope){e.events.push('skill');if(e.disabled)throw Error('SKILL_UNAVAILABLE');if(scope.ownerUserId!==42 || scope.purpose!=='writing')throw Error('scope');return {configGeneration:7,skill:{id:'writing-draft'}}}`,
@@ -14,7 +14,20 @@ const stubs={
   export const listRecentConversationMessages=async(e,c)=>{e.events.push('history');return [{sequence_no:1,role:'user',content:'test'}]};
   export const appendAssistantMessage=async(e,c,id,input)=>{e.events.push('append');return {sequence_no:2,...input}};`,
  './model-configuration.ts':`export class AiConfigurationError extends Error {}; export class AiModelRouter {constructor(x){} select(){return {configurationRevision:1,profileId:'test',modelVersion:'build-b',contextWindowTokens:8192,maxOutputTokens:512,adapter:'ollama',model:'test',baseUrl:'http://localhost',apiKeyEnv:null,capabilities:[]}}}`,
- './inference-transport.ts':`export class AiInferenceTransport {async infer(s,i){globalThis.__aiWritingEvents.push('infer');return {text:'answer',toolCalls:[],finishReason:'stop'}}}`
+ './user-provider': `export const personalWritingKeyReference='PERSONAL_WRITING_CREDENTIAL';
+   export const personalWritingProvider=(event,owner)=>{
+     if(owner!==42)throw Error('wrong profile owner');
+     if(event.unusable)return {kind:'unusable'};
+     return event.personal ? {kind:'personal',credential:'isolated-only-key',selection:{
+       configurationRevision:4,profileId:'personal-writing',contextWindowTokens:8192,maxOutputTokens:512,apiKeyEnv:personalWritingKeyReference}} : null;
+   };`,
+ './inference-transport.ts':`export class AiInferenceTransport {
+   constructor(resolve){this.resolve=resolve;}
+   async infer(s,i){
+     if(s.profileId==='personal-writing' && this.resolve(s.apiKeyEnv)!=='isolated-only-key')throw Error('wrong account credential');
+     globalThis.__aiWritingEvents.push('infer');return {text:'answer',toolCalls:[],finishReason:'stop'};
+   }
+ }`
 };
 const result=await build({stdin:{contents:`export {generateWritingReply} from './server/services/ai/writing-service';`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'boundaries',setup(b){
  b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});
@@ -56,5 +69,18 @@ test('expected writing sequence mismatch prevents quota use, inference and save'
  await assert.rejects(()=>generateWritingReply(event,'id','{}',undefined,null,2),/SEQUENCE_CONFLICT/);
  assert.deepEqual(events,['read','history','skill']);
  assert.equal(globalThis.__aiWritingAudit.pop().outcome,'failed');
+ delete globalThis.__aiWritingEvents;
+});
+test('personal writing uses the account credential and preserves permission and quota checks',async()=>{
+ const events=[];globalThis.__aiWritingEvents=events;
+ const event={user:true,personal:true,events,async open(){return {async close(){}}}};
+ const reply=await generateWritingReply(event,'id','{}');
+ assert.equal(reply.modelId,'personal-writing');
+ assert.equal(reply.configRevision,4);
+ assert.deepEqual(events,['read','history','skill','reserve','infer','append']);
+ assert(!JSON.stringify(globalThis.__aiWritingAudit.pop()).includes('isolated-only-key'));
+ events.length=0;event.unusable=true;
+ await assert.rejects(()=>generateWritingReply(event,'id','{}'),/PROVIDER_FAILED/);
+ assert.deepEqual(events,[]);
  delete globalThis.__aiWritingEvents;
 });

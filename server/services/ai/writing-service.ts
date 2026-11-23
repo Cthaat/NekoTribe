@@ -9,6 +9,8 @@ import { AiInferenceTransport } from './inference-transport.ts';
 import { runWritingTurn, WritingTurnError } from './writing-turn.ts';
 import { selectConfiguredConversationSkill } from './skill-conversation';
 import { AiRunAudit } from './run-audit';
+import { generationDeltas } from './stream-response';
+import { personalWritingKeyReference, personalWritingProvider } from './user-provider';
 
 async function withConnection<T>(event:H3Event, action:(connection:oracledb.Connection)=>Promise<T>):Promise<T> {
   let connection:oracledb.Connection;
@@ -16,14 +18,21 @@ async function withConnection<T>(event:H3Event, action:(connection:oracledb.Conn
   try {return await action(connection);}
   finally {try {await connection.close();} catch {v2ServerError();}}
 }
-/** Configuration and credentials are supplied by the server environment, never the client. */
+/** Resolve the provider through the authenticated writer's saved account settings. */
 export async function generateWritingReply(event:H3Event,id:string,configuration?:string,signal?:AbortSignal,skillId: 'writing-draft' | null = null,expectedSequence?:number) {
   const actor=v2Auth(event);
-  let router:AiModelRouter;
+  let router:Pick<AiModelRouter,'select'>;
+  let credential:string|undefined;
   try {
-    router=await configuredModelRouter(configuration);
+    const personal = await personalWritingProvider(event,actor.userId);
+    if (personal?.kind === 'unusable') throw new WritingTurnError('PROVIDER_FAILED');
+    if (personal?.kind === 'personal') {
+      router = {select:()=>personal.selection};
+      credential = personal.credential;
+    } else router=await configuredModelRouter(configuration);
   } catch {throw new WritingTurnError('PROVIDER_FAILED');}
-  const transport=new AiInferenceTransport(reference=>process.env[reference]);
+  const transport=new AiInferenceTransport(reference=>
+    credential !== undefined && reference === personalWritingKeyReference ? credential : process.env[reference]);
   let skillGeneration:number|undefined;
   let configRevision=0;
   const audit: { current?: AiRunAudit } = {};
@@ -39,7 +48,7 @@ export async function generateWritingReply(event:H3Event,id:string,configuration
       if(conversation.purpose==='writing') {
         const selected=await selectConfiguredConversationSkill(event,connection,{ownerUserId:actor.userId,purpose:conversation.purpose,groupId:conversation.group_id},skillId);
         skillGeneration=selected.configGeneration;
-        audit.current=new AiRunAudit('writing_draft',skillGeneration,skillId ? 'explicit' : 'purpose-default');
+        audit.current=new AiRunAudit(event,'writing_draft',skillGeneration,skillId ? 'explicit' : 'purpose-default');
         audit.current.configRevision=configRevision;
       }
       return {purpose:conversation.purpose,messages};
@@ -50,7 +59,7 @@ export async function generateWritingReply(event:H3Event,id:string,configuration
     },
     infer:(selection,input,cancel)=>{
       if(audit.current) audit.current.stage='inference';
-      return transport.infer(selection,input,cancel);
+      return transport.infer(selection,input,cancel,generationDeltas(event));
     },
     write:async input=>{
       if(audit.current) audit.current.stage='persist';

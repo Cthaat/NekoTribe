@@ -66,10 +66,14 @@ import {
   BrainCircuit,
   Hash,
   MapPin,
+  Pin,
+  PinOff,
   Pencil
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
 import TweetContent from '@/components/TweetContent.vue';
+import PostPollPanel from '@/components/PostPollPanel.vue';
+import PostMarkdown from '@/components/PostMarkdown.vue';
 
 const preferenceStore = usePreferenceStore();
 const tweetStore = useTweetStore(); // 2. 获取 store 实例
@@ -82,13 +86,17 @@ const emit = defineEmits([
   'reply-tweet',
   'retweet-tweet',
   'like-tweet',
-  'bookmark-tweet'
+  'bookmark-tweet',
+  'toggle-profile-pin'
 ]);
 
 const props = withDefaults(
   defineProps<{
     tweet: PostVM;
     showRelationContext?: boolean;
+    pinnedOnProfile?: boolean;
+    canManageProfilePin?: boolean;
+    profilePinPending?: boolean;
   }>(),
   {
     showRelationContext: true
@@ -422,6 +430,9 @@ const relatedExcerpt = computed(() => {
     @click.stop="toTweetDetail(String(tweet.id))"
     class="group relative mx-auto my-3 max-w-2xl cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card py-0 shadow-none transition-all duration-200 ease-out hover:border-border hover:shadow-md focus-within:ring-2 focus-within:ring-ring/40"
   >
+    <p v-if="pinnedOnProfile" class="flex items-center gap-1.5 px-5 pt-3 text-xs font-medium text-muted-foreground">
+      <Pin class="size-3.5" />{{ t('post.profilePin.label') }}
+    </p>
     <CardHeader class="flex flex-row items-start gap-3 px-5 pb-2 pt-5 sm:gap-4">
       <Avatar
         class="h-10 w-10 shrink-0 ring-1 ring-border transition-transform group-hover:scale-[1.02] sm:h-11 sm:w-11"
@@ -489,6 +500,12 @@ const relatedExcerpt = computed(() => {
           <DropdownMenuItem @select="navigateTo(localePath('/ai/knowledge'))">
             <BrainCircuit class="mr-2 h-4 w-4" />
             <span>{{ t('aiKnowledge.title') }}</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem v-if="isOwnTweet && canManageProfilePin" :disabled="profilePinPending"
+            @select="emit('toggle-profile-pin',tweet)">
+            <component :is="pinnedOnProfile ? PinOff : Pin" class="mr-2 size-4" />
+            <span>{{ t(pinnedOnProfile ? 'post.profilePin.clear' : 'post.profilePin.set') }}</span>
           </DropdownMenuItem>
 
           <DropdownMenuItem
@@ -653,8 +670,12 @@ const relatedExcerpt = computed(() => {
       </div>
 
       <div class="text-[15px] leading-relaxed text-foreground/95">
-        <TweetContent :content="tweet.content" />
+        <PostMarkdown v-if="tweet.markdown" :source="tweet.markdown" />
+        <TweetContent v-else :content="tweet.content" />
       </div>
+      <LinkPreviewCard :text="tweet.content" :markdown="tweet.markdown" />
+      <PostPollPanel v-if="tweet.poll" :key="tweet.poll.poll_id" :poll="tweet.poll" :post-id="tweet.id"
+        :can-vote="preferenceStore.isLoggedIn" />
 
       <div
         v-if="hasPostLabels"

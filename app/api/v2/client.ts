@@ -8,6 +8,7 @@ import type {
   V2PagedResult,
   V2Primitive
 } from '@/types/v2';
+import { readAiStream, type GenerationDelta } from './ai-stream';
 
 export type V2QueryValue =
   | V2Primitive
@@ -27,6 +28,7 @@ export interface V2RequestOptions<
   headers?: Record<string, string>;
   signal?: AbortSignal;
   redirect?: RequestRedirect;
+  onDelta?: GenerationDelta;
 }
 
 export async function v2Request<
@@ -55,6 +57,14 @@ export async function v2RequestData<
   path: string,
   options: V2RequestOptions<TBody, TQuery> = {}
 ): Promise<TData> {
+  if (options.onDelta) {
+    const stream = await apiFetch<ReadableStream<Uint8Array>, 'stream'>(path, {
+      method: options.method, body: options.body, query: options.query,
+      signal: options.signal, headers: { ...options.headers, Accept: 'text/event-stream' },
+      responseType: 'stream', cache: 'no-store', redirect: 'error'
+    });
+    return readAiStream<TData>(stream, options.onDelta);
+  }
   const response = await v2Request<TData, TBody, TQuery>(
     path,
     options

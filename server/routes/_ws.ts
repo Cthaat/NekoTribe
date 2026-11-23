@@ -1,6 +1,6 @@
 import type { Peer } from 'crossws';
 import { v2VerifyAccessToken } from '~/server/services/v2/auth';
-import { v2CanAccessChatChannel, v2CanDeliverDirectMessage } from '~/server/services/v2/chat';
+import { v2CanAccessChatChannel, v2CanDeliverDirectMessage, v2CanDeliverDirectRead, v2DirectTypingPeer } from '~/server/services/v2/chat';
 import {
   v2PublishUserPresence,
   v2TouchAuthSession
@@ -9,7 +9,7 @@ import { getOracleConnection } from '~/server/utils/oracle';
 import { resolveCorsOrigin } from '~/server/utils/cors';
 import { attachOracleQueryCacheWithSource } from '~/server/utils/oracle-query-cache';
 import type { WSMessage } from '~/server/utils/redis';
-import { getRedisClient } from '~/server/utils/redis';
+import { getRedisClient, publishMessage, REDIS_CHANNELS } from '~/server/utils/redis';
 import { createRedisRealtimeTransport } from '~/server/utils/realtime-redis';
 import { createRealtimeSubscription } from '~/server/utils/realtime-subscription';
 import type { RealtimeSubscription } from '~/server/utils/realtime-subscription';
@@ -18,11 +18,18 @@ import {
   WS_SERVER_ID,
   sendWsEventToSession,
   sendWsRawToSession,
+  sendWsToRoom,
+  sendWsToUser,
   disconnectWsSession,
   revalidateWsSession,
   sessionManager
 } from '~/server/utils/wsSession';
 import { touchActiveSession } from '~/server/utils/auth-session';
+import { isTypingEvent, typingInput, typingMinIntervalMs, type TypingEvent } from '~/server/utils/chat-realtime-details';
+import { isCallClientEvent } from '~/server/utils/webrtc-signaling';
+import { createWebRtcSocket } from '~/server/services/v2/webrtc-socket';
+import { correlationId, observeHttp } from '~/server/utils/observability';
+import { logInfo } from '~/server/utils/logging';
 
 type ExtendedPeer = Peer & {
   sessionId?: string;
@@ -34,6 +41,8 @@ type ExtendedPeer = Peer & {
   realtime?: RealtimeSubscription;
   inboundTail?: Promise<void>;
   pendingInbound?: number;
+  lastTyping?: Partial<Record<TypingEvent, number>>;
+  call?: ReturnType<typeof createWebRtcSocket>;
 };
 
 interface WsPeerRequest {
@@ -169,6 +178,7 @@ function parseClientMessage(raw: string): ClientMessage | null {
     if (!isRecord(parsed) || typeof parsed.type !== 'string') {
       return null;
     }
+    if ((isTypingEvent(parsed.type) || isCallClientEvent(parsed.type)) && Object.keys(parsed).length !== 2) return null;
     return {
       type: parsed.type,
       data: parsed.data
@@ -254,6 +264,41 @@ function handleLeaveChatChannel(sessionId: string, data: unknown): void {
   (session.peer as ExtendedPeer).realtime?.leaveChat(channelId);
 }
 
+async function handleTyping(sessionId: string, type: TypingEvent, data: unknown): Promise<void> {
+  const scope = typingInput(data);
+  const session = sessionManager.getSession(sessionId);
+  if (!scope || !session) return;
+  const extended = session.peer as ExtendedPeer;
+  const room = 'channel_id' in scope ? chatRoomId(scope.channel_id) : null;
+  if (room && !session.joinedRooms.has(room)) return;
+  const now = Date.now();
+  const last = extended.lastTyping ??= {};
+  if (now - (last[type] ?? 0) < typingMinIntervalMs) return;
+  last[type] = now;
+  const userId = session.auth.userId;
+  const frame: WSMessage = {type,data:{...scope,user_id:userId,server_id:WS_SERVER_ID},timestamp:now};
+  const active = () => sessionManager.getSession(sessionId) === session && !session.closing;
+
+  try {
+    const connection = await getOracleConnection();
+    let peer: number | null = null;
+    let channelAllowed = false;
+    try {
+      if ('conversation_id' in scope) {
+        peer = await v2DirectTypingPeer(connection, userId, scope.conversation_id);
+      } else {
+        channelAllowed = await v2CanAccessChatChannel(connection, userId, scope.channel_id);
+      }
+    } finally { await connection.close(); }
+    if (!active()) return;
+    if (peer && peer !== userId) {
+      await Promise.allSettled([sendWsToUser(peer, frame), publishMessage(REDIS_CHANNELS.USER_MESSAGE + peer, frame)]);
+    } else if ('channel_id' in scope && channelAllowed && room && session.joinedRooms.has(room)) {
+      await Promise.allSettled([sendWsToRoom(room, frame), publishMessage(REDIS_CHANNELS.CHAT_CHANNEL + scope.channel_id, frame)]);
+    }
+  } catch { /* Typing state expires on clients when delivery is unavailable. */ }
+}
+
 function clearPresenceOfflineTimer(userId: number): void {
   const timer = presenceOfflineTimers.get(userId);
   if (!timer) return;
@@ -282,6 +327,17 @@ function schedulePresenceOfflinePublish(userId: number): void {
 
 export default defineWebSocketHandler({
   async upgrade(request) {
+    const startedAt = performance.now();
+    const requestId = correlationId(request.headers.get('x-request-id'));
+    const complete = (response?: Response) => {
+      const status = response?.status ?? 101;
+      const elapsed = performance.now() - startedAt;
+      observeHttp('GET', status, elapsed / 1000);
+      logInfo('http:response', { request_id: requestId, method: 'GET', path: '/_ws', statusCode: status, durationMs: Math.floor(elapsed) });
+      if (!response) return { headers: { 'X-Request-Id': requestId } };
+      response.headers.set('X-Request-Id', requestId);
+      return response;
+    };
     const origin = request.headers.get('origin');
     if (origin !== null && !resolveCorsOrigin(origin)) {
       const host = request.headers.get('host');
@@ -294,17 +350,18 @@ export default defineWebSocketHandler({
           parsed.protocol === 'http:' && !!host && origin === `http://${host}`
         );
       } catch { /* Reject malformed or opaque origins. */ }
-      if (!sameOrigin) return handshakeError(403, 40301, 'Forbidden');
+      if (!sameOrigin) return complete(handshakeError(403, 40301, 'Forbidden'));
     }
     const target: WsPeerRequest = {url: request.url, headers: request.headers};
-    if (!extractRequestToken(target)) return handshakeError(401, 40101, '请先登录');
+    if (!extractRequestToken(target)) return complete(handshakeError(401, 40101, '请先登录'));
     try {
-      if (!await authenticateRequest(target)) return handshakeError(401, 40101, 'Token无效或已过期');
+      if (!await authenticateRequest(target)) return complete(handshakeError(401, 40101, 'Token无效或已过期'));
     } catch {
       console.warn('[ws] authentication unavailable');
-      return handshakeError(401, 40101, 'Token无效或已过期');
+      return complete(handshakeError(401, 40101, 'Token无效或已过期'));
     }
-    if (!sessionManager.hasCapacity()) return handshakeError(503, 50301, '服务暂不可用，请稍后重试。');
+    if (!sessionManager.hasCapacity()) return complete(handshakeError(503, 50301, '服务暂不可用，请稍后重试。'));
+    return complete();
   },
   async open(peer) {
     const extended = peer as ExtendedPeer;
@@ -341,7 +398,18 @@ export default defineWebSocketHandler({
         const connection = await getOracleConnection();
         try { return await v2CanDeliverDirectMessage(connection, initialAuth.userId, conversation, message, deleted); }
         finally { await connection.close(); }
-      }
+      },
+      authorizeDirectTyping: async (conversation, actor) => {
+        const connection = await getOracleConnection();
+        try { return await v2DirectTypingPeer(connection, initialAuth.userId, conversation) === actor; }
+        finally { await connection.close(); }
+      },
+      authorizeDirectRead: async (conversation, reader, message) => {
+        const connection = await getOracleConnection();
+        try { return await v2CanDeliverDirectRead(connection, initialAuth.userId, conversation, reader, message); }
+        finally { await connection.close(); }
+      },
+      authorizeCall: (type, data) => extended.call?.authorize(type, data) ?? Promise.resolve(false),
     });
     if (!registered) {
       sendPeer(peer, 'error', {message: '服务暂不可用'});
@@ -352,6 +420,16 @@ export default defineWebSocketHandler({
     extended.sessionAuth = initialAuth;
     const active = () => !extended.connectionClosed && !extended.failed &&
       sessionManager.getSession(sessionId)?.peer === peer;
+    extended.call = createWebRtcSocket({
+      userId: initialAuth.userId, sessionId, isActive: active,
+      findPeer: async conversation => {
+        const connection = await getOracleConnection();
+        try { return await v2DirectTypingPeer(connection, initialAuth.userId, conversation); }
+        finally { await connection.close(); }
+      },
+      reply: frame => sendWsEventToSession(sessionId, frame),
+      reject: call_id => sendSession(sessionId, 'error', {message:'通话信令不可用', ...(call_id ? {call_id} : {})}),
+    });
     clearPresenceOfflineTimer(auth.userId);
     await sendSession(sessionId, 'system_notification', {
       message: 'WebSocket connected', session_id: sessionId, user_id: auth.userId
@@ -405,9 +483,15 @@ export default defineWebSocketHandler({
       sessionManager.updateActivity(sessionId);
       const parsed = parseClientMessage(raw);
       if (!parsed) { await sendSession(sessionId, 'error', {message: '消息格式错误'}); return; }
+      if (isCallClientEvent(parsed.type)) {
+        await extended.call?.handle(parsed.type, parsed.data);
+        return;
+      }
       switch (parsed.type) {
         case 'chat_join_channel': await handleJoinChatChannel(sessionId, parsed.data); break;
         case 'chat_leave_channel': handleLeaveChatChannel(sessionId, parsed.data); break;
+        case 'typing_start':
+        case 'typing_stop': await handleTyping(sessionId, parsed.type, parsed.data); break;
         case 'ping': await sendSession(sessionId, 'pong', {timestamp: Date.now()}); break;
         default: await sendSession(sessionId, 'error', {message: '不支持的 WebSocket 消息类型', type: parsed.type});
       }
@@ -430,6 +514,8 @@ export default defineWebSocketHandler({
     extended.sessionAuth = undefined;
     extended.realtime?.close();
     extended.realtime = undefined;
+    await extended.call?.close();
+    extended.call = undefined;
     if (!auth?.userId || !auth.sessionId) return;
     try {
       const connection = await getCachedWsOracleConnection({authUserId: auth.userId, path: '/_ws/close'});

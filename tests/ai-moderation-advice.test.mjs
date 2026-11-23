@@ -9,17 +9,29 @@ import { build } from 'esbuild';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const spec=JSON.parse(readFileSync(root+'specifications/scenarios/ai-moderation-advice-http.json','utf8'));
 const stubs={
-  '~/server/utils/logging':`export const logInfo=(scope,event)=>{globalThis.__moderationCase.audit=event};`,
+  '~/server/storage': `import {Readable} from 'node:stream';
+    export const getStorageProvider=()=>({async readObject(key){
+      if(key!=='posts/test.png')throw Error('unexpected image read');
+      return {statusCode:200,stream:Readable.from([Buffer.from('iVBORw0KGgo=','base64')])};
+    }});`,
+  '~/server/utils/logging':`export const logInfo=(scope,event)=>{globalThis.__moderationCase.audit=event}; export const getRequestLogContext=()=>null;`,
   h3:`export const defineEventHandler=f=>f,setResponseHeader=(e,k,v)=>e.headers[k]=v,createError=x=>Object.assign(Error(),x);`,
   '~/server/utils/auth-entry-errors':'export const safeV2Action=f=>f();',
   '~/server/utils/v2':`
     const failure=statusCode=>{throw Object.assign(Error(),{statusCode});};
     export const v2Auth=e=>{if(e.condition==='anonymous')failure(401);return {userId:1}},v2RouterParam=e=>e.id,v2Ok=data=>({data}),
       v2BadRequest=()=>failure(400),v2Forbidden=()=>failure(403),v2Conflict=()=>failure(409),v2ServerError=()=>failure(500),v2Throw=failure,
-      v2Connection=e=>({close:()=>{},condition:e.condition}),v2One=()=>({LAST_SEQUENCE:0}),
-      v2Rows=(c,query,binds)=>c.condition==='empty'?[]:[{
-        POST_ID:binds.target_id,GROUP_ID:null,CONTENT:${JSON.stringify(spec.text)},TEXT_LENGTH:${spec.text.length}
-      }];
+      v2Connection=e=>({close:()=>{},condition:e.condition}),
+      v2One=(c,sql)=>sql.includes('a.media_id=:media_id')
+        ? c.condition==='vision-stale' ? null : image
+        : {LAST_SEQUENCE:0},
+      v2Rows=(c,query,binds)=>{
+        if(query.includes('JOIN n_post_media'))return [image];
+        if(c.condition==='empty')return [];
+        if(c.condition.startsWith('vision'))return [{POST_ID:binds.target_id,GROUP_ID:null,CONTENT:null,TEXT_LENGTH:0}];
+        return [{POST_ID:binds.target_id,GROUP_ID:null,CONTENT:${JSON.stringify(spec.text)},TEXT_LENGTH:${spec.text.length}}];
+      };
+    const image={MEDIA_ID:9,STORAGE_KEY:'posts/test.png',ACCESS_SCOPE:'public',MIME_TYPE:'image/png',FILE_SIZE:8};
   `,
   './conversation-store':`
     export const readConversation=e=>{
@@ -45,7 +57,9 @@ const stubs={
   './model-source':`export async function configuredModelRouter() { return {
     select(role, caps) {
       if(role!=='moderation'||caps[0]!=='structured-output')throw Error('Wrong binding');
-      return {profileId:'reviewer',modelVersion:'reviewer-build',configurationRevision:6,contextWindowTokens:8192,maxOutputTokens:512};
+      const vision=globalThis.__moderationCase.condition.startsWith('vision');
+      return {profileId:'reviewer',modelVersion:'reviewer-build',configurationRevision:6,contextWindowTokens:8192,maxOutputTokens:512,
+        capabilities:vision ? ['structured-output','vision'] : ['structured-output']};
     }
   }}`,
   './inference-transport':`export class AiInferenceTransport {
@@ -101,6 +115,8 @@ test('moderation advises only with vetted evidence, model output and cited rules
       assert.equal(event.saved.expectedSequence,0);
       assert.equal(event.saved.modelVersion,'reviewer-build');
       assert.equal(event.saved.review.terms_generation,9);
+      assert.equal(event.saved.review.version,1);
+      assert.equal(event.inference.images,undefined);
       assert.equal(event.saved.review.skill_generation,4);
       assert.deepEqual(event.saved.review.advice,spec.goodAdvice);
       assert.match(event.saved.review.target.digest,/^[a-f0-9]{64}$/);
@@ -108,6 +124,28 @@ test('moderation advises only with vetted evidence, model output and cited rules
     } else assert.equal(event.saved,undefined);
     if(['anonymous','forbidden','wrong_purpose','disabled','terms_unavailable','empty','invalid'].includes(scenario.condition)) {
       assert.equal(event.inference,undefined,scenario.id);
+    }
+  }
+});
+
+test('vision moderates a public image-only post and stops before inference when the reference changes',async t=>{
+  t.after(()=>delete globalThis.__moderationCase);
+  const body=Buffer.from(JSON.stringify({target_type:'post',target_id:7,expected_sequence:0,locale:'zh'}));
+  for (const condition of ['vision','vision-stale']) {
+    const event={id:'conversation',condition,headers:{},
+      context:{aiQuotaRedis:{eval:async()=>0}},
+      node:{req:Readable.from([body]),res:new EventEmitter()}};
+    globalThis.__moderationCase=event;
+    if (condition==='vision-stale') {
+      await assert.rejects(()=>handler(event),error=>error.statusCode===409);
+      assert.equal(event.inference,undefined);
+      assert.equal(event.saved,undefined);
+    } else {
+      assert.equal((await handler(event)).data.status,'generated');
+      assert.deepEqual(event.inference.images,[{mime_type:'image/png',data:'iVBORw0KGgo='}]);
+      assert.equal(event.saved.review.version,2);
+      assert.equal(event.saved.review.image_sources[0].media_id,9);
+      assert.match(event.saved.review.image_sources[0].version,/^[0-9a-f]{64}$/);
     }
   }
 });

@@ -44,13 +44,13 @@ export default defineEventHandler(async event => {
   // --- [新增的保护代码] ---
   // 获取请求路径。event.path 是 h3 提供的标准方式。
   const path = event.path;
-  const pathname = path.split('?', 1)[0];
+  const pathname = path.split('?', 1)[0] ?? '';
 
   // 如果请求是针对Nuxt内部API（如 __nuxt_content, _nuxt 等），
   // 则立即返回，不执行任何限流逻辑。
   // 这是解决 `nuxt build` 时连接Redis的关键。
   // Deployment probes must work during a Redis outage and must not write rate-limit keys.
-  if (path.startsWith('/__') || path.startsWith('/_nuxt') || pathname === '/api/health' || pathname === '/api/ready') {
+  if (path.startsWith('/__') || path.startsWith('/_nuxt') || pathname === '/api/health' || pathname === '/api/ready' || /^\/metrics\/*$/.test(pathname)) {
     return;
   }
   // --- [保护代码结束] ---
@@ -67,7 +67,7 @@ export default defineEventHandler(async event => {
   if (!redis) {
     logWarn('rate-limit', {
       requestId: context?.requestId ?? 'unknown',
-      path,
+      path: context?.path ?? pathname,
       event: 'redis:missing'
     });
     return;
@@ -115,7 +115,7 @@ export default defineEventHandler(async event => {
     // 如果是 Redis 错误，记录日志但不影响正常请求
     logError('rate-limit', {
       requestId: context?.requestId ?? 'unknown',
-      path,
+      path: context?.path ?? pathname,
       event: 'redis:error',
       error: serializeLogError(err)
     });

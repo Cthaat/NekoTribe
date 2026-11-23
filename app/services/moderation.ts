@@ -108,6 +108,9 @@ function mapReport(
 function mapContentItem(
   item: V2ModerationContentItem
 ): ModerationTweetVM {
+  const signal = item.sentiment_signal;
+  const validSignal = signal && ['negative','neutral','positive'].includes(signal.label) &&
+    Number.isFinite(signal.confidence) && signal.confidence >= 0 && signal.confidence <= 1;
   return {
     id: item.post_id,
     caseId: item.case_id,
@@ -130,6 +133,7 @@ function mapContentItem(
     reports: item.reports.map(mapReport),
     status: item.status,
     priority: item.priority,
+    ...(validSignal ? {sentimentSignal:signal} : {}),
     createdAt: item.created_at,
     reportedAt: item.reported_at,
     likes: item.likes_count,
@@ -217,6 +221,7 @@ export async function listModerationContent(
     reason: request.reason,
     date_range: request.dateRange,
     sort: request.sort,
+    sentiment_signal: '1',
     page: request.page,
     page_size: request.pageSize
   });

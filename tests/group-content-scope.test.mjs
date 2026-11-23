@@ -127,6 +127,8 @@ function fixture({ active = true, visible = true, writeError = false, muted = fa
     require: name => name === '~/server/utils/v2' ? utils : policy
   });
   deps['./moderation-publish-policy'] = policyExports;
+  deps['./post-polls'] = { readPollCreation: () => undefined, readPostPoll: async () => undefined };
+  deps['./post-markdown'] = { readPostMarkdownInput: () => undefined, readPostMarkdown: async () => undefined };
   const exports = {};
   vm.runInNewContext(outputText, { Buffer, exports, require: name => deps[name] ?? {} });
   const connection = {

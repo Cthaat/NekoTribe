@@ -1,4 +1,6 @@
 import { requireFeatureSchema } from '~/server/database/readiness';
+import { readPostPoll } from '~/server/services/v2/post-polls';
+import { readPostMarkdown } from '~/server/services/v2/post-markdown';
 import type oracledb from 'oracledb';
 import {
   v2Boolean,
@@ -362,11 +364,15 @@ export async function v2MapPost(
     viewerId,
     authorId
   );
+  const poll = await readPostPoll(connection, viewerId, 'post', postId, true);
+  const markdown = await readPostMarkdown(connection, 'post', postId);
 
   return {
+    ...(markdown === undefined ? {} : { markdown }),
     post_id: postId,
     author,
     content: v2String(row.CONTENT),
+    ...(poll ? {poll} : {}),
     post_type: v2String(row.POST_TYPE),
     visibility: v2String(row.VISIBILITY),
     language: v2String(row.LANGUAGE),

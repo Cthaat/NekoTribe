@@ -3,11 +3,33 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { loadMaintenanceRuntime } from '../ai-public-terms-maintenance.mjs';
 import { loadOracleDriver } from '../migrate-db.mjs';
-import { maxSourceId } from './config.mjs';
+import { maxSourceId, validGroupId } from './config.mjs';
 
 const root = fileURLToPath(new URL('../../',import.meta.url));
 const PAGE = 100;
-const sources = [
+function groupSources(group) {
+  const groupColumn = group ? ',p.group_id AS group_id' : '';
+  const privacy = group ? '' : " AND g.privacy='public'";
+  const maxGroupId = group ? ':max_group_id' : ':max_id';
+  return [
+    ['group_post',`SELECT p.post_id AS source_id,p.post_id AS post_id,p.content${groupColumn} FROM n_group_posts p
+      JOIN n_groups g ON g.group_id=p.group_id${privacy} AND g.is_active=1 AND g.is_deleted=0
+      JOIN n_users a ON a.user_id=p.author_id AND a.is_active=1
+      WHERE p.post_id>:after_id AND p.post_id<=:max_id AND p.group_id BETWEEN 1 AND ${maxGroupId}
+      AND p.is_deleted=0
+      ORDER BY p.post_id FETCH FIRST 100 ROWS ONLY`],
+    ['group_comment',`SELECT c.comment_id AS source_id,p.post_id,c.content${groupColumn} FROM n_group_comments c
+      JOIN n_group_posts p ON p.post_id=c.post_id AND p.is_deleted=0
+      JOIN n_groups g ON g.group_id=p.group_id${privacy} AND g.is_active=1 AND g.is_deleted=0
+      JOIN n_users a ON a.user_id=p.author_id AND a.is_active=1
+      JOIN n_users ca ON ca.user_id=c.author_id AND ca.is_active=1
+      WHERE c.comment_id>:after_id AND c.comment_id<=:max_id AND p.post_id BETWEEN 1 AND :max_id
+      AND p.group_id BETWEEN 1 AND ${maxGroupId} AND c.is_deleted=0
+      ORDER BY c.comment_id FETCH FIRST 100 ROWS ONLY`],
+  ];
+}
+
+const publicSources = [
   ['post',`SELECT p.post_id AS source_id,p.post_id AS post_id,p.content FROM n_posts p
     JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1
     WHERE p.post_id>:after_id AND p.post_id<=:max_id AND p.visibility='public' AND p.is_deleted=0
@@ -20,43 +42,37 @@ const sources = [
     AND c.is_deleted=0 AND p.visibility='public' AND p.is_deleted=0
     AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536
     ORDER BY c.comment_id FETCH FIRST 100 ROWS ONLY`],
-  ['group_post',`SELECT p.post_id AS source_id,p.post_id AS post_id,p.content FROM n_group_posts p
-    JOIN n_groups g ON g.group_id=p.group_id AND g.privacy='public' AND g.is_active=1 AND g.is_deleted=0
-    JOIN n_users a ON a.user_id=p.author_id AND a.is_active=1
-    WHERE p.post_id>:after_id AND p.post_id<=:max_id AND p.group_id BETWEEN 1 AND :max_id
-    AND p.is_deleted=0
-    ORDER BY p.post_id FETCH FIRST 100 ROWS ONLY`],
-  ['group_comment',`SELECT c.comment_id AS source_id,p.post_id,c.content FROM n_group_comments c
-    JOIN n_group_posts p ON p.post_id=c.post_id AND p.is_deleted=0
-    JOIN n_groups g ON g.group_id=p.group_id AND g.privacy='public' AND g.is_active=1 AND g.is_deleted=0
-    JOIN n_users a ON a.user_id=p.author_id AND a.is_active=1
-    JOIN n_users ca ON ca.user_id=c.author_id AND ca.is_active=1
-    WHERE c.comment_id>:after_id AND c.comment_id<=:max_id AND p.post_id BETWEEN 1 AND :max_id
-    AND p.group_id BETWEEN 1 AND :max_id AND c.is_deleted=0
-    ORDER BY c.comment_id FETCH FIRST 100 ROWS ONLY`],
+  ...groupSources(false),
 ];
+const scopedGroupSources = groupSources(true);
 const validId = value => Number.isSafeInteger(value) && value >= 1 && value <= maxSourceId;
+const sourceBinds = (after, group) => ({after_id:after,max_id:maxSourceId,...(group ? {max_group_id:Number.MAX_SAFE_INTEGER} : {})});
 
-export async function* readPublicSources(connection, options, signal) {
+async function* readSources(sources, connection, options, signal, group = false) {
   for (const [kind,sql] of sources) {
     let after = 0;
     let page;
     do {
       signal?.throwIfAborted();
-      page = (await connection.execute(sql,{after_id:after,max_id:maxSourceId},options)).rows;
+      page = (await connection.execute(sql,sourceBinds(after,group),options)).rows;
       signal?.throwIfAborted();
       if (page.length > PAGE) throw Error('INVALID_SOURCE_PAGE');
-      for (const {SOURCE_ID:id,POST_ID:post,CONTENT:content} of page) {
+      for (const {SOURCE_ID:id,POST_ID:post,CONTENT:content,GROUP_ID:groupId} of page) {
         if (!validId(id) || id <= after || !validId(post) ||
+            (group && !validGroupId(groupId)) ||
             ((kind === 'post' || kind === 'group_post') && post !== id) ||
             typeof content !== 'string' || !content.isWellFormed()) throw Error('INVALID_SOURCE_ROW');
         after = id;
         if (!content || Buffer.byteLength(content) > 65536) continue;
         const version = createHash('sha256').update(`neko-ai-source-v1\0${kind}\0${id}\0${post}\0`).update(content).digest('hex');
-        yield {kind,id,version,content};
+        yield {kind,id,version,content,...(group ? {group_id:groupId} : {})};
       }
     } while (page.length === PAGE);
   }
+}
+
+export function readPublicSources(connection, options, signal) {
+  return readSources(publicSources,connection,options,signal);
 }
 
 async function* publishedTerms(connection, options) {
@@ -73,13 +89,13 @@ async function* publishedTerms(connection, options) {
   }
 }
 
-export async function checkPublicSources(connection, options, signal) {
+async function checkSources(sources, connection, options, signal, group = false) {
   const results = [];
   for (const [source, sql] of sources) {
     signal?.throwIfAborted();
     try {
       // Parse the exact snapshot query against the deployment schema without fetching content.
-      await connection.execute(`SELECT * FROM (${sql}) WHERE 1=0`, {after_id:0,max_id:maxSourceId}, options);
+      await connection.execute(`SELECT * FROM (${sql}) WHERE 1=0`, sourceBinds(0,group), options);
       signal?.throwIfAborted();
       results.push({source,ok:true});
     } catch {
@@ -87,6 +103,11 @@ export async function checkPublicSources(connection, options, signal) {
       results.push({source,ok:false,code:'SOURCE_READ_UNAVAILABLE'});
     }
   }
+  return results;
+}
+
+export async function checkPublicSources(connection, options, signal) {
+  const results = await checkSources(publicSources,connection,options,signal);
   try {
     let published = false;
     for await (const _ of publishedTerms(connection, options)) {
@@ -126,18 +147,26 @@ async function openReadOnlySnapshot(signal) {
   }
 }
 
-export async function checkOracleSources({signal} = {}) {
+export async function checkOracleSources({signal,scope} = {}) {
   const {connection,options} = await openReadOnlySnapshot(signal);
   try {
+    if (scope === 'group') {
+      const results = await checkSources(scopedGroupSources,connection,options,signal,true);
+      return {ready:results.every(result => result.ok),results};
+    }
     return await checkPublicSources(connection,options,signal);
   } finally {
     await connection.close();
   }
 }
 
-export async function* oracleSnapshot({signal} = {}) {
+export async function* oracleSnapshot({signal,scope} = {}) {
   const {connection,options} = await openReadOnlySnapshot(signal);
   try {
+    if (scope === 'group') {
+      yield* readSources(scopedGroupSources,connection,options,signal,true);
+      return;
+    }
     for await (const terms of publishedTerms(connection,options)) {
       signal?.throwIfAborted();
       yield terms;

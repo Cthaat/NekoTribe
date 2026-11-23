@@ -186,8 +186,9 @@ function formatConversationTime(value: string | undefined): string {
                   "
                 >
                   {{
-                    conversation.last_message?.content ||
-                      t('chat.directConversations.noMessages')
+                    conversation.last_message
+                      ? conversation.last_message.content.trim() || t('chat.directConversations.attachment')
+                      : t('chat.directConversations.noMessages')
                   }}
                 </span>
                 <span

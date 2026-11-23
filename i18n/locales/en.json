@@ -1,4 +1,42 @@
 {
+  "githubOAuth": {
+    "title": "GitHub",
+    "description": "Link your GitHub account to use it as a sign-in method.",
+    "signIn": "Sign in with GitHub",
+    "signInFailed": "Could not sign in with GitHub. Check that GitHub is linked to your NekoTribe account.",
+    "link": "Link GitHub",
+    "linked": "GitHub linked.",
+    "unlink": "Unlink",
+    "unlinked": "GitHub unlinked.",
+    "confirmUnlink": "Unlink GitHub account {login}?",
+    "unavailable": "GitHub sign-in is unavailable on this server.",
+    "loadFailed": "Could not load your GitHub binding.",
+    "linkFailed": "Could not link GitHub.",
+    "unlinkFailed": "Could not unlink GitHub.",
+    "popupBlocked": "Allow pop-ups for this site and try again.",
+    "waiting": "Complete authorization in the GitHub window."
+  },
+  "passkeys": {
+    "title": "Passkeys",
+    "description": "Use a passkey from your device or security key to sign in.",
+    "signIn": "Sign in with a passkey",
+    "signInFailed": "Could not sign in with the passkey.",
+    "empty": "No passkeys registered.",
+    "label": "Passkey name (optional)",
+    "add": "Add passkey",
+    "added": "Passkey registered.",
+    "remove": "Remove",
+    "confirmRemove": "Remove passkey “{label}”?",
+    "removed": "Passkey removed.",
+    "keepMethod": "Keep at least one sign-in method.",
+    "unsupported": "This browser or connection cannot register a passkey.",
+    "unavailable": "Passkeys are unavailable on this server.",
+    "loadFailed": "Could not load passkeys.",
+    "addFailed": "Could not register the passkey.",
+    "removeFailed": "Could not remove the passkey.",
+    "lastUsed": "Last used {date}",
+    "created": "Added {date}"
+  },
   "visibility": {
     "title": "Blocked and muted accounts",
     "actions": "Relationship actions",
@@ -198,6 +236,25 @@
     }
   },
   "post": {
+    "poll": {
+      "title": "Poll",
+      "add": "Add a poll",
+      "option": "Option {index}",
+      "addOption": "Add option",
+      "removeOption": "Remove option",
+      "cutoff": "Closes at",
+      "multiple": "Allow multiple choices",
+      "single": "Single-choice poll",
+      "complete": "Enter 2–6 different options and a future closing time.",
+      "remove": "Remove poll",
+      "closed": "Poll closed",
+      "until": "Closes {time}",
+      "votes": "Votes: {count}",
+      "ballots": "Participants: {count}",
+      "vote": "Vote",
+      "voted": "Voted",
+      "voteFailed": "Could not submit your vote. The poll may have closed or you may have voted already."
+    },
     "likers": {
       "title": "View likes",
       "loading": "Loading likes…",
@@ -245,6 +302,15 @@
       "retry": "Retry loading topic statistics"
     },
     "feed": {
+      "homeTabs": "Home feeds",
+      "homeTab": {
+        "recommended": "For you",
+        "following": "Following",
+        "trending": "Trending",
+        "groups": "Groups"
+      },
+      "rankingExplanation": "Recommendations consider who you follow, tags on posts you liked or saved in the last 30 days, when posts were published and your feedback.",
+      "emptyGroupActivity": "No recent posts from the groups you’ve joined.",
       "loadFailed": "Failed to load posts",
       "loadProblem": "Sorry, something went wrong while loading posts. Please refresh the page.",
       "title": "Posts",
@@ -386,6 +452,50 @@
       "descriptionHint": "{count}/1000 characters",
       "submit": "Submit report",
       "submitting": "Submitting..."
+    },
+    "drafts": {
+      "title": "Cloud drafts",
+      "description": "Drafts sync across your devices. Save a draft to schedule it here.",
+      "empty": "No drafts yet",
+      "emptyContent": "No text",
+      "save": "Save draft",
+      "saved": "Draft saved",
+      "saveFailed": "Could not save the draft. Try again.",
+      "editing": "Editing a cloud draft",
+      "resume": "Continue editing",
+      "schedule": "Schedule",
+      "unschedule": "Cancel schedule",
+      "localDate": "Publish time (local time)",
+      "confirmSchedule": "Confirm schedule",
+      "publishAt": "Scheduled for {time}",
+      "confirmDelete": "Delete this draft and its schedule?",
+      "retry": "The action failed. Refresh and try again.",
+      "more": "Load more",
+      "attachment": "Uploaded attachment {index}",
+      "removeAttachment": "Remove draft attachment",
+      "status": {
+        "draft": "Draft",
+        "scheduled": "Scheduled",
+        "failed": "Publication failed",
+        "published": "Published"
+      },
+      "error": {
+        "permission_denied": "Publication permission expired. Your draft is saved.",
+        "content_unavailable": "Edit the draft to fix its text, poll, or attachments."
+      },
+      "includeGroups": "Include group drafts",
+      "groupPost": "Group post"
+    },
+    "profilePin": {
+      "label": "Pinned to profile",
+      "set": "Pin to profile",
+      "clear": "Unpin from profile",
+      "saved": "Post pinned to your profile",
+      "cleared": "Post unpinned"
+    },
+    "markdown": {
+      "mode": "Markdown long post",
+      "size": "{used} / {limit} bytes"
     }
   },
   "comment": {
@@ -924,6 +1034,18 @@
     "groupFallbackName": "Group name",
     "channelDescriptionFallback": "Channel description",
     "searchPlaceholder": "Search messages...",
+    "messageSearch": {
+      "keyword": "Keyword",
+      "sender": "Sender",
+      "allSenders": "All senders",
+      "start": "Start date",
+      "end": "End date",
+      "clear": "Clear filters",
+      "submit": "Search",
+      "rangeError": "The end date must be on or after the start date.",
+      "keywordError": "Enter a shorter keyword.",
+      "empty": "No messages match your filters"
+    },
     "replyingTo": "Replying to",
     "currentUser": {
       "short": "You",
@@ -984,9 +1106,34 @@
     },
     "calls": {
       "voiceTitle": "Voice call",
-      "voiceDescription": "Voice rooms and realtime call signaling are not connected to the backend yet.",
       "videoTitle": "Video call",
-      "videoDescription": "Video rooms and realtime call signaling are not connected to the backend yet."
+      "chooseMember": "Choose a member to start a one-to-one call.",
+      "member": "Choose a member",
+      "account": "User {id}",
+      "accept": "Answer",
+      "reject": "Decline",
+      "hangup": "Hang up",
+      "playAudio": "Play call audio",
+      "peerVideo": "Remote video",
+      "localVideo": "Local preview",
+      "phase": {
+        "preparing": "Getting ready",
+        "incoming": "Incoming call",
+        "outgoing": "Ringing",
+        "connecting": "Connecting",
+        "active": "In call"
+      },
+      "problem": {
+        "insecure": "Open this page over HTTPS to use your microphone or camera.",
+        "unsupported": "This browser does not support audio and video calls.",
+        "unavailable": "Calling is currently unavailable. Try again later.",
+        "permission": "Allow microphone or camera access to make a call.",
+        "devices": "The microphone or camera is unavailable.",
+        "busy": "You or the other person are already on a call.",
+        "timeout": "The call timed out.",
+        "failed": "The call could not connect.",
+        "declined": "The other person declined the call."
+      }
     },
     "directMessage": {
       "loadOlder": "Load older messages",
@@ -994,7 +1141,13 @@
       "placeholder": "Message {user}...",
       "loading": "Loading direct messages...",
       "emptyTitle": "No direct messages yet",
-      "emptyDescription": "Send the first message to start the conversation."
+      "emptyDescription": "Send the first message to start the conversation.",
+      "read": "Read",
+      "typing": "{user} is typing…"
+    },
+    "channelTyping": {
+      "one": "Someone is typing…",
+      "many": "{count} people are typing…"
     },
     "directConversations": {
       "title": "Direct messages",
@@ -1002,7 +1155,8 @@
       "empty": "No direct conversations yet",
       "previousPage": "Previous page",
       "nextPage": "Next page",
-      "noMessages": "No messages yet"
+      "noMessages": "No messages yet",
+      "attachment": "[Attachment]"
     },
     "message": {
       "pinned": "Pinned",
@@ -1155,6 +1309,17 @@
     }
   },
   "notifications": {
+    "desktop": {
+      "setting": "Desktop notifications",
+      "description": "Show alerts in this browser when NekoTribe is in the background and in-app push is enabled.",
+      "enable": "Turn on",
+      "disable": "Turn off",
+      "unsupported": "Desktop notifications need a supported browser on a secure connection.",
+      "denied": "Notifications are blocked in your browser’s site settings.",
+      "error": "Could not save the notification preference in this browser.",
+      "title": "New NekoTribe notification",
+      "body": "Open your inbox to view it."
+    },
     "realtimeUnavailable": "Live notifications are temporarily unavailable.",
     "mail": {
       "deleteSuccess": "Mail moved to trash",
@@ -1243,6 +1408,45 @@
     }
   },
   "moderation": {
+    "aiOps": {
+      "title": "AI operations",
+      "backend": "Backend",
+      "revision": "Revision",
+      "models": "Model health",
+      "nodes": "Providers",
+      "quota": "Service quota",
+      "window": "{seconds}-second window",
+      "index": "Knowledge index",
+      "points": "Vector points",
+      "phase": "Sync phase",
+      "lastSuccess": "Last successful sync",
+      "nextSync": "Next sync",
+      "feedback": "Moderation feedback by model version",
+      "feedbackBasis": "Accuracy uses helpful and incorrect ratings. Insufficient ratings are shown separately.",
+      "noFeedback": "No moderation feedback yet.",
+      "skills": "Skills",
+      "generation": "Configuration generation",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "loadFailed": "Could not load AI operations.",
+      "unavailable": "Unavailable",
+      "knowledge": "Knowledge",
+      "writing": "Writing",
+      "group": "Group operations",
+      "moderation": "Moderation",
+      "unconfigured": "Unconfigured",
+      "missing_credential": "Credential unavailable",
+      "unreachable": "Provider unreachable",
+      "model_unavailable": "Model unavailable",
+      "ready": "Ready",
+      "syncing": "Syncing",
+      "pruning": "Pruning",
+      "waiting": "Waiting",
+      "stopped": "Stopped",
+      "helpful": "Helpful",
+      "incorrect": "Incorrect",
+      "insufficient": "Insufficient"
+    },
     "assignment": {
       "owner": "Assigned to {name}",
       "unassigned": "Unassigned",
@@ -1367,6 +1571,12 @@
       }
     },
     "card": {
+      "sentimentSignal": "Sentiment signal · {label} ({confidence}%)",
+      "sentimentLabels": {
+        "negative": "Negative",
+        "neutral": "Neutral",
+        "positive": "Positive"
+      },
       "reportCount": "{count} reports",
       "publishedAt": "Published {time}",
       "reportedAt": "Reported {time}",
@@ -1853,8 +2063,8 @@
     "tabs": {
       "overview": "Overview",
       "settings": "Settings",
-      "pro": "Pro",
-      "billing": "Billing",
+      "pro": "AI usage",
+      "billing": "Resources and data",
       "profile": "Profile",
       "posts": "Post Management",
       "likes": "My Likes",
@@ -2455,6 +2665,7 @@
     "usedTools": "Tools used: {tools}",
     "public_search": "Search public content",
     "public_statistics": "Count public activity",
+    "community_sentiment_summary": "Summarize public discussion sentiment",
     "title": "Group drafts",
     "history": "Conversation history",
     "new": "New conversation",
@@ -2566,22 +2777,69 @@
       "too-long": "The message exceeds 65536 bytes. Please shorten it."
     }
   },
+  "aiUserProvider": {
+    "title": "Personal AI connection",
+    "description": "Use your own API key for AI writing. Your account's writing permissions and usage limits still apply.",
+    "loading": "Loading connection settings…",
+    "unavailable": "Personal AI connections are unavailable on this backend.",
+    "endpoint": "Service address",
+    "preset": {
+      "default": "Default service address",
+      "provided": "System-provided address"
+    },
+    "model": "Model ID",
+    "key": "API key",
+    "keyRequired": "Enter the key for this connection.",
+    "keepKey": "Leave blank to keep the saved key.",
+    "enable": "Use for my AI writing",
+    "save": "Save",
+    "test": "Test saved connection",
+    "remove": "Remove connection",
+    "removePrompt": "Writing will return to the platform model.",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "saved": "Connection settings saved.",
+    "verified": "Connected. The selected model is available.",
+    "removed": "Personal connection removed.",
+    "failed": "The operation could not be completed. Check the settings and try again.",
+    "changed": "The connection needs updating. Enter the API key again."
+  },
+  "aiVision": {
+    "suggest": "AI image description and topics",
+    "generating": "Analyzing image…",
+    "review": "Review the description and selected topics before adding them to your draft.",
+    "altText": "Accessible image description",
+    "cancel": "Cancel",
+    "apply": "Apply to draft",
+    "unavailable": "Image suggestions are temporarily unavailable. Try again later.",
+    "invalidAlt": "Image descriptions can contain at most 500 UTF-8 bytes.",
+    "textOnly": "Text-only review",
+    "textAndImages": "Text and image review"
+  },
   "aiKnowledge": {
+    "scope": {
+      "label": "Knowledge scope",
+      "public": "Public knowledge",
+      "personal": "My bookmarks and posts",
+      "group": "My groups",
+      "chooseGroup": "Select a group",
+      "groupRequired": "Select a group you currently belong to."
+    },
     "allComments": "View all comments",
     "citedCommentMissing": "The cited comment is unavailable.",
     "eyebrow": "Community knowledge",
     "title": "Knowledge assistant",
-    "description": "Answers your question using public posts and comments matching your search phrase. Review the sources.",
+    "description": "Answers questions using sources in the selected scope. Review the cited sources.",
     "new": "New conversation",
     "history": "Conversation history",
     "historyEmpty": "No knowledge conversations yet",
     "untitled": "Untitled conversation",
-    "empty": "Ask a question about public community content.",
+    "empty": "Ask a question about the selected knowledge scope.",
     "you": "You",
     "assistant": "Knowledge assistant",
     "placeholder": "Ask a question about the community",
     "searchLabel": "Search phrase",
-    "searchPlaceholder": "Enter text found in public content",
+    "searchPlaceholder": "Enter text found in your sources",
     "searchHint": "Exact text match; edit this phrase to retry without sending the question again.",
     "send": "Send",
     "refreshState": "Refresh conversation",
@@ -2601,7 +2859,7 @@
       "too-long": "The message exceeds 65536 bytes. Please shorten it.",
       "search-invalid": "Enter a search phrase of at most 256 UTF-8 bytes without control characters."
     },
-    "insufficientEvidence": "No matching public sources were found. Try different text.",
+    "insufficientEvidence": "No matching sources were found in this scope. Try different text.",
     "sources": "Sources",
     "post": "Post",
     "comment": "Comment",

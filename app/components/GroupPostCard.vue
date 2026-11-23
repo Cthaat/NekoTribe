@@ -31,6 +31,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'vue-sonner';
 import type { GroupPost } from '@/types/groups';
+import PostPollPanel from '@/components/PostPollPanel.vue';
+import PostMarkdown from '@/components/PostMarkdown.vue';
 
 export type { GroupPost } from '@/types/groups';
 const { t, locale } = useAppLocale();
@@ -42,6 +44,8 @@ const props = defineProps<{
   isAuthor?: boolean;
   readOnly?: boolean;
   mutationPending?: boolean;
+  canVote?: boolean;
+  hideMenu?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -215,7 +219,7 @@ const openAuthorProfile = () => {
           </div>
         </button>
 
-        <DropdownMenu>
+        <DropdownMenu v-if="!hideMenu">
           <DropdownMenuTrigger as-child>
             <Button
               variant="ghost"
@@ -266,9 +270,13 @@ const openAuthorProfile = () => {
     </CardHeader>
 
     <CardContent class="px-4 pb-3 pt-0">
-      <p class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+      <PostMarkdown v-if="post.markdown" :source="post.markdown" />
+      <p v-else class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
         {{ post.content }}
       </p>
+      <LinkPreviewCard :text="post.content" :markdown="post.markdown" />
+      <PostPollPanel v-if="post.poll && post.groupId" :key="post.poll.poll_id" :poll="post.poll" :post-id="post.id"
+        :group-id="post.groupId" :can-vote="canVote === true" />
 
       <div
         v-if="post.media && post.media.length > 0"

@@ -12,8 +12,8 @@ const ddl = calls => calls.filter(c => /^(CREATE|ALTER|DROP)\b/.test(c.sql));
 test('default plan does not read dotenv, load a driver or connect', async () => {
   let loaded = false; const output = [];
   const plan = await migrateDatabase({ root: '\0invalid-directory', env: { ORACLE_PASSWORD: 'do-not-print' }, loadDriver: () => { loaded = true; throw Error('connected'); }, output: s => output.push(s) });
-  assert.equal(loaded, false); assert.equal(plan.length, 11); assert(!output.join('').includes('do-not-print'));
-  assert.equal(plan.flatMap(f => f.steps).length, 41);
+  assert.equal(loaded, false); assert.equal(plan.length, 19); assert(!output.join('').includes('do-not-print'));
+  assert.equal(plan.flatMap(f => f.steps).length, 64);
 });
 test('the baseline prepares feedback and media access scope through explicit idempotent migrations', async () => {
   const db = schemaFixture({ baseline: true });
@@ -21,24 +21,62 @@ test('the baseline prepares feedback and media access scope through explicit ide
   assert.deepEqual(initial.filter(x => x.status !== 'ready').map(x => [x.feature, x.status]), [
     ['ai-conversations', 'missing'],
     ['ai-conversations', 'missing'],
+    ['ai-conversations', 'missing'],
     ['recommendation-feedback', 'missing'],
     ['ai-moderation-feedback', 'missing'],
     ['media-access-scope', 'missing'],
+    ['ai-user-provider', 'missing'],
+    ['direct-message-extras', 'missing'],
+    ['direct-message-extras', 'missing'],
+    ['direct-message-extras', 'missing'],
+    ...Array.from({length:5}, () => ['post-polls', 'missing']),
+    ...Array.from({length:4}, () => ['post-drafts', 'missing']),
+    ['profile-pinned-post', 'missing'],
+    ['post-markdown', 'missing'],
+    ...Array.from({length:4}, () => ['passkey-auth', 'missing']),
+    ...Array.from({length:3}, () => ['github-oauth', 'missing']),
   ]);
   assert(db.state.calls.every(c => /^SELECT\b/.test(c.sql)));
   await applySchema(db);
-  assert.deepEqual(ddl(db.state.calls).map(c => c.sql.split('(')[0].trim()), [
+  assert.deepEqual(ddl(db.state.calls).map(c => c.sql.split('(')[0].trim().split(/\s+START WITH/i)[0]), [
     'CREATE TABLE N_SCHEMA_MIGRATIONS', 'ALTER TABLE n_ai_conversations MODIFY', 'ALTER TABLE n_ai_conversations MODIFY',
+    'ALTER TABLE n_ai_conversations ADD',
     'CREATE TABLE n_recommendation_feedback', 'CREATE TABLE n_ai_moderation_feedback',
     'ALTER TABLE n_media_assets ADD',
+    'CREATE TABLE n_ai_user_providers',
+    'CREATE TABLE n_direct_message_media', 'CREATE TABLE n_direct_message_replies',
+    'CREATE TABLE n_direct_message_reactions',
+    'CREATE TABLE n_post_polls', 'CREATE TABLE n_post_poll_options', 'CREATE TABLE n_post_poll_ballots',
+    'CREATE TABLE n_post_poll_votes', 'CREATE SEQUENCE seq_post_poll_id',
+    'CREATE TABLE n_post_drafts', 'CREATE SEQUENCE seq_post_draft_id',
+    'CREATE INDEX idx_post_draft_owner ON n_post_drafts', 'CREATE INDEX idx_post_draft_due ON n_post_drafts',
+    'CREATE TABLE n_user_pinned_posts',
+    'CREATE TABLE n_post_markdown',
+    'CREATE TABLE n_webauthn_credentials', 'CREATE INDEX idx_webauthn_cred_owner ON n_webauthn_credentials',
+    'CREATE TABLE n_webauthn_challenges', 'CREATE INDEX idx_webauthn_chall_expiry ON n_webauthn_challenges',
+    'CREATE TABLE n_github_oauth_links', 'CREATE TABLE n_github_oauth_flows',
+    'CREATE INDEX idx_github_oauth_flow_expiry ON n_github_oauth_flows',
   ]);
   assert((await checkSchema(db, 'recommendation-feedback')).every(item => item.status === 'ready' && item.recorded));
   assert((await checkSchema(db, 'ai-moderation-feedback')).every(item => item.status === 'ready' && item.recorded));
   assert((await checkSchema(db, 'media-access-scope')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'ai-user-provider')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'direct-message-extras')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'post-polls')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'post-drafts')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'profile-pinned-post')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'post-markdown')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'passkey-auth')).every(item => item.status === 'ready' && item.recorded));
+  assert((await checkSchema(db, 'github-oauth')).every(item => item.status === 'ready' && item.recorded));
+  const ballots = db.state.tables.get('N_POST_POLL_BALLOTS');
+  assert(ballots.constraints.some(item => item.CONSTRAINT_TYPE === 'P' && item.columns.join(',') === 'POLL_ID,USER_ID'));
   const media = db.state.tables.get('N_MEDIA_ASSETS');
   const scope = media.columns.find(column => column.COLUMN_NAME === 'ACCESS_SCOPE');
   assert.equal(scope.DATA_DEFAULT, "'public'");
   assert.equal(scope.NULLABLE, 'N');
+  const knowledgeScope = db.state.tables.get('N_AI_CONVERSATIONS').columns.find(column => column.COLUMN_NAME === 'KNOWLEDGE_SCOPE');
+  assert.equal(knowledgeScope.DATA_DEFAULT, "'public'");
+  assert.equal(knowledgeScope.NULLABLE, 'N');
   assert(media.constraints.some(constraint =>
     normalizeExpression(constraint.SEARCH_CONDITION_VC) === "ACCESS_SCOPEIN('chat','post','public')"));
   const before = db.state.calls.length;
@@ -47,7 +85,7 @@ test('the baseline prepares feedback and media access scope through explicit ide
   assert(!db.state.calls.slice(before).some(c => /^(INSERT|MERGE|UPDATE|DELETE)\b/.test(c.sql)));
   const baseline = readFileSync(new URL('../data/neko_tribe-oracle-v2.sql', import.meta.url), 'utf8');
   for (const f of schemaFeatures) for (const s of f.steps) {
-    if (f.id === 'ai-conversations') continue;
+    if (['ai-conversations', 'post-polls', 'post-drafts', 'passkey-auth', 'github-oauth'].includes(f.id)) continue;
     if (s.kind === 'sequence' || s.kind === 'index') assert(baseline.toUpperCase().includes(`CREATE ${s.kind.toUpperCase()} ${s.name}`), s.name);
     if (s.kind === 'seed') assert(baseline.includes(`VALUES ('${s.setting.key}', '${s.setting.value}', '${s.setting.value_type}'`));
   }
@@ -91,7 +129,7 @@ test('group conversation migration widens precision without invalidating the ori
   const steps = () => checkSchema(db, 'ai-conversations');
   assert.deepEqual((await steps()).filter(row => row.status !== 'ready').map(row => row.id), ['ai-conversations-group-id-precision']);
   groupId.DATA_SCALE = 1;
-  assert.equal((await steps()).at(-1).status, 'incompatible');
+  assert.equal((await steps()).find(row => row.id === 'ai-conversations-group-id-precision').status, 'incompatible');
   groupId.DATA_SCALE = 0;
   await applySchema(db);
   assert.equal(groupId.DATA_PRECISION, 19);

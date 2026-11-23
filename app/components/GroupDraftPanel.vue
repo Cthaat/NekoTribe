@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { createGroupDraftApi, groupDraftKinds } from '@/api/v2/ai-group-draft';
+import { v2SavePostDraft } from '@/api/v2/post-drafts';
 import type { GroupDraftConversation, GroupDraftKind, GroupDraftMessage } from '@/api/v2/ai-group-draft';
 import { createGroupPost, getGroup } from '@/services/groups';
 import { authQueueFor } from '@/services/auth-request-queue';
@@ -12,6 +13,7 @@ import type { AiAvailabilityState, AiSkillSummary } from '@/services/ai-writing-
 import AiSkillStatus from '@/components/AiSkillStatus.vue';
 import { usePreferenceStore } from '@/stores/user';
 import { canUseGroupDrafts } from '@/utils/group-draft-access';
+import { toast } from 'vue-sonner';
 
 const props = defineProps<{ groupId: number }>();
 const { t, locale } = useAppLocale();
@@ -26,6 +28,7 @@ const history = ref<GroupDraftConversation[]>([]);
 const next = ref<string | null>(null);
 const selected = ref<string | null>(null);
 const messages = ref<GroupDraftMessage[]>([]);
+const preview = ref('');
 const kind = ref<GroupDraftKind>('weekly_report');
 const skillId = ref<'' | 'group-brief'>('');
 const search = ref('');
@@ -38,7 +41,7 @@ const skill = ref<AiSkillSummary>();
 const modelConfigRevision = ref<number>();
 const groupName = ref('');
 const refreshRequired = ref(false);
-const busy = ref<'load'|'page'|'generate'|'review'|'publish'|'delete'|null>(null);
+const busy = ref<'load'|'page'|'generate'|'review'|'publish'|'delete'|'save'|null>(null);
 const notice = ref<string | null>(null);
 const quotaRetry = ref(0);
 const review = ref<GroupDraftMessage | null>(null);
@@ -77,6 +80,7 @@ function forgetConversation(id: string) {
 function invalidate() {
   current?.abort();
   current = null;
+  preview.value = '';
   busy.value = null;
   allowed.value = false;
   availability.value = 'loading';
@@ -142,6 +146,10 @@ async function work(
       notice.value = 'forbidden';
       return;
     }
+    if (phase === 'save') {
+      toast.error(t('post.drafts.saveFailed'));
+      return;
+    }
     const retry = phase === 'generate' ? aiQuotaRetry(error) : null;
     if (retry !== null) {
       quotaRetry.value = retry;
@@ -157,6 +165,7 @@ async function work(
       status === 409 ? 'conflict' : status === 503 ? 'unavailable' : 'requestFailed';
   } finally {
     if (current === request) {
+      preview.value = '';
       current = null;
       busy.value = null;
     }
@@ -306,8 +315,11 @@ function generate() {
       id = selected.value = item.id;
       history.value = [item, ...history.value.filter(row => row.id !== item.id)];
     }
-    const generated = await api.generate(id, mode, messages.value.at(-1)?.sequence ?? 0, signal, selectedSkill, term);
+    const generated = await api.generate(id, mode, messages.value.at(-1)?.sequence ?? 0, signal, selectedSkill, term, text => {
+      if (valid()) preview.value += text;
+    });
     if (!valid()) return;
+    preview.value = '';
     busy.value = 'load';
     try {
       const recent = await readMessages(id, signal);
@@ -343,6 +355,7 @@ function cancelGeneration() {
   if (busy.value !== 'generate') return;
   current?.abort();
   current = null;
+  preview.value = '';
   busy.value = null;
   messages.value = [];
   refreshRequired.value = true;
@@ -394,6 +407,20 @@ function publish() {
     notice.value = 'published';
   });
 }
+function saveCloudDraft() {
+  const id = selected.value, draft = review.value, content = edited.value.trim();
+  if (!id || !draft || !allowed.value || refreshRequired.value || publicationNeedsConfirmation.value || !content || editedBytes.value > 4000) return;
+  const groupId = props.groupId, isAnnouncement = announcement.value;
+  return work('save', async (signal, valid) => {
+    const available = await confirmSource(draft,id,signal);
+    if (!valid()) return;
+    if (!available) return markStale();
+    await app.runWithContext(() => v2SavePostDraft({group_id:groupId,content,is_announcement:isAnnouncement},null,signal));
+    if (!valid()) return;
+    clearReview();
+    toast.success(t('post.drafts.saved'));
+  });
+}
 const postHref = (postId: number, commentId?: number) => localePath({
   path:'/groups/posts',
   query:{group:props.groupId, post:postId, comments:'1', ...(commentId === undefined ? {} : {comment:commentId})}
@@ -411,6 +438,7 @@ const postHref = (postId: number, commentId?: number) => localePath({
     </div>
     <p v-if="closed" role="status" class="text-sm text-muted-foreground">{{ label('sessionChanged') }}</p>
     <p v-else-if="busy" role="status" class="text-sm text-muted-foreground">{{ label(busy === 'generate' ? 'generating' : 'working') }}</p>
+    <p v-if="preview" class="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border p-3 text-sm">{{ preview }}</p>
     <p v-if="notice" role="status" class="text-sm text-muted-foreground">
       {{ t(`aiGroupDraft.${notice}`, {seconds: quotaRetry}) }}
     </p>
@@ -483,6 +511,7 @@ const postHref = (postId: number, commentId?: number) => localePath({
         </label>
         <div class="flex flex-wrap gap-2">
           <Button type="button" :disabled="!!busy || refreshRequired || publicationNeedsConfirmation || !editedBytes || editedBytes > 4000" @click="publish">{{ label('confirmPublish') }}</Button>
+          <Button type="button" variant="outline" :disabled="!!busy || refreshRequired || publicationNeedsConfirmation || !editedBytes || editedBytes > 4000" @click="saveCloudDraft">{{ t('post.drafts.save') }}</Button>
           <Button type="button" variant="outline" :disabled="!!busy" @click="clearReview">{{ t('common.cancel') }}</Button>
         </div>
       </section>

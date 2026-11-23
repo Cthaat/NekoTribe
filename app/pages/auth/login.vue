@@ -3,7 +3,7 @@ definePageMeta({
   layout: false
 });
 
-import { ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
 import AppButton from '@/components/app/AppButton.vue';
 import {
   Card,
@@ -41,6 +41,9 @@ import { Separator } from '@/components/ui/separator';
 import { Cat, Eye, EyeOff, ShieldCheck } from 'lucide-vue-next';
 import { navigateTo } from '#app';
 import { normalizeGroupInviteCode } from '~/utils/group-invite';
+import { cancelPasskeyPrompt, passkeyCancelled, supportsPasskeys } from '@/api/v2/passkeys';
+import { v2LoginWithGitHub, v2LoginWithPasskey } from '@/services/auth';
+import { openGitHubWindow } from '@/api/v2/github-oauth';
 
 const { t } = useAppLocale();
 
@@ -88,6 +91,16 @@ const twoFactorChallenge =
   ref<TwoFactorLoginChallengeVM | null>(null);
 const twoFactorCode = ref('');
 const trustDevice = ref(false);
+const passkeyAvailable = ref(false);
+let passkeyPending = false;
+let disposed = false;
+const githubRequest = shallowRef<AbortController | null>(null);
+onMounted(() => { passkeyAvailable.value = supportsPasskeys(); });
+onBeforeUnmount(() => {
+  disposed = true;
+  if (passkeyPending) cancelPasskeyPrompt();
+  githubRequest.value?.abort();
+});
 
 function isTwoFactorChallenge(
   response: LoginResultVM
@@ -175,6 +188,61 @@ async function handleTwoFactorSubmit(): Promise<void> {
   } finally {
     isLoading.value = false;
   }
+}
+
+async function loginWithPasskey(): Promise<void> {
+  if (isLoading.value || !passkeyAvailable.value || twoFactorChallenge.value) return;
+  isLoading.value = true;
+  passkeyPending = true;
+  const app = useNuxtApp();
+  let revision = preferenceStore.authRevision();
+  try {
+    const login = v2LoginWithPasskey(trustDevice.value, () => !disposed);
+    revision = preferenceStore.authRevision();
+    const response = await login;
+    if (disposed || !preferenceStore.isAuthCurrent(revision)) return;
+    if (isTwoFactorChallenge(response)) {
+      twoFactorChallenge.value = response;
+      twoFactorCode.value = '';
+      toast.info(t('auth.login.twoFactorRequired'));
+      return;
+    }
+    await app.runWithContext(() => completeLogin(response));
+  } catch (error) {
+    if (disposed || passkeyCancelled(error) || !preferenceStore.isAuthCurrent(revision)) return;
+    const unavailable = error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 503;
+    toast.error(t(unavailable ? 'passkeys.unavailable' : 'passkeys.signInFailed'));
+  } finally { isLoading.value = false; passkeyPending = false; }
+}
+
+async function loginWithGitHub(): Promise<void> {
+  if (isLoading.value || twoFactorChallenge.value) return;
+  let popup: ReturnType<typeof openGitHubWindow>;
+  try { popup = openGitHubWindow(); }
+  catch { toast.error(t('githubOAuth.popupBlocked')); return; }
+
+  const request = new AbortController();
+  githubRequest.value = request;
+  isLoading.value = true;
+  const app = useNuxtApp();
+  let revision = preferenceStore.authRevision();
+  try {
+    const pending = v2LoginWithGitHub({ signal: request.signal, current: () => !disposed, open: popup.open }, trustDevice.value);
+    revision = preferenceStore.authRevision();
+    const response = await pending;
+    if (disposed || request.signal.aborted || !preferenceStore.isAuthCurrent(revision)) return;
+    if (isTwoFactorChallenge(response)) {
+      twoFactorChallenge.value = response;
+      twoFactorCode.value = '';
+      toast.info(t('auth.login.twoFactorRequired'));
+      return;
+    }
+    await app.runWithContext(() => completeLogin(response));
+  } catch (error) {
+    if (disposed || request.signal.aborted || !preferenceStore.isAuthCurrent(revision)) return;
+    const unavailable = error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 503;
+    toast.error(t(unavailable ? 'githubOAuth.unavailable' : 'githubOAuth.signInFailed'));
+  } finally { popup.close(); githubRequest.value = null; isLoading.value = false; }
 }
 
 const onSubmit = form.handleSubmit(onValidSubmit);
@@ -353,6 +421,20 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                 >
                   {{ t('auth.login.twoFactorVerify') }}
                 </AppButton>
+
+                <AppButton v-if="passkeyAvailable && !twoFactorChallenge" type="button" variant="outline"
+                  class="w-full" :disabled="isLoading" @click="loginWithPasskey">
+                  {{ t('passkeys.signIn') }}
+                </AppButton>
+
+                <AppButton v-if="!twoFactorChallenge" type="button" variant="outline" class="w-full"
+                  :disabled="isLoading" @click="loginWithGitHub">
+                  {{ t('githubOAuth.signIn') }}
+                </AppButton>
+                <div v-if="githubRequest" class="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <p role="status">{{ t('githubOAuth.waiting') }}</p>
+                  <button type="button" class="underline" @click="githubRequest.abort()">{{ t('common.cancel') }}</button>
+                </div>
 
                 <div
                   class="after:border-border relative text-center text-xs after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t"

@@ -11,6 +11,17 @@ test('broker event admission follows the shared contract',()=>{
   assert.equal(api.allowRealtimeFrame(entry.channel,entry.raw,42,'local'),entry.valid,entry.id);
  }
 });
+test('direct reaction updates carry IDs on a specific user channel', () => {
+ const data = { conversation_id: 7, message_id: 8, server_id: 'peer' };
+ const raw = payload => JSON.stringify({ type: 'direct_message_updated', data: payload, timestamp: 1 });
+ assert(api.allowRealtimeFrame('ws:user:42', raw(data), 42, 'local'));
+ for (const channel of ['ws:user:43', 'ws:chat:channel:7', 'ws:broadcast']) {
+  assert(!api.allowRealtimeFrame(channel, raw(data), 42, 'local'));
+ }
+ for (const invalid of [{ ...data, message_id: '8' }, { ...data, reactions: [] }, { ...data, server_id: '' }]) {
+  assert(!api.allowRealtimeFrame('ws:user:42', raw(invalid), 42, 'local'));
+ }
+});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function waitFor(predicate){const end=Date.now()+2500;while(!predicate()){assert(Date.now()<end,'condition timed out');await new Promise(resolve=>setTimeout(resolve,5));}}
 class Transport {

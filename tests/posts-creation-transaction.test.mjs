@@ -10,6 +10,10 @@ import {createEvent} from 'h3';
 
 import {readFileSync as readPublishPolicy} from 'node:fs';
 const publishPolicy = JSON.parse(readPublishPolicy(new URL('../specifications/requirements/moderation-publish-policy.json', import.meta.url), 'utf8'));
+const {sql:directSql}=JSON.parse(readPublishPolicy(new URL('../specifications/requirements/direct-message-extras.json',import.meta.url),'utf8'));
+const {sql:pollSql}=JSON.parse(readPublishPolicy(new URL('../specifications/requirements/post-polls.json',import.meta.url),'utf8'));
+const {sql:markdownSql}=JSON.parse(readPublishPolicy(new URL('../specifications/requirements/post-markdown.json',import.meta.url),'utf8'));
+const extraWrites=new Map([[pollSql.insert_poll,'poll'],[pollSql.insert_option,'poll_option'],[markdownSql.insert,'markdown']]);
 const root=fileURLToPath(new URL('../',import.meta.url));
 const require=createRequire(import.meta.url);
 const stubs={
@@ -17,6 +21,7 @@ const stubs={
  './notifications': `export const v2CreateNotification=async (c,n)=>{c.notices.push(n);if(c.failNotification)throw new Error('private notification error')};`,
  './api-cache': 'export const readApiResponseCache=async()=>({status:"disabled"});export const writeApiResponseCache=async()=>{};export const invalidateApiResponseCache=async()=>{};export const shouldInvalidateApiResponseCache=()=>false;',
  './logging':'export const getRequestLogContext=()=>null;export const logError=()=>{};export const logInfo=()=>{};export const serializeLogError=()=>({});',
+ '~/server/database/readiness':'export const requireFeatureSchema=async(c,feature)=>{c.schemaChecks.push(feature);if(c.pending.length)throw Error("schema check after write");};',
  oracledb:'export default {OUT_FORMAT_OBJECT:4002};'
 };
 const compiled=await build({stdin:{contents:`export {default as create} from './server/api/v2/posts/index.post';`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'boundaries',setup(builder){
@@ -25,13 +30,14 @@ const compiled=await build({stdin:{contents:`export {default as create} from './
 }}]});
 const routes=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 
-function database({media=[11],mediaKey='posts/files/11.txt',canBindPrivate=true,failAt='',failNotification=false,failCommit=false,failRollback=false,muted=false}={}){
- const db={pending:[],committed:[],calls:[],notices:[],commits:0,rollbacks:0,failNotification,close:async()=>{},snapshot(){return {post_id:100,committed:this.committed.length}},
+function database({media=[11],mediaKey='posts/files/11.txt',canBindPrivate=true,directReference=false,failAt='',failNotification=false,failCommit=false,failRollback=false,muted=false}={}){
+ const db={pending:[],committed:[],calls:[],schemaChecks:[],notices:[],commits:0,rollbacks:0,failNotification,close:async()=>{},snapshot(){return {post_id:100,committed:this.committed.length}},
   async execute(raw,binds={},options={}){
    const sql=raw.replace(/\s+/g,' ').trim();this.calls.push({sql,binds,options});
    if (sql === publishPolicy.sql.lock) return {rows: [{USER_ID: binds.user_id}]};
    if (sql === publishPolicy.sql.allowed) return {rows: [{ALLOWED: muted ? 0 : 1}]};
    if(sql.startsWith('SELECT seq_post_id'))return{rows:[{ID:100}]};
+   if(sql.startsWith('SELECT seq_post_poll_id'))return{rows:[{ID:101}]};
    if(sql.startsWith('SELECT COALESCE'))return{rows:[{NAME:'viewer'}]};
    if(sql.startsWith('SELECT DBMS_LOB.SUBSTR')&&sql.includes('FROM n_posts'))return{rows:[{CONTENT:'posted'}]};
    if(sql.startsWith('SELECT p.post_id'))return{rows:[{POST_ID:binds.post_id}]};
@@ -39,8 +45,9 @@ function database({media=[11],mediaKey='posts/files/11.txt',canBindPrivate=true,
    if(sql.startsWith('SELECT media_id, storage_key FROM n_media_assets')&&sql.endsWith('FOR UPDATE')){
     return{rows:media.includes(binds.media_id)?[{MEDIA_ID:binds.media_id,STORAGE_KEY:mediaKey}]:[]};
    }
+   if(sql===directSql.asset_is_linked)return{rows:directReference?[{LINKED:1}]:[]};
    if(sql.startsWith('SELECT 1 AS permitted FROM n_media_assets'))return {rows:canBindPrivate?[{PERMITTED:1}]:[]};
-   const kind=sql.startsWith('INSERT INTO n_posts')?'post':sql.startsWith('INSERT INTO n_post_media')?'media':sql.startsWith('MERGE INTO n_tags')?'tag':sql.startsWith('INSERT INTO n_post_tags')?'post_tag':sql.startsWith('INSERT INTO n_post_mentions')?'mention':null;
+   const kind=sql.startsWith('INSERT INTO n_posts')?'post':sql.startsWith('INSERT INTO n_post_media')?'media':sql.startsWith('MERGE INTO n_tags')?'tag':sql.startsWith('INSERT INTO n_post_tags')?'post_tag':sql.startsWith('INSERT INTO n_post_mentions')?'mention':extraWrites.get(sql);
    if(!kind)throw new Error(`unexpected SQL ${sql}`);
    if(failAt===kind)throw new Error('private database failure');
    if(kind==='media'&&!media.includes(binds.media_id))return{rowsAffected:0};
@@ -78,8 +85,10 @@ test('private post attachments require restricted visibility and a free same-sco
   if (permitted) {
    await invoke({visibility,media_ids:[11]},db);
    const lock=db.calls.findIndex(call=>call.sql.startsWith('SELECT media_id, storage_key'));
+   const direct=db.calls.findIndex(call=>call.sql===directSql.asset_is_linked);
    const check=db.calls.findIndex(call=>call.sql.startsWith('SELECT 1 AS permitted'));
-   assert.ok(lock>=0 && check>lock);
+   assert.ok(lock>=0 && direct>lock && check>direct);
+   assert.deepEqual(db.calls[direct].binds,{media_id:11});
    assert.deepEqual(db.calls[check].binds,{media_id:11,post_id:100});
    assert.equal(db.commits,1);
   } else {
@@ -88,6 +97,43 @@ test('private post attachments require restricted visibility and a free same-sco
    assert.deepEqual(db.committed,[]);
   }
  }
+});
+
+test('a direct-message attachment is rejected under its lock', async () => {
+ const db=database({mediaKey:'private/post/42/a.txt',directReference:true});
+ await assert.rejects(invoke({visibility:'followers',media_ids:[11]},db), {statusCode:400});
+ const lock=db.calls.findIndex(call=>call.sql.startsWith('SELECT media_id, storage_key'));
+ const direct=db.calls.findIndex(call=>call.sql===directSql.asset_is_linked);
+ assert.ok(lock>=0 && direct>lock);
+ assert.equal(db.calls.some(call=>call.sql.startsWith('SELECT 1 AS permitted')),false);
+ assert.deepEqual(db.committed,[]);
+ assert.equal(db.rollbacks,1);
+});
+
+test('poll options and raw Markdown commit with the post or all roll back', async () => {
+ const markdown='  # Full text\n\nBody\n';
+ const payload={content:'Excerpt',markdown,poll:{options:['Option 1','Option 2'],multiple:true,closes_at:'2036-01-01T00:00:00Z'}};
+ const db=database();
+ await invoke(payload,db);
+ assert.deepEqual(db.schemaChecks,['post-polls','post-markdown']);
+ assert.deepEqual(db.committed.map(write=>write.kind),['post','poll','poll_option','poll_option','markdown']);
+ assert.deepEqual(db.committed[1].binds,{
+  post_id:100,group_post_id:null,poll_id:101,allow_multiple:1,closes_at:'2036-01-01T00:00:00.000Z'
+ });
+ assert.deepEqual(db.committed.slice(2,4).map(write=>write.binds),[
+  {poll_id:101,option_id:1,option_text:'Option 1'},
+  {poll_id:101,option_id:2,option_text:'Option 2'}
+ ]);
+ assert.deepEqual(db.committed[4].binds,{post_id:100,group_post_id:null,markdown_body:markdown});
+ assert.ok(db.calls.filter(call=>/^(INSERT|MERGE)/.test(call.sql)).every(call=>call.options.autoCommit===false));
+ assert.equal(db.commits,1);
+
+ const failed=database({failAt:'markdown'});
+ await assert.rejects(invoke(payload,failed), {statusCode:500});
+ assert.deepEqual(failed.committed,[]);
+ assert.deepEqual(failed.pending,[]);
+ assert.equal(failed.rollbacks,1);
+ assert.equal(failed.notices.length,0);
 });
 
 test('post and valid distinct media, tags and mentions commit together',async()=>{

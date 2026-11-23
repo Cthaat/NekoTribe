@@ -43,6 +43,7 @@ type TextareaRef =
 
 const props = defineProps<{
   channelName?: string;
+  placeholder?: string;
   replyTo?: ChatMessageType | null;
   disabled?: boolean;
   disabledReason?: string;
@@ -53,7 +54,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'cancel-reply'): void;
-  (e: 'typing'): void;
+  (e: 'typing', active: boolean): void;
 }>();
 
 const message = ref('');
@@ -134,6 +135,7 @@ const canSend = computed(() => {
 });
 
 const inputPlaceholder = computed(() => {
+  if (props.placeholder) return props.placeholder;
   if (props.disabled && props.disabledReason) {
     return props.disabledReason;
   }
@@ -262,9 +264,10 @@ const handleKeydown = (e: KeyboardEvent) => {
 };
 
 // 处理输入
-const handleInput = () => {
+const handleInput = (event: Event) => {
   if (props.disabled) return;
-  emit('typing');
+  const target = event.target as HTMLTextAreaElement | null;
+  emit('typing', !!target?.value.trim());
 };
 
 // 处理文件选择

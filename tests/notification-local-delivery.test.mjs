@@ -5,6 +5,8 @@ import {Readable} from 'node:stream';
 import {createEvent} from 'h3';
 
 const policy = JSON.parse(readFileSync(new URL('../specifications/requirements/moderation-publish-policy.json', import.meta.url)));
+const { sql: directExtras } = JSON.parse(readFileSync(new URL('../specifications/requirements/direct-message-extras.json', import.meta.url)));
+const emptyDirectExtras = new Set([directExtras.list_media, directExtras.list_replies, directExtras.list_reactions]);
 import {createRequire} from 'node:module';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import path from 'node:path';
@@ -137,6 +139,7 @@ test('direct history shares the conversation lock and never rewinds the cursor',
     const actions = [];
     const connection = {
       async execute(sql, binds, options) {
+        if (emptyDirectExtras.has(sql)) return { rows: [] };
         if (sql.includes('FROM n_direct_conversations')) {
           assert.match(sql, /FOR UPDATE/);
           assert.deepEqual(binds, {conversation_id:7, user_id:42});
@@ -147,7 +150,7 @@ test('direct history shares the conversation lock and never rewinds the cursor',
         if (sql.includes('FROM n_direct_messages dm')) {
           return {rows: mode === 'empty' ? [] : [{MESSAGE_ID:10, CONVERSATION_ID:7, USER_ID:9}]};
         }
-        assert.match(sql, /GREATEST\(NVL\(r\.last_read_message_id, 0\), src\.last_read_message_id\)/);
+        assert.match(sql, /WHERE NVL\(r\.last_read_message_id,0\)<s\.last_read_message_id/);
         assert.equal(options.autoCommit, false);
         assert.equal(binds.last_read_message_id, 10);
         actions.push('mark');
@@ -181,6 +184,7 @@ test('direct send rolls back all writes and only delivers after commit', async (
     const connection = {
       async execute(sql, binds, options) {
         const text = sql.trim();
+        if (emptyDirectExtras.has(text)) return { rows: [] };
         if (/^(INSERT|UPDATE|MERGE)/.test(text)) {
           assert.equal(options.autoCommit, false);
           writes.push(text);
@@ -214,6 +218,11 @@ test('direct send rolls back all writes and only delivers after commit', async (
         assert.equal(rolledBack, true);
         assert.equal(committed, false);
         assert.deepEqual(writes, []);
+        assert.deepEqual(globalThis.__localNotification, []);
+      } else if (failure === 'commit') {
+        await assert.rejects(subject.v2CreateDirectMessage(event, connection, 7), { statusCode: 500 });
+        assert.equal(committed, false);
+        assert.equal(rolledBack, false);
         assert.deepEqual(globalThis.__localNotification, []);
       } else if (failure && failure !== 'push-disabled') {
         await assert.rejects(subject.v2CreateDirectMessage(event, connection, 7), /fixture .* failed/);

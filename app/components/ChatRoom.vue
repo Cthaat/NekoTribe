@@ -23,7 +23,6 @@ import {
   Maximize2
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -55,12 +54,16 @@ import {
 } from '@/components/ui/dialog';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
+import ChatSearchFilters from './ChatSearchFilters.vue';
 import ChatMemberList from './ChatMemberList.vue';
-import AppSendButton from '@/components/app/AppSendButton.vue';
+import { mapV2DirectMessage } from '@/services/chat';
+import { useDirectMessageViewport } from '@/composables/useDirectMessageViewport';
 import type { ChatMessageType } from './ChatMessage.vue';
 import type { ChatMember } from './ChatMemberList.vue';
 import type { Channel } from './ChatChannelList.vue';
 import type { V2DirectMessage } from '@/types/v2';
+import type { ChatMessageFilters } from '@/api/v2/chat';
+import type { CallMode } from '@/api/v2/webrtc';
 import { toast } from 'vue-sonner';
 const { t } = useAppLocale();
 
@@ -75,16 +78,21 @@ const props = defineProps<{
   messageLoadFailed?: boolean;
   isSending?: boolean;
   currentUserId?: number;
+  currentUserName?: string;
   directMessages?: V2DirectMessage[];
+  channelSearchActive?: boolean;
+  directSearchActive?: boolean;
+  channelTypingCount?: number;
+  directTyping?: boolean;
+  lastSeenOwnDirectMessage?: number;
   isLoadingDirectMessages?: boolean;
   hasOlderDirectMessages?: boolean;
   loadingOlderDirectMessages?: boolean;
-  isSendingDirectMessage?: boolean;
   channels?: Channel[];
   showMobileNavigationToggle?: boolean;
   composerRevision: number;
   sendMessage: (content: string, attachments?: File[], replyToMessageId?: number) => Promise<boolean>;
-  sendDirectMessage: (targetUserId: number, content: string) => Promise<boolean>;
+  sendDirectMessage: (targetUserId: number, content: string, attachments?: File[], replyToMessageId?: number) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
@@ -97,12 +105,19 @@ const emit = defineEmits<{
   (e: 'delete', messageId: number): void;
   (e: 'pin', messageId: number): void;
   (e: 'toggle-mute'): void;
-  (e: 'search', query: string): void;
+  (e: 'search', filters: ChatMessageFilters | null): void;
+  (e: 'direct-search', filters: ChatMessageFilters | null): void;
   (e: 'show-navigation'): void;
   (e: 'view-profile', userId: number): void;
   (e: 'open-direct-message', member: ChatMember): void;
   (e: 'open-direct-message-standalone', member: ChatMember): void;
   (e: 'delete-direct-message', message: V2DirectMessage): void;
+  (e: 'react-direct-message', messageId: number, emoji: string): void;
+  (e: 'typing-channel', active: boolean): void;
+  (e: 'typing-direct', active: boolean): void;
+  (e: 'direct-visibility', open: boolean): void;
+  (e: 'direct-message-visible', messageId: number): void;
+  (e: 'start-call', member: ChatMember, mode: CallMode): void;
 }>();
 
 // 状态
@@ -110,14 +125,31 @@ const showMemberList = ref(true);
 const mobileMemberListOpen = ref(false);
 const showPinnedMessages = ref(false);
 const showSearch = ref(false);
+const showDirectSearch = ref(false);
 const notificationSettingsOpen = ref(false);
 const callDialogOpen = ref(false);
-const callDialogType = ref<'voice' | 'video'>('voice');
+const callDialogType = ref<CallMode>('voice');
+const callMemberId = ref<number | ''>('');
+const callMembers = computed(() => props.members.filter(member => member.id !== props.currentUserId));
 const directMessageOpen = ref(false);
+const directList = ref<HTMLElement | null>(null);
 const directMessageTarget = ref<ChatMember | null>(null);
-const directMessageContent = ref('');
-let directDraftRevision = 0;
-const searchQuery = ref('');
+const directDraftRevision = ref(0);
+const directReplyId = ref<number | null>(null);
+const directReply = computed(() => {
+  const message = props.directMessages?.find(item => item.message_id === directReplyId.value);
+  return message ? mapV2DirectMessage(message) : null;
+});
+watch(directMessageOpen, open => emit('direct-visibility', open), { flush: 'sync' });
+useDirectMessageViewport(directList, () => props.directMessages?.map(item => item.message_id).join(',') ?? '',
+  () => directMessageOpen.value && !props.directSearchActive, id => emit('direct-message-visible', id));
+const channelSearchSenders = computed(() => {
+  const senders = new Map(props.members.map(member => [member.id, member.nickname || member.username]));
+  for (const {author} of props.messages) {
+    if (!senders.has(author.id)) senders.set(author.id, author.nickname || author.username);
+  }
+  return Array.from(senders, ([id, label]) => ({id,label}));
+});
 const replyTo = ref<ChatMessageType | null>(null);
 const messagesScrollAreaRef =
   ref<ComponentPublicInstance | null>(null);
@@ -189,17 +221,17 @@ const isOwnMessage = (message: ChatMessageType) => {
   );
 };
 
-const openCallDialog = (type: 'voice' | 'video') => {
+const openCallDialog = (type: CallMode) => {
   callDialogType.value = type;
+  callMemberId.value = '';
   callDialogOpen.value = true;
 };
 
 const handleStartCall = () => {
-  toast.info(
-    callDialogType.value === 'voice'
-      ? t('chat.feedback.voiceCallUnavailable')
-      : t('chat.feedback.videoCallUnavailable')
-  );
+  const member = callMembers.value.find(item => item.id === callMemberId.value);
+  if (!member) return;
+  callDialogOpen.value = false;
+  emit('start-call',member,callDialogType.value);
 };
 
 function getMessagesViewport(): HTMLElement | null {
@@ -216,8 +248,9 @@ const openDirectMessage = (member: ChatMember) => {
     return;
   }
   directMessageTarget.value = member;
-  directDraftRevision++;
-  directMessageContent.value = '';
+  showDirectSearch.value = false;
+  directDraftRevision.value++;
+  directReplyId.value = null;
   directMessageOpen.value = true;
   emit('open-direct-message', member);
 };
@@ -227,24 +260,16 @@ const openDirectMessageStandalone = () => {
   emit('open-direct-message-standalone', directMessageTarget.value);
 };
 
-const handleDirectMessageKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault();
-    submitDirectMessage();
-  }
-};
-
-const submitDirectMessage = async () => {
+const submitDirectMessage = async (content: string, attachments?: File[]): Promise<boolean> => {
   const target = directMessageTarget.value;
-  const draft = directMessageContent.value;
-  const content = draft.trim();
-  if (!target || !content) return;
-  const revision = directDraftRevision;
-  const sent = await props.sendDirectMessage(target.id, content);
-  if (sent && directMessageOpen.value && revision === directDraftRevision &&
-      directMessageContent.value === draft) {
-    directMessageContent.value = '';
+  if (!target) return false;
+  const revision = directDraftRevision.value;
+  const replyId = directReply.value?.id;
+  const sent = await props.sendDirectMessage(target.id, content, attachments, replyId);
+  if (sent && directMessageOpen.value && revision === directDraftRevision.value && directReplyId.value === replyId) {
+    directReplyId.value = null;
   }
+  return sent;
 };
 
 // 滚动到底部
@@ -294,11 +319,23 @@ const handleSend = async (
 
 watch(() => props.composerRevision, () => {
   replyTo.value = null;
-  directDraftRevision++;
+  showSearch.value = false;
+  showDirectSearch.value = false;
+  directDraftRevision.value++;
   directMessageOpen.value = false;
   directMessageTarget.value = null;
-  directMessageContent.value = '';
+  directReplyId.value = null;
 });
+
+function toggleSearch() {
+  showSearch.value = !showSearch.value;
+  if (!showSearch.value) emit('search', null);
+}
+
+function toggleDirectSearch() {
+  showDirectSearch.value = !showDirectSearch.value;
+  if (!showDirectSearch.value) emit('direct-search', null);
+}
 
 // 处理回复
 const handleReply = (message: ChatMessageType) => {
@@ -542,7 +579,9 @@ onBeforeUnmount(() => {
                   size="icon"
                   class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
                   :class="{ 'bg-accent text-accent-foreground': showSearch }"
-                  @click="showSearch = !showSearch"
+                  :aria-label="t('chat.actions.searchMessages')"
+                  :aria-expanded="showSearch"
+                  @click="toggleSearch"
                 >
                   <Search class="h-4 w-4" />
                 </Button>
@@ -602,22 +641,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 搜索栏 -->
-      <div
-        v-if="showSearch"
-        class="shrink-0 border-b border-border/60 bg-muted/20 px-3 py-2 sm:px-4"
-      >
-        <div class="relative max-w-md">
-          <Search
-            class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            v-model="searchQuery"
-            :placeholder="t('chat.searchPlaceholder')"
-            class="h-9 pl-9 shadow-xs"
-            @input="emit('search', searchQuery)"
-          />
-        </div>
-      </div>
+      <ChatSearchFilters v-if="showSearch" :senders="channelSearchSenders" @search="emit('search', $event)" />
 
       <!-- 消息区域 -->
       <div class="relative min-h-0 flex-1">
@@ -645,6 +669,8 @@ onBeforeUnmount(() => {
                 :key="message.id"
                 :message="message"
                 :is-own="isOwnMessage(message)"
+                :allow-edit="!channelSearchActive"
+                :hide-reply="channelSearchActive"
                 :show-avatar="shouldShowAvatar(index)"
                 :is-first-in-group="isFirstInGroup(index)"
                 @reply="handleReply"
@@ -670,12 +696,12 @@ onBeforeUnmount(() => {
               </div>
               <h3 class="text-base font-semibold tracking-tight">
                 {{
-                  t('chat.message.emptyTitle', {
+                  channelSearchActive ? t('chat.messageSearch.empty') : t('chat.message.emptyTitle', {
                     channel: channel.name
                   })
                 }}
               </h3>
-              <p class="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
+              <p v-if="!channelSearchActive" class="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
                 {{ t('chat.message.emptyDescription') }}
               </p>
             </div>
@@ -699,7 +725,11 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 输入区域 -->
+      <p v-if="!channelSearchActive && channelTypingCount" class="px-4 py-1 text-xs text-muted-foreground" role="status">
+        {{ channelTypingCount === 1 ? t('chat.channelTyping.one') : t('chat.channelTyping.many', {count:channelTypingCount}) }}
+      </p>
       <ChatInput
+        v-show="!channelSearchActive"
         :key="composerRevision"
         :channel-name="channel.name"
         :reply-to="replyTo"
@@ -709,6 +739,7 @@ onBeforeUnmount(() => {
         :channels="channels"
         :send-message="handleSend"
         @cancel-reply="cancelReply"
+        @typing="emit('typing-channel', $event)"
       />
     </div>
 
@@ -752,18 +783,20 @@ onBeforeUnmount(() => {
             }}
           </DialogTitle>
           <DialogDescription>
-            {{
-              callDialogType === 'voice'
-                ? t('chat.calls.voiceDescription')
-                : t('chat.calls.videoDescription')
-            }}
+            {{ t('chat.calls.chooseMember') }}
           </DialogDescription>
         </DialogHeader>
+        <select v-model="callMemberId" :aria-label="t('chat.calls.member')" class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+          <option value="">{{ t('chat.calls.member') }}</option>
+          <option v-for="member in callMembers" :key="member.id" :value="member.id">
+            {{ member.nickname || member.username }}
+          </option>
+        </select>
         <DialogFooter>
           <Button variant="outline" @click="callDialogOpen = false">
             {{ t('common.cancel') }}
           </Button>
-          <Button @click="handleStartCall">
+          <Button :disabled="!callMemberId" @click="handleStartCall">
             {{
               callDialogType === 'voice'
                 ? t('chat.actions.startVoiceCall')
@@ -815,6 +848,18 @@ onBeforeUnmount(() => {
                 {{ t('chat.directMessage.title') }}
               </div>
             </div>
+            <Button v-if="directMessageTarget" type="button" variant="ghost" size="icon" class="h-8 w-8 shrink-0"
+              :aria-label="t('chat.actions.startVoiceCall')" @click="emit('start-call',directMessageTarget,'voice')">
+              <Phone class="h-4 w-4" />
+            </Button>
+            <Button v-if="directMessageTarget" type="button" variant="ghost" size="icon" class="h-8 w-8 shrink-0"
+              :aria-label="t('chat.actions.startVideoCall')" @click="emit('start-call',directMessageTarget,'video')">
+              <Video class="h-4 w-4" />
+            </Button>
+            <Button v-if="directMessageTarget" type="button" size="icon" variant="ghost" class="h-8 w-8 shrink-0"
+              :aria-label="t('chat.actions.searchMessages')" :aria-expanded="showDirectSearch" @click="toggleDirectSearch">
+              <Search class="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -827,6 +872,11 @@ onBeforeUnmount(() => {
             </Button>
           </div>
         </div>
+
+        <ChatSearchFilters v-if="showDirectSearch && directMessageTarget && currentUserId" :senders="[
+          { id: currentUserId, label: currentUserName || t('chat.currentUser.name') },
+          { id: directMessageTarget.id, label: directMessageTarget.nickname },
+        ]" @search="emit('direct-search', $event)" />
 
         <div v-if="directMessageTarget" class="flex min-h-0 flex-1 flex-col gap-3 p-4">
           <ScrollArea class="flex-1 rounded-xl border border-border/60 bg-muted/20 p-3">
@@ -844,69 +894,53 @@ onBeforeUnmount(() => {
                   <Hash class="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div class="text-sm font-semibold tracking-tight">
-                  {{ t('chat.directMessage.emptyTitle') }}
+                  {{ t(directSearchActive ? 'chat.messageSearch.empty' : 'chat.directMessage.emptyTitle') }}
                 </div>
-                <div class="mt-1 text-xs leading-relaxed text-muted-foreground">
+                <div v-if="!directSearchActive" class="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {{ t('chat.directMessage.emptyDescription') }}
                 </div>
               </div>
 
-              <div v-else class="flex flex-col gap-2.5">
+              <div v-else ref="directList" class="flex flex-col gap-2.5">
                 <div
                   v-for="message in directMessages"
                   :key="message.message_id"
-                  class="flex"
-                  :class="{ 'justify-end': message.author.user_id === currentUserId }"
+                  :data-incoming-direct-message-id="message.author.user_id !== currentUserId ? message.message_id : undefined"
                 >
-                  <div class="max-w-[84%] min-w-0">
-                    <div
-                      class="rounded-2xl px-3.5 py-2 text-sm leading-relaxed shadow-xs"
-                      :class="
-                        message.author.user_id === currentUserId
-                          ? 'rounded-br-md bg-primary text-primary-foreground'
-                          : 'rounded-bl-md border border-border/60 bg-card text-foreground'
-                      "
-                    >
-                      <div class="whitespace-pre-wrap break-words">
-                        {{ message.content }}
-                      </div>
-                    </div>
-                    <div
-                      class="mt-1 px-1 text-[10px] tabular-nums text-muted-foreground"
-                      :class="message.author.user_id === currentUserId ? 'text-right' : 'text-left'"
-                    >
-                      {{ new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
-                      <button v-if="message.can_delete && !message.is_deleted && message.author.user_id === currentUserId" type="button" class="ml-2 underline underline-offset-2" @click="emit('delete-direct-message', message)">
-                        {{ t('chat.actions.deleteMessage') }}
-                      </button>
-                    </div>
-                  </div>
+                  <ChatMessage
+                    :message="mapV2DirectMessage(message)"
+                    :is-own="message.author.user_id === currentUserId"
+                    :allow-edit="false"
+                    :hide-reply="directSearchActive"
+                    :allow-delete="message.can_delete && !message.is_deleted && message.author.user_id === currentUserId"
+                    show-avatar
+                    is-first-in-group
+                    @reply="directReplyId = $event.id"
+                    @react="(id, emoji) => emit('react-direct-message', id, emoji)"
+                    @delete="emit('delete-direct-message', message)"
+                    @view-profile="emit('view-profile', $event)"
+                  />
+                  <p v-if="!directSearchActive && message.message_id === lastSeenOwnDirectMessage" class="px-3 text-right text-xs text-muted-foreground">
+                    {{ t('chat.directMessage.read') }}
+                  </p>
                 </div>
               </div>
             </div>
           </ScrollArea>
 
-          <div class="rounded-xl border border-border/60 bg-card shadow-xs transition-colors focus-within:border-ring/60 focus-within:ring-2 focus-within:ring-ring/20">
-            <div class="flex items-center gap-2 p-1.5">
-              <Input
-                v-model="directMessageContent"
-                :placeholder="t('chat.directMessage.placeholder', { user: directMessageTarget.nickname })"
-                class="h-9 min-w-0 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
-                @keydown="handleDirectMessageKeydown"
-              />
-              <AppSendButton
-                :loading="isSendingDirectMessage"
-                :disabled="isLoadingDirectMessages || isSendingDirectMessage || !directMessageContent.trim()"
-                size="sm"
-                class="h-8 shrink-0 rounded-md px-3"
-                @click="submitDirectMessage"
-              >
-                <span class="hidden sm:inline">
-                  {{ isSendingDirectMessage ? t('common.processing') : t('chat.actions.sendMessage') }}
-                </span>
-              </AppSendButton>
-            </div>
-          </div>
+          <p v-if="!directSearchActive && directTyping" class="px-1 text-xs text-muted-foreground" role="status">
+            {{ t('chat.directMessage.typing', { user: directMessageTarget.nickname }) }}
+          </p>
+          <ChatInput
+            v-show="!directSearchActive"
+            :key="directDraftRevision"
+            :placeholder="t('chat.directMessage.placeholder', { user: directMessageTarget.nickname })"
+            :disabled="isLoadingDirectMessages"
+            :reply-to="directReply"
+            :send-message="submitDirectMessage"
+            @typing="emit('typing-direct', $event)"
+            @cancel-reply="directReplyId = null"
+          />
         </div>
       </SheetContent>
     </Sheet>

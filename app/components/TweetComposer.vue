@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import PostPollEditor from '@/components/PostPollEditor.vue';
+import PostDraftsDialog from '@/components/PostDraftsDialog.vue';
+import { openPostPollDraft, postPollPayload, type PostPollDraft } from '@/utils/post-poll-draft';
+import { markdownBytes, markdownExcerpt, maxMarkdownBytes, validMarkdownBody } from '@/utils/post-markdown';
 import {
   computed,
   defineAsyncComponent,
@@ -13,7 +17,7 @@ import type {
   CreatePostFormVM,
   PreviewPostVM
 } from '@/types/posts';
-import type { V2PostVisibility } from '@/types/v2';
+import type { V2PostDraft, V2PostDraftInput, V2PostVisibility } from '@/types/v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,7 +34,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import {
   Tooltip,
   TooltipContent,
@@ -58,6 +62,8 @@ import { toast } from 'vue-sonner';
 import TweetPreviewCard from './TweetPreviewCard.vue';
 import MentionPicker from './MentionPicker.vue';
 import { v2DeleteMedia, v2UploadMedia } from '@/api/v2/posts';
+import { v2PublishPostDraft, v2SavePostDraft } from '@/api/v2/post-drafts';
+import { describeAiMedia, updateImageAltText, validImageAltText } from '@/api/v2/ai-vision';
 import { usePreferenceStore } from '@/stores/user';
 import { isPrivateMediaContent } from '@/utils/private-media';
 import { authQueueFor } from '@/services/auth-request-queue';
@@ -70,6 +76,7 @@ interface MediaDraft {
   altText: string;
   description: string;
   mediaId?: number;
+  uploadedAltText?: string;
   accessScope?: 'public' | 'post';
 }
 
@@ -103,13 +110,20 @@ const emit = defineEmits<{
   (e: 'open-reply-dialog'): void;
   (e: 'clear-reply'): void;
   (e: 'clear-quote'): void;
+  (e: 'draft-published'): void;
   (
     e: 'submit',
     form: CreatePostFormVM
   ): void;
 }>();
 
-const { t } = useAppLocale();
+const { t, locale } = useAppLocale();
+const pollDraft = ref<PostPollDraft | null>(null);
+const markdownEnabled = ref(false);
+const draftListOpen = ref(false);
+const savedDraftId = ref<number | null>(null);
+const restoredMediaIds = ref<number[]>([]);
+const restoredMentions = ref<{content: string; ids: number[]} | null>(null);
 
 const MAX_CHARS = 280;
 const MAX_MEDIA = 4;
@@ -160,6 +174,8 @@ const tagInput = ref('');
 const manualTags = ref<string[]>([]);
 const mediaDrafts = ref<MediaDraft[]>([]);
 const preparingMedia = ref(false);
+const describingImage = ref<string | null>(null);
+const visionSuggestion = ref<{draftId:string;altText:string;tags:string[];selectedTags:string[]} | null>(null);
 const deletingDraftId = ref<string | null>(null);
 const mediaBusy = computed(() => props.isSubmitting || preparingMedia.value || deletingDraftId.value !== null);
 const AiConversation = defineAsyncComponent(() => import('./AiConversation.vue'));
@@ -168,7 +184,8 @@ const writingDraft = ref('');
 let writingRevision = -1;
 let assistantApplied = false;
 const preferences = usePreferenceStore();
-const auth = authQueueFor(useNuxtApp());
+const app = useNuxtApp();
+const auth = authQueueFor(app);
 const draftRevision = auth.revision;
 let mediaScope = 0;
 let mediaUpload: AbortController | null = null;
@@ -194,8 +211,10 @@ const mentionPickerRef =
 const isDraggingMedia = ref(false);
 
 const characterCount = computed(
-  () => tweetContent.value.length
+  () => markdownEnabled.value ? markdownBytes(tweetContent.value) : tweetContent.value.length
 );
+const bodyLimit = computed(() => markdownEnabled.value ? maxMarkdownBytes : MAX_CHARS);
+const markdownReady = computed(() => !markdownEnabled.value || validMarkdownBody(tweetContent.value));
 
 const contentHasValue = computed(
   () => tweetContent.value.trim().length > 0
@@ -223,31 +242,33 @@ const activeMentions = computed(() =>
 );
 
 const mentionUserIds = computed(() =>
-  uniqueNumbers(activeMentions.value.map(item => item.userId))
+  uniqueNumbers([...(restoredMentions.value?.content === tweetContent.value ? restoredMentions.value.ids : []),
+    ...activeMentions.value.map(item => item.userId)])
 );
 
 const isTweetDisabled = computed(() => {
   if (mediaBusy.value) return true;
-  if (characterCount.value > MAX_CHARS) return true;
-  return !contentHasValue.value && mediaDrafts.value.length === 0;
+  if (characterCount.value > bodyLimit.value || !markdownReady.value) return true;
+  if (pollDraft.value && !postPollPayload(pollDraft.value)) return true;
+  return !contentHasValue.value && mediaDrafts.value.length === 0 && restoredMediaIds.value.length === 0;
 });
 
 const remainingCharacters = computed(
-  () => MAX_CHARS - characterCount.value
+  () => bodyLimit.value - characterCount.value
 );
 
 const circumference = 2 * Math.PI * 14;
 
 const progressOffset = computed(() => {
   const progress = Math.min(
-    characterCount.value / MAX_CHARS,
+    characterCount.value / bodyLimit.value,
     1
   );
   return circumference * (1 - progress);
 });
 
 const progressColorClass = computed(() => {
-  if (characterCount.value > MAX_CHARS) {
+  if (characterCount.value > bodyLimit.value) {
     return 'text-destructive';
   }
   if (remainingCharacters.value <= 20) {
@@ -334,7 +355,8 @@ function updateVisibility(value: unknown): void {
     value === 'private'
   ) {
     const scope = value === 'public' ? 'public' : 'post';
-    if (mediaDrafts.value.some(draft => draft.mediaId !== undefined && draft.accessScope !== scope)) {
+    if ((restoredMediaIds.value.length > 0 && (visibility.value === 'public') !== (value === 'public')) ||
+        mediaDrafts.value.some(draft => draft.mediaId !== undefined && draft.accessScope !== scope)) {
       toast.error(t('media.attachmentScopeChanged'));
       return;
     }
@@ -354,7 +376,7 @@ function mediaKind(file: File): MediaDraft['kind'] | null {
 
 function appendMediaFiles(files: File[]): void {
   if (mediaBusy.value) return;
-  const availableSlots = MAX_MEDIA - mediaDrafts.value.length;
+  const availableSlots = MAX_MEDIA - mediaDrafts.value.length - restoredMediaIds.value.length;
   if (availableSlots <= 0) {
     toast.error(t('post.composer.mediaLimitTitle'), {
       description: t('post.composer.mediaLimitDescription', {
@@ -420,7 +442,7 @@ async function removeMedia(draft: MediaDraft): Promise<void> {
   const scope = mediaScope;
   deletingDraftId.value = draft.id;
   try {
-    if (draft.mediaId !== undefined) await v2DeleteMedia(draft.mediaId);
+    if (draft.mediaId !== undefined && savedDraftId.value === null) await v2DeleteMedia(draft.mediaId);
     if (scope !== mediaScope) return;
     URL.revokeObjectURL(draft.previewUrl);
     mediaDrafts.value = mediaDrafts.value.filter(item => item.id !== draft.id);
@@ -610,12 +632,82 @@ function clearContext(): void {
   if (props.quoteTo) emit('clear-quote');
 }
 
-async function handleSubmit(): Promise<void> {
-  if (isTweetDisabled.value || auth.isIdentityChanging) return;
+async function uploadMediaDraft(draft: MediaDraft, accessScope: 'public' | 'post', scope: number, signal: AbortSignal) {
+  const alt = draft.altText.trim();
+  if (draft.mediaId === undefined) {
+    const body = new FormData();
+    body.append('file', draft.file);
+    if (accessScope === 'post') body.append('access_scope', 'post');
+    if (alt) body.append('alt_text', alt);
+    if (draft.description.trim()) body.append('description', draft.description.trim());
+    const asset = await v2UploadMedia(body, signal);
+    signal.throwIfAborted();
+    if (scope !== mediaScope) throw new Error('Media draft changed');
+    if (!Number.isSafeInteger(asset.media_id) || asset.media_id < 1 ||
+        isPrivateMediaContent(asset.media_id, asset.public_url) !== (accessScope === 'post') ||
+        (accessScope === 'post' && asset.thumbnail_url !== null)) {
+      throw new Error(t('post.composePage.submitUnknownError'));
+    }
+    draft.mediaId = asset.media_id;
+    draft.accessScope = accessScope;
+    draft.uploadedAltText = alt;
+  }
+  if (draft.accessScope !== accessScope) throw new Error(t('media.attachmentScopeChanged'));
+  return draft.mediaId;
+}
 
-  const mediaIds: number[] = [];
+async function suggestImageDetails(draft: MediaDraft) {
+  if (mediaBusy.value || !preferences.isLoggedIn || auth.isIdentityChanging) return;
+  const scope = mediaScope;
+  const request = new AbortController();
+  mediaUpload = request;
+  preparingMedia.value = true;
+  describingImage.value = draft.id;
+  try {
+    const id = await uploadMediaDraft(draft,visibility.value === 'public' ? 'public' : 'post',scope,request.signal);
+    const result = await describeAiMedia(id,locale.value === 'en' ? 'en' : 'zh',request.signal);
+    if (scope === mediaScope && !request.signal.aborted) {
+      const tags = uniqueValues(result.tags.map(normalizeTagName));
+      visionSuggestion.value = {draftId:draft.id,altText:result.alt_text,tags,selectedTags:[...tags]};
+    }
+  } catch {
+    if (scope === mediaScope && !request.signal.aborted) toast.error(t('aiVision.unavailable'));
+  } finally {
+    if (mediaUpload === request) mediaUpload = null;
+    if (scope === mediaScope) {
+      preparingMedia.value = false;
+      describingImage.value = null;
+    }
+  }
+}
+
+function applyImageDetails() {
+  const suggestion = visionSuggestion.value;
+  const draft = mediaDrafts.value.find(item => item.id === suggestion?.draftId);
+  if (!suggestion || !draft || auth.isIdentityChanging || mediaBusy.value ||
+      !suggestion.altText.trim() || !validImageAltText(suggestion.altText.trim())) return;
+  draft.altText = suggestion.altText.trim();
+  const additions = uniqueValues(suggestion.selectedTags.map(normalizeTagName))
+    .filter(tag => !tagNames.value.includes(tag)).slice(0, MAX_TAGS - tagNames.value.length);
+  manualTags.value.push(...additions);
+  assistantApplied = true;
+  visionSuggestion.value = null;
+}
+
+async function handleSubmit(purpose: 'publish' | 'save' = 'publish'): Promise<void> {
+  if (mediaBusy.value || auth.isIdentityChanging || (purpose === 'publish' && isTweetDisabled.value)) return;
+  if (purpose === 'save' && (props.replyTo || props.quoteTo || !preferences.isLoggedIn)) return;
+  if (!markdownReady.value) return;
+  const poll = postPollPayload(pollDraft.value);
+  if (pollDraft.value && !poll) return;
+
+  const draftContent = tweetContent.value;
+  const markdown = markdownEnabled.value ? draftContent : undefined;
+  const mediaIds = [...restoredMediaIds.value];
   const form: CreatePostFormVM = {
-    content: tweetContent.value.trim(),
+    ...(poll ? {poll} : {}),
+    ...(markdown === undefined ? {} : {markdown}),
+    content: markdown === undefined ? draftContent.trim() : markdownExcerpt(markdown),
     visibility: visibility.value,
     mediaIds,
     tagNames: tagNames.value,
@@ -633,37 +725,58 @@ async function handleSubmit(): Promise<void> {
   preparingMedia.value = true;
   try {
     for (const draft of mediaDrafts.value) {
-      if (draft.mediaId === undefined) {
-        const body = new FormData();
-        body.append('file', draft.file);
-        if (accessScope === 'post') body.append('access_scope', 'post');
-        if (draft.altText.trim()) body.append('alt_text', draft.altText.trim());
-        if (draft.description.trim()) body.append('description', draft.description.trim());
-        const asset = await v2UploadMedia(body, upload.signal);
+      const mediaId = await uploadMediaDraft(draft,accessScope,scope,upload.signal);
+      const alt = draft.altText.trim();
+      if (draft.kind === 'image' && alt !== draft.uploadedAltText) {
+        if (!validImageAltText(alt)) throw new Error(t('aiVision.invalidAlt'));
+        await updateImageAltText(mediaId,alt,upload.signal);
         if (scope !== mediaScope) return;
-        if (!Number.isSafeInteger(asset.media_id) || asset.media_id < 1 ||
-            isPrivateMediaContent(asset.media_id, asset.public_url) !== (accessScope === 'post') ||
-            (accessScope === 'post' && asset.thumbnail_url !== null)) {
-          throw new Error(t('post.composePage.submitUnknownError'));
-        }
-        draft.mediaId = asset.media_id;
-        draft.accessScope = accessScope;
+        draft.uploadedAltText = alt;
       }
-      if (draft.accessScope !== accessScope) {
-        throw new Error(t('media.attachmentScopeChanged'));
-      }
-      mediaIds.push(draft.mediaId);
+      mediaIds.push(mediaId);
     }
-    emit('submit', form);
+    if (purpose === 'save' || (savedDraftId.value !== null && !props.replyTo && !props.quoteTo)) {
+      const payload: V2PostDraftInput = {group_id:null,content:markdown === undefined ? draftContent : markdownExcerpt(markdown),
+        visibility:form.visibility,media_ids:mediaIds,tag_names:form.tagNames,mention_user_ids:form.mentionUserIds,
+        location:form.location,poll,markdown};
+      const saved = await app.runWithContext(() => v2SavePostDraft(payload,savedDraftId.value,upload.signal));
+      if (scope !== mediaScope || upload.signal.aborted) return;
+      savedDraftId.value = saved.draft_id;
+      if (purpose === 'save') {
+        toast.success(t('post.drafts.saved'));
+        return;
+      }
+      await app.runWithContext(() => v2PublishPostDraft(saved.draft_id,upload.signal));
+      if (scope !== mediaScope || upload.signal.aborted) return;
+      reset();
+      emit('draft-published');
+    } else {
+      emit('submit', form);
+    }
   } catch (error) {
     if (scope !== mediaScope) return;
-    toast.error(t('post.composePage.publishFailed', {
+    toast.error(purpose === 'save' ? t('post.drafts.saveFailed') : t('post.composePage.publishFailed', {
       message: error instanceof Error ? error.message : t('post.composePage.submitUnknownError')
     }));
   } finally {
     if (mediaUpload === upload) mediaUpload = null;
     if (scope === mediaScope) preparingMedia.value = false;
   }
+}
+
+function resumeDraft(draft: V2PostDraft) {
+  const { payload } = draft;
+  if (payload.group_id !== null || mediaBusy.value || auth.isIdentityChanging) return;
+  reset();
+  savedDraftId.value = draft.draft_id;
+  markdownEnabled.value = payload.markdown !== undefined;
+  tweetContent.value = payload.markdown ?? payload.content;
+  visibility.value = payload.visibility ?? 'public';
+  location.value = payload.location ?? '';
+  manualTags.value = [...(payload.tag_names ?? [])];
+  restoredMediaIds.value = [...(payload.media_ids ?? [])];
+  restoredMentions.value = {content:tweetContent.value,ids:[...(payload.mention_user_ids ?? [])]};
+  pollDraft.value = payload.poll ? openPostPollDraft(payload.poll) : null;
 }
 
 function reset(): void {
@@ -674,6 +787,8 @@ function reset(): void {
   location.value = '';
   tagInput.value = '';
   manualTags.value = [];
+  pollDraft.value = null;
+  markdownEnabled.value = false;
   selectedMentions.value = [];
   showMentionPicker.value = false;
   clearScope();
@@ -682,7 +797,9 @@ function reset(): void {
 function clearIdentityScope(): void {
   writingOpen.value = false;
   writingDraft.value = '';
-  if (props.initialDraft || assistantApplied) reset();
+  pollDraft.value = null;
+  draftListOpen.value = false;
+  if (props.initialDraft || assistantApplied || savedDraftId.value !== null || markdownEnabled.value) reset();
   else clearScope();
 }
 
@@ -705,6 +822,9 @@ function applyWritingDraft(text: string): void {
 watch(writingOpen, open => { if (!open) writingDraft.value = ''; });
 watch([() => props.replyTo?.id, () => props.quoteTo?.id], () => {
   writingOpen.value = false;
+  pollDraft.value = null;
+  markdownEnabled.value = false;
+  if (savedDraftId.value !== null) reset();
 }, { flush: 'sync' });
 
 function clearScope(): void {
@@ -712,7 +832,12 @@ function clearScope(): void {
   mediaUpload?.abort();
   mediaUpload = null;
   preparingMedia.value = false;
+  describingImage.value = null;
+  visionSuggestion.value = null;
   deletingDraftId.value = null;
+  savedDraftId.value = null;
+  restoredMediaIds.value = [];
+  restoredMentions.value = null;
   mediaDrafts.value.forEach(draft => {
     URL.revokeObjectURL(draft.previewUrl);
   });
@@ -787,6 +912,30 @@ defineExpose({
         </div>
       </div>
 
+      <PostPollEditor v-if="!replyTo && !quoteTo" v-model="pollDraft" :disabled="mediaBusy" />
+      <div v-if="!replyTo && !quoteTo" class="flex flex-wrap items-center gap-3">
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="markdownEnabled" type="checkbox" :disabled="mediaBusy" />{{ t('post.markdown.mode') }}
+        </label>
+        <span v-if="markdownEnabled" class="text-xs" :class="characterCount > bodyLimit ? 'text-destructive' : 'text-muted-foreground'">
+          {{ t('post.markdown.size', {used:characterCount,limit:bodyLimit}) }}
+        </span>
+      </div>
+      <div v-if="preferences.isLoggedIn && !replyTo && !quoteTo" class="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant="outline" :disabled="mediaBusy" @click="draftListOpen = true">{{ t('post.drafts.title') }}</Button>
+        <Button type="button" size="sm" variant="outline" :disabled="mediaBusy || !markdownReady || (!!pollDraft && !postPollPayload(pollDraft))" @click="handleSubmit('save')">{{ t('post.drafts.save') }}</Button>
+        <span v-if="savedDraftId !== null" class="text-xs text-muted-foreground">{{ t('post.drafts.editing') }}</span>
+      </div>
+      <PostDraftsDialog v-model:open="draftListOpen" :group-id="0" @resume="resumeDraft"
+        @removed="id => { if (id === savedDraftId) savedDraftId = null }" />
+      <ul v-if="restoredMediaIds.length" class="flex flex-wrap gap-2">
+        <li v-for="(id,index) in restoredMediaIds" :key="id" class="flex items-center gap-2 rounded border px-2 text-xs">
+          <span>{{ t('post.drafts.attachment', {index:index+1}) }}</span>
+          <Button type="button" size="icon" variant="ghost" :disabled="mediaBusy"
+            :aria-label="t('post.drafts.removeAttachment')" @click="restoredMediaIds = restoredMediaIds.filter(item => item !== id)"><X class="size-4" /></Button>
+        </li>
+      </ul>
+
       <MentionPicker
         ref="mentionPickerRef"
         :show="showMentionPicker"
@@ -849,9 +998,9 @@ defineExpose({
             </div>
             <Input
               v-model="draft.altText"
-              :disabled="mediaBusy || draft.mediaId !== undefined"
+              :disabled="mediaBusy || (draft.kind !== 'image' && draft.mediaId !== undefined)"
               :placeholder="t('post.composer.altTextPlaceholder')"
-              maxlength="120"
+              maxlength="500"
               class="h-8 text-xs shadow-xs"
             />
             <Input
@@ -863,9 +1012,39 @@ defineExpose({
               maxlength="240"
               class="h-8 text-xs shadow-xs"
             />
+            <Button v-if="draft.kind === 'image' && ['image/jpeg','image/png','image/webp'].includes(draft.file.type)"
+              type="button" size="sm" variant="outline" :disabled="mediaBusy" @click="suggestImageDetails(draft)">
+              <WandSparkles class="size-4" aria-hidden="true" />
+              {{ describingImage === draft.id ? t('aiVision.generating') : t('aiVision.suggest') }}
+            </Button>
           </div>
         </div>
       </div>
+
+      <Dialog :open="!!visionSuggestion" @update:open="open => { if (!open) visionSuggestion = null; }">
+        <DialogContent v-if="visionSuggestion">
+          <DialogTitle>{{ t('aiVision.suggest') }}</DialogTitle>
+          <DialogDescription>{{ t('aiVision.review') }}</DialogDescription>
+          <div class="grid gap-3">
+            <label class="grid gap-2 text-sm">
+              {{ t('aiVision.altText') }}
+              <Textarea v-model="visionSuggestion.altText" maxlength="500" rows="3" />
+            </label>
+            <div v-if="visionSuggestion.tags.length" class="flex flex-wrap gap-3">
+              <label v-for="tag in visionSuggestion.tags" :key="tag" class="flex items-center gap-1 text-sm">
+                <input v-model="visionSuggestion.selectedTags" type="checkbox" :value="tag">
+                #{{ tag }}
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" @click="visionSuggestion = null">{{ t('aiVision.cancel') }}</Button>
+            <Button type="button"
+              :disabled="!visionSuggestion.altText.trim() || !validImageAltText(visionSuggestion.altText.trim())"
+              @click="applyImageDetails">{{ t('aiVision.apply') }}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div
         v-if="
@@ -1176,7 +1355,7 @@ defineExpose({
           class="h-9 flex-1 rounded-md px-5 font-medium shadow-xs sm:flex-none"
           :loading="isSubmitting || preparingMedia"
           :disabled="isTweetDisabled"
-          @click="handleSubmit"
+          @click="handleSubmit()"
         >
           {{
             isSubmitting || preparingMedia

@@ -7,6 +7,7 @@ import { v2Auth, v2BadRequest, v2Conflict, v2Rows, v2ServerError } from '~/serve
 import { hasTooManyAiBodyMembers } from './knowledge-search-body';
 import { readTermsAuthority } from './public-terms-authority';
 import { parseTermsCatalog } from './public-terms-source';
+import { moderationImagesCurrent, validImageReferences, type ImageReference } from './vision-image-record';
 
 export type ModerationTargetType = keyof typeof contract.queries;
 export type ModerationLocale = 'zh' | 'en';
@@ -30,8 +31,7 @@ interface Advice {
   recommendation: string;
   rule_ids: number[];
 }
-export interface ModerationAdviceRecord {
-  version: 1;
+interface AdviceRecord {
   target: TargetReference;
   locale: ModerationLocale;
   terms_digest: string;
@@ -39,6 +39,9 @@ export interface ModerationAdviceRecord {
   skill_generation: number;
   advice: Advice;
 }
+export type ModerationAdviceRecord = AdviceRecord & (
+  { version: 1 } | { version: 2; image_sources: ImageReference[] }
+);
 
 const signedLimit = 999_999_999_999_999;
 const validId = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) &&
@@ -101,13 +104,15 @@ export function decodeModerationAdvice(text: string): ModerationAdviceRecord | n
   try {
     const record = fields(JSON.parse(text));
     const target = fields(record?.target);
-    if (!record || record.version !== 1 || !target || !validKind(target.target_type) ||
+    if (!record || (record.version !== 1 && record.version !== 2) || !target || !validKind(target.target_type) ||
         !validId(target.target_id) || !validId(target.post_id) ||
         (post(target.target_type) && target.post_id !== target.target_id) ||
         (grouped(target.target_type) ? !validId(target.group_id) : target.group_id !== null) ||
         !validDigest(target.digest) || !validLocale(record.locale) || !validId(record.skill_generation) ||
         !validId(record.terms_generation) || !validDigest(record.terms_digest)) return null;
-    if (!parseAdvice(record.advice, rulesFor(record.locale).map(rule => rule.id))) return null;
+    if (!parseAdvice(record.advice, rulesFor(record.locale).map(rule => rule.id)) ||
+        (record.version === 2 && (!post(target.target_type) || !validImageReferences(record.image_sources))) ||
+        (record.version === 1 && 'image_sources' in record)) return null;
     return record as unknown as ModerationAdviceRecord;
   } catch {
     return null;
@@ -115,7 +120,8 @@ export function decodeModerationAdvice(text: string): ModerationAdviceRecord | n
 }
 
 export async function readModerationMaterial(
-  event: H3Event, connection: Connection, request: Pick<ModerationRequest,'target_type'|'target_id'|'locale'>, lockRules = false,
+  event: H3Event, connection: Connection, request: Pick<ModerationRequest,'target_type'|'target_id'|'locale'>,
+  lockRules = false, allowImageOnly = false,
 ) {
   const actor = v2Auth(event);
   const rows = await v2Rows(connection, contract.queries[request.target_type], {actor_id:actor.userId,target_id:request.target_id});
@@ -124,12 +130,14 @@ export async function readModerationMaterial(
   const {CONTENT,POST_ID,GROUP_ID,TEXT_LENGTH} = row;
   if (rows.length !== 1 || !validId(POST_ID) || (post(request.target_type) && POST_ID !== request.target_id) ||
       (grouped(request.target_type) ? !validId(GROUP_ID) : GROUP_ID !== null)) v2ServerError();
-  if (CONTENT === null || !validId(TEXT_LENGTH) || TEXT_LENGTH > 1000) return null;
-  if (typeof CONTENT !== 'string' || !CONTENT.isWellFormed()) v2ServerError();
-  if (!CONTENT.trim() || Buffer.byteLength(CONTENT) > 4000) return null;
+  const imageOnly = allowImageOnly && request.target_type === 'post' && (CONTENT === null || CONTENT === '');
+  if (!imageOnly && (CONTENT === null || !validId(TEXT_LENGTH) || TEXT_LENGTH > 1000)) return null;
+  const content = imageOnly ? '' : CONTENT;
+  if (typeof content !== 'string' || !content.isWellFormed()) v2ServerError();
+  if ((!content.trim() && !(allowImageOnly && request.target_type === 'post')) || Buffer.byteLength(content) > 4000) return null;
   const groupId = grouped(request.target_type) ? GROUP_ID as number : null;
   const hash = createHash('sha256');
-  for (const value of ['moderation-target-v1',request.target_type,String(request.target_id),String(POST_ID),groupId === null ? '' : String(groupId),CONTENT]) {
+  for (const value of ['moderation-target-v1',request.target_type,String(request.target_id),String(POST_ID),groupId === null ? '' : String(groupId),content]) {
     hash.update(`${Buffer.byteLength(value)}:`).update(value);
   }
   const authority = await readTermsAuthority(event, connection, catalog, {lock:lockRules});
@@ -137,7 +145,7 @@ export async function readModerationMaterial(
   return {
     target: {target_type:request.target_type,target_id:request.target_id,
       post_id:POST_ID,group_id:groupId,digest:hash.digest('hex')},
-    content: CONTENT, authority,
+    content, authority,
     rules:selected.map(rule=>({id:rule.id,version:rule.version,title:rule.title,blocks:rule.blocks})),
   };
 }
@@ -145,11 +153,17 @@ export async function readModerationMaterial(
 export async function currentModerationAdvice(
   event: H3Event, connection: Connection, record: ModerationAdviceRecord, lockRules = false,
 ) {
-  const current = await readModerationMaterial(event, connection, {...record.target,locale:record.locale}, lockRules);
+  const current = await readModerationMaterial(event, connection, {...record.target,locale:record.locale}, lockRules, record.version === 2);
   if (!current || current.target.digest !== record.target.digest ||
       current.authority.digest !== record.terms_digest || current.authority.generation !== record.terms_generation) return null;
+  if (record.version === 2) {
+    const kind = record.target.target_type;
+    if ((kind !== 'post' && kind !== 'group_post') ||
+        !await moderationImagesCurrent(connection,v2Auth(event).userId,kind,record.target.target_id,record.image_sources)) return null;
+  }
   return {
     ...record.advice,
+    ...(record.version === 2 ? {analysis_mode:'text_and_images' as const} : {}),
     target: {kind:record.target.target_type,id:record.target.target_id,post_id:record.target.post_id,group_id:record.target.group_id},
     rules:current.rules.filter(rule=>record.advice.rule_ids.includes(rule.id)).map(({id,version})=>({kind:'terms' as const,id,version})),
   };

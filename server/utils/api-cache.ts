@@ -4,6 +4,7 @@ import type { H3Event } from 'h3';
 import { getRequestURL } from 'h3';
 import { cacheProcessEpoch, singleBackendCacheEnabled } from './cache-mode';
 import { readCacheTagVersions, rotateCacheTags } from './cache-tags';
+import { observeCacheRead } from './observability';
 import {
   getRequestLogContext,
   logInfo,
@@ -388,11 +389,7 @@ function isStoredCacheEntry<T>(
   );
 }
 
-async function buildCacheContext(
-  event: H3Event,
-  namespace: string,
-  redis: Redis
-): Promise<ApiResponseCacheContext | null> {
+function cacheCandidate(event: H3Event) {
   const method = methodOf(event);
   if (method !== 'GET') return null;
 
@@ -405,11 +402,13 @@ async function buildCacheContext(
   // without invalidating this Nuxt response cache.
   if (['/api/v2/auth/sessions', '/api/v2/users', '/api/v2/users/recommendations', '/api/v2/users/me', '/api/v2/users/me/settings'].includes(url.pathname.replace(/\/+$/, ''))) return null;
   const segments = pathSegments(url.pathname);
+  if (segments[0] === 'users' && segments[1] === 'me' && segments[2] === 'oauth' && segments[3] === 'github') return null;
+  if (segments[0] === 'feed' && segments[1] === 'groups') return null;
   if (segments[0] === 'groups' && (segments.length <= 2 || segments[2] === 'posts' ||
       segments.length === 3 && (['by-slug', 'invite-codes'].includes(segments[1] ?? '') ||
         ['members', 'invites', 'notification-preference', 'audit-logs'].includes(segments[2] ?? '')))) return null;
   if (segments.length === 3 && segments[0] === 'users' && segments[1] === 'me' &&
-      ['groups', 'group-invites', 'blocks', 'mutes', 'account-statements'].includes(segments[2] ?? '')) return null;
+      ['groups', 'group-invites', 'blocks', 'mutes', 'account-statements', 'drafts', 'passkeys'].includes(segments[2] ?? '')) return null;
   if (segments[0] === 'chat' && segments[1] === 'groups' &&
       (segments.length === 2 || (segments.length === 4 && ['channels', 'members'].includes(segments[3] ?? '')))) return null;
   if (segments[0] === 'chat' && segments[1] === 'channels' &&
@@ -420,16 +419,24 @@ async function buildCacheContext(
   // Public profiles contain viewer-dependent relationship and presence data.
   if (segments.length === 2 && segments[0] === 'users' && isNumericSegment(segments[1])) return null;
   if (segments.length === 3 && segments[0] === 'users' &&
-      ['followers', 'following', 'mutual-following'].includes(segments[2] ?? '')) return null;
+      ['followers', 'following', 'mutual-following', 'pinned-post'].includes(segments[2] ?? '')) return null;
   // Detail reads update view counts; serving cached results would skip the write.
   if (segments.length === 2 && segments[0] === 'posts' && isNumericSegment(segments[1])) return null;
-  if (segments.length === 3 && segments[0] === 'posts' && segments[2] === 'likes') return null;
+  if (segments.length === 3 && segments[0] === 'posts' && ['likes', 'poll'].includes(segments[2] ?? '')) return null;
   if ((segments[0] === 'posts' || segments[0] === 'users') && segments[2] === 'analytics') return null;
   if (segments[0] === 'posts' && (segments.length === 1 || segments[1] === 'trending')) return null;
   // Tag aggregates depend on the authenticated viewer and may change through other backends.
   if (segments.length === 3 && segments[0] === 'tags' && segments[2] === 'analytics') return null;
   if (!singleBackendCacheEnabled) return null;
+  return { method, url };
+}
 
+async function buildCacheContext(
+  event: H3Event,
+  namespace: string,
+  redis: Redis,
+  { method, url }: NonNullable<ReturnType<typeof cacheCandidate>>
+): Promise<ApiResponseCacheContext> {
   const auth = authOf(event);
   const tags = tagsForPath(url.pathname, auth);
   const versions = await tagVersions(redis, namespace, tags);
@@ -512,25 +519,27 @@ export async function readApiResponseCache<T>(
   namespace: string
 ): Promise<ApiResponseCacheLookup<T>> {
   const redis = redisOf(event);
+  const candidate = cacheCandidate(event);
   if (!redis) {
+    if (candidate) observeCacheRead('degraded');
     return { status: 'bypass', reason: 'redis_missing' };
   }
+  if (!candidate) return { status: 'bypass', reason: 'not_cacheable' };
 
   let context: ApiResponseCacheContext | null = null;
   try {
-    context = await buildCacheContext(event, namespace, redis);
-    if (!context) {
-      return { status: 'bypass', reason: 'not_cacheable' };
-    }
+    context = await buildCacheContext(event, namespace, redis, candidate);
 
     const raw = await redis.get(context.key);
     if (!raw) {
+      observeCacheRead('miss');
       return { status: 'miss', context };
     }
 
     const parsed = JSON.parse(raw) as unknown;
     if (!isStoredCacheEntry<T>(parsed)) {
       await redis.del(context.key);
+      observeCacheRead('miss');
       return { status: 'miss', context };
     }
 
@@ -541,12 +550,14 @@ export async function readApiResponseCache<T>(
       ttlSeconds: nextTtl
     });
 
+    observeCacheRead('hit');
     return {
       status: 'hit',
       context,
       value: parsed.payload
     };
   } catch (error) {
+    observeCacheRead('degraded');
     logWarn('api-cache', {
       event: 'read:error',
       ...cacheLogPayload(event, context ?? undefined),

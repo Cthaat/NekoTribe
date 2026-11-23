@@ -281,6 +281,12 @@ const handleViewDetail = () =>
           </div>
         </div>
 
+        <p v-if="tweet.sentimentSignal" class="text-xs text-muted-foreground">
+          {{ t('moderation.card.sentimentSignal', {
+            label: t(`moderation.card.sentimentLabels.${tweet.sentimentSignal.label}`),
+            confidence: Math.round(tweet.sentimentSignal.confidence * 100),
+          }) }}
+        </p>
         <div
           class="rounded-lg border border-rose-200/60 bg-rose-50/60 p-3 dark:border-rose-900/40 dark:bg-rose-950/30"
         >

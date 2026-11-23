@@ -18,6 +18,7 @@ import {
   v2ListGroupInvites,
   v2ListGroupMembers,
   v2ListGroupPosts,
+  v2ListHomeGroupActivity,
   v2ListGroups,
   v2ListMyGroupInvites,
   v2ListMyGroups,
@@ -70,6 +71,7 @@ import type {
 import type {
   CommentLikeVM,
   CommentVM,
+  PageViewModel,
   PostAuthorVM
 } from '@/types/posts';
 import {
@@ -240,6 +242,9 @@ function mapV2PostToGroupPost(
 ): GroupPost {
   return {
     id: post.post_id,
+    groupId: post.group_id,
+    ...(post.poll ? {poll:post.poll} : {}),
+    ...(post.markdown === undefined ? {} : {markdown:post.markdown}),
     content: post.content,
     author: {
       ...mapOwner(post.author),
@@ -582,6 +587,18 @@ export async function listGroupPosts(
   };
 }
 
+export type HomeGroupPost = GroupPost & { groupId: number; groupName: string };
+
+export async function listHomeGroupActivity(page: number, pageSize: number): Promise<PageViewModel<HomeGroupPost>> {
+  const result = await v2ListHomeGroupActivity(page, pageSize);
+  return {
+    items: result.items.map(post => ({
+      ...mapV2PostToGroupPost(post), groupId: post.group_id, groupName: post.group_name,
+    })),
+    page, pageSize, total: result.meta?.total ?? result.items.length, hasNext: result.meta?.has_next === true,
+  };
+}
+
 async function listJoinedGroupPostsForAllGroups(
   groups: Group[],
   type: V2GroupPostListType,
@@ -713,6 +730,14 @@ export async function createGroupPost(
   return mapV2PostToGroupPost(
     await v2CreateGroupPost(groupId, payload, signal)
   );
+}
+
+export function canPublishGroupPost(group: Group): boolean {
+  if (group.membershipStatus !== 'active') return false;
+  const role = group.membershipRole;
+  return group.postPermission === 'all' ||
+    (group.postPermission === 'moderator_up' && (role === 'moderator' || role === 'admin' || role === 'owner')) ||
+    (group.postPermission === 'admin_only' && (role === 'admin' || role === 'owner'));
 }
 
 export async function deleteGroupPost(

@@ -31,7 +31,8 @@ export function reconcileDirectHistory(
 ): V2DirectMessage[] {
   const changes = [...live.values()].filter((message): message is V2DirectMessage => message !== null);
   return mergeDirectMessages(page, [...retained, ...changes])
-    .filter(message => live.get(message.message_id) !== null);
+    .filter(message => live.get(message.message_id) !== null)
+    .map(message => message.reply_to && live.get(message.reply_to.message_id) === null ? {...message,reply_to:undefined} : message);
 }
 
 export interface ChatGroupVM {
@@ -180,6 +181,14 @@ export function mapV2ChatMessage(
     })),
     attachments: message.media.map(mapChatAttachment)
   };
+}
+
+export function mapV2DirectMessage(message: V2DirectMessage): ChatMessageType {
+  return mapV2ChatMessage({
+    ...message,channel_id:message.conversation_id,group_id:0,message_type:'text',
+    reply_to:message.reply_to ?? null,media:message.media ?? [],reactions:message.reactions ?? [],
+    is_pinned:false,can_pin:false,
+  });
 }
 
 export function replaceChatMessage(

@@ -1,3 +1,4 @@
+import { isKnowledgeScope } from './knowledge-scope';
 import { getQuery } from 'h3';
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
@@ -34,12 +35,14 @@ export async function listOwned(event: H3Event, connection: oracledb.Connection)
   const after = query.after_id ?? '';
   const rawLimit = query.limit ?? '20';
   const purpose = query.purpose;
+  const knowledgeScope = query.knowledge_scope;
+  if (knowledgeScope !== undefined && !isKnowledgeScope(knowledgeScope)) v2BadRequest('会话参数错误');
   if (purpose !== undefined && purpose !== 'knowledge' && purpose !== 'writing' &&
       purpose !== 'group' && purpose !== 'moderation') v2BadRequest('会话用途错误');
   const rawGroup = query.group_id;
   let groupId: number | undefined;
   if (rawGroup !== undefined) {
-    if (purpose !== 'group' || typeof rawGroup !== 'string' || rawGroup.trim() !== rawGroup ||
+    if ((purpose !== 'group' && knowledgeScope !== 'group') || typeof rawGroup !== 'string' || rawGroup.trim() !== rawGroup ||
         !/^[1-9][0-9]{0,15}$/.test(rawGroup) || !Number.isSafeInteger(Number(rawGroup))) v2BadRequest('群组参数错误');
     groupId = Number(rawGroup);
   }
@@ -57,7 +60,7 @@ export async function listOwned(event: H3Event, connection: oracledb.Connection)
       typeof rawLimit !== 'string' || !/^(0|[1-9][0-9]*)$/.test(rawLimit)) v2BadRequest('分页参数错误');
   const limit = Number(rawLimit);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) v2BadRequest('分页参数错误');
-  return v2Ok(await listConversations(event, connection, after, limit, purpose, groupId, targetTitle));
+  return v2Ok(await listConversations(event, connection, after, limit, purpose, groupId, targetTitle, knowledgeScope));
 }
 export async function read(event: H3Event, connection: oracledb.Connection) {
   v2Auth(event);

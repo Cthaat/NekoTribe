@@ -1,8 +1,10 @@
 import type { PostVM, UpdatePostFormVM } from '@/types/posts';
 import type { V2PostVisibility } from '@/types/v2';
+import { markdownExcerpt } from './post-markdown';
 
 export interface PostEditForm {
   content: string;
+  markdown?: boolean;
   visibility: V2PostVisibility;
   language: string;
   location: string;
@@ -17,7 +19,11 @@ export function postEditTarget(value: unknown): number | null {
 
 export function postEditPatch(initial: PostEditForm, draft: PostEditForm): UpdatePostFormVM {
   const patch: UpdatePostFormVM = {};
-  if (draft.content !== initial.content) patch.content = draft.content;
+  if (draft.content !== initial.content || !!draft.markdown !== !!initial.markdown) {
+    patch.content = draft.markdown ? markdownExcerpt(draft.content) : draft.content;
+    if (draft.markdown) patch.markdown = draft.content;
+    else if (initial.markdown) patch.markdown = null;
+  }
   if (draft.visibility !== initial.visibility) patch.visibility = draft.visibility;
   if (draft.language !== initial.language) patch.language = draft.language;
   if (draft.location !== initial.location) patch.location = draft.location;

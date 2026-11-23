@@ -12,12 +12,14 @@ const stubs = {
     export const v2Record=value=>{if(!value||typeof value!=='object'||Array.isArray(value))throw Error('400');return value};
     export const v2RouterParam=(e,k)=>e.params[k];
     export const v2BadRequest=()=>{throw Error('400')};
+    export const v2Forbidden=()=>{throw Error('403')};
+    export const v2Conflict=()=>{throw Error('409')}; export const v2One=async(c,sql,binds)=>(await c.execute(sql,binds)).rows?.[0];
     export const v2Ok=data=>({code:200,message:'success',data,meta:null});`,
   './conversation-store': `
     export const createConversation=async(e,c,b)=>({purpose:b.purpose});
     export const readConversation=async(e,c,id)=>({conversation_id:id});
     export const deleteConversation=async(e,c,id)=>{c.deleted=id};
-    export const listConversations=async(e,c,after,limit,purpose,groupId,targetTitle)=>({items:[],next_cursor:null,after,limit,...(purpose?{purpose}:{}),...(groupId?{groupId}:{}),...(targetTitle?{targetTitle}:{})});
+    export const listConversations=async(e,c,after,limit,purpose,groupId,targetTitle,knowledgeScope)=>({items:[],next_cursor:null,after,limit,...(purpose?{purpose}:{}),...(groupId?{groupId}:{}),...(targetTitle?{targetTitle}:{}),...(knowledgeScope?{knowledgeScope}:{})});
     export const appendUserMessage=async(e,c,id,content)=>({conversation_id:id,content});
     export const listConversationMessages=async(e,c,id,after,limit,before)=>[{id,after,limit,...(before?{before}:{})}];`
 };
@@ -44,6 +46,12 @@ test('conversation listing validates cursor and limit',async()=>{
   assert.equal((await api.listOwned({...actor,query:{after_id:id,limit:'50'}},{})).data.after,id);
   assert.equal((await api.listOwned({...actor,query:{purpose:'knowledge'}},{})).data.purpose,'knowledge');
   assert.equal((await api.listOwned({...actor,query:{purpose:'group',group_id:'7'}},{})).data.groupId,7);
+  const scoped = (await api.listOwned({...actor,query:{knowledge_scope:'group',group_id:'7'}},{})).data;
+  assert.equal(scoped.knowledgeScope,'group');
+  assert.equal(scoped.groupId,7);
+  for (const knowledge_scope of ['invalid', ['group','public']]) {
+    await assert.rejects(() => api.listOwned({...actor,query:{knowledge_scope}},{}),/400/);
+  }
   assert.equal((await api.listOwned({...actor,query:{purpose:'moderation',target_type:'post',target_id:'17'}},{})).data.targetTitle,'moderation:post:17');
   for (const query of [{purpose:'writing',target_type:'post',target_id:'17'},{purpose:'moderation',target_id:'17'},{purpose:'moderation',target_type:'post',target_id:['17','18']},{purpose:'moderation',target_type:'post',target_id:'017'}]) {
     await assert.rejects(()=>api.listOwned({...actor,query},{}),/400/);

@@ -204,7 +204,7 @@ test('user discovery and relationship reads bypass cached state', async () => {
  const original=process.env.NEKO_CACHE_MODE;
  try {
   const m=await moduleFor('single-backend','follow-privacy');
-  for(const path of ['/api/v2/users?q=example','/api/v2/users/recommendations?limit=3','/api/v2/users/me/account-statements?page=2','/api/v2/moderation/appeals?page=2',
+  for(const path of ['/api/v2/users?q=example','/api/v2/users/recommendations?limit=3','/api/v2/users/me/account-statements?page=2','/api/v2/users/me/drafts?group_id=0','/api/v2/posts/7/poll','/api/v2/users/7/pinned-post','/api/v2/moderation/appeals?page=2',
     '/api/v2/moderation/reports?page=2','/api/v2/moderation/reports/12','/api/v2/reports',
     '/api/v2/moderation/settings','/api/v2/moderation/stats','/api/v2/moderation/users?q=reader',
     '/api/v2/moderation/content?priority=high','/api/v2/posts/27/likes?page=2','/api/v2/posts/27/analytics',

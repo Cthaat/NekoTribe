@@ -18,6 +18,7 @@ const stubs={
  '~/server/services/ai/knowledge-turn':`export class KnowledgeTurnError extends Error {}`
 };
 stubs['~/server/services/ai/knowledge-search-body']=await readFile(new URL('../server/services/ai/knowledge-search-body.ts',import.meta.url),'utf8');
+stubs['~/server/services/ai/stream-response']=await readFile(new URL('../server/services/ai/stream-response.ts',import.meta.url),'utf8');
 const built=await build({stdin:{contents:`export {default} from './server/api/v2/ai/conversations/[id]/knowledge-generate.post';`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'route-stubs',setup(b){b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'ts',resolveDir:fileURLToPath(new URL('../server/services/ai/',import.meta.url))}))}}]});
 const route=(await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`)).default;
 test('requires login and returns a private generated message reference',async()=>{

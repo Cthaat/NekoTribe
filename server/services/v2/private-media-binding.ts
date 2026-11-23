@@ -2,6 +2,7 @@ import type oracledb from 'oracledb';
 import { normalizeLocalStorageKey } from '~/server/storage/local-path';
 import { v2One } from '~/server/utils/v2';
 import policy from '../../../specifications/requirements/media-private-bind.json';
+import { referencedByDirectMessage } from './direct-media-links';
 
 type PrivateTarget = { scope: 'chat' } | { scope: 'post'; postId: number };
 
@@ -23,6 +24,7 @@ export async function canBindMedia(
   if (!key.startsWith(`private/${target.scope}/`)) return false;
 
   try {
+    if (await referencedByDirectMessage(connection,mediaId)) return false;
     const row = await v2One(connection, policy[target.scope], {
       media_id: mediaId,
       ...(target.scope === 'post' ? { post_id: target.postId } : {})

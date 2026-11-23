@@ -1,10 +1,11 @@
+import type { GenerationDelta } from './ai-stream';
 import { v2RequestData } from './client';
 import { validateAiConversationPage } from '../../utils/ai-conversation-page';
 import { aiModelVersion, isAiReplyConfigRevision } from '@/utils/ai-model-version';
 
 export const groupDraftKinds = ['weekly_report', 'faq', 'announcement', 'activity_plan'] as const;
 export type GroupDraftKind = typeof groupDraftKinds[number];
-type GroupDraftTool = 'public_search' | 'public_statistics';
+type GroupDraftTool = 'public_search' | 'public_statistics' | 'community_sentiment_summary';
 export interface GroupDraftSource { kind: 'post' | 'comment'; source_id: number; post_id: number }
 export interface GroupDraftMessage {
   id: string;
@@ -49,9 +50,9 @@ function parseMessage(value: unknown, conversationId: string): GroupDraftMessage
   if (!Array.isArray(sources) || sources.length > 8) throw new Error('Invalid AI sources');
   const tools = group_tools === undefined ? [] : group_tools;
   if (!Array.isArray(tools) || (group_tools !== undefined && (
-    role !== 'assistant' || !sources.length || tools.length > 2 ||
+    role !== 'assistant' || !sources.length || tools.length > 3 ||
     !tools.includes('public_search') || new Set(tools).size !== tools.length ||
-    !tools.every(tool => tool === 'public_search' || tool === 'public_statistics')
+    !tools.every(tool => tool === 'public_search' || tool === 'public_statistics' || tool === 'community_sentiment_summary')
   ))) throw new Error('Invalid AI group tools');
   return {id:message_id, sequence:sequence_no, role, content, modelVersion:aiModelVersion(role, model_version),
     configRevision:isAiReplyConfigRevision(role, config_revision) ? config_revision : null,
@@ -103,11 +104,10 @@ export function createGroupDraftApi(run: <T>(request: () => Promise<T>) => Promi
       const data = await run(() => v2RequestData<unknown>(path(id), {method:'DELETE',signal}));
       if (data !== null) throw new Error('Invalid delete receipt');
     },
-    async generate(id: string, kind: GroupDraftKind, sequence: number, signal: AbortSignal, skillId?: 'group-brief', searchTerm?: string) {
+    async generate(id: string, kind: GroupDraftKind, sequence: number, signal: AbortSignal, skillId?: 'group-brief', searchTerm?: string, onDelta?: GenerationDelta) {
       const result = record(await run(() => v2RequestData<unknown, {kind:GroupDraftKind;expected_sequence:number;skill_id?:'group-brief';search_term?:string}>(`${path(id)}/group-generate`, {
         method:'POST', body:{kind, expected_sequence:sequence, ...(skillId ? {skill_id:skillId} : {}),
-          ...(searchTerm ? {search_term:searchTerm} : {})}, signal,
-      })));
+          ...(searchTerm ? {search_term:searchTerm} : {})}, signal, ...(onDelta ? {onDelta} : {})})));
       if (result.status === 'insufficient_evidence' && result.message === null) return false;
       if (result.status === 'generated') {
         const receipt = record(result.message);

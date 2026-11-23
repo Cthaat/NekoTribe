@@ -3,6 +3,7 @@ import {
   v2Request,
   v2RequestData
 } from './client';
+import { confirmsCreatedPoll } from './post-polls';
 import { isPrivateMediaContent, usesMediaContentRoute } from '../../utils/private-media';
 import type {
   V2BookmarkPostData,
@@ -275,7 +276,8 @@ export async function v2CreatePost(
       [reply, repost, quote].includes(result.post_id) ||
       (result.reply_to_post_id ?? null) !== reply ||
       (result.repost_of_post_id ?? null) !== repost ||
-      (result.quoted_post_id ?? null) !== quote) {
+      (result.quoted_post_id ?? null) !== quote || payload.poll && !confirmsCreatedPoll(result.poll,payload.poll) ||
+      payload.markdown !== undefined && result.markdown !== payload.markdown) {
     throw new UnconfirmedPostError();
   }
   return result;
@@ -306,7 +308,8 @@ export async function v2UpdatePost(
   if (response?.code !== 200 || response.message !== 'post updated' ||
       response.meta !== null || post?.post_id !== postId ||
       !Number.isSafeInteger(post.author?.user_id) || post.author.user_id < 1 ||
-      post.viewer_state?.can_delete !== true) {
+      post.viewer_state?.can_delete !== true ||
+      payload.markdown !== undefined && post.markdown !== (payload.markdown ?? undefined)) {
     throw new UnconfirmedPostUpdateError();
   }
   return post;

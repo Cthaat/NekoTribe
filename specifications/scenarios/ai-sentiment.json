@@ -1,0 +1,10 @@
+{
+  "id": "AI-SENTIMENT",
+  "revision": 1,
+  "cases": [
+    {"id":"public-group-trend","status":200,"assertion":"Only the selected public group's visible sample reaches SentimentFlow. Valid classifications produce the two-window aggregate; revoked evidence invalidates history."},
+    {"id":"moderation-queue-signal","status":200,"assertion":"An authorized opt-in request adds a signal to eligible public posts while retaining queue order. Private targets are never submitted."},
+    {"id":"disabled-timeout-and-open-circuit","status":200,"assertion":"The optional feature degrades within its deadline. Existing draft tools and the moderation queue still work."},
+    {"id":"retired-public-interface","status":410,"assertion":"The retired platform predict route never proxies a request to SentimentFlow."}
+  ]
+}

@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { compileScript, parse } from '@vue/compiler-sfc';
 import { build } from 'esbuild';
 import { createRenderer, h, proxyRefs, reactive } from 'vue';
+import { fileURLToPath } from 'node:url';
 
 const filename = 'TweetComposer.vue';
 const source = readFileSync(new URL('../app/components/TweetComposer.vue', import.meta.url), 'utf8');
@@ -15,6 +16,12 @@ const compiled = await build({
   plugins: [{ name: 'composer-boundaries', setup(builder) {
     builder.onResolve({ filter: /^(vue|lucide-vue-next)$/ }, args => ({
       path: import.meta.resolve(args.path), external: true
+    }));
+    builder.onResolve({ filter: /^@\/utils\/post-(poll-draft|markdown)$/ }, args => ({
+      path: fileURLToPath(new URL(`../app/${args.path.slice(2)}.ts`, import.meta.url))
+    }));
+    builder.onResolve({ filter: /^\.\.\/\.\.\/specifications\/.*\.json$/ }, args => ({
+      path: fileURLToPath(new URL(`../${args.path.slice('../../'.length)}`, import.meta.url))
     }));
     builder.onResolve({ filter: /.*/ }, args => ({ path: args.path, namespace: 'fixture' }));
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, args => {
@@ -28,7 +35,7 @@ const compiled = await build({
           export const v2DeleteMedia = id => ${fixture}.remove(id);`
       };
       const names = Array.from(content.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g))
-        .find(match => match[2] === args.path)?.[1]?.split(',').map(name => name.trim()).filter(Boolean) ?? [];
+        .find(match => match[2] === args.path)?.[1]?.split(',').map(name => name.trim()).filter(name => name && !name.startsWith('type ')) ?? [];
       return { contents: stubs[args.path] ?? (
         args.path.endsWith('.vue') ? 'export default {};' : names.map(name => `export const ${name} = {};`).join('\n')
       ) };

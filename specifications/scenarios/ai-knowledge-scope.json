@@ -1,0 +1,30 @@
+{
+  "id": "AI-KNOWLEDGE-SCOPE",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "active-member",
+      "scope": "group",
+      "status": 200,
+      "assertion": "Only authorized live sources belonging to the selected group enter generation and its persisted citations."
+    },
+    {
+      "id": "private-personal-search",
+      "scope": "personal",
+      "status": 200,
+      "assertion": "Queries and citation rehydration are bound to the actor's own visible posts and bookmark records."
+    },
+    {
+      "id": "membership-revoked",
+      "scope": "group",
+      "status": 403,
+      "assertion": "A revoked or inactive membership causes an in-flight save to fail. The conversation is absent from the visible history list."
+    },
+    {
+      "id": "invalid-scope-group",
+      "scope": "personal",
+      "group_id": 42,
+      "status": 400
+    }
+  ]
+}

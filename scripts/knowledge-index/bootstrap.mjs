@@ -1,3 +1,5 @@
+import { realpath } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 import { profileFingerprint, readProfile, verificationText } from './config.mjs';
 import { embed } from './embedding.mjs';
 import { activeProfileFingerprint, publish, recover } from './lifecycle.mjs';
@@ -14,7 +16,7 @@ export async function verifyIndex(profile, {signal, onProgress} = {}) {
 
 export async function activateIndex(activePath, profile, {expected, signal, onProgress} = {}) {
   signal?.throwIfAborted();
-  if (expected === undefined) expected = await activeProfileFingerprint(activePath);
+  if (expected === undefined) expected = await activeProfileFingerprint(activePath,profile.scope);
   const result = await verifyIndex(profile,{signal,onProgress});
   signal?.throwIfAborted();
   onProgress?.({stage:'publishing',points:result.points});
@@ -67,4 +69,32 @@ export async function switchIndex(activePath, profile, {signal, loadBuilder, onP
     return checkActiveCollection(activePath,current,{signal,onProgress});
   }
   return buildAndActivate(activePath, profile, {expected,signal,loadBuilder,onProgress});
+}
+
+async function activeLocation(path) {
+  const absolute = resolve(path);
+  const canonical = (target, fallback) => realpath(target).catch(error => {
+    if (error?.code !== 'ENOENT') throw error;
+    return fallback;
+  });
+  const parent = await canonical(dirname(absolute),dirname(absolute));
+  const target = join(parent,basename(absolute));
+  const location = await canonical(target,target);
+  return process.platform === 'win32' ? location.toLowerCase() : location;
+}
+
+export async function rebuildGroupIndex(publicPath, groupPath, profilePath, {signal,onProgress} = {}) {
+  signal?.throwIfAborted();
+  if (!groupPath) throw Error('GROUP_ACTIVE_PROFILE_REQUIRED');
+  if (publicPath) {
+    const [publicLocation,groupLocation] = await Promise.all([activeLocation(publicPath),activeLocation(groupPath)]);
+    if (publicLocation === groupLocation) throw Error('INDEX_ACTIVE_PROFILE_CONFLICT');
+  }
+  signal?.throwIfAborted();
+  const profile = await readProfile(profilePath,'group');
+  const expected = await activeProfileFingerprint(groupPath,'group');
+  const {buildIndex} = await import('./build.mjs');
+  const result = await buildIndex(profile,undefined,{signal,onProgress});
+  await activateIndex(groupPath,profile,{expected,signal,onProgress});
+  return result;
 }

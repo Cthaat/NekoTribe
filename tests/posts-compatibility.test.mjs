@@ -16,13 +16,16 @@ import { listenForFetch } from './helpers/loopback-listener.mjs';
 
 const publishPolicy = JSON.parse(readFileSync(new URL('../specifications/requirements/moderation-publish-policy.json', import.meta.url), 'utf8'));
 const feedbackSql = JSON.parse(readFileSync(new URL('../specifications/requirements/recommendation-feedback.json', import.meta.url), 'utf8'));
+const homeFeedSql = JSON.parse(readFileSync(new URL('../specifications/requirements/home-feed.json', import.meta.url), 'utf8'));
+const {sql: pollSql} = JSON.parse(readFileSync(new URL('../specifications/requirements/post-polls.json', import.meta.url), 'utf8'));
+const {sql: markdownSql} = JSON.parse(readFileSync(new URL('../specifications/requirements/post-markdown.json', import.meta.url), 'utf8'));
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
 const secret = 'isolated-posts-access-secret';
 const stubs = {
   '#imports': `export const useRuntimeConfig = () => ({accessSecret: ${JSON.stringify(secret)}});`,
-  '~/server/storage': 'export const normalizeAvatarPublicUrl = value => value; export const normalizeNullableStoragePublicUrl = value => value; export const normalizeStoragePublicUrl = value => value;',
-  './notifications': 'export const v2CreateNotification = async (connection, notification) => { connection.interactions.notifications.push(notification); };',
+  '~/server/storage': 'export const normalizeAvatarPublicUrl = value => value; export const normalizeNullableStoragePublicUrl = value => value; export const normalizeStoragePublicUrl = value => value; export const managedPublicUrlToStorageKey = () => { throw new Error("Unexpected group asset lookup"); };',
+  './notifications': 'export const v2CreateNotification = async (connection, notification) => { connection.interactions.notifications.push(notification); }; export const v2StoreNotification = v2CreateNotification; export const v2DeliverStoredNotification = async () => {};',
   '~/server/utils/redis': 'export const REDIS_CHANNELS = {USER_MESSAGE:"ws:user:"}; export const publishMessage = async () => {};',
   '~/server/utils/wsSession': 'export const WS_SERVER_ID = "isolated-test"; export const sendWsToUser = () => {}; export const sendWsNotificationToUser = async () => {};',
   './api-cache': 'export const readApiResponseCache = async () => ({status:"disabled"}); export const writeApiResponseCache = async () => {}; export const invalidateApiResponseCache = async () => {}; export const shouldInvalidateApiResponseCache = () => false;',
@@ -34,7 +37,11 @@ const compiled = await build({
     export {default as auth} from './server/middleware/auth';
     export {default as list} from './server/api/v2/posts/index.get';
     export {default as trending} from './server/api/v2/posts/trending.get';
+    export {default as groupActivity} from './server/api/v2/feed/groups.get';
     export {default as get} from './server/api/v2/posts/[id].get';
+    export {default as poll} from './server/api/v2/posts/[id]/poll.get';
+    export {default as vote} from './server/api/v2/posts/[id]/poll/vote.post';
+    export {default as groupPoll} from './server/api/v2/groups/[id]/posts/[post_id]/poll.get';
     export {default as create} from './server/api/v2/posts/index.post';
     export {default as createRetweet} from './server/api/v2/posts/[id]/retweets.post';
     export {default as remove} from './server/api/v2/posts/[id].delete';
@@ -81,8 +88,8 @@ const compiled = await build({
 const routes = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text + '\n//# sourceURL=isolated-posts-bundle.mjs').toString('base64')}`);
 const access = (payload = {}, options = {}) => jwt.sign({userId: 1, userName: 'viewer', sessionId: 'session', jti: 'current', type: 'access', ...payload}, secret, {expiresIn: 600, ...options});
 
-function database({muted = false, revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false, loseParentOnInsert = false, failCommentRead = false, failNotifications = false, deleteRace = false} = {}) {
-  const schema = schemaFixture({ baseline: true });
+function database({muted = false, revoked = false, expiredSession = false, failSession = false, missingMediaSchema = false, failList = false, failTags = false, tagAnalytics = {}, allowSecondViewer = false, loseVisibility = false, loseParentOnInsert = false, failCommentRead = false, failNotifications = false, deleteRace = false, installedPoll = false} = {}) {
+  const schema = schemaFixture({ baseline: !installedPoll });
   if (missingMediaSchema) {
     const table = schema.state.tables.get('N_MEDIA_ASSETS');
     table.columns = table.columns.filter(column => column.COLUMN_NAME !== 'DESCRIPTION');
@@ -105,6 +112,13 @@ function database({muted = false, revoked = false, expiredSession = false, failS
     async execute(raw, binds = {}) {
       const sql = raw.replace(/\s+/g, ' ').trim(); calls.push({sql, binds});
       if (raw === feedbackSql.schema) return { rows: [] };
+      if (raw === markdownSql.read) return {rows: []};
+      if (raw === pollSql.read) {
+        if (!installedPoll) throw Object.assign(new Error('missing poll tables'), {code:'ORA-00942'});
+        return {rows: binds.post_id === 1 ? ['Morning', 'Evening'].map((text,index) => ({POLL_ID:75,
+          ALLOW_MULTIPLE:0,CLOSES_AT:'2026-12-01T03:00:00.000Z',IS_CLOSED:0,OPTION_ID:index+1,OPTION_TEXT:text,
+          TOTAL_BALLOTS:0,VOTES_COUNT:0,SELECTED:0})) : []};
+      }
       const metadata = schema.query(sql, binds);
       if (metadata !== undefined) return {rows: metadata};
       if (sql.startsWith('UPDATE n_auth_sessions')) {
@@ -172,6 +186,10 @@ function database({muted = false, revoked = false, expiredSession = false, failS
         if (failNotifications) throw new Error('private-notification-database-error');
         return {rows: [{TOTAL: 3, NOTIFICATION_ID: 12, ACTOR_ID: 7, TYPE: 'like', TITLE: 'title', MESSAGE: 'message', RESOURCE_TYPE: 'post', RESOURCE_ID: 9, PRIORITY: 'normal', IS_READ: 0, METADATA_JSON: '{"event":"post_like"}', CREATED_AT: new Date('2026-01-02T03:04:05.000Z')}]};
       }
+      if (sql.startsWith('SELECT p.post_id FROM n_posts') && sql.includes('EXISTS (SELECT 1 FROM v_post_feed_item')) {
+        const post=posts.find(item=>item.POST_ID === binds.post_id && !item.deleted);
+        return {rows:post && (post.VISIBILITY==='public' || post.AUTHOR_ID===binds.viewer_id) ? [{POST_ID:post.POST_ID}] : []};
+      }
       if (sql.includes('FROM n_posts p') && sql.includes('fn_can_view_post')) {
         interactions.visibilityChecks++;
         const exists = [1, 5].includes(binds.post_id) && binds.viewer_id === 1 && !(loseVisibility && interactions.visibilityChecks > 1);
@@ -210,15 +228,16 @@ function database({muted = false, revoked = false, expiredSession = false, failS
       }
       if (sql.includes('FROM v_post_feed_item v')) {
         if (failList) throw new Error('private-database-error SQL secret');
+        const where = sql.slice(sql.lastIndexOf('FROM v_post_feed_item v'));
         let visible = posts.filter(post => !post.deleted);
         if (sql.includes('fn_can_view_post(:viewer_id, v.post_id) = 1')) visible = visible.filter(post =>
           post.VISIBILITY === 'public' || post.AUTHOR_ID === binds.viewer_id ||
           (binds.viewer_id === 1 && ((post.VISIBILITY === 'followers' && post.AUTHOR_ID === 2) || post.mentioned === 1)));
-        if (sql.includes('f.following_id = v.author_id') && sql.includes("f.status = 'active'")) visible = visible.filter(post => binds.viewer_id === 1 && post.AUTHOR_ID === 2);
+        if (where.includes('f.following_id = v.author_id') && where.includes("f.status = 'active'")) visible = visible.filter(post => binds.viewer_id === 1 && post.AUTHOR_ID === 2);
         if (sql.includes('pm.mentioned_user_id = :viewer_id')) visible = visible.filter(post => post.mentioned === binds.viewer_id);
         if (sql.includes('AND v.author_id = :author_id')) visible = visible.filter(post => post.AUTHOR_ID === binds.author_id);
-        if (sql.includes('FROM n_post_bookmarks b')) visible = visible.filter(post => binds.viewer_id === 1 && post.POST_ID === 1);
-        if (sql.includes('FROM n_post_likes l')) visible = visible.filter(post => binds.viewer_id === 1 && post.POST_ID === 7);
+        if (where.includes('FROM n_post_bookmarks b')) visible = visible.filter(post => binds.viewer_id === 1 && post.POST_ID === 1);
+        if (where.includes('FROM n_post_likes l')) visible = visible.filter(post => binds.viewer_id === 1 && post.POST_ID === 7);
         if (sql.includes('AND v.post_id = :post_id')) visible = visible.filter(post => post.POST_ID === binds.post_id);
         if (sql.startsWith('SELECT COUNT')) return {rows: [{TOTAL: visible.length}]};
         return {rows: visible.sort((a, b) => b.POST_ID - a.POST_ID).slice(binds.start_row - 1, binds.end_row).map(post => ({...post, CONTENT: `post ${post.POST_ID}`, POST_TYPE: 'original', IS_LIKED: 0, IS_BOOKMARKED: 0}))};
@@ -239,7 +258,11 @@ async function fixture(options) {
   const router = createRouter();
   router.get('/api/v2/posts', routes.list);
   router.get('/api/v2/posts/trending', routes.trending);
+  router.get('/api/v2/feed/groups', routes.groupActivity);
   router.get('/api/v2/posts/:id', routes.get);
+  router.get('/api/v2/posts/:id/poll', routes.poll);
+  router.post('/api/v2/posts/:id/poll/vote', routes.vote);
+  router.get('/api/v2/groups/:id/posts/:post_id/poll', routes.groupPoll);
   router.post('/api/v2/posts', routes.create);
   router.post('/api/v2/posts/:id/retweets', routes.createRetweet);
   router.put('/api/v2/posts/:id', routes.update);
@@ -277,6 +300,99 @@ async function fixture(options) {
   const base = await listenForFetch(server);
   return {db, close: () => new Promise(resolve => server.close(resolve)), request: (url, headers = {}, method = 'GET', body) => fetch(base + url, {method, headers, ...(body === undefined ? {} : {body:JSON.stringify(body)})})};
 }
+
+test('public post polls allow anonymous reads and keep group reads and voting authenticated',async()=>{
+  const f=await fixture({installedPoll:true});
+  try {
+    const publicResult=await f.request('/api/v2/posts/1/poll');
+    assert.equal(publicResult.status,200);
+    assert.equal(publicResult.headers.get('Cache-Control'),'private, no-store');
+    assert.deepEqual((await publicResult.json()).data.options.map(option=>option.text),['Morning','Evening']);
+    assert.equal((await f.request('/api/v2/posts/2/poll')).status,404);
+    assert.equal((await f.request('/api/v2/posts/1/poll/vote',{},'POST')).status,401);
+    assert.equal((await f.request('/api/v2/groups/1/posts/1/poll')).status,401);
+  } finally { await f.close(); }
+});
+
+test('recommendation scoring only applies to the explicit homepage timeline without a keyword', async t => {
+  const db = database();
+  const execute = db.execute.bind(db);
+  db.execute = async (statement, binds) => statement === feedbackSql.schema ? { rows: [{ TABLE_NAME: 'N_RECOMMENDATION_FEEDBACK' }] } : execute(statement, binds);
+  const f = await fixture({ db });
+  t.after(f.close);
+  const normalize = sql => sql.replace(/\s+/g, ' ').trim();
+  const score = normalize(homeFeedSql.recommendationScore);
+  const page = () => db.calls.findLast(call => call.sql.includes('ROW_NUMBER() OVER') && call.sql.includes('FROM v_post_feed_item v'));
+  assert.equal((await f.request('/api/v2/posts?timeline=recommended')).status, 200);
+  assert.match(page().sql, /ORDER BY v\.created_at DESC, v\.post_id DESC/);
+  assert.equal(page().sql.includes(score), false);
+  const headers = { authorization: `Bearer ${access()}` };
+  const response = await f.request('/api/v2/posts?timeline=recommended', headers);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.ok(page().sql.includes(`${normalize(feedbackSql.feedOrder)}, (${score}) DESC, ${homeFeedSql.recommendationRecency}`));
+  assert.ok(page().sql.includes(normalize(feedbackSql.feedFilter)));
+  assert.ok(page().sql.endsWith('ORDER BY rn'));
+  assert.equal(page().binds.viewer_id, 1);
+  for (const path of ['/api/v2/posts?timeline=recommended&q=cat', '/api/v2/posts?timeline=following', '/api/v2/posts/trending?timeline=recommended']) {
+    assert.equal((await f.request(path, headers)).status, 200);
+    assert.equal(page().sql.includes(score), false);
+  }
+});
+
+test('group activity reads joined groups, checks revocation and returns stable dated pages', async t => {
+  const sqlite = new DatabaseSync(':memory:');
+  t.after(() => sqlite.close());
+  sqlite.exec(`
+    CREATE TABLE n_groups (group_id, name, is_active, is_deleted);
+    CREATE TABLE n_users (user_id, is_active);
+    CREATE TABLE n_group_posts (post_id, group_id, author_id, content, media_urls, is_pinned, is_announcement,
+      likes_count, comments_count, views_count, created_at, updated_at, is_deleted);
+    CREATE TABLE n_group_post_likes (post_id, user_id);
+    CREATE TABLE n_group_members (group_id, user_id, status);
+    CREATE TABLE n_user_blocks (user_id, target_user_id);
+    INSERT INTO n_groups VALUES (7,'Joined group',1,0),(8,'Other group',1,0),(9,'Unavailable',0,0);
+    INSERT INTO n_users VALUES (1,1),(2,1),(3,0),(4,1),(5,1);
+    INSERT INTO n_group_members VALUES (7,1,'active'),(8,1,'pending'),(9,1,'active');
+    INSERT INTO n_user_blocks VALUES (1,4),(5,1);
+    INSERT INTO n_group_post_likes VALUES (2,1);
+    INSERT INTO n_group_posts VALUES
+      (1,7,2,'First',NULL,0,0,0,0,0,'2026-11-21T06:00:00Z',NULL,0),
+      (2,7,2,'Second',NULL,0,0,1,0,0,'2026-11-21T06:00:00Z',NULL,0),
+      (3,8,2,'Not joined',NULL,0,0,0,0,0,'2026-11-22T06:00:00Z',NULL,0),
+      (4,7,3,'Inactive author',NULL,0,0,0,0,0,'2026-11-22T06:00:00Z',NULL,0),
+      (5,7,4,'Outgoing block',NULL,0,0,0,0,0,'2026-11-22T06:00:00Z',NULL,0),
+      (6,7,5,'Incoming block',NULL,0,0,0,0,0,'2026-11-22T06:00:00Z',NULL,0),
+      (7,9,2,'Disabled group',NULL,0,0,0,0,0,'2026-11-22T06:00:00Z',NULL,0),
+      (8,7,2,'Deleted post',NULL,0,0,0,0,0,'2026-11-22T06:00:00Z',NULL,1);
+  `);
+  const db = database();
+  const execute = db.execute.bind(db);
+  db.execute = async (statement, binds) => {
+    if (statement !== homeFeedSql.groupActivity) return execute(statement, binds);
+    assert.equal(binds.viewer_id, 1);
+    return { rows: sqlite.prepare(statement).all(binds).map(row =>
+      Object.fromEntries(Object.entries(row).map(([key, value]) => [key.toUpperCase(), value]))) };
+  };
+  const f = await fixture({ db });
+  t.after(f.close);
+  const path = '/api/v2/feed/groups?page_size=1';
+  assert.equal((await f.request(path)).status, 401);
+  const headers = { authorization: `Bearer ${access()}` };
+  const first = await f.request(path, headers);
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get('cache-control'), 'private, no-store');
+  const result = await first.json();
+  assert.equal(result.data[0].post_id, 2);
+  assert.equal(result.data[0].group_name, 'Joined group');
+  assert.equal(result.data[0].is_liked_by_me, true);
+  assert.deepEqual(result.meta, { page: 1, page_size: 1, total: 2, has_next: true });
+  assert.equal((await (await f.request(`${path}&page=2`, headers)).json()).data[0].post_id, 1);
+  sqlite.exec("UPDATE n_group_members SET status='pending' WHERE group_id=7");
+  const revoked = await (await f.request(path, headers)).json();
+  assert.deepEqual(revoked.data, []);
+  assert.equal(revoked.meta.total, 0);
+});
 
 test('post likers use a single viewer-scoped query and preserve filtered totals', async () => {
   const { cases } = JSON.parse(readFileSync(new URL('../specifications/scenarios/post-likers.json', import.meta.url)));
@@ -948,6 +1064,7 @@ test('Nuxt post detail matches shared route and failure vectors', async () => {
       close: async () => {},
       async execute(raw, binds = {}) {
         const sql = raw.replace(/\s+/g, ' ').trim();
+        if (raw === pollSql.read || raw === markdownSql.read) return {rows: []};
         if (sql.startsWith('UPDATE n_auth_sessions')) {
           if (scenario.touch_fail) throw new Error('private-database-error');
           return {rowsAffected: !scenario.revoked && binds.userId === 42 ? 1 : 0};

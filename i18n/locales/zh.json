@@ -1,4 +1,42 @@
 {
+  "githubOAuth": {
+    "title": "GitHub",
+    "description": "绑定 GitHub 账号后可用它登录。",
+    "signIn": "使用 GitHub 登录",
+    "signInFailed": "GitHub 登录失败，请确认已在 NekoTribe 安全中心绑定 GitHub。",
+    "link": "绑定 GitHub",
+    "linked": "GitHub 已绑定。",
+    "unlink": "解绑",
+    "unlinked": "GitHub 已解绑。",
+    "confirmUnlink": "解绑 GitHub 账号 {login}？",
+    "unavailable": "当前服务器暂无法使用 GitHub 登录。",
+    "loadFailed": "无法读取 GitHub 绑定。",
+    "linkFailed": "无法绑定 GitHub。",
+    "unlinkFailed": "无法解绑 GitHub。",
+    "popupBlocked": "请为本站允许弹出窗口后重试。",
+    "waiting": "请在 GitHub 窗口完成授权。"
+  },
+  "passkeys": {
+    "title": "Passkey",
+    "description": "使用设备或安全密钥保存的 Passkey 登录。",
+    "signIn": "使用 Passkey 登录",
+    "signInFailed": "无法使用此 Passkey 登录。",
+    "empty": "尚未登记 Passkey。",
+    "label": "Passkey 名称（可选）",
+    "add": "添加 Passkey",
+    "added": "Passkey 已登记。",
+    "remove": "移除",
+    "confirmRemove": "移除 Passkey「{label}」？",
+    "removed": "Passkey 已移除。",
+    "keepMethod": "请保留至少一种登录方式。",
+    "unsupported": "当前浏览器或连接无法登记 Passkey。",
+    "unavailable": "当前服务器暂无法使用 Passkey。",
+    "loadFailed": "无法读取 Passkey。",
+    "addFailed": "无法登记此 Passkey。",
+    "removeFailed": "无法移除此 Passkey。",
+    "lastUsed": "上次使用 {date}",
+    "created": "添加于 {date}"
+  },
   "visibility": {
     "title": "账户关系管理",
     "actions": "关系操作",
@@ -198,6 +236,25 @@
     }
   },
   "post": {
+    "poll": {
+      "title": "投票",
+      "add": "添加投票",
+      "option": "选项 {index}",
+      "addOption": "添加选项",
+      "removeOption": "移除选项",
+      "cutoff": "截止时间",
+      "multiple": "允许多选",
+      "single": "单选投票",
+      "complete": "请填写 2–6 个不同选项并设置未来的截止时间。",
+      "remove": "移除投票",
+      "closed": "投票已截止",
+      "until": "截止于 {time}",
+      "votes": "{count} 票",
+      "ballots": "{count} 人参与",
+      "vote": "投票",
+      "voted": "已投票",
+      "voteFailed": "未能提交选票。投票可能已截止或你已投过票。"
+    },
     "likers": {
       "title": "查看点赞用户",
       "loading": "正在加载点赞名单…",
@@ -245,6 +302,15 @@
       "retry": "重新加载话题统计"
     },
     "feed": {
+      "homeTabs": "首页信息流",
+      "homeTab": {
+        "recommended": "推荐",
+        "following": "关注",
+        "trending": "热门",
+        "groups": "群动态"
+      },
+      "rankingExplanation": "推荐参考你的关注、近 30 天点赞或收藏帖子的标签、帖子发布时间及你的反馈。",
+      "emptyGroupActivity": "已加入的群还没有可显示的帖子。",
       "loadFailed": "加载推文失败",
       "loadProblem": "抱歉，加载推文时遇到问题，请刷新页面。",
       "title": "推文",
@@ -386,6 +452,50 @@
       "descriptionHint": "{count}/1000 字",
       "submit": "提交举报",
       "submitting": "正在提交..."
+    },
+    "drafts": {
+      "title": "云端草稿",
+      "description": "草稿会同步到同一账号的设备。保存后可在此设定发布时间。",
+      "empty": "暂无草稿",
+      "emptyContent": "无正文",
+      "save": "保存草稿",
+      "saved": "草稿已保存",
+      "saveFailed": "草稿保存失败，请重试。",
+      "editing": "正在编辑云端草稿",
+      "resume": "继续编辑",
+      "schedule": "设定发布时间",
+      "unschedule": "取消定时",
+      "localDate": "发布时间（本地时间）",
+      "confirmSchedule": "确认定时发布",
+      "publishAt": "将于 {time} 发布",
+      "confirmDelete": "删除这份草稿及其定时设置？",
+      "retry": "操作失败，请刷新后重试。",
+      "more": "加载更多",
+      "attachment": "已上传附件 {index}",
+      "removeAttachment": "移除草稿附件",
+      "status": {
+        "draft": "草稿",
+        "scheduled": "已定时",
+        "failed": "发布失败",
+        "published": "已发布"
+      },
+      "error": {
+        "permission_denied": "发布权限已失效，草稿已保留。",
+        "content_unavailable": "正文、投票或附件已无法发布，请编辑草稿。"
+      },
+      "includeGroups": "显示群帖草稿",
+      "groupPost": "群帖"
+    },
+    "profilePin": {
+      "label": "主页置顶",
+      "set": "置顶到主页",
+      "clear": "取消主页置顶",
+      "saved": "帖子已置顶到主页",
+      "cleared": "已取消置顶"
+    },
+    "markdown": {
+      "mode": "Markdown 长文",
+      "size": "{used} / {limit} 字节"
     }
   },
   "comment": {
@@ -924,6 +1034,18 @@
     "groupFallbackName": "群组名称",
     "channelDescriptionFallback": "频道描述",
     "searchPlaceholder": "搜索消息...",
+    "messageSearch": {
+      "keyword": "关键词",
+      "sender": "发送者",
+      "allSenders": "所有发送者",
+      "start": "开始日期",
+      "end": "结束日期",
+      "clear": "清除筛选",
+      "submit": "搜索",
+      "rangeError": "结束日期不能早于开始日期。",
+      "keywordError": "请缩短搜索关键词。",
+      "empty": "没有符合筛选条件的消息"
+    },
     "replyingTo": "回复",
     "currentUser": {
       "short": "你",
@@ -984,9 +1106,34 @@
     },
     "calls": {
       "voiceTitle": "语音通话",
-      "voiceDescription": "语音房间和实时通话信令尚未接入后端。",
       "videoTitle": "视频通话",
-      "videoDescription": "视频房间和实时通话信令尚未接入后端。"
+      "chooseMember": "选择一位成员发起一对一通话。",
+      "member": "选择成员",
+      "account": "用户 {id}",
+      "accept": "接听",
+      "reject": "拒接",
+      "hangup": "挂断",
+      "playAudio": "播放通话声音",
+      "peerVideo": "对方视频",
+      "localVideo": "本机预览",
+      "phase": {
+        "preparing": "正在准备",
+        "incoming": "来电",
+        "outgoing": "等待接听",
+        "connecting": "正在连接",
+        "active": "通话中"
+      },
+      "problem": {
+        "insecure": "请通过 HTTPS 打开网页后再使用麦克风或相机。",
+        "unsupported": "当前浏览器不支持音视频通话。",
+        "unavailable": "通话暂不可用，请稍后重试。",
+        "permission": "需要允许使用麦克风或相机才能通话。",
+        "devices": "无法使用麦克风或相机。",
+        "busy": "正在通话或对方忙线。",
+        "timeout": "通话超时。",
+        "failed": "通话连接失败。",
+        "declined": "对方拒接了通话。"
+      }
     },
     "directMessage": {
       "loadOlder": "加载更早的消息",
@@ -994,7 +1141,13 @@
       "placeholder": "给 {user} 发送私信...",
       "loading": "正在加载私聊记录...",
       "emptyTitle": "还没有私聊记录",
-      "emptyDescription": "发送第一条私信开始对话。"
+      "emptyDescription": "发送第一条私信开始对话。",
+      "read": "已读",
+      "typing": "{user} 正在输入…"
+    },
+    "channelTyping": {
+      "one": "有人正在输入…",
+      "many": "{count} 人正在输入…"
     },
     "directConversations": {
       "title": "私聊列表",
@@ -1002,7 +1155,8 @@
       "empty": "还没有私聊会话",
       "previousPage": "上一页",
       "nextPage": "下一页",
-      "noMessages": "还没有消息"
+      "noMessages": "还没有消息",
+      "attachment": "[附件]"
     },
     "message": {
       "pinned": "已置顶",
@@ -1155,6 +1309,17 @@
     }
   },
   "notifications": {
+    "desktop": {
+      "setting": "桌面通知",
+      "description": "站内推送已开启时，NekoTribe 在后台可通过此浏览器提醒。",
+      "enable": "开启",
+      "disable": "关闭",
+      "unsupported": "桌面通知需要受支持的浏览器和安全连接。",
+      "denied": "通知已被浏览器阻止，可在此站点的权限设置中更改。",
+      "error": "此浏览器无法保存通知偏好。",
+      "title": "NekoTribe 有新通知",
+      "body": "打开站内通知查看。"
+    },
     "realtimeUnavailable": "实时通知暂不可用。",
     "mail": {
       "deleteSuccess": "邮件已移至垃圾桶",
@@ -1243,6 +1408,45 @@
     }
   },
   "moderation": {
+    "aiOps": {
+      "title": "AI 运维与评测",
+      "backend": "后端",
+      "revision": "修订版本",
+      "models": "模型健康状态",
+      "nodes": "提供方",
+      "quota": "全局 AI 配额",
+      "window": "{seconds} 秒配额窗口",
+      "index": "知识索引",
+      "points": "向量点数",
+      "phase": "同步阶段",
+      "lastSuccess": "上次成功同步",
+      "nextSync": "下一次同步",
+      "feedback": "按模型版本统计的审核反馈",
+      "feedbackBasis": "准确率按有效评价中的有帮助占比计算，信息不足单独计数。",
+      "noFeedback": "暂无审核反馈。",
+      "skills": "Skill 目录",
+      "generation": "配置代数",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "loadFailed": "无法加载 AI 运维状态。",
+      "unavailable": "暂不可用",
+      "knowledge": "知识问答",
+      "writing": "写作",
+      "group": "群运营",
+      "moderation": "审核建议",
+      "unconfigured": "未配置",
+      "missing_credential": "凭据不可用",
+      "unreachable": "提供方不可达",
+      "model_unavailable": "模型不可用",
+      "ready": "可用",
+      "syncing": "同步中",
+      "pruning": "清理中",
+      "waiting": "等待中",
+      "stopped": "已停止",
+      "helpful": "有帮助",
+      "incorrect": "不准确",
+      "insufficient": "信息不足"
+    },
     "assignment": {
       "owner": "领取人：{name}",
       "unassigned": "未领取",
@@ -1367,6 +1571,12 @@
       }
     },
     "card": {
+      "sentimentSignal": "情绪线索 · {label}（{confidence}%）",
+      "sentimentLabels": {
+        "negative": "负向",
+        "neutral": "中性",
+        "positive": "正向"
+      },
       "reportCount": "{count} 次举报",
       "publishedAt": "发布于 {time}",
       "reportedAt": "举报于 {time}",
@@ -1853,8 +2063,8 @@
     "tabs": {
       "overview": "概览",
       "settings": "设置",
-      "pro": "Pro",
-      "billing": "账单",
+      "pro": "AI 用量",
+      "billing": "资源与数据",
       "profile": "个人资料",
       "posts": "推文管理",
       "likes": "我的点赞",
@@ -2455,6 +2665,7 @@
     "usedTools": "已使用工具：{tools}",
     "public_search": "搜索公开内容",
     "public_statistics": "统计公开活动",
+    "community_sentiment_summary": "统计公开讨论情绪趋势",
     "title": "群运营草稿",
     "history": "会话历史",
     "new": "新会话",
@@ -2566,22 +2777,69 @@
       "too-long": "消息超过 65536 字节，请缩短后重试。"
     }
   },
+  "aiUserProvider": {
+    "title": "个人 AI 服务连接",
+    "description": "使用自己的 API 密钥接入 AI 写作。设定后仍使用账号的写作权限和配额。",
+    "loading": "正在读取连接设置…",
+    "unavailable": "此后端尚未开放个人 AI 连接。",
+    "endpoint": "服务地址",
+    "preset": {
+      "default": "默认服务地址",
+      "provided": "系统提供的地址"
+    },
+    "model": "模型 ID",
+    "key": "API 密钥",
+    "keyRequired": "设置此连接需要填写密钥。",
+    "keepKey": "留空可保留已保存的密钥。",
+    "enable": "启用为我的写作模型",
+    "save": "保存",
+    "test": "测试已保存的连接",
+    "remove": "移除连接",
+    "removePrompt": "移除后将恢复平台写作模型。",
+    "cancel": "取消",
+    "retry": "重试",
+    "saved": "连接设置已保存。",
+    "verified": "连接正常，所选模型可用。",
+    "removed": "个人连接已移除。",
+    "failed": "未能完成操作，请核对设置后重试。",
+    "changed": "连接需要更新，请重新填写密钥。"
+  },
+  "aiVision": {
+    "suggest": "AI 图片描述和话题",
+    "generating": "正在分析图片…",
+    "review": "检查图片描述及所选话题，然后应用到草稿。",
+    "altText": "无障碍图片描述",
+    "cancel": "取消",
+    "apply": "应用到草稿",
+    "unavailable": "暂时无法生成图片描述和话题，请稍后重试。",
+    "invalidAlt": "图片描述须在 500 UTF-8 字节以内。",
+    "textOnly": "仅审核文本",
+    "textAndImages": "图文联合审核"
+  },
   "aiKnowledge": {
+    "scope": {
+      "label": "知识范围",
+      "public": "平台公开知识",
+      "personal": "我的收藏与帖子",
+      "group": "已加入的群",
+      "chooseGroup": "选择群组",
+      "groupRequired": "请选择当前加入的群。"
+    },
     "allComments": "查看全部评论",
     "citedCommentMissing": "引用的评论已不存在或无法查看。",
     "eyebrow": "社区知识",
     "title": "知识助手",
-    "description": "根据检索词匹配公开帖子和评论并回答问题，请结合来源核对。",
+    "description": "根据所选范围检索资料并回答问题，请结合来源核对。",
     "new": "新建会话",
     "history": "历史会话",
     "historyEmpty": "暂无知识会话",
     "untitled": "未命名会话",
-    "empty": "输入关于社区公开内容的问题。",
+    "empty": "输入与所选知识范围相关的问题。",
     "you": "你",
     "assistant": "知识助手",
     "placeholder": "输入你想了解的问题",
     "searchLabel": "检索词",
-    "searchPlaceholder": "输入公开内容中出现的文字",
+    "searchPlaceholder": "输入资料中出现的文字",
     "searchHint": "按完整文字精确匹配；修改检索词后可重试，无需重新发送问题。",
     "send": "发送",
     "refreshState": "刷新会话状态",
@@ -2601,7 +2859,7 @@
       "too-long": "消息超过 65536 字节，请缩短后重试。",
       "search-invalid": "请输入不含控制字符、最多 256 UTF-8 字节的检索词。"
     },
-    "insufficientEvidence": "没有找到匹配的公开资料，请尝试其他文字。",
+    "insufficientEvidence": "当前范围内没有找到匹配的资料，请尝试其他文字。",
     "sources": "参考来源",
     "recheckSources": "重新核对引用",
     "post": "帖子",

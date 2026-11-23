@@ -1,4 +1,5 @@
 import type {
+  V2PostPoll,
   V2GroupCategory,
   V2GroupPostPermission,
   V2GroupPrivacy,
@@ -73,6 +74,9 @@ export interface GroupPostGroup {
 }
 
 export interface GroupPost {
+  markdown?: string;
+  poll?: V2PostPoll;
+  groupId?: number;
   id: number;
   content: string;
   author: GroupOwner & {

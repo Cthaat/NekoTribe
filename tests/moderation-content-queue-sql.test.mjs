@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 
 const {sql}=JSON.parse(readFileSync(new URL('../specifications/requirements/moderation-content-queue.json',import.meta.url)));
+const {queue_post_query:getSentimentExcerpt}=JSON.parse(readFileSync(new URL('../specifications/requirements/ai-sentiment.json',import.meta.url)));
 const dates=query=>query.replace(/TO_CHAR\(FROM_TZ\((\w+\.\w+), SESSIONTIMEZONE\) AT TIME ZONE 'UTC', '[^']+'\)/g,'$1');
 
 test('content queue keeps stable totals, filters ordinary posts and ties by case ID',()=>{
@@ -50,5 +51,23 @@ test('content queue keeps stable totals, filters ordinary posts and ties by case
     assert.equal(query.get(all).email,undefined);
     const reports=db.prepare(dates(sql.reports)).all({target_type:'post',target_id:81});
     assert.deepEqual(reports.map(row=>row.report_id),[12,11,10]);
+  } finally {db.close();}
+});
+
+test('queue sentiment samples require a currently visible public post and active author',()=>{
+  const db=new DatabaseSync(':memory:');
+  try {
+    db.function('fn_can_view_post',(viewerId,postId)=>viewerId===42&&postId!==4 ? 1 : 0);
+    db.exec(`
+      CREATE TABLE n_users(user_id,is_active);
+      CREATE TABLE n_posts(post_id,author_id,content,visibility,is_deleted);
+      INSERT INTO n_users VALUES (1,1),(2,0);
+      INSERT INTO n_posts VALUES (1,1,'eligible','public',0),(2,1,'private','followers',0),
+        (3,2,'inactive author','public',0),(4,1,'blocked','public',0),(5,1,'deleted','public',1);
+    `);
+    const statement=db.prepare(getSentimentExcerpt.replace('DBMS_LOB.SUBSTR(p.content,400,1)','SUBSTR(p.content,1,400)'));
+    assert.equal(statement.get({viewer_id:42,post_id:1}).excerpt,'eligible');
+    for(const post_id of [2,3,4,5]) assert.equal(statement.get({viewer_id:42,post_id}),undefined);
+    assert.equal(statement.get({viewer_id:21,post_id:1}),undefined);
   } finally {db.close();}
 });

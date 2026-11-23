@@ -1,0 +1,33 @@
+{
+  "id": "ACCOUNT-RESOURCES",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "authenticated-usage",
+      "method": "GET",
+      "path": "/api/v2/users/me/usage",
+      "status": 200,
+      "assertion": "Current actor Redis counter is read without spending quota. Only current actor ready media and conversation rows are counted."
+    },
+    {
+      "id": "authenticated-export",
+      "method": "GET",
+      "path": "/api/v2/users/me/export",
+      "formats": ["json", "markdown"],
+      "status": 200,
+      "assertion": "Both attachments contain current actor visible authored posts and bookmark references. Deleted or inaccessible posts and other users' data are excluded."
+    },
+    {
+      "id": "signed-out",
+      "method": "GET",
+      "paths": ["/api/v2/users/me/usage", "/api/v2/users/me/export"],
+      "status": 401
+    },
+    {
+      "id": "invalid-format",
+      "method": "GET",
+      "path": "/api/v2/users/me/export?format=csv",
+      "status": 400
+    }
+  ]
+}

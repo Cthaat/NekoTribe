@@ -13,7 +13,8 @@ function columnRow(column) {
 }
 function tableState(description) {
   const columns = description.columns.map(columnRow);
-  if (description.table === 'N_AI_CONVERSATIONS') columns.find(c => c.COLUMN_NAME === 'TITLE').CHAR_USED = 'B';
+  const title = description.table === 'N_AI_CONVERSATIONS' && columns.find(c => c.COLUMN_NAME === 'TITLE');
+  if (title) title.CHAR_USED = 'B';
   return { columns, constraints: description.constraints.map(c => ({ CONSTRAINT_NAME: c.name,
     CONSTRAINT_TYPE: c.type, SEARCH_CONDITION_VC: c.expression, STATUS: 'ENABLED', VALIDATED: 'VALIDATED',
     DELETE_RULE: c.deleteRule, REFERENCED_TABLE: c.referencedTable, REFERENCED_OWNER: c.type === 'R' ? 'NEKO_APP' : null,
@@ -46,7 +47,11 @@ export function schemaFixture({ baseline = false } = {}) {
   const sqlBaseline = baseline ? readFileSync(new URL('../../data/neko_tribe-oracle-v2.sql', import.meta.url), 'utf8') : '';
   const all = schemaFeatures.flatMap(f => f.steps);
   for (const raw of all) {
-    if (baseline && ['N_RECOMMENDATION_FEEDBACK', 'N_AI_MODERATION_FEEDBACK'].includes(raw.name)) continue;
+    if (baseline && (raw.id.startsWith('t22-post-poll') || raw.id.startsWith('t23-post-draft') ||
+      raw.id === 't24-profile-pinned-post' || raw.id === 't25-post-markdown' || raw.id.startsWith('t26-webauthn-') ||
+      raw.id.startsWith('t27-github-oauth-'))) continue;
+    if (baseline && ['N_RECOMMENDATION_FEEDBACK', 'N_AI_MODERATION_FEEDBACK', 'N_AI_USER_PROVIDERS',
+      'N_DIRECT_MESSAGE_MEDIA', 'N_DIRECT_MESSAGE_REPLIES', 'N_DIRECT_MESSAGE_REACTIONS'].includes(raw.name)) continue;
     const step = describeStep(raw);
     if (step.previousCharUsed || step.previousType) {
       if (!baseline) updateColumn(state, step);

@@ -4,14 +4,16 @@ import {build} from 'esbuild';
 import {fileURLToPath} from 'node:url';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
-const built=await build({stdin:{contents:"export * from './app/api/v2/auth'; export {v2DeleteMe} from './app/api/v2/users'; export {authQueueFor} from './app/services/auth-request-queue';",resolveDir:root,loader:'ts'},alias:{'@':root+'app'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'web-auth-boundaries',setup(b){
+const built=await build({stdin:{contents:"export * from './app/api/v2/auth'; export {v2DeleteMe} from './app/api/v2/users'; export {authQueueFor} from './app/services/auth-request-queue';",resolveDir:root,loader:'ts'},alias:{'@':root+'app','~':root+'app'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'web-auth-boundaries',setup(b){
   b.onResolve({filter:/^#app$/},()=>({path:'app',namespace:'stub'}));
   b.onResolve({filter:/^\.\/client$/},()=>({path:'client',namespace:'stub'}));
   b.onLoad({filter:/.*/,namespace:'stub'},({path})=>({loader:'js',contents:path==='app'?`export function useNuxtApp(){return globalThis.__authOwner;}`:`export function v2RequestData(path,options){const owner=globalThis.__authContext??globalThis.__authOwner;globalThis.__authCalls.push({owner:owner.id,path,options});return globalThis.__authRequest(owner,path,options);}export async function v2Request(path,options){return {code:200,message:'success',data:await v2RequestData(path,options),meta:null};}export const toV2PagedResult=x=>x;`}));
 }}]});
 const api=await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}`);
 function app(id){return {id,runWithContext(action){const previous=globalThis.__authContext;globalThis.__authContext=this;try{return action();}finally{globalThis.__authContext=previous;}}};}
+
 function defer(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return {promise,resolve,reject};}
+
 async function fixture(run){globalThis.__authCalls=[];try{await run();}finally{for(const key of ['__authCalls','__authOwner','__authContext','__authRequest'])delete globalThis[key];}}
 
 test('all auth mutations wait for the previous response and preserve their call order',()=>fixture(async()=>{

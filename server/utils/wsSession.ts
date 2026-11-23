@@ -13,6 +13,8 @@
 // 导入 crossws 库的 Peer 类型
 import type { Peer } from 'crossws';
 import { createHash } from 'node:crypto';
+import { parseChatRealtimeDetail, typingTtlMs } from './chat-realtime-details';
+import { isCallServerEvent, parseCallEvent, type CallEventData, type CallServerEventType } from './webrtc-signaling';
 
 export const WS_SERVER_ID = `ws_server_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
@@ -47,6 +49,9 @@ export interface WSSession {
     authorize: (channel: number) => Promise<boolean>;
     leave: (channel: number) => void;
     authorizeDirect?: (conversation: number, message: number, deleted: boolean) => Promise<boolean>;
+    authorizeDirectTyping?: (conversation: number, actor: number) => Promise<boolean>;
+    authorizeDirectRead?: (conversation: number, reader: number, message: number) => Promise<boolean>;
+    authorizeCall?: (type: CallServerEventType, data: CallEventData) => Promise<boolean>;
   };
   notificationTail: Promise<void>;
   pendingNotifications: number;
@@ -69,6 +74,14 @@ class WSSessionManager {
   // 私有属性：存储所有会话的 Map
   // key: sessionId（会话ID）, value: WSSession（会话对象）
   private sessions = new Map<string, WSSession>();
+
+  metrics() {
+    const rooms = new Set<string>();
+    for (const session of this.sessions.values()) {
+      for (const room of session.joinedRooms) rooms.add(room);
+    }
+    return { connections: this.sessions.size, channels: rooms.size };
+  }
 
   hasCapacity(): boolean {
     return this.sessions.size < 1024;
@@ -397,22 +410,43 @@ function validWire(raw: string): boolean {
   return raw.length <= MAX_WS_FRAME_BYTES && new TextEncoder().encode(raw).byteLength <= MAX_WS_FRAME_BYTES;
 }
 
-type ChatDelivery = {channel: number} | {conversation: number; message: number; deleted: boolean};
+type ChatDelivery = {channel: number; typingUser?: number} |
+  {conversation: number; message: number; deleted: boolean} |
+  {typingConversation: number; typingUser: number} |
+  {readConversation: number; reader: number; message: number} |
+  {call: CallEventData; type: CallServerEventType};
 
 function chatDelivery(raw: string): ChatDelivery | null | undefined {
-  let frame: { type?: string; room?: string; data?: {
+  let frame: { type?: string; room?: string; timestamp?: number; data?: {
     channel_id?: number; conversation_id?: number; message_id?: number; server_id?: string; direct_message?: {conversation_id?: number; message_id?: number};
   } };
   try { frame = JSON.parse(raw); } catch { return undefined; }
-  if (frame?.type === 'direct_message' || frame?.type === 'direct_message_deleted') {
+  if (typeof frame?.type === 'string' && isCallServerEvent(frame.type)) {
+    const call = parseCallEvent(frame.type,frame.data);
+    return call && Object.keys(frame).length === 3 && typeof frame.timestamp === 'number' &&
+      Number.isSafeInteger(frame.timestamp) && frame.timestamp >= 0 ? {call,type:frame.type} : null;
+  }
+  const detail = parseChatRealtimeDetail(frame?.type, frame?.data);
+  if (detail === null) return null;
+  if (detail && 'read' in detail) {
+    return {readConversation:detail.read.conversation_id,reader:detail.read.reader_id,message:detail.read.last_read_message_id};
+  }
+  if (detail && 'typing' in detail) {
+    if (typeof frame.timestamp !== 'number' || Date.now() - frame.timestamp >= typingTtlMs) return null;
+    return 'channel_id' in detail.typing
+      ? {channel:detail.typing.channel_id,typingUser:detail.typing.user_id}
+      : {typingConversation:detail.typing.conversation_id,typingUser:detail.typing.user_id};
+  }
+  if (frame?.type === 'direct_message' || frame?.type === 'direct_message_deleted' || frame?.type === 'direct_message_updated') {
     const deleted = frame.type === 'direct_message_deleted';
+    const idOnly = frame.type !== 'direct_message';
     const conversation = frame.data?.conversation_id;
-    const message = deleted ? frame.data?.message_id : frame.data?.direct_message?.message_id;
+    const message = idOnly ? frame.data?.message_id : frame.data?.direct_message?.message_id;
     if (typeof conversation !== 'number' || !Number.isSafeInteger(conversation) || conversation <= 0 ||
-        (!deleted && frame.data?.direct_message?.conversation_id !== conversation) ||
+        (!idOnly && frame.data?.direct_message?.conversation_id !== conversation) ||
         typeof message !== 'number' || !Number.isSafeInteger(message) || message <= 0) return null;
     const serverId = frame.data?.server_id;
-    if (deleted && (!Object.keys(frame.data ?? {}).every(key => ['conversation_id', 'message_id', 'server_id'].includes(key)) ||
+    if (idOnly && (!Object.keys(frame.data ?? {}).every(key => ['conversation_id', 'message_id', 'server_id'].includes(key)) ||
         serverId !== undefined && (typeof serverId !== 'string' || serverId.length === 0))) return null;
     return {conversation, message, deleted};
   }
@@ -462,14 +496,24 @@ function enqueueWs(session: WSSession, raw: string, local: boolean): Promise<voi
     if (!active()) return;
     const chat = chatDelivery(raw);
     if (chat === null) return;
-    if (chat && 'conversation' in chat) {
+    if (chat && 'call' in chat) {
+      const authorize = session.chatAccess?.authorizeCall;
+      if (!authorize || !await authorizeWithTimeout(() => authorize(chat.type,chat.call)) || !active()) return;
+    } else if (chat && 'conversation' in chat) {
       const authorize = session.chatAccess?.authorizeDirect;
       if (!authorize || !await authorizeWithTimeout(() => authorize(chat.conversation, chat.message, chat.deleted)) || !active()) return;
+    } else if (chat && 'typingConversation' in chat) {
+      const authorize = session.chatAccess?.authorizeDirectTyping;
+      if (chat.typingUser === session.auth.userId || !authorize ||
+          !await authorizeWithTimeout(() => authorize(chat.typingConversation, chat.typingUser)) || !active()) return;
+    } else if (chat && 'readConversation' in chat) {
+      const authorize = session.chatAccess?.authorizeDirectRead;
+      if (!authorize || !await authorizeWithTimeout(() => authorize(chat.readConversation, chat.reader, chat.message)) || !active()) return;
     } else if (chat) {
       const {channel} = chat;
       const room = `chat:channel:${channel}`;
       const access = session.chatAccess;
-      if (!access || !session.joinedRooms.has(room)) return;
+      if (!access || chat.typingUser === session.auth.userId || !session.joinedRooms.has(room)) return;
       const allowed = await authorizeWithTimeout(() => access.authorize(channel));
       if (!active() || !session.joinedRooms.has(room)) return;
       if (!allowed) {

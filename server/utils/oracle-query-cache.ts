@@ -6,6 +6,7 @@ import { getRequestURL } from 'h3';
 import { invalidateApiResponseCacheTags } from './api-cache';
 import { cacheProcessEpoch, singleBackendCacheEnabled } from './cache-mode';
 import { readCacheTagVersions, rotateCacheTags } from './cache-tags';
+import { observeCacheRead } from './observability';
 import {
   getRequestLogContext,
   logInfo,
@@ -156,6 +157,10 @@ function isSensitiveSql(normalizedSql: string): boolean {
     'n_user_settings',
     'n_user_blocks',
     'n_user_mutes',
+    'n_post_poll',
+    'n_post_drafts',
+    'n_user_pinned_posts',
+    'n_post_markdown',
     'n_moderation_user_restrictions',
     'n_user_follows',
     'fn_get_user_relationship',
@@ -514,7 +519,10 @@ async function readOracleQueryCache(
 ): Promise<oracledb.Result<unknown> | null> {
   try {
     const raw = await redis.get(context.key);
-    if (!raw) return null;
+    if (!raw) {
+      observeCacheRead('miss');
+      return null;
+    }
 
     const parsed = JSON.parse(raw) as StoredOracleQueryResult;
     if (
@@ -522,6 +530,7 @@ async function readOracleQueryCache(
       parsed.cache_id !== context.cacheId
     ) {
       await redis.del(context.key);
+      observeCacheRead('miss');
       return null;
     }
 
@@ -531,8 +540,10 @@ async function readOracleQueryCache(
       ...queryLogPayload(source, context, sql),
       ttlSeconds
     });
+    observeCacheRead('hit');
     return parsed.result as oracledb.Result<unknown>;
   } catch (error) {
+    observeCacheRead('degraded');
     logWarn('oracle-query-cache', {
       event: 'read:error',
       ...queryLogPayload(source, context, sql),
@@ -694,15 +705,19 @@ export function attachOracleQueryCacheWithSource(
     const isStatementPath = /^\/api\/v2\/(?:users\/me\/account-statements|(?:moderation\/(?:appeals|reports|stats|settings|users|content)|reports))(?:\/|$)/.test(sourcePath);
     const isRelationshipPath = /^\/api\/v2\/users(?:\/(?:recommendations|me\/avatar|me\/(?:blocks|mutes)(?:\/[^/]+)?|[^/]+\/(?:followers|following|mutual-following)))?\/*$/.test(sourcePath);
     const isRegistrationPath = sourcePath.replace(/\/+$/, '') === '/api/v2/auth/registration';
-    const isDirectMessagePath = /^\/api\/v2\/chat\/direct-conversations(?:\/[^/]+\/messages(?:\/[^/]+)?)?\/*$/.test(sourcePath);
+    const isDirectMessagePath = /^\/api\/v2\/chat\/direct-conversations(?:\/|$)/.test(sourcePath);
     const isChatChannelPath = /^\/api\/v2\/chat\/(?:groups(?:\/[^/]+\/(?:channels|members))?|channels\/[^/]+(?:\/(?:read-status|mute-status|messages))?|messages\/[^/]+(?:\/(?:pin-status|reactions))?)\/*$/.test(sourcePath);
-    const isGroupReadPath = /^\/api\/v2\/(?:groups(?:\/(?:by-slug\/)?[^/]+)?|users\/me\/groups)\/*$/.test(sourcePath);
+    const isGroupReadPath = /^\/api\/v2\/(?:groups(?:\/(?:by-slug\/)?[^/]+)?|users\/me\/groups|feed\/groups)\/*$/.test(sourcePath);
     const isGroupMembershipPath = /^\/api\/v2\/(?:groups\/(?:invite-codes\/|invites\/[^/]+\/responses(?:\/|$)|[^/]+\/(?:members|ownership|invites|posts|notification-preference|audit-logs)(?:\/|$))|users\/me\/group-invites\/*$)/.test(sourcePath);
     const isPostLikersPath = /^\/api\/v2\/posts\/[^/]+\/likes\/*$/.test(sourcePath);
+    const isPostDraftOrPollPath = /^\/api\/v2\/(?:users\/me\/drafts|posts\/[^/]+\/poll)(?:\/|$)/.test(sourcePath);
+    const isPinnedPostPath = /^\/api\/v2\/users\/[^/]+\/pinned-post\/*$/.test(sourcePath);
+    const isCredentialPath = /^\/api\/v2\/(?:auth|users\/me)\/(?:passkeys|oauth\/github)(?:\/|$)/.test(sourcePath);
     const isAnalyticsPath = /^\/api\/v2\/(?:posts|users)\/[^/]+\/analytics(?:\/|$)/.test(sourcePath);
     const isFeedbackPath = /^\/api\/v2\/(?:posts(?:\/trending)?|recommendations\/feedback)\/*$/.test(sourcePath);
     let cacheContext: OracleQueryCacheContext | undefined;
-    if (pendingTags.size === 0 && !connection.transactionInProgress && redis && !isAiPath && !isSettingsPath && !isStatementPath && !isRelationshipPath && !isRegistrationPath && !isDirectMessagePath && !isChatChannelPath && !isGroupReadPath && !isGroupMembershipPath && !isPostLikersPath && !isAnalyticsPath && !isFeedbackPath && isCacheableSelectSql(sql)) {
+    const cacheEligible = pendingTags.size === 0 && !connection.transactionInProgress && !isAiPath && !isSettingsPath && !isStatementPath && !isRelationshipPath && !isRegistrationPath && !isDirectMessagePath && !isChatChannelPath && !isGroupReadPath && !isGroupMembershipPath && !isPostLikersPath && !isPostDraftOrPollPath && !isPinnedPostPath && !isCredentialPath && !isAnalyticsPath && !isFeedbackPath && isCacheableSelectSql(sql);
+    if (cacheEligible && redis) {
       try {
         const context = await buildQueryCacheContext(
           activeSource,
@@ -720,6 +735,7 @@ export function attachOracleQueryCacheWithSource(
         if (cached) return cached;
         cacheContext = context;
       } catch (error) {
+        observeCacheRead('degraded');
         logWarn('oracle-query-cache', {
           event: 'bypass:error',
           requestId: activeSource.requestId ?? 'unknown',
@@ -728,7 +744,7 @@ export function attachOracleQueryCacheWithSource(
           error: serializeLogError(error)
         });
       }
-    }
+    } else if (cacheEligible && sourcePath !== 'oracle:direct') observeCacheRead('degraded');
 
     const result = await originalExecute(...args);
     if (isMutatingSql(sql) && !isCacheNeutralMutationSql(sql) && result.rowsAffected !== 0) {

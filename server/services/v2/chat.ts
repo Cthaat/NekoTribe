@@ -1,8 +1,10 @@
 import { requirePublishAccess } from './moderation-publish-policy';
+import { requireFeatureSchema } from '~/server/database/readiness';
 import directRealtimeAccess from '../../../specifications/requirements/direct-realtime-access.json';
 import directDelete from '../../../specifications/requirements/direct-message-delete.json';
+import chatRealtimeDetails from '../../../specifications/requirements/chat-realtime-details.json';
 import type { H3Event } from 'h3';
-import { getQuery, readRawBody } from 'h3';
+import { getQuery, readRawBody, setResponseHeader } from 'h3';
 import type oracledb from 'oracledb';
 import type {
   V2ApiResponse as V2Response,
@@ -17,10 +19,10 @@ import type {
   V2ChatReadStatusData,
   V2CreateChatChannelPayload,
   V2CreateDirectConversationPayload,
-  V2CreateDirectMessagePayload,
   V2DirectConversation,
   V2DirectLastMessage,
   V2DirectMessage,
+  V2DirectReadStatus,
   V2GroupRole,
   V2MediaAsset
 } from '../../../app/types/v2';
@@ -55,8 +57,8 @@ import {
   v2One,
   v2Page,
   v2PageMeta,
-  v2QueryString,
   v2RequiredString,
+  v2RouterParam,
   v2Rows,
   v2ServerError,
   v2String
@@ -64,6 +66,9 @@ import {
 import { v2MapMedia, v2MapPublicUser } from '~/server/models/v2';
 import { v2DeliverStoredNotification, v2StoreNotification } from './notifications';
 import { canBindMedia } from './private-media-binding';
+import { chatMessageSearch } from './chat-message-search';
+import { attachDirectMessageExtras, directMessageEmoji, directMessageExtras, directMessageIds, directMessageInput,
+  hydrateDirectMessageExtras, lockDirectAttachments } from './direct-message-extras';
 
 interface ChatMembership {
   groupId: number;
@@ -450,7 +455,7 @@ function v2DirectLastMessage(
   if (!messageId) return null;
   return {
     message_id: messageId,
-    content: v2String(row.LAST_MESSAGE_CONTENT),
+    content: v2String(row.LAST_MESSAGE_CONTENT).trim(),
     author_name: v2String(row.LAST_MESSAGE_AUTHOR),
     created_at: v2DateString(row.LAST_MESSAGE_AT) || ''
   };
@@ -477,7 +482,7 @@ function v2MapDirectMessage(
   return {
     message_id: v2Number(row.MESSAGE_ID),
     conversation_id: v2Number(row.CONVERSATION_ID),
-    content: v2String(row.CONTENT),
+    content: row.CONTENT === ' ' ? '' : v2String(row.CONTENT),
     author: v2MapPublicUser(row),
     is_deleted: v2Boolean(row.IS_DELETED),
     can_delete: authorId === viewerId,
@@ -712,39 +717,10 @@ async function v2MarkDirectConversationRead(
   userId: number,
   conversationId: number,
   lastReadMessageId: number
-): Promise<void> {
-  await v2Execute(
+): Promise<boolean> {
+  const affected = await v2Execute(
     connection,
-    `
-    MERGE INTO n_direct_conversation_reads r
-    USING (
-      SELECT
-        :conversation_id AS conversation_id,
-        :user_id AS user_id,
-        :last_read_message_id AS last_read_message_id
-      FROM dual
-    ) src
-    ON (
-      r.conversation_id = src.conversation_id
-      AND r.user_id = src.user_id
-    )
-    WHEN MATCHED THEN
-      UPDATE SET
-        r.last_read_message_id = GREATEST(NVL(r.last_read_message_id, 0), src.last_read_message_id),
-        r.last_read_at = CURRENT_TIMESTAMP
-    WHEN NOT MATCHED THEN
-      INSERT (
-        conversation_id,
-        user_id,
-        last_read_message_id,
-        last_read_at
-      ) VALUES (
-        src.conversation_id,
-        src.user_id,
-        src.last_read_message_id,
-        CURRENT_TIMESTAMP
-      )
-    `,
+    chatRealtimeDetails.sql.advance_read,
     {
       conversation_id: conversationId,
       user_id: userId,
@@ -752,12 +728,87 @@ async function v2MarkDirectConversationRead(
     },
     false
   );
+  if (affected > 1) v2ServerError();
+  return affected === 1;
+}
+
+function directReadConversationId(event: H3Event): number {
+  const raw = v2RouterParam(event, 'conversation_id');
+  const id = Number(raw);
+  if (!/^[1-9][0-9]*$/.test(raw) || !Number.isSafeInteger(id)) v2BadRequest('conversation_id 参数错误');
+  return id;
+}
+
+async function queryDirectReadStatus(connection: oracledb.Connection, userId: number, conversationId: number): Promise<V2DirectReadStatus> {
+  const row = await v2One(connection, chatRealtimeDetails.sql.read_status, { user_id: userId, conversation_id: conversationId });
+  if (!row) v2Forbidden('无权访问该私聊会话');
+  return {
+    conversation_id: conversationId,
+    last_read_message_id: v2Number(row.LAST_READ_MESSAGE_ID) || null,
+    participant_last_read_message_id: v2Number(row.PARTICIPANT_LAST_READ_MESSAGE_ID) || null,
+    unread_count: v2Number(row.UNREAD_COUNT),
+  };
+}
+
+async function publishDirectRead(conversationId: number, readerId: number, peerId: number, messageId: number) {
+  try {
+    await v2PublishDirectEvent([readerId, peerId], 'direct_read_updated', {
+      conversation_id: conversationId, reader_id: readerId, last_read_message_id: messageId,
+    });
+  } catch { console.warn('[chat] direct read delivery unavailable'); }
+}
+
+export async function v2CanDeliverDirectRead(connection: oracledb.Connection, userId: number, conversationId: number, readerId: number, messageId: number): Promise<boolean> {
+  return !!await v2One(connection, chatRealtimeDetails.sql.direct_read_delivery, {
+    user_id: userId, conversation_id: conversationId, reader_id: readerId, last_read_message_id: messageId,
+  });
+}
+
+export async function v2DirectTypingPeer(connection: oracledb.Connection, userId: number, conversationId: number): Promise<number | null> {
+  const row = await v2One(connection, chatRealtimeDetails.sql.direct_typing_peer, { user_id: userId, conversation_id: conversationId });
+  return v2Number(row?.OTHER_USER_ID) || null;
+}
+
+export async function v2ReadDirectChatStatus(event: H3Event, connection: oracledb.Connection) {
+  setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  return v2Ok(await queryDirectReadStatus(connection, v2Auth(event).userId, directReadConversationId(event)));
+}
+
+export async function v2SetDirectChatStatus(event: H3Event, connection: oracledb.Connection) {
+  setResponseHeader(event, 'Cache-Control', 'private, no-store');
+  const {userId} = v2Auth(event);
+  const conversationId = directReadConversationId(event);
+  const body = await v2ChatChannelBody(event);
+  const messageId = body.last_read_message_id;
+  if (Object.keys(body).length !== 1 || typeof messageId !== 'number' || !Number.isSafeInteger(messageId) || messageId <= 0) {
+    v2BadRequest('last_read_message_id 参数错误');
+  }
+  let status: V2DirectReadStatus;
+  let updated: boolean;
+  let peer: number;
+  try {
+    const access = await v2RequireDirectConversationAccess(connection, userId, conversationId, true);
+    peer = access.participantUserId;
+    if (!await v2One(connection, directMessageExtras.sql.query_message, { conversation_id: conversationId, message_id: messageId })) {
+      v2BadRequest('last_read_message_id 参数错误');
+    }
+    updated = await v2MarkDirectConversationRead(connection, userId, conversationId, messageId);
+    status = await queryDirectReadStatus(connection, userId, conversationId);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
+  if (updated) await publishDirectRead(conversationId, userId, peer, messageId);
+  return v2Ok(status, 'direct read status updated');
 }
 
 async function v2GetDirectMessage(
   connection: oracledb.Connection,
   viewerId: number,
-  messageId: number
+  conversationId: number,
+  messageId: number,
+  allowLegacy = false,
 ): Promise<V2DirectMessage> {
   const row = await v2One(
     connection,
@@ -789,17 +840,21 @@ async function v2GetDirectMessage(
     JOIN n_direct_conversations c
       ON c.conversation_id = dm.conversation_id
     WHERE dm.message_id = :message_id
+      AND dm.conversation_id = :conversation_id
       AND dm.is_deleted = 0
       AND c.is_deleted = 0
       AND (c.user_low_id = :viewer_id OR c.user_high_id = :viewer_id)
     `,
     {
       viewer_id: viewerId,
-      message_id: messageId
+      message_id: messageId,
+      conversation_id: conversationId
     }
   );
   if (!row) v2NotFound('私聊消息不存在');
-  return v2MapDirectMessage(row, viewerId);
+  const message = v2MapDirectMessage(row, viewerId);
+  await hydrateDirectMessageExtras(connection,viewerId,[message],allowLegacy);
+  return message;
 }
 
 async function v2ChatMessageMediaMap(
@@ -1507,22 +1562,12 @@ export async function v2ListChatMessages(
   channelId: number
 ): Promise<V2Response<V2ChatMessage[]>> {
   const auth = v2Auth(event);
-  const access = await v2LockChatChannelStatus(
-    connection,
-    auth.userId,
-    channelId
-  );
+  const search = chatMessageSearch(getQuery(event), 'channel');
+  const access = search.active
+    ? await v2RequireChatChannelAccess(connection, auth.userId, channelId)
+    : await v2LockChatChannelStatus(connection, auth.userId, channelId);
   const page = v2Page(event);
-  const q = v2QueryString(event, 'q').trim().toLowerCase();
-  const qWhere = q
-    ? 'AND LOWER(m.content) LIKE :q'
-    : '';
-  const binds: Record<string, number | string> = {
-    channel_id: channelId
-  };
-  if (q) {
-    binds.q = `%${q}%`;
-  }
+  const binds = { channel_id: channelId, ...search.binds };
 
   const total = await v2Count(
     connection,
@@ -1532,7 +1577,7 @@ export async function v2ListChatMessages(
     JOIN v_user_profile_public u ON u.user_id = m.author_id
     WHERE m.channel_id = :channel_id
       AND m.is_deleted = 0
-      ${qWhere}
+      ${search.where}
     `,
     binds
   );
@@ -1584,7 +1629,7 @@ export async function v2ListChatMessages(
         LEFT JOIN n_users ru ON ru.user_id = rm.author_id
         WHERE m.channel_id = :channel_id
           AND m.is_deleted = 0
-          ${qWhere}
+          ${search.where}
       ) inner_rows
     )
     WHERE rn BETWEEN :start_row AND :end_row
@@ -1607,7 +1652,7 @@ export async function v2ListChatMessages(
     accessMap
   );
 
-  if (!q && page.page === 1 && messages.length > 0) {
+  if (!search.active && page.page === 1 && messages.length > 0) {
     await v2MarkChannelRead(
       connection,
       auth.userId,
@@ -2244,24 +2289,31 @@ export async function v2ListDirectMessages(
   conversationId: number
 ): Promise<V2Response<V2DirectMessage[]>> {
   const auth = v2Auth(event);
+  const query = getQuery(event);
+  const search = chatMessageSearch(query, 'direct');
+  const markRead = query.mark_read;
+  if (markRead !== undefined && markRead !== 'true' && markRead !== 'false') v2BadRequest('mark_read 参数错误');
+  const page = v2Page(event);
+  const shouldMark = !search.active && page.page === 1 && markRead !== 'false';
   try {
-    await v2RequireDirectConversationAccess(
+    const access = await v2RequireDirectConversationAccess(
       connection,
       auth.userId,
       conversationId,
-      true
+      shouldMark
     );
-    const page = v2Page(event);
 
     const total = await v2Count(
       connection,
       `
       SELECT COUNT(*) AS total
-      FROM n_direct_messages
-      WHERE conversation_id = :conversation_id
-        AND is_deleted = 0
+      FROM n_direct_messages dm
+      JOIN v_user_profile_public u ON u.user_id = dm.sender_id
+      WHERE dm.conversation_id = :conversation_id
+        AND dm.is_deleted = 0
+        ${search.where}
       `,
-      { conversation_id: conversationId }
+      { conversation_id: conversationId, ...search.binds }
     );
 
     const rows = await v2Rows(
@@ -2301,6 +2353,7 @@ export async function v2ListDirectMessages(
           JOIN v_user_profile_public u ON u.user_id = dm.sender_id
           WHERE dm.conversation_id = :conversation_id
             AND dm.is_deleted = 0
+            ${search.where}
         ) inner_rows
       )
       WHERE rn BETWEEN :start_row AND :end_row
@@ -2309,6 +2362,7 @@ export async function v2ListDirectMessages(
       {
         viewer_id: auth.userId,
         conversation_id: conversationId,
+        ...search.binds,
         start_row: page.start,
         end_row: page.end
       }
@@ -2316,18 +2370,14 @@ export async function v2ListDirectMessages(
     const messages = rows.map(row =>
       v2MapDirectMessage(row, auth.userId)
     );
+    await hydrateDirectMessageExtras(connection,auth.userId,messages,true);
 
     const last = messages.at(-1);
-    if (page.page === 1 && last) {
-      await v2MarkDirectConversationRead(
-        connection,
-        auth.userId,
-        conversationId,
-        last.message_id
-      );
-    }
+    const advancedCursor = shouldMark && last &&
+      await v2MarkDirectConversationRead(connection, auth.userId, conversationId, last.message_id) ? last.message_id : null;
 
     await connection.commit();
+    if (advancedCursor !== null) await publishDirectRead(conversationId, auth.userId, access.participantUserId, advancedCursor);
     return v2Ok(
       messages,
       'success',
@@ -2345,23 +2395,26 @@ export async function v2CreateDirectMessage(
   conversationId: number
 ): Promise<V2Response<V2DirectMessage>> {
   const auth = v2Auth(event);
-  const body =
-    (await v2Body(event)) as Partial<V2CreateDirectMessagePayload>;
-  const content = v2RequiredString(body, 'content');
-  if (Buffer.byteLength(content, 'utf8') > 4000) {
-    v2BadRequest('content 超过最大长度');
-  }
+  const {content,mediaIds,replyId} = directMessageInput(await v2ChatChannelBody(event));
+  const usesExtras = mediaIds.length > 0 || replyId !== null;
+  if (usesExtras) await requireFeatureSchema(connection,'direct-message-extras');
 
   let access: DirectConversationAccess;
   let message: V2DirectMessage;
   let notification: Awaited<ReturnType<typeof v2StoreNotification>>;
+  let readAdvanced: boolean;
+  let committing = false;
 
   try {
     access = await v2RequireDirectConversationAccess(connection, auth.userId, conversationId, true);
     await v2AssertDirectTargetCanReceive(connection, auth.userId, access.participantUserId);
     await requirePublishAccess(connection, auth.userId);
+    if (replyId !== null && !await v2One(connection,directMessageExtras.sql.query_message,{conversation_id:conversationId,message_id:replyId})) {
+      v2BadRequest('回复消息不存在');
+    }
+    await lockDirectAttachments(connection,auth.userId,mediaIds);
     const messageId = await v2NextId(connection, 'seq_direct_message_id');
-    await v2Execute(
+    const inserted = await v2Execute(
       connection,
       `
       INSERT INTO n_direct_messages (
@@ -2380,10 +2433,12 @@ export async function v2CreateDirectMessage(
         message_id: messageId,
         conversation_id: conversationId,
         sender_id: auth.userId,
-        content
+        content: content || ' '
       },
       false
     );
+    if (inserted !== 1) v2ServerError();
+    await attachDirectMessageExtras(connection,messageId,mediaIds,replyId);
 
     await v2Execute(
       connection,
@@ -2402,21 +2457,23 @@ export async function v2CreateDirectMessage(
       false
     );
 
-    await v2MarkDirectConversationRead(connection, auth.userId, conversationId, messageId);
-    message = await v2GetDirectMessage(connection, auth.userId, messageId);
+    readAdvanced = await v2MarkDirectConversationRead(connection, auth.userId, conversationId, messageId);
+    message = await v2GetDirectMessage(connection, auth.userId, conversationId, messageId, !usesExtras);
     const actorName = await v2UserDisplayName(connection, auth.userId);
     notification = await v2StoreNotification(connection, {
       userId: access.participantUserId,
       actorId: auth.userId,
       type: 'direct_message',
       title: `${actorName} 给你发来私信`,
-      message: v2NotificationPreview(content),
+      message: content ? v2NotificationPreview(content) : '[附件]',
       resourceType: 'direct_message',
       resourceId: messageId,
       metadata: { conversation_id: conversationId, event: 'direct_message_created' }
     }, false);
+    committing = true;
     await connection.commit();
   } catch (error) {
+    if (committing) v2ServerError();
     await connection.rollback();
     throw error;
   }
@@ -2425,10 +2482,54 @@ export async function v2CreateDirectMessage(
     v2PublishDirectEvent([auth.userId, access.participantUserId], 'direct_message', {
       conversation_id: conversationId, direct_message: message
     }),
+    readAdvanced ? publishDirectRead(conversationId, auth.userId, access.participantUserId, message.message_id) : Promise.resolve(),
     notification ? v2DeliverStoredNotification(connection, notification) : Promise.resolve()
   ]);
   if (delivery.some(result => result.status === 'rejected')) {
     console.warn('[chat] direct message delivery unavailable');
   }
   return v2Ok(message, 'direct message created');
+}
+
+export async function v2ReadDirectMessage(event:H3Event,connection:oracledb.Connection) {
+  const {userId} = v2Auth(event);
+  const {conversationId,messageId} = directMessageIds(event);
+  await v2RequireDirectConversationAccess(connection,userId,conversationId);
+  await requireFeatureSchema(connection,'direct-message-extras');
+  return v2Ok(await v2GetDirectMessage(connection,userId,conversationId,messageId));
+}
+
+export async function v2SetDirectReaction(event:H3Event,connection:oracledb.Connection,add:boolean) {
+  const {userId} = v2Auth(event);
+  const {conversationId,messageId} = directMessageIds(event);
+  const body = await v2ChatChannelBody(event);
+  if (Object.keys(body).length !== 1) v2BadRequest('emoji 参数错误');
+  const emoji = directMessageEmoji(body.emoji);
+  await requireFeatureSchema(connection,'direct-message-extras');
+  let result: V2DirectMessage;
+  let recipient: number;
+  let affected: number;
+  let committing = false;
+  try {
+    const access = await v2RequireDirectConversationAccess(connection,userId,conversationId,true);
+    recipient = access.participantUserId;
+    if (!await v2One(connection,directMessageExtras.sql.query_message,{conversation_id:conversationId,message_id:messageId})) {
+      v2NotFound('私聊消息不存在');
+    }
+    affected = await v2Execute(connection,add ? directMessageExtras.sql.add_reaction : directMessageExtras.sql.remove_reaction,
+      {message_id:messageId,user_id:userId,emoji},false);
+    if (affected !== 0 && affected !== 1) v2ServerError();
+    result = await v2GetDirectMessage(connection,userId,conversationId,messageId);
+    committing = true;
+    await connection.commit();
+  } catch (error) {
+    if (committing) v2ServerError();
+    try { await connection.rollback(); } catch { v2ServerError(); }
+    throw error;
+  }
+  if (affected === 1) {
+    try { await v2PublishDirectEvent([userId,recipient],'direct_message_updated',{conversation_id:conversationId,message_id:messageId}); }
+    catch { console.warn('[chat] direct reaction delivery unavailable'); }
+  }
+  return v2Ok(result,add ? 'direct reaction created' : 'direct reaction deleted');
 }

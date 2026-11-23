@@ -5,7 +5,8 @@ import {
   FileText,
   Users,
   Settings,
-  BarChart3
+  BarChart3,
+  Activity
 } from 'lucide-vue-next';
 import {
   Tabs,
@@ -50,6 +51,12 @@ const tabs = [
     labelKey: 'moderation.tabs.settings',
     icon: Settings,
     path: '/moderation/settings'
+  },
+  {
+    value: 'ai',
+    labelKey: 'moderation.aiOps.title',
+    icon: Activity,
+    path: '/moderation/ai'
   }
 ];
 
@@ -115,11 +122,12 @@ watch(currentPath, newPath => {
           @update:model-value="handleTabChange"
           class="w-full overflow-x-auto sm:w-auto"
         >
-          <TabsList class="grid w-full grid-cols-4 sm:inline-flex sm:w-auto sm:min-w-0">
+          <TabsList class="grid w-full grid-cols-5 sm:inline-flex sm:w-auto sm:min-w-0">
             <TabsTrigger
               v-for="tab in tabs"
               :key="tab.value"
               :value="tab.value"
+              :aria-label="t(tab.labelKey)"
               class="shrink-0 gap-2"
             >
               <component :is="tab.icon" class="h-4 w-4" />

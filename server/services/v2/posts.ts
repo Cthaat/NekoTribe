@@ -1,7 +1,11 @@
 /// <reference path="../../types/v2.d.ts" />
 
 import { requirePublishAccess } from './moderation-publish-policy';
+import { attachPostPoll, readPollCreation } from './post-polls';
+import { attachPostMarkdown, readPostMarkdownInput, updatePostMarkdown } from './post-markdown';
+import { requireFeatureSchema } from '~/server/database/readiness';
 import feedbackSql from '../../../specifications/requirements/recommendation-feedback.json';
+import homeFeedSql from '../../../specifications/requirements/home-feed.json';
 import { getQuery, setResponseHeader } from 'h3';
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
@@ -64,6 +68,7 @@ interface V2PostListOptions {
 }
 
 interface V2UpdatePostPayload {
+  markdown?: string | null;
   content?: string;
   visibility?: V2CreatePostPayload['visibility'];
   language?: string;
@@ -242,6 +247,8 @@ async function v2ReadCreatePostPayload(
 ): Promise<V2CreatePostPayload> {
   const body = await v2Body(event);
   return {
+    poll: readPollCreation(body.poll),
+    markdown: readPostMarkdownInput(body.markdown),
     content: v2String(body.content),
     visibility: v2PostVisibility(
       v2String(body.visibility, 'public')
@@ -329,6 +336,9 @@ async function v2ReadUpdatePostPayload(
   const body = await v2Body(event);
   const payload: V2UpdatePostPayload = {};
 
+  if (v2HasBodyField(body, 'markdown')) {
+    payload.markdown = body.markdown === null ? null : readPostMarkdownInput(body.markdown);
+  }
   if (v2HasBodyField(body, 'content')) {
     payload.content = v2String(body.content);
   }
@@ -488,10 +498,14 @@ export async function v2ListPosts(
 
   const recommendationFeed = viewerId !== null && ['all', 'trending'].includes(options.mode) &&
     timeline !== 'following' && timeline !== 'mentions' && !q;
+  const explicitRecommendation = options.mode === 'all' && timeline === 'recommended' && !q;
   if (recommendationFeed) setResponseHeader(event, 'Cache-Control', 'private, no-store');
   const personalize = recommendationFeed && Boolean(await v2One(connection, feedbackSql.schema));
   if (personalize) where.push(feedbackSql.feedFilter);
-  const order = options.mode === 'likes' ? v2LikedPostSortOrder(sort) : v2SortOrder(sort);
+  const baseOrder = options.mode === 'likes' ? v2LikedPostSortOrder(sort) : v2SortOrder(sort);
+  const rankedOrder = viewerId === null ? homeFeedSql.recommendationRecency :
+    `(${homeFeedSql.recommendationScore}) DESC, ${homeFeedSql.recommendationRecency}`;
+  const order = explicitRecommendation ? `ORDER BY ${rankedOrder}` : baseOrder;
 
   const extraWhere = where.join('\n');
   const total = await v2Count(
@@ -499,12 +513,12 @@ export async function v2ListPosts(
     v2PostCountSql(extraWhere),
     binds
   );
+  const rankedPage = v2PostSelectSql(extraWhere).replace(
+    '__ORDER_BY__', personalize ? order.replace('ORDER BY ', `ORDER BY ${feedbackSql.feedOrder}, `) : order
+  );
   const rows = await v2Rows(
     connection,
-    v2PostSelectSql(extraWhere).replace(
-      '__ORDER_BY__',
-      personalize ? order.replace('ORDER BY ', `ORDER BY ${feedbackSql.feedOrder}, `) : order
-    ),
+    explicitRecommendation ? `${rankedPage} ORDER BY rn` : rankedPage,
     {
       ...binds,
       start_row: page.start,
@@ -542,8 +556,40 @@ async function v2CreatePostFromPayload(
   connection: oracledb.Connection,
   payload: V2CreatePostPayload
 ): Promise<V2Response<V2Post>> {
-  const auth = v2Auth(event);
+  const { userId } = v2Auth(event);
+  let created: Awaited<ReturnType<typeof v2InsertPost>>;
+  try {
+    created = await v2InsertPost(connection, userId, payload);
+    await connection.commit();
+  } catch (error) {
+    try {
+      await connection.rollback();
+    } catch {
+      throw new Error('Post transaction rollback failed');
+    }
+    throw error;
+  }
+  const { postId, postType } = created;
+  await v2NotifyPostCreated(connection, userId, postId, postType, payload);
+
+  return v2Ok(
+    await v2RequirePostById(connection, userId, postId),
+    postType === 'repost' ? 'retweet created' : 'post created'
+  );
+}
+
+export async function v2InsertPost(
+  connection: oracledb.Connection, userId: number, payload: V2CreatePostPayload
+): Promise<{ postId: number; postType: string }> {
   const postType = v2PostType(payload);
+  if (payload.poll) {
+    if (postType !== 'post') v2BadRequest('只有普通帖可以附带投票');
+    await requireFeatureSchema(connection, 'post-polls');
+  }
+  if (payload.markdown !== undefined) {
+    if (postType !== 'post') v2BadRequest('只有普通帖支持 Markdown 长文');
+    await requireFeatureSchema(connection, 'post-markdown');
+  }
   if (
     postType !== 'repost' &&
     !v2String(payload.content).trim() &&
@@ -553,12 +599,11 @@ async function v2CreatePostFromPayload(
   }
   const sourcePostId = payload.reply_to_post_id ?? payload.repost_of_post_id ?? payload.quoted_post_id ?? null;
   if (sourcePostId !== null) {
-    await v2RequireInteractionVisibility(connection, auth.userId, sourcePostId);
+    await v2RequireInteractionVisibility(connection, userId, sourcePostId);
   }
   const postId = await v2NextId(connection, 'seq_post_id');
-  try {
-    await requirePublishAccess(connection,auth.userId);
-    const inserted = await v2Execute(
+  await requirePublishAccess(connection,userId);
+  const inserted = await v2Execute(
       connection,
       `
     INSERT INTO n_posts (
@@ -591,7 +636,7 @@ async function v2CreatePostFromPayload(
       `,
       {
         post_id: postId,
-        author_id: auth.userId,
+        author_id: userId,
         content: payload.content || null,
         post_type: postType,
         reply_to_post_id: payload.reply_to_post_id ?? null,
@@ -603,46 +648,22 @@ async function v2CreatePostFromPayload(
       },
       false
     );
-    if (inserted === 0) v2NotFound('帖子不存在');
-    const attachedMedia = await v2AttachPostMedia(
+  if (inserted === 0) v2NotFound('帖子不存在');
+  const attachedMedia = await v2AttachPostMedia(
       connection,
       postId,
-      auth.userId,
+      userId,
       payload.media_ids ?? [],
       payload.visibility || 'public'
     );
-    if (postType !== 'repost' && !v2String(payload.content).trim() && attachedMedia === 0) {
-      v2BadRequest('content 不能为空');
-    }
-    await v2AttachPostTags(connection, postId, payload.tag_names ?? [], false);
-    await v2AttachPostMentions(connection, postId, payload.mention_user_ids ?? [], false);
-    await connection.commit();
-  } catch (error) {
-    try {
-      await connection.rollback();
-    } catch {
-      throw new Error('Post transaction rollback failed');
-    }
-    throw error;
+  if (postType !== 'repost' && !v2String(payload.content).trim() && attachedMedia === 0) {
+    v2BadRequest('content 不能为空');
   }
-  await v2NotifyPostCreated(
-    connection,
-    auth.userId,
-    postId,
-    postType,
-    payload
-  );
-
-  return v2Ok(
-    await v2RequirePostById(
-      connection,
-      auth.userId,
-      postId
-    ),
-    postType === 'repost'
-      ? 'retweet created'
-      : 'post created'
-  );
+  await v2AttachPostTags(connection, postId, payload.tag_names ?? [], false);
+  await v2AttachPostMentions(connection, postId, payload.mention_user_ids ?? [], false);
+  if (payload.poll) await attachPostPoll(connection, 'post', postId, payload.poll);
+  if (payload.markdown !== undefined) await attachPostMarkdown(connection, 'post', postId, payload.markdown);
+  return { postId, postType };
 }
 
 export async function v2UpdatePost(
@@ -673,6 +694,10 @@ export async function v2UpdatePost(
       v2NotFound('帖子不存在');
     if (v2Number(row.AUTHOR_ID) !== auth.userId) {
       v2Unprocessable('只能修改自己的帖子');
+    }
+    if (payload.markdown !== undefined) {
+      if (v2String(row.POST_TYPE) !== 'post') v2BadRequest('只有普通帖支持 Markdown 长文');
+      await requireFeatureSchema(connection, 'post-markdown');
     }
     const visibility = payload.visibility ?? v2String(row.VISIBILITY);
     if (payload.visibility === 'public' && payload.media_ids === undefined &&
@@ -729,7 +754,7 @@ export async function v2UpdatePost(
     const hasRelationChanges =
       payload.media_ids !== undefined ||
       payload.tag_names !== undefined ||
-      payload.mention_user_ids !== undefined;
+      payload.mention_user_ids !== undefined || payload.markdown !== undefined;
 
     if (updateFields.length > 0 || hasRelationChanges) {
       const changed = await v2Execute(
@@ -794,6 +819,7 @@ export async function v2UpdatePost(
         false
       );
     }
+    if (payload.markdown !== undefined) await updatePostMarkdown(connection, postId, payload.markdown);
     await connection.commit();
   } catch (error) {
     try { await connection.rollback(); }
@@ -937,7 +963,7 @@ async function v2AttachPostMentions(
   }
 }
 
-async function v2NotifyPostCreated(
+export async function v2NotifyPostCreated(
   connection: oracledb.Connection,
   actorId: number,
   postId: number,

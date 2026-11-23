@@ -1,3 +1,5 @@
+import { generationDeltas } from './stream-response';
+import { publicKnowledge, requireKnowledgeMembership, type KnowledgeFilter } from './knowledge-scope';
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
 import { v2Auth, v2Connection, v2ServerError } from '~/server/utils/v2';
@@ -50,8 +52,12 @@ async function withConnection<T>(event:H3Event,action:(connection:oracledb.Conne
 }
 
 /** Internal development path, not a public endpoint or persisted conversation. */
-export async function generateKnowledgeReply(event:H3Event,query:string,configuration?:string,signal?:AbortSignal,searchPhrase?:string,historyMessages?:HistoryMessage[],audit?:AiRunAudit) {
+export async function generateKnowledgeReply(event:H3Event,query:string,configuration?:string,signal?:AbortSignal,searchPhrase?:string,historyMessages?:HistoryMessage[],audit?:AiRunAudit,scope:KnowledgeFilter=publicKnowledge) {
   const actor=v2Auth(event);
+  const groupId = scope.kind === 'group' ? scope.groupId : null;
+  if (scope.kind === 'group' && (groupId === null || !Number.isSafeInteger(groupId) || groupId < 1)) {
+    throw new KnowledgeServiceError('INVALID_CONTEXT');
+  }
   if(audit) audit.stage='configuration';
   let router:AiModelRouter;
   try {router=await configuredModelRouter(configuration);}
@@ -71,32 +77,44 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
   let contextSources:IndexedSource[]=[];
   let refreshStaleIndex=false;
   const phrase=searchPhrase ?? query;
-  const discoverLexical=()=>withConnection(event,connection=>discoverKnowledgeSources(event,connection,phrase,20));
+  const discoverLexical=()=>withConnection(event,connection=>discoverKnowledgeSources(event,connection,phrase,20,scope));
+  const recheckMembership = async () => {
+    if (scope.kind === 'group' && groupId !== null) {
+      await withConnection(event, connection => requireKnowledgeMembership(connection, actor.userId, groupId));
+    }
+  };
   let contextSnapshot:HistoryMessage[]|undefined;
   const revalidateContext=async()=>{
     if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED');
+    await recheckMembership();
     if(!contextSources.length) return;
     try {
       const guard=encodeKnowledgeMessage({answer:'context',sources:contextSources});
-      await withConnection(event,connection=>restoreKnowledgeMessage(guard,refs=>hydrateKnowledgeSources(event,connection,refs)));
+      await withConnection(event,connection=>restoreKnowledgeMessage(guard,refs=>hydrateKnowledgeSources(event,connection,refs,{scope})));
     } catch {if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED');throw new KnowledgeTurnError('SOURCE_CHANGED');}
     if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED');
   };
   const turn=await runKnowledgeTurn({
     discover:async()=>{
       const term=phrase.trim();
+      await recheckMembership();
+      if (scope.kind === 'personal') return discoverLexical();
       if (process.env.AI_KNOWLEDGE_INDEX_URL && (!phrase.isWellFormed() || !term || Buffer.byteLength(term)>256 || /[\u0000-\u001f\u007f]/.test(term))) {
         throw new KnowledgeServiceError('INVALID_CONTEXT');
       }
       let candidates: KnowledgeHit[] | null;
-      try { candidates=await discoverIndexedSources(term,20,signal); }
-      catch { if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED'); throw new KnowledgeServiceError('PROVIDER_FAILED'); }
+      try { candidates=await discoverIndexedSources(term,20,signal,groupId ?? undefined); }
+      catch {
+        if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED');
+        if (scope.kind === 'group') return discoverLexical();
+        throw new KnowledgeServiceError('PROVIDER_FAILED');
+      }
       if(signal?.aborted) throw new KnowledgeTurnError('CANCELLED');
-      refreshStaleIndex=candidates!==null && process.env.AI_KNOWLEDGE_INDEX_FALLBACK==='lexical';
+      refreshStaleIndex=candidates!==null && (scope.kind === 'group' || process.env.AI_KNOWLEDGE_INDEX_FALLBACK==='lexical');
       return candidates ?? discoverLexical();
     },
     refreshStale:async()=>refreshStaleIndex ? discoverLexical() : null,
-    hydrate:candidates=>withConnection(event,connection=>hydrateKnowledgeSources(event,connection,candidates)),
+    hydrate:candidates=>withConnection(event,connection=>hydrateKnowledgeSources(event,connection,candidates,{scope})),
     selectEvidence:(sources,hits)=>selectEvidence(sources,hits,query,(searchPhrase ?? query).trim(),budget,system),
     infer:async(sources,cancel)=>{
       const promptSources=numbered ? sources.map(({kind,content},index)=>({ref:index+1,kind,content})) : sources;
@@ -129,7 +147,7 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
           messages:[{role:'system',content:system},{role:'user',content:data}],
           ...(numbered ? {responseSchema:{...knowledgeAnswerSchema,properties:{...properties,citations:{...properties.citations,
             items:{...properties.citations.items,enum:sources.map((_,index)=>index+1)}}}}} : {})
-        },cancel);
+        },cancel,scope.kind === 'public' ? generationDeltas(event) : undefined);
       }
       catch {if(cancel?.aborted) throw new KnowledgeTurnError('CANCELLED');throw new KnowledgeServiceError('PROVIDER_FAILED');}
       if(result.finishReason!=='stop' || result.toolCalls.length!==0) throw new KnowledgeServiceError('PROVIDER_FAILED');
@@ -138,16 +156,18 @@ export async function generateKnowledgeReply(event:H3Event,query:string,configur
     }
   },signal);
   const result=turn.answer===null ? turn : parseKnowledgeAnswer(turn.answer,turn.sources,numbered);
+  let dependencies: IndexedSource[] | undefined;
   if(result.answer!==null) {
     const refs=new Map(result.sources.map(source=>[`${source.kind}:${source.id}`,source]));
-    for(const source of contextSources) {
+    for(const source of (scope.kind === 'public' ? contextSources : [...turn.sources, ...contextSources])) {
       const key=`${source.kind}:${source.id}`,existing=refs.get(key);
       if(existing && existing.version!==source.version) throw new KnowledgeTurnError('SOURCE_CHANGED');
       if(!existing) refs.set(key,source);
     }
     if(refs.size>20) throw new KnowledgeServiceError('INVALID_CONTEXT');
-    result.sources=[...refs.values()];
+    if (scope.kind === 'public') result.sources=[...refs.values()];
+    else dependencies=[...refs.values()];
   }
-  return {...result,contextSources,contextSnapshot,modelId:selection.profileId,configRevision:selection.configurationRevision,
+  return {...result,dependencies,contextSources,contextSnapshot,modelId:selection.profileId,configRevision:selection.configurationRevision,
     ...(selection.modelVersion !== undefined ? {modelVersion:selection.modelVersion} : {})};
 }

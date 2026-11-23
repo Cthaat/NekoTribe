@@ -8,6 +8,7 @@ import path from 'node:path';
 import {build} from 'esbuild';
 
 const root=fileURLToPath(new URL('../',import.meta.url)),require=createRequire(import.meta.url);
+const {sql:directSql}=JSON.parse(readFileSync(new URL('../specifications/requirements/direct-message-extras.json',import.meta.url),'utf8'));
 const stubs={
  '~/server/storage':`export const STORAGE_MEDIA_MAX_SIZE=32; export const ensureStorageTempDir=async()=>{}; export const storePostMediaFile=async()=>{}; export const deleteStorageReference=input=>globalThis.__mediaDelete.remove(input);`,
  '~/server/models/v2':`export const v2EnsureMediaDescriptionColumn=async()=>{}; export const v2MapMedia=()=>({});`,
@@ -21,12 +22,13 @@ const compiled=await build({stdin:{contents:`export {v2DeleteMedia} from './serv
 }}]});
 const {v2DeleteMedia}=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 
-function fixture({rows=1,exists=true,reference=false,fail=false}={}) {
+function fixture({rows=1,exists=true,reference=false,directReference=false,fail=false}={}) {
  const removed=[],calls=[];
  return {removed,calls,async remove(input){removed.push(input)},async execute(sql,binds,options){
   calls.push({sql,binds,options});
   if(sql.includes('SELECT storage_key'))return{rows:exists?[{STORAGE_KEY:'post/42/a.png',PUBLIC_URL:'/storage/post/42/a.png',THUMBNAIL_URL:null}]:[]};
   if(sql.includes('SELECT 1 AS in_use'))return{rows:reference?[{IN_USE:1}]:[]};
+  if(sql===directSql.asset_is_linked)return{rows:directReference?[{LINKED:1}]:[]};
   if(sql.includes('DELETE FROM n_media_assets'))return{rowsAffected:rows};
   throw new Error('unexpected statement');
  },async commit(){
@@ -40,9 +42,12 @@ async function invoke(state) {
 }
 test('successful owned deletion cleans up after exactly one committed row',async()=>{
  const state=fixture();const result=await invoke(state);
- assert.equal(result.message,'media deleted');assert.equal(state.calls[2].options.autoCommit,false);
- assert.deepEqual(state.calls[2].binds,{media_id:7,user_id:42});
- assert.deepEqual(state.calls[3],{commit:true});
+ assert.equal(result.message,'media deleted');
+ assert.equal(state.calls[2].sql,directSql.asset_is_linked);
+ assert.deepEqual(state.calls[2].binds,{media_id:7});
+ assert.equal(state.calls[3].options.autoCommit,false);
+ assert.deepEqual(state.calls[3].binds,{media_id:7,user_id:42});
+ assert.deepEqual(state.calls[4],{commit:true});
  assert.deepEqual(state.removed,[{storageKey:'post/42/a.png',publicUrl:'/storage/post/42/a.png'},{publicUrl:null}]);
 });
 test('reference check runs under the asset lock and rolls back without deleting',async()=>{
@@ -52,6 +57,16 @@ test('reference check runs under the asset lock and rolls back without deleting'
  for(const reference of ['n_post_media','n_chat_message_media','avatar_media_id','n_groups','g.avatar_url','g.cover_url','asset.thumbnail_url']) assert.ok(state.calls[1].sql.includes(reference));
  assert.deepEqual(state.calls[2],{rollback:true});
  assert.equal(state.calls.length,3);
+ assert.deepEqual(state.removed,[]);
+});
+test('an asset referenced by a direct message cannot be deleted',async()=>{
+ const state=fixture({directReference:true});
+ await assert.rejects(invoke(state), error=>error.statusCode===409&&error.data?.code===40901);
+ assert.match(state.calls[0].sql,/FOR UPDATE/);
+ assert.equal(state.calls[2].sql,directSql.asset_is_linked);
+ assert.deepEqual(state.calls[2].binds,{media_id:7});
+ assert.deepEqual(state.calls[3],{rollback:true});
+ assert.equal(state.calls.length,4);
  assert.deepEqual(state.removed,[]);
 });
 test('shared SQL protects group images and group post attachments by exact URL or managed alias',()=>{
@@ -112,7 +127,12 @@ test('missing or concurrently deleted record never removes the object',async()=>
  }
 });
 test('unexpected row counts and uncertain commit never remove the object',async()=>{
- for(const state of [fixture({rows:2}),fixture({fail:true})]){
-  await assert.rejects(invoke(state));assert.deepEqual(state.removed,[]);
- }
+ const wrongCount=fixture({rows:2});
+ await assert.rejects(invoke(wrongCount), {statusCode:500});
+ assert.deepEqual(wrongCount.calls.at(-1),{rollback:true});
+ assert.deepEqual(wrongCount.removed,[]);
+ const uncertainCommit=fixture({fail:true});
+ await assert.rejects(invoke(uncertainCommit), /uncertain database commit/);
+ assert.deepEqual(uncertainCommit.calls.slice(-2),[{commit:true},{rollback:true}]);
+ assert.deepEqual(uncertainCommit.removed,[]);
 });

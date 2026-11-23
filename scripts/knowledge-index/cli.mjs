@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { profileFingerprint, readProfile } from './config.mjs';
-import { activateIndex, bootstrapIndex, switchIndex, verifyIndex } from './bootstrap.mjs';
+import { activateIndex, bootstrapIndex, rebuildGroupIndex, switchIndex, verifyIndex } from './bootstrap.mjs';
 import { checkIndexReadiness, startIndexServer } from './server.mjs';
 import { activeProfileFingerprint, prune, recover, rollbackTarget } from './lifecycle.mjs';
 import { indexProgress } from './progress.mjs';
@@ -9,6 +9,7 @@ import { readWatchStatus, writeWatchStatus } from './watch-status.mjs';
 
 const [mode,path,...extra] = process.argv.slice(2);
 const activePath = process.env.AI_INDEX_ACTIVE_PROFILE;
+const groupActivePath = process.env.AI_INDEX_GROUP_ACTIVE_PROFILE;
 
 function errorCode(error) {
   return /^[A-Z][A-Z_]{2,63}$/.test(error?.message) ? error.message : 'DEPENDENCY_OR_CONFIGURATION_ERROR';
@@ -97,12 +98,12 @@ async function watch(signal) {
 }
 
 try {
-  const validArgs = ['build','activate','bootstrap','switch','rollback'].includes(mode) ? !!path
+  const validArgs = ['build','activate','bootstrap','switch','rollback','rebuild-group'].includes(mode) ? !!path
     : mode === 'prune' ? path === undefined || path === '--apply'
     : mode === 'verify' ? path === undefined || !path.startsWith('--')
     : ['serve','health','check-sources','sync','watch','watch-status','recover'].includes(mode) && path === undefined;
   if (extra.length || !validArgs) {
-    console.error('Usage: node cli.mjs serve | health | check-sources | bootstrap <profile.json> | switch <profile.json> | build <profile.json> | verify [profile.json] | activate <profile.json> | sync | watch | watch-status | rollback <collection> | recover | prune [--apply]');
+    console.error('Usage: node cli.mjs serve | health | check-sources | bootstrap <profile.json> | switch <profile.json> | build <profile.json> | verify [profile.json] | activate <profile.json> | sync | watch | watch-status | rollback <collection> | recover | prune [--apply] | rebuild-group <profile.json>');
     process.exitCode = 2;
   } else if (mode === 'serve') {
     await withStopSignal(serve);
@@ -132,6 +133,11 @@ try {
     await withStopSignal(async signal => {
       const {buildIndex} = await import('./build.mjs');
       console.info(JSON.stringify({mode,...await buildIndex(await readProfile(path),undefined,{signal,onProgress:indexProgress(mode)})}));
+    });
+  } else if (mode === 'rebuild-group') {
+    await withStopSignal(async signal => {
+      const result = await rebuildGroupIndex(activePath,groupActivePath,path,{signal,onProgress:indexProgress(mode)});
+      console.info(JSON.stringify({mode,...result}));
     });
   } else if (mode === 'bootstrap') {
     await withStopSignal(async signal => {

@@ -9,15 +9,15 @@ import {
 import { getStorageProvider } from '~/server/storage';
 import { StorageHttpError } from '~/server/storage/http';
 import { normalizeLocalStorageKey } from '~/server/storage/local-path';
-import { v2Auth, v2BadRequest, v2Connection, v2NotFound, v2One, v2ServerError, v2Throw } from '~/server/utils/v2';
-import { query } from '../../../specifications/requirements/media-private-read.json';
+import { v2Auth, v2BadRequest, v2Connection, v2NotFound, v2ServerError, v2Throw } from '~/server/utils/v2';
+import { readPrivateMediaAccess } from './direct-media-links';
 
 async function authorizedStorageKey(event: H3Event, viewerId: number, mediaId: number): Promise<string> {
   let row;
   try {
     const connection = await v2Connection(event);
     try {
-      row = await v2One(connection, query, { viewer_id: viewerId, media_id: mediaId });
+      row = await readPrivateMediaAccess(connection,viewerId,mediaId);
     } finally {
       await connection.close();
     }

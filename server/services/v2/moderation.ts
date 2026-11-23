@@ -2,6 +2,7 @@ import contentContract from '../../../specifications/requirements/moderation-con
 import { requireFeatureSchema } from '~/server/database/readiness';
 import { setResponseHeader } from 'h3';
 import { readModerationUsers } from './moderation-user-queue';
+import { classifySentimentTexts, sentimentEnabled, sentimentQueueQuery, sentimentSampleLimit } from '../ai/sentiment-flow';
 import type { H3Event } from 'h3';
 import type oracledb from 'oracledb';
 import type {
@@ -332,7 +333,27 @@ export async function v2ListModerationContent(event: H3Event, connection: oracle
     date_range:contentContract.dates.includes(date) ? date : 'all',
     sort:contentContract.sorts.includes(sort) ? sort : 'newest'
   });
+  if (v2QueryString(event,'sentiment_signal') === '1' && sentimentEnabled()) {
+    await attachSentimentSignals(connection,userId,items);
+  }
   return v2Ok(items,'moderation content listed',v2PageMeta(page.page,page.page_size,total));
+}
+
+async function attachSentimentSignals(connection: oracledb.Connection, viewerId: number, items: V2ModerationContentItem[]) {
+  const excerpt = async (postId: number) => (await v2One(connection,sentimentQueueQuery,{viewer_id:viewerId,post_id:postId}))?.EXCERPT;
+  try {
+    const candidates = [];
+    for (const item of items.slice(0,sentimentSampleLimit)) {
+      const text = await excerpt(item.post_id);
+      if (typeof text === 'string' && text.trim()) candidates.push({item,text});
+    }
+    const signals = await classifySentimentTexts(candidates.map(candidate=>candidate.text));
+    if (!signals) return;
+    for (const [index,candidate] of candidates.entries()) {
+      const current = await excerpt(candidate.item.post_id);
+      if (current === candidate.text && signals[index]) candidate.item.sentiment_signal = signals[index];
+    }
+  } catch { /* Keep queue order and results when the optional evidence read is unavailable. */ }
 }
 
 export async function v2ListModerationUsers(event: H3Event, connection: oracledb.Connection) {

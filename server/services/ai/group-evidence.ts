@@ -2,6 +2,7 @@ import type { H3Event } from 'h3';
 import type { Connection } from 'oracledb';
 import contract from '../../../specifications/requirements/ai-group-evidence.json';
 import { v2Auth, v2BadRequest, v2Forbidden, v2Rows, v2ServerError } from '~/server/utils/v2';
+import { sentimentWindowLimit } from './sentiment-flow';
 
 interface EvidenceOptions {
   lookbackDays: 7 | 30;
@@ -65,4 +66,14 @@ export async function readGroupEvidence(
     evidence.examples.push({ kind: KIND, source_id: SOURCE_ID, post_id: POST_ID, excerpt: EXCERPT });
   }
   return evidence;
+}
+
+export async function readGroupSentimentEvidence(
+  event: H3Event, connection: Connection, groupId: number, options: EvidenceOptions & {windowEnd: string},
+) {
+  const current = await readGroupEvidence(event,connection,groupId,options);
+  const previous = await readGroupEvidence(event,connection,groupId,{...options,windowEnd:current.window_start});
+  current.examples = current.examples.slice(0,sentimentWindowLimit);
+  previous.examples = previous.examples.slice(0,sentimentWindowLimit);
+  return {current,previous};
 }

@@ -66,6 +66,7 @@ import {
 import { authQueueFor } from '@/services/auth-request-queue';
 import { usePreferenceStore } from '@/stores/user';
 import { postEditMediaIds, postEditOwned, postEditPatch, postEditTarget, type PostEditForm } from '@/utils/post-edit';
+import { markdownBytes, maxMarkdownBytes, validMarkdownBody } from '@/utils/post-markdown';
 
 const { t, locale } = useAppLocale();
 const localePath = useLocalePath();
@@ -140,6 +141,7 @@ function updateAttachmentSelection(id: number, event: Event) {
 const canSaveEdit = computed(() => {
   const selected = selectedPost.value;
   return !!selected && (!isPublishingPrivateMedia.value || removePrivateAttachments.value) &&
+    (!editForm.value.markdown || validMarkdownBody(editForm.value.content)) &&
     Object.keys(editPatchFor(selected)).length > 0;
 });
 
@@ -257,7 +259,8 @@ function formatDate(value: string): string {
 
 function editFormFor(post: PostVM): PostEditForm {
   return {
-    content: post.content,
+    content: post.markdown ?? post.content,
+    markdown: post.markdown !== undefined,
     visibility: normalizeVisibility(post.visibility),
     language: post.language || 'zh',
     location: post.location || '',
@@ -967,6 +970,15 @@ onBeforeUnmount(() => {
                 rows="7"
                 class="resize-none shadow-xs"
               />
+              <div v-if="selectedPost.postType === 'post'" class="flex flex-wrap items-center gap-3">
+                <label class="flex items-center gap-2 text-sm">
+                  <input v-model="editForm.markdown" type="checkbox" :disabled="saving" />{{ t('post.markdown.mode') }}
+                </label>
+                <span v-if="editForm.markdown" class="text-xs"
+                  :class="markdownBytes(editForm.content) > maxMarkdownBytes ? 'text-destructive' : 'text-muted-foreground'">
+                  {{ t('post.markdown.size',{used:markdownBytes(editForm.content),limit:maxMarkdownBytes}) }}
+                </span>
+              </div>
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2">

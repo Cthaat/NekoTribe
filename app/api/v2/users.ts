@@ -33,6 +33,7 @@ import type {
 } from '@/types/v2';
 import { decodeEmailChangeResponse } from './email-change-response';
 import { currentSessionMutation } from './auth-mutation';
+import { apiFetch } from '@/composables/useApi';
 import { decodeSettingsResponse } from './settings-response';
 import {
   decodeAccountDeletionResponse,
@@ -40,6 +41,28 @@ import {
   decodeFactorDisableResponse,
   decodeFactorSetupResponse
 } from './security-response';
+
+export interface AccountUsage {
+  ai_quota: { used_units: number | null; limit_units: number | null; window_seconds: number };
+  media: { bytes: number; files: number };
+  ai_history: { conversations: number };
+}
+
+export type AccountExportFormat = 'json' | 'markdown';
+
+export function v2GetAccountUsage(signal?: AbortSignal) {
+  return v2RequestData<AccountUsage>('/api/v2/users/me/usage', { signal });
+}
+
+export function v2DownloadAccountExport(format: AccountExportFormat, signal?: AbortSignal) {
+  return apiFetch<Blob, 'blob'>('/api/v2/users/me/export', {
+    query: { format },
+    responseType: 'blob',
+    cache: 'no-store',
+    redirect: 'error',
+    signal
+  });
+}
 
 export async function v2GetMe(): Promise<V2SelfUser> {
   const response = await v2Request<V2SelfUser>('/api/v2/users/me', {

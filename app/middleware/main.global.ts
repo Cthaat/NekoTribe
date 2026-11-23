@@ -1,13 +1,11 @@
 export default defineNuxtRouteMiddleware(to => {
-  const preferenceStore = usePreferenceStore();
-  const localePath = useLocalePath();
-  const userId = preferenceStore.preferences.user.id;
-  const homePath = localePath(`/tweet/home/${userId}`);
-  if (
-    to.path === '/' ||
-    to.path === '/zh' ||
-    to.path === '/en'
-  ) {
-    return navigateTo(homePath, { replace: true });
+  if (!String(to.name ?? '').startsWith('tweet-type-user')) return;
+  const type = to.params.type;
+  if (type === 'home' || type === 'trending') {
+    const localePath = useLocalePath();
+    return navigateTo({
+      path: localePath('index'),
+      query: type === 'trending' ? { ...to.query, feed: 'trending' } : to.query,
+    }, { replace: true });
   }
 });

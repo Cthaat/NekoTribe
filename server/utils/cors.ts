@@ -86,7 +86,7 @@ export function corsHeadersForRequest(
   const mediaRead = privateMedia || isPublicStoragePath(path);
   const methods = mediaRead ? 'GET,HEAD,OPTIONS' : DEFAULT_CORS_ALLOWED_METHODS;
   const allowedHeaders = mediaRead ? `${DEFAULT_CORS_ALLOWED_HEADERS},range` : DEFAULT_CORS_ALLOWED_HEADERS;
-  let exposedHeaders = 'content-length,content-type,Retry-After';
+  let exposedHeaders = 'content-length,content-type,Retry-After,X-Request-Id';
   if (mediaRead) exposedHeaders += ',content-range,accept-ranges';
   if (privateMedia) exposedHeaders += ',content-disposition';
   if (options.requestMethod != null &&

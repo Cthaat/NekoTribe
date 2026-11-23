@@ -72,12 +72,16 @@ const AUTH_POLICIES: AuthVersionPolicy[] = [
       /^\/api\/v2\/auth\/otp\/verification$/,
       /^\/api\/v2\/auth\/registration$/,
       /^\/api\/v2\/auth\/tokens$/,
+      { pattern: /^\/api\/v2\/auth\/passkeys\/authentication\/(?:options|verification)$/, methods: ['POST'] },
+      { pattern: /^\/api\/v2\/auth\/oauth\/github\/login\/flows(?:\/[^/]+\/complete)?$/, methods: ['POST'] },
+      { pattern: /^\/api\/v2\/auth\/oauth\/github\/callback$/, methods: ['GET'] },
       /^\/api\/v2\/auth\/two-factor\/challenges(?:\/[^/]+)?$/,
       /^\/api\/v2\/auth\/tokens\/current$/,
       /^\/api\/v2\/auth\/password-reset$/,
       /^\/api\/v2\/integrations\/sentiment-flow(?:\/|$)/,
       { pattern: /^\/api\/v2\/posts$/, methods: ['GET'] },
-      { pattern: /^\/api\/v2\/posts\/(?:[1-9]\d*|trending)$/, methods: ['GET'] }
+      { pattern: /^\/api\/v2\/posts\/(?:[1-9]\d*|trending)$/, methods: ['GET'] },
+      { pattern: /^\/api\/v2\/posts\/[1-9]\d*\/poll$/, methods: ['GET'] }
     ],
     async updateSession(connection, payload) {
       if (payload.type !== 'access' || !payload.sessionId || !payload.jti) {

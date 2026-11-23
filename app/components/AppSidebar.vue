@@ -3,10 +3,7 @@ import {
   BookOpen,
   Bot,
   Command,
-  Frame,
   Info,
-  Map,
-  PieChart,
   Send,
   Settings2,
   SquareTerminal,
@@ -18,7 +15,6 @@ import {
   MessageSquare
 } from 'lucide-vue-next';
 import NavMain from '@/components/NavMain.vue';
-import NavProjects from '@/components/NavProjects.vue';
 import NavSecondary from '@/components/NavSecondary.vue';
 import NavUser from '@/components/NavUser.vue';
 import {
@@ -62,17 +58,17 @@ const baseNavData = computed(() => ({
   navMain: [
     {
       title: t('nav.main.trending'),
-      url: `/tweet/trending/${userId.value}`,
+      url: '/?feed=trending',
       icon: Flame
     },
     {
       title: t('nav.main.tweet'),
-      url: `/tweet/home/${userId.value}`,
+      url: '/',
       icon: Cat,
       items: [
         {
           title: t('nav.main.home'),
-          url: `/tweet/home/${userId.value}`
+          url: '/'
         },
         {
           title: t('nav.main.myTweets'),
@@ -171,11 +167,6 @@ const baseNavData = computed(() => ({
       url: 'https://github.com/Cthaat/NekoTribe/issues',
       icon: Send
     }
-  ],
-  projects: [
-    { name: t('nav.projects.design'), url: '#', icon: Frame },
-    { name: t('nav.projects.sales'), url: '#', icon: PieChart },
-    { name: t('nav.projects.travel'), url: '#', icon: Map }
   ]
 }));
 
@@ -215,12 +206,6 @@ const localizedNav = computed(() => {
     navSecondary: baseNavData.value.navSecondary.map(item => ({
       ...item,
       url: processMenuItem(item)
-    })),
-
-    // 处理 projects，它也没有嵌套
-    projects: baseNavData.value.projects.map(project => ({
-      ...project,
-      url: processMenuItem(project)
     }))
   };
 });
@@ -229,7 +214,7 @@ const navMainWithActiveState = computed(() => {
   const currentPath = route.path;
 
   return localizedNav.value.navMain.map(mainItem => {
-    const selfActive = currentPath === mainItem.url;
+    const selfActive = mainItem.url.includes('?') ? route.fullPath === mainItem.url : currentPath === mainItem.url;
     const childActive = mainItem.items?.some(
       subItem => currentPath === subItem.url
     );
@@ -272,7 +257,6 @@ const navMainWithActiveState = computed(() => {
     <SidebarContent>
       <NavMain :items="navMainWithActiveState" />
       <!-- TODO： 后续可以开发新功能 -->
-      <!-- <NavProjects :projects="localizedNav.projects" /> -->
       <NavSecondary
         :items="localizedNav.navSecondary"
         class="mt-auto"

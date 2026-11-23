@@ -1,4 +1,5 @@
-import { createError, defineEventHandler, setResponseHeader } from 'h3';
+import { defineAiGenerationHandler } from '~/server/services/ai/stream-response';
+import { createError, setResponseHeader } from 'h3';
 import { generateModerationAdvice } from '~/server/services/ai/moderation-advice';
 import { ModerationAdviceUnavailable, parseModerationRequest } from '~/server/services/ai/moderation-advice-record';
 import { readBoundedAiBody } from '~/server/services/ai/knowledge-search-body';
@@ -6,7 +7,7 @@ import { safeV2Action } from '~/server/utils/auth-entry-errors';
 import { AiQuotaError, throwAiQuotaResponse } from '~/server/utils/ai-model-quota';
 import { v2Auth, v2BadRequest, v2Forbidden, v2Ok, v2RouterParam } from '~/server/utils/v2';
 
-export default defineEventHandler(event=>{
+export default defineAiGenerationHandler(event=>{
   setResponseHeader(event,'Cache-Control','private, no-store');
   return safeV2Action(async()=>{
     v2Auth(event);

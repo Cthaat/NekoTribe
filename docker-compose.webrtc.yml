@@ -1,0 +1,6 @@
+services:
+  app:
+    environment:
+      WEBRTC_STUN_URLS: ${WEBRTC_STUN_URLS:-}
+      WEBRTC_TURN_URLS: ${WEBRTC_TURN_URLS:-}
+      WEBRTC_TURN_SHARED_SECRET: ${WEBRTC_TURN_SHARED_SECRET:-}

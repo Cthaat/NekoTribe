@@ -1,4 +1,5 @@
 import { confirmedChannelMute } from '@/utils/chat-channel-mute';
+import { isPrivateMediaContent } from '@/utils/private-media';
 import {
   toV2PagedResult,
   v2Request,
@@ -20,6 +21,7 @@ import type {
   V2CreateDirectMessagePayload,
   V2DirectConversation,
   V2DirectMessage,
+  V2DirectReadStatus,
   V2PagedResult,
   V2UpdateChatChannelPayload,
   V2ApiResponse,
@@ -31,10 +33,14 @@ export interface V2ChatPageQuery extends V2QueryParams {
   page_size?: number;
 }
 
-export interface V2ChatMessageListQuery
-  extends V2ChatPageQuery {
+export interface ChatMessageFilters {
   q?: string;
+  sender_id?: number;
+  start_at?: string;
+  end_at?: string;
 }
+
+export interface V2ChatMessageListQuery extends V2ChatPageQuery, ChatMessageFilters {}
 
 export async function v2ListChatGroups(
   query: V2ChatPageQuery = {}
@@ -358,12 +364,21 @@ export function isDirectMessageForConversation(
   return !!message && Number.isSafeInteger(conversationId) && message.conversation_id === conversationId &&
     message.conversation_id > 0 && Number.isSafeInteger(message.message_id) && message.message_id > 0 &&
     !!message.author && Number.isSafeInteger(message.author.user_id) && message.author.user_id > 0 &&
-    typeof message.content === 'string' && typeof message.created_at === 'string' && message.is_deleted === false;
+    typeof message.content === 'string' && typeof message.created_at === 'string' && message.is_deleted === false &&
+    (message.media === undefined || (Array.isArray(message.media) && message.media.length <= 32 &&
+      new Set(message.media.map(asset=>asset?.media_id)).size === message.media.length &&
+      message.media.every(asset=>asset && typeof asset.file_name === 'string' && asset.thumbnail_url === null &&
+        isPrivateMediaContent(asset.media_id,asset.public_url)))) &&
+    (message.reply_to == null || (Number.isSafeInteger(message.reply_to.message_id) && message.reply_to.message_id > 0 &&
+      typeof message.reply_to.content === 'string' && typeof message.reply_to.author_name === 'string')) &&
+    (message.reactions === undefined || (Array.isArray(message.reactions) &&
+      message.reactions.every(reaction=>reaction && typeof reaction.emoji === 'string' && reaction.emoji.length > 0 &&
+        Number.isSafeInteger(reaction.count) && reaction.count > 0 && typeof reaction.reacted_by_me === 'boolean')));
 }
 
 export async function v2ListDirectMessages(
   conversationId: number,
-  query: V2ChatPageQuery = {}
+  query: V2ChatMessageListQuery & { mark_read?: boolean } = {}
 ): Promise<V2PagedResult<V2DirectMessage>> {
   const response = await v2Request<
     V2DirectMessage[],
@@ -388,9 +403,30 @@ export async function v2ListDirectMessages(
   return toV2PagedResult(response);
 }
 
+async function directReadStatus(conversationId: number, messageId?: number): Promise<V2DirectReadStatus> {
+  const status = await v2RequestData<V2DirectReadStatus, {last_read_message_id:number}>(
+    `/api/v2/chat/direct-conversations/${conversationId}/read-status`,
+    messageId === undefined ? { method: 'GET' } : { method: 'PUT', body: { last_read_message_id: messageId } },
+  );
+  const validCursor = (value: number | null) => value === null || Number.isSafeInteger(value) && value > 0;
+  if (!status || status.conversation_id !== conversationId || !validCursor(status.last_read_message_id) ||
+      !validCursor(status.participant_last_read_message_id) || !Number.isSafeInteger(status.unread_count) || status.unread_count < 0 ||
+      messageId !== undefined && (status.last_read_message_id ?? 0) < messageId) throw new Error('Invalid direct read status');
+  return status;
+}
+
+export function v2GetDirectReadStatus(conversationId: number): Promise<V2DirectReadStatus> {
+  return directReadStatus(conversationId);
+}
+
+export function v2SetDirectReadStatus(conversationId: number, messageId: number): Promise<V2DirectReadStatus> {
+  return directReadStatus(conversationId, messageId);
+}
+
 export async function v2CreateDirectMessage(
   conversationId: number,
-  payload: V2CreateDirectMessagePayload
+  payload: V2CreateDirectMessagePayload,
+  signal?: AbortSignal
 ): Promise<V2DirectMessage> {
   const message = await v2RequestData<
     V2DirectMessage,
@@ -399,13 +435,36 @@ export async function v2CreateDirectMessage(
     `/api/v2/chat/direct-conversations/${conversationId}/messages`,
     {
       method: 'POST',
-      body: payload
+      body: payload,
+      signal
     }
   );
-  if (!message || !Number.isSafeInteger(message.message_id) || message.message_id <= 0 ||
-      message.conversation_id !== conversationId || message.is_deleted !== false ||
-      message.content !== payload.content.trim()) {
+  const expectedMedia = payload.media_ids ?? [];
+  if (!isDirectMessageForConversation(conversationId,message) || message.content !== (payload.content ?? '').trim() ||
+      expectedMedia.length !== (message.media?.length ?? 0) ||
+      expectedMedia.some((id,index)=>message.media?.[index]?.media_id !== id) ||
+      (message.reply_to?.message_id ?? null) !== (payload.reply_to_message_id ?? null)) {
     throw new Error('Invalid direct message response');
+  }
+  return message;
+}
+
+export async function v2ReadDirectMessage(conversationId:number,messageId:number,signal?:AbortSignal) {
+  const message = await v2RequestData<V2DirectMessage>(
+    `/api/v2/chat/direct-conversations/${conversationId}/messages/${messageId}`,{signal},
+  );
+  if (!isDirectMessageForConversation(conversationId,message) || message.message_id !== messageId) throw new Error('Invalid direct message receipt');
+  return message;
+}
+
+export async function v2SetDirectMessageReaction(conversationId:number,messageId:number,emoji:string,reacted:boolean) {
+  const message = await v2RequestData<V2DirectMessage,{emoji:string}>(
+    `/api/v2/chat/direct-conversations/${conversationId}/messages/${messageId}/reactions`,
+    {method:reacted ? 'POST' : 'DELETE',body:{emoji}},
+  );
+  if (!isDirectMessageForConversation(conversationId,message) || message.message_id !== messageId ||
+      !!message.reactions?.find(item=>item.emoji===emoji)?.reacted_by_me !== reacted) {
+    throw new Error('Invalid direct reaction receipt');
   }
   return message;
 }

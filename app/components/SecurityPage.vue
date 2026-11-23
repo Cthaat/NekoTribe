@@ -3,6 +3,8 @@ import { KeyRound, Mail, ShieldCheck } from 'lucide-vue-next';
 import SecurityPagePasswordForm from '@/components/SecurityPagePasswordForm.vue';
 import SecurityPageEmail from '@/components/SecurityPageEmail.vue';
 import SecurityPageTwoFactor from '@/components/SecurityPageTwoFactor.vue';
+import SecurityPagePasskeys from '@/components/SecurityPagePasskeys.vue';
+import SecurityPageGitHub from '@/components/SecurityPageGitHub.vue';
 import SecurityPageDangerZone from '@/components/SecurityPageDangerZone.vue';
 import { ref, onUnmounted } from 'vue';
 import { useNuxtApp } from '#app';
@@ -89,6 +91,9 @@ async function finishSessionClear(result: {revision: number; ok: boolean}): Prom
       </header>
       <SecurityPageTwoFactor />
     </section>
+
+    <SecurityPagePasskeys />
+    <SecurityPageGitHub />
 
     <section
       class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"

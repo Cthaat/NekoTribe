@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { randomUUID } from 'node:crypto';
 import type { H3Event } from 'h3';
 import {
   getHeader,
@@ -7,6 +6,7 @@ import {
   setResponseHeader
 } from 'h3';
 import { getClientIp } from './client-ip';
+import { correlationId } from './observability';
 
 export interface RequestLogContext {
   requestId: string;
@@ -53,9 +53,17 @@ const SENSITIVE_QUERY_KEYS = new Set([
   'cookie',
   'secret',
   'client_secret',
-  'code'
+  'code',
+  'url'
 ]);
 const REDACTED_VALUE = '[redacted]';
+const githubCallback = '/api/v2/auth/oauth/github/callback';
+const linkPreview = '/api/v2/links/preview';
+
+function omitQuery(path: string): boolean {
+  const normalized = path.replace(/\/+$/, '');
+  return normalized === githubCallback || normalized === linkPreview || normalized === '/metrics';
+}
 
 function isH3Event(event: unknown): event is H3Event {
   return (
@@ -151,7 +159,10 @@ function sanitizeUrlLikeValue(value: string): string {
 
   try {
     const url = new URL(value, 'http://localhost');
-    sanitizeSearchParams(url.searchParams);
+    if (omitQuery(url.pathname)) {
+      url.search = '';
+      url.hash = '';
+    } else sanitizeSearchParams(url.searchParams);
     url.pathname = sanitizeSessionPath(url.pathname);
     const sanitized =
       url.pathname + url.search + url.hash;
@@ -170,9 +181,10 @@ function sanitizeUrlLikeValue(value: string): string {
 export function createRequestLogContext(
   event: H3Event
 ): RequestLogContext {
-  const requestId =
-    getHeader(event, 'x-request-id')?.toString().trim() ||
-    randomUUID();
+  const requestIds = event.node.req.headersDistinct?.['x-request-id'];
+  const requestId = correlationId(requestIds
+    ? requestIds.length === 1 ? requestIds[0] : undefined
+    : getHeader(event, 'x-request-id'));
   const url = getRequestURL(event);
   const context: RequestLogContext = {
     requestId,
@@ -182,7 +194,7 @@ export function createRequestLogContext(
       event.node.req.url || url.pathname
     ),
     path: sanitizeSessionPath(url.pathname),
-    query: sanitizeQueryRecord(queryRecord(url)),
+    query: omitQuery(url.pathname) ? {} : sanitizeQueryRecord(queryRecord(url)),
     ip: requestIp(event),
     userAgent:
       getHeader(event, 'user-agent')?.toString() ||

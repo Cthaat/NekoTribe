@@ -3,9 +3,11 @@ import {
   closeOraclePool,
   getOracleConnection
 } from '~/server/utils/oracle';
-import { attachOracleQueryCache } from '~/server/utils/oracle-query-cache';
+import { attachOracleQueryCache, attachOracleQueryCacheWithSource } from '~/server/utils/oracle-query-cache';
 import { banExpiryIntervalMs, sweepExpiredBans } from '~/server/services/v2/moderation-ban-expiry';
+import { postDraftSweepIntervalMs, sweepPostDrafts } from '~/server/services/v2/post-drafts';
 import { logWarn } from '~/server/utils/logging';
+import { getRedisClient } from '~/server/utils/redis';
 
 export default defineNitroPlugin(nitroApp => {
   nitroApp.hooks.hook('request', event => {
@@ -33,9 +35,23 @@ export default defineNitroPlugin(nitroApp => {
   }, banExpiryIntervalMs);
   interval.unref();
 
+  let publication: Promise<void> | undefined;
+  const draftInterval = setInterval(() => {
+    if (publication) return;
+    publication = (async () => {
+      const connection = await getOracleConnection();
+      try {
+        await sweepPostDrafts(attachOracleQueryCacheWithSource({redis: getRedisClient()}, connection));
+      } finally { await connection.close(); }
+    })().catch(() => logWarn('post-draft:sweep-unavailable', {}))
+      .finally(() => { publication = undefined; });
+  }, postDraftSweepIntervalMs);
+  draftInterval.unref();
+
   nitroApp.hooks.hook('close', async () => {
     clearInterval(interval);
-    await sweep;
+    clearInterval(draftInterval);
+    await Promise.all([sweep, publication]);
     await closeOraclePool();
   });
 });

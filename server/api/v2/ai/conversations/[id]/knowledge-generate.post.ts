@@ -1,4 +1,5 @@
-import {createError,defineEventHandler,setResponseHeader} from 'h3';
+import { defineAiGenerationHandler } from '~/server/services/ai/stream-response';
+import {createError,setResponseHeader} from 'h3';
 import {safeV2Action} from '~/server/utils/auth-entry-errors';
 import {AiQuotaError,throwAiQuotaResponse} from '~/server/utils/ai-model-quota';
 import {v2Auth,v2BadRequest,v2Conflict,v2Ok,v2RouterParam} from '~/server/utils/v2';
@@ -8,7 +9,7 @@ import {KnowledgeCitationError} from '~/server/services/ai/knowledge-citations';
 import {KnowledgeTurnError} from '~/server/services/ai/knowledge-turn';
 import {readKnowledgeSearchBody} from '~/server/services/ai/knowledge-search-body';
 
-export default defineEventHandler(async event=>{
+export default defineAiGenerationHandler(async event=>{
   setResponseHeader(event,'Cache-Control','private, no-store');
   return safeV2Action(async()=>{
     v2Auth(event);

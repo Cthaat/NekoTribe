@@ -17,6 +17,30 @@ function readLimit(value: string | undefined, fallback: number): number {
   return limit;
 }
 
+async function readAiUsage(redis: Pick<Redis, 'get'> | undefined, key: string, limit: string | undefined, fallback: number) {
+  const usage = { used_units: null as number | null, limit_units: null as number | null,
+    window_seconds: contract.windowMilliseconds / 1000 };
+  try {
+    usage.limit_units = readLimit(limit, fallback);
+  } catch { /* Invalid deployment limit is represented as unavailable. */ }
+  try {
+    if (redis) {
+      const raw = await redis.get(key);
+      const units = Number(raw);
+      if (Number.isInteger(units) && units >= 0 && units <= contract.maxLimit) usage.used_units = units;
+    }
+  } catch { /* Redis failure leaves usage unavailable. */ }
+  return usage;
+}
+
+export function readAiAccountQuota(redis: Pick<Redis, 'get'> | undefined, actor: number) {
+  return readAiUsage(redis, `${contract.keyPrefix}:actor:${actor}`, process.env.AI_QUOTA_ACTOR_PER_MINUTE, contract.actorLimit);
+}
+
+export function readAiServiceQuota(redis: Pick<Redis, 'get'> | undefined) {
+  return readAiUsage(redis, `${contract.keyPrefix}:service`, process.env.AI_QUOTA_SERVICE_PER_MINUTE, contract.serviceLimit);
+}
+
 export async function reserveAiModelQuota(
   redis: Pick<Redis, 'eval'> | undefined,
   actor: number,

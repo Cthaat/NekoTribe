@@ -70,6 +70,16 @@ export default defineNuxtConfig({
   },
 
   modules: [
+    function debugPages(_options, nuxt) {
+      if (nuxt.options.dev && process.env.NUXT_ENABLE_DEBUG_PAGES === '1') return;
+      const debugFiles = new Set(['test.vue', 'test-token-refresh.vue', 'ws/index.vue']);
+      nuxt.hook('pages:extend', pages => {
+        for (let index = pages.length - 1; index >= 0; index--) {
+          const name = pages[index]?.file?.replaceAll('\\', '/').split('/app/pages/').at(-1);
+          if (name && debugFiles.has(name)) pages.splice(index, 1);
+        }
+      });
+    },
     '@nuxt/eslint',
     '@nuxt/fonts',
     '@nuxt/icon',

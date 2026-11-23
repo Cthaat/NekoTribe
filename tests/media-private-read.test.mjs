@@ -6,11 +6,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { createApp, createRouter, toNodeListener } from 'h3';
+import { createApp, createRouter, eventHandler, toNodeListener } from 'h3';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const { query } = JSON.parse(readFileSync(new URL('../specifications/requirements/media-private-read.json', import.meta.url)));
 const binding = JSON.parse(readFileSync(new URL('../specifications/requirements/media-private-bind.json', import.meta.url)));
+const { sql: directSql } = JSON.parse(readFileSync(new URL('../specifications/requirements/direct-message-extras.json', import.meta.url)));
 
 test('private bindings are limited to one compatible content association', () => {
   const db = new DatabaseSync(':memory:');
@@ -126,16 +127,33 @@ test('private download authorizes before opening storage and filters provider he
   const headers = corsHeadersForRequest({ ...preflight, path: '/api/v2/media/7/content' });
   assert.equal(headers['Access-Control-Allow-Methods'], 'GET,HEAD,OPTIONS');
   assert.match(headers['Access-Control-Expose-Headers'], /content-range/);
+  assert.match(headers['Access-Control-Expose-Headers'], /x-request-id/i);
   assert.equal(corsHeadersForRequest({ ...preflight, path: '/api/v2/posts/7' }), null);
   const key = 'private/chat/42/example.txt';
   const events = [];
   let record;
+  let directMedia = 'ready';
   globalThis.privateMediaFixture = {
     connection: {
       async one(sql, args) {
+        if (sql === directSql.private_media_read) {
+          assert.deepEqual(args, { viewer_id: 42, media_id: 7 });
+          events.push('authorize');
+          if (directMedia !== 'ready') throw Object.assign(new Error('missing direct media table'), { errorNum: 942 });
+          return record;
+        }
+        if (sql === "SELECT USER AS USER_NAME, SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS SCHEMA_NAME FROM dual") {
+          events.push('schema owner');
+          return { USER_NAME: 'FIXTURE', SCHEMA_NAME: 'FIXTURE' };
+        }
+        if (sql === directSql.attachment_table_present) {
+          events.push('table presence');
+          return directMedia === 'absent' ? null : { PRESENT: 1 };
+        }
         assert.equal(sql, query);
+        assert.equal(directMedia, 'absent');
         assert.deepEqual(args, { viewer_id: 42, media_id: 7 });
-        events.push('authorize');
+        events.push('legacy authorize');
         return record;
       },
       async close() { events.push('close'); }
@@ -159,11 +177,11 @@ test('private download authorizes before opening storage and filters provider he
     }
   };
   t.after(() => { delete globalThis.privateMediaFixture; });
-  const app = createApp().use(event => {
+  const app = createApp().use(eventHandler(event => {
     if (event.node.req.headers.authorization) event.context.auth = { userId: 42 };
-  }).use(createRouter()
-    .get('/api/v2/media/:id/content', readPrivateMediaContent)
-    .head('/api/v2/media/:id/content', readPrivateMediaContent));
+  })).use(createRouter()
+    .get('/api/v2/media/:id/content', eventHandler(readPrivateMediaContent))
+    .head('/api/v2/media/:id/content', eventHandler(readPrivateMediaContent)));
   const server = createServer(toNodeListener(app));
   await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve).once('error', reject));
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -193,5 +211,12 @@ test('private download authorizes before opening storage and filters provider he
   assert.equal(head.headers.get('content-length'), '4');
   assert.equal(head.headers.get('content-range'), null);
   assert.equal(await head.text(), '');
-  assert.deepEqual(events, ['authorize', 'close', 'get', 'authorize', 'close', 'head']);
+  assert.deepEqual(events.splice(0), ['authorize', 'close', 'get', 'authorize', 'close', 'head']);
+
+  directMedia = 'absent';
+  assert.equal((await request(7, 'HEAD')).status, 200);
+  assert.deepEqual(events.splice(0), ['authorize', 'schema owner', 'table presence', 'legacy authorize', 'close', 'head']);
+  directMedia = 'present-but-unavailable';
+  assert.equal((await request(7, 'HEAD')).status, 503);
+  assert.deepEqual(events, ['authorize', 'schema owner', 'table presence', 'close']);
 });

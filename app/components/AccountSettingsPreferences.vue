@@ -2,6 +2,8 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useNuxtApp } from '#app';
 import { authQueueFor } from '@/services/auth-request-queue';
+import { usePreferenceStore } from '@/stores/user';
+import { desktopNotificationsEnabled, desktopNotificationsSupported, setDesktopNotificationsEnabled } from '@/utils/desktop-notifications';
 import type { AccountSettingsVM, UpdateAccountSettingsFormVM } from '@/types/account';
 import {
   Bell,
@@ -35,12 +37,17 @@ const snapshot = ref<AccountSettingsVM | null>(null);
 const statusFailed = ref(false);
 const saveUncertain = ref(false);
 const queue = authQueueFor(useNuxtApp());
+const account = usePreferenceStore();
 const ownerRevision = queue.revision;
 let disposed = false;
 function isCurrent(): boolean {
   return !disposed && !queue.isIdentityChanging && queue.revision === ownerRevision;
 }
-onUnmounted(() => { disposed = true; snapshot.value = null; });
+onUnmounted(() => {
+  disposed = true;
+  snapshot.value = null;
+  if (typeof window !== 'undefined') window.removeEventListener('focus', readDesktopState);
+});
 
 const loginAlerts = ref(true);
 const profileVisibility = ref('');
@@ -48,6 +55,37 @@ const showOnlineStatus = ref(true);
 const allowDmFromStrangers = ref(false);
 const pushNotificationEnabled = ref(true);
 const emailNotificationEnabled = ref(true);
+const desktopEnabled = ref(false);
+const desktopChanging = ref(false);
+const desktopPermission = ref<NotificationPermission | 'unsupported' | null>(null);
+const desktopFailed = ref(false);
+
+function readDesktopState() {
+  if (!isCurrent()) return;
+  desktopPermission.value = desktopNotificationsSupported() ? window.Notification.permission : 'unsupported';
+  desktopEnabled.value = desktopNotificationsEnabled(account.preferences.user.id);
+}
+
+async function toggleDesktopNotifications() {
+  if (!isCurrent() || desktopChanging.value || !desktopNotificationsSupported()) return;
+  const userId = account.preferences.user.id;
+  const enable = !desktopEnabled.value;
+  desktopChanging.value = true;
+  desktopFailed.value = false;
+  try {
+    const permission = enable && window.Notification.permission === 'default'
+      ? await window.Notification.requestPermission() : window.Notification.permission;
+    if (!isCurrent() || account.preferences.user.id !== userId) return;
+    desktopPermission.value = permission;
+    if (enable && permission !== 'granted') return;
+    desktopFailed.value = !setDesktopNotificationsEnabled(userId, enable);
+    desktopEnabled.value = desktopNotificationsEnabled(userId);
+  } catch {
+    if (isCurrent()) desktopFailed.value = true;
+  } finally {
+    desktopChanging.value = false;
+  }
+}
 
 function applySettings(settings: AccountSettingsVM): void {
   loginAlerts.value = settings.loginAlerts;
@@ -118,7 +156,11 @@ async function saveSettings(): Promise<void> {
   }
 }
 
-onMounted(loadSettings);
+onMounted(() => {
+  void loadSettings();
+  readDesktopState();
+  window.addEventListener('focus', readDesktopState);
+});
 </script>
 
 <template>
@@ -275,6 +317,22 @@ onMounted(loadSettings);
             </div>
           </div>
           <Switch v-model:checked="pushNotificationEnabled" :disabled="loading || saving" />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+          <div class="min-w-0">
+            <div class="text-sm font-medium">{{ t('notifications.desktop.setting') }}</div>
+            <p class="mt-0.5 text-xs text-muted-foreground" role="status">
+              {{ t(desktopFailed ? 'notifications.desktop.error' : desktopPermission === 'unsupported' ? 'notifications.desktop.unsupported' :
+                desktopPermission === 'denied' ? 'notifications.desktop.denied' : 'notifications.desktop.description') }}
+            </p>
+          </div>
+          <Button
+            type="button" size="sm" variant="outline" :aria-pressed="desktopEnabled"
+            :disabled="desktopChanging || desktopPermission === null || desktopPermission === 'unsupported' || (!desktopEnabled && desktopPermission === 'denied')"
+            @click="toggleDesktopNotifications"
+          >
+            {{ t(desktopEnabled ? 'notifications.desktop.disable' : 'notifications.desktop.enable') }}
+          </Button>
         </div>
         <div
           class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-4"

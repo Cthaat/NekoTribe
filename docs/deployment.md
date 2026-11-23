@@ -2,6 +2,8 @@
 
 本说明对应整理后的独立 Nuxt 项目。静态阶段已结束，2026-10-26 按用户授权安装 Docker 并执行集中测试；当前通过和未通过的项目见 [运行验收记录](audits/2026-10-26-runtime-verification.md)。下面命令用于实际启动与部署；不可将本机 Linux 容器结果冒称另一台服务器已验收。
 
+2026-11-22 vNext 交付四栈源码版本、六套后端平台包、Flutter Web 和两套独立 AI 包。用户已取消本轮服务器部署。源码提交和归档 SHA-256 随包登记，真实迁移与公共入口联调的步骤保留在隔离验收清单。[vNext 交付说明](../../docs/deployment/README.md#vnext-2026-11-22-交付) · [vNext 隔离验收清单](../../docs/deployment/ACCEPTANCE-VNEXT-20261122.md)
+
 ## 取得本轮代码
 
 若取得源码恢复套件，先阅读套件 README，再运行 `node restore-workspace.mjs 新目录`（Windows 也可 `restore.cmd 新目录`，Linux `sh restore.sh 新目录`）。它按 manifest 校验哈希与四个分支，并建立正确 worktree 和管理文件；不覆盖已有目标，不自动安装框架或启动数据库。设计与边界见 [恢复入口](architecture/workspace-restore.md)。
@@ -131,7 +133,7 @@ node start-native.mjs
 
 ## Flutter Web 独立静态部署
 
-在 Flutter 工作树生成 Web 静态目录，用 `scripts/package-web.mjs` 将站点及地址配置工具一起打包。复制到目标机后，将包内 `site` 交给 Windows 或 Linux 的静态站点服务。配置填写浏览器可达的后端地址及端口。使用同一个入口代理 API、实时和文件时，只需配置 API 地址。配置与发布步骤见 [Flutter Web 部署](../../flutter/README.md#publish-the-web-client)。
+在 Flutter 工作树生成 Web 静态目录，用 `scripts/package-web.mjs` 将站点及地址配置工具一起打包。复制到目标机后，将包内 `site` 交给 Windows 或 Linux 的静态站点服务。配置填写浏览器可达的后端地址及端口。使用同一个入口代理 API、实时和文件时，只需配置 API 地址。配置与发布步骤见 [Flutter Web 部署](../../flutter/README.md#web-静态部署)。
 
 在有 Node.js 的机器上可以直接预览新版包。Windows 双击 `start.cmd`，Linux 执行 `sh start.sh`，然后打开输出的本机地址。默认端口为 30004。预览读取包内公开地址配置，后端服务仍使用配置指定的地址。Nuxt、Go、Rust 的环境模板均包含默认预览来源。使用旧环境文件或其他预览端口时，把打印的预览来源加入后端 `CORS_ALLOWED_ORIGINS`。
 
@@ -212,6 +214,8 @@ yarn dev
 ```
 
 Windows 也可双击 `dev.cmd`。生产构建执行 `yarn build`，之后 `yarn start` 或双击 `start.cmd`。Linux 入口为 `sh scripts/dev.sh` 和 `sh scripts/start.sh`。应用前台输出日志，Ctrl+C 停止；重复启动遇到端口占用应停止旧进程或更换 `PORT`，入口不扫描或终止其他进程。
+
+在开发进程中设置 `NUXT_ENABLE_DEBUG_PAGES=1` 可启用 `/test`、`/test-token-refresh` 和 `/ws` 调试页。生产构建始终排除这些页面。
 
 `HOST`、`PORT` 控制本机监听；服务端口默认 3000。混合模式先显式启动依赖，Oracle 就绪并完成必要初始化后再启动 Node：
 
@@ -305,6 +309,12 @@ node scripts/migrate-db.mjs --check --dotenv .env.external
 node scripts/migrate-db.mjs --apply --dotenv .env.external
 node scripts/migrate-db.mjs --check --dotenv .env.external
 ```
+
+### vNext 隔离迁移
+
+本轮 `--plan` 输出 19 组共 64 项步骤，历史基线的 41 个步骤校验和保持一致。计划可在断开 Oracle 时生成。实际执行前，由操作员确认目标为隔离 PDB 内的测试 schema，核对备份、恢复路径、迁移权限和私有环境文件。当前进程环境优先于文件，`NUXT_ORACLE_*` 优先于对应旧名。
+
+在隔离库运行上述 `--check` 获取初始结构。存在待迁移项时命令可能返回非零。操作员检查差异来源并确认目标后执行 `--apply`，再运行 `--check`，保存各步恢复就绪的回执。DDL 可能自动提交。遇到连接、锁、校验和或结构冲突时，按已确认的备份和恢复流程处理。库就绪后再启动连接同一 schema 的三套后端。三后端业务对拍使用三份同源克隆，每份分别迁移。
 
 新环境的审核员使用普通注册流程建立受控账号。账号确认已启用后，在 Nuxt、Go、Rust 的私有配置中填写同一份 `MODERATION_ADMIN_ACCOUNTS`，可用逗号分隔用户名或邮箱。配置变更后重启对应后端。样例名单为空，审核队列和 AI 审核助手均须授权。使用早期部署的预置账号时，也将其显式加入名单。测试开关 `MODERATION_ALLOW_ALL` 在正式部署保持 `false`。
 
@@ -416,6 +426,22 @@ docker compose -f docker-compose.knowledge-index.yml --profile index-update run 
 
 设置各业务后端的 `AI_KNOWLEDGE_INDEX_URL` 和相同的 `AI_INDEX_SERVICE_TOKEN`。宿主机后端可以使用默认 `http://127.0.0.1:3818`。同一 Compose 网络使用 `http://knowledge-index:3818`。其他容器或远程主机须配置可访问的内部地址和相应的 `AI_INDEX_PUBLISH_HOST`，并将索引端口限制在业务内网。向量端点及 Qdrant 地址也须从索引容器可达。[索引规范](../specifications/requirements/ai-knowledge-index.md)
 
+#### 群知识索引
+
+在检索和更新进程的环境文件中配置同一个独立的 `AI_INDEX_GROUP_ACTIVE_PROFILE`。容器部署可使用已挂载的 `/app/profiles/group-active.json`。群索引点包含私密群资料，向量端点和 Qdrant 应使用受控的内部服务。
+
+每次重建使用包含 `"scope": "group"` 的配置文件和全新的 `neko_group_knowledge_*` 集合名，并运行 `node scripts/knowledge-index/cli.mjs rebuild-group <profile.json>`。校验通过后，检索进程会读取新的激活配置。群索引按需重建，旧群集合由运维管理。群索引未配置或不可用时，后端使用同一群范围的 Oracle 检索。个人收藏与帖子由业务后端实时查询 Oracle。[范围契约](../specifications/requirements/ai-knowledge-scope.md)
+
+#### 可选图文模型和 SentimentFlow
+
+图片描述使用声明 `vision` 的写作模型。审核模型具备 `vision` 时，审核建议可纳入已授权的公开图片。模型通过现有 OpenAI-compatible 或 Ollama 地址接收图片。图片从该后端配置的本地或 S3 兼容存储读取。[图文 AI 契约](../specifications/requirements/ai-vision.md)
+
+三个后端使用同名的 `AI_SENTIMENTFLOW_ENABLED` 和 `AI_SENTIMENTFLOW_URL`。设置 `AI_SENTIMENTFLOW_ENABLED=1` 后，将 URL 指向可达的内部预测地址，例如 `http://sentimentflow:8000/predict/`。按部署情况提供该服务的 `AI_SENTIMENTFLOW_TOKEN`。独立服务可继续通过原部署入口运行，常规应用启动保持插件关闭。代理不可达、超时或熔断时，群草稿与审核队列自动恢复为基础功能。[只读协同契约](../specifications/requirements/ai-sentiment.md)
+
+#### 个人 AI 服务连接
+
+完成显式 Oracle 迁移后，从部署密钥管理器向三个应用后端提供相同的 `AI_USER_PROVIDER_SECRET_B64`，值为标准 base64 编码的 32 字节加密密钥。备份此值可保留已有连接。管理员可以设置 `AI_USER_PROVIDER_URL` 提供第二个 OpenAI-compatible 写作地址。替换地址或加密密钥后，现有用户可在账户设置重新提交自己的 API 密钥。[个人连接契约](../specifications/requirements/ai-user-provider.md)
+
 #### 同一 Docker 主机上的私有检索网络
 
 独立 Compose 项目可通过同一个专用桥接网络连接检索服务。先在目标机器上创建一次网络，然后在 Nuxt 工作树使用附加文件启动。已有的更新进程可继续使用原部署方式。私有检索容器通过容器网络接受请求，宿主机不发布检索端口。
@@ -456,12 +482,51 @@ docker compose --env-file .env -p nekotribe-gateway -f docker-compose.gateway.ym
 
 Nginx 模板替换三个上游环境变量并保留 Nginx 自身变量。WebSocket 显式传递 Upgrade/Connection 并增加超时。访问日志和 WebSocket 路由错误日志关闭，避免记录查询 token。[官方模板入口](https://github.com/nginx/docker-nginx/blob/master/entrypoint/20-envsubst-on-templates.sh) [WebSocket 代理文档](https://nginx.org/en/docs/http/websocket.html)
 
+vNext 六组验收在同一隔离 HTTPS 公共入口依次切换根页面及业务上游。页面选择 Nuxt Web 或 Flutter Web，业务上游分别选择 Nuxt、Go、Rust。切换 API 时同步核对 `/api/v2/`、`/_ws` 与 `/storage/` 的指向。Flutter vNext 便携包以 `/` 构建，按组合独立托管其 `site/`。同一站点若需同时托管两端，Flutter 需要单独构建子路径版本并配置对应 SPA 回退。状态及六组记录表见 [隔离验收清单](../../docs/deployment/ACCEPTANCE-VNEXT-20261122.md#公共-https-入口与六组客户端)。
+
+## 一对一语音和视频通话
+
+通话使用现有 `/_ws` 和 Redis。部署多套 API 时，为参与联调的 Nuxt、Go、Rust 实例提供同一个 Redis 及一致的 ICE 配置。浏览器通过 HTTPS 连接应用并取得麦克风和相机权限。
+
+| 后端环境变量 | 用途 |
+| --- | --- |
+| `WEBRTC_STUN_URLS` | 逗号分隔的 STUN 地址，例如 `stun:stun.example.org:3478` |
+| `WEBRTC_TURN_URLS` | 逗号分隔的中继地址，例如 `turns:turn.example.org:5349?transport=tcp` |
+| `WEBRTC_TURN_SHARED_SECRET` | 部署密钥管理器提供的 coturn `static-auth-secret`，coturn 开启 `use-auth-secret` |
+
+Nuxt 使用 Compose 时，在主文件后追加 `-f docker-compose.webrtc.yml` 传入这三项。Go 与 Rust 的容器从各自的 `GO_APP_ENV_FILE` 或 `RUST_APP_ENV_FILE` 读取。客户端通过登录后的 `GET /api/v2/calls/ice-servers` 获取 ICE 服务器和临时中继凭据。后端与 coturn 使用同一个中继密钥。没有 TURN 配置时，两端依赖直连和已配置的 STUN。发布前在隔离环境分别验证同网段直连、跨网段 TURN 中继，以及浏览器和 Flutter 设备的媒体权限。[通话契约](../specifications/requirements/webrtc-calls.md) · [coturn 配置](https://github.com/coturn/coturn/blob/master/man/man1/turnserver.1)
+
+客户端直接访问部署配置中的 TURN 域名和端口。按 coturn 配置开放控制连接及中继端口范围，`turns` 使用客户端信任的证书。公共 HTTPS 网关转发 `/_ws` 信令。跨网段验收记录实测的 ICE 候选类型和双向音视频。
+
+## Passkey 与 GitHub 登录
+
+- Passkey 为参与同一入口切换的后端配置相同 `WEBAUTHN_RP_ID` 和 `WEBAUTHN_ORIGINS`。RP ID 填域名，来源为逗号分隔的精确 HTTPS origin，例如 `https://neko-stage.example.com`。开发用 HTTP localhost 需显式加入。先完成新增 Oracle 结构迁移。新挑战与验证走同类后端，完成后再切换上游，以便核验同一 RP 下的凭据互通。[Passkey 契约](../specifications/requirements/passkey-auth.md)
+- Flutter Windows Hello 需要 `https://<WEBAUTHN_RP_ID>` 来源和匹配该域或其子域的 HTTPS API 地址。Android 需将已签名应用与 RP 域的 `/.well-known/assetlinks.json` 关联，并将 APK 签名来源加入 `WEBAUTHN_ORIGINS`。[Flutter 平台配置](../../flutter/README.md#passkey)
+- GitHub 登录在三后端配置 `GITHUB_OAUTH_CLIENT_ID`、`GITHUB_OAUTH_CLIENT_SECRET` 和 `GITHUB_OAUTH_REDIRECT_URI`。在测试 GitHub OAuth 应用登记完整回调 `https://neko-stage.example.com/api/v2/auth/oauth/github/callback`，环境配置和公共入口须与登记精确匹配。将回调转发到当前 API 后端，再由发起客户端完成授权。账号先在安全页绑定，再使用 GitHub 登录。密钥由后端私有配置注入。[GitHub 登录契约](../specifications/requirements/github-oauth.md)
+
+## 可观测性与入口日志
+
+私有抓取端点使用 `METRICS_TOKEN` 启用。Prometheus 通过 `authorization.credentials_file` 和私有 HTTPS 对各进程的 `GET /metrics` 抓取。公共根入口的 `/metrics` 直接返回 404。记录 `X-Request-Id` 以对应客户端请求、后端日志和 `ai.run` 审计。部署负载均衡或多层反代时，各层对 `/api/v2/links/preview` 与 `/api/v2/auth/oauth/github/callback` 仅记录方法、路径、状态和耗时等脱敏字段。Nginx 访问日志使用 `$uri`；错误和调试日志也须避开原始查询、请求头和正文。保留现有 WebSocket 日志脱敏规则。[Prometheus 与 Grafana 部署](../../docs/observability/README.md) · [观测契约](../specifications/requirements/observability.md)
+
 ## 隔离测试资源
 
 `.env.test.example` 是独立完整测试栈的样例。复制为 `.env.test` 后生成独立测试签名密钥，确认端口和路径，再通过 `--env .env.test --project nekotribe-test` 管理测试实例。其 Oracle/Redis 使用新实例和新命名卷，上传位于 `.test-data/storage`，不使用原 `../data/oracle-data` 或 `../storage`。
 
 先 `up --mode dependencies`，再只针对新空测试库显式 `init-db`，授权后 `migrate-db`，最后 `up --mode source`；每一步都传同一组 `--env .env.test --project nekotribe-test`。宿主机迁移使用 `node scripts/migrate-db.mjs --apply --dotenv .env.test`。不要把测试文件配到日常实例名；不同端口不等于数据隔离。外部测试环境必须额外确认数据库/schema、Redis 资源和上传目录均隔离，helper 不把任意外部资源声明为安全测试目标。
 
+### 三后端对拍及压测
+
+从当前 Nuxt 源码根目录执行。先按 [对拍工具说明](../scripts/benchmark/README.md) 复制配置样例，使用同一测试快照、三份 Oracle 克隆及相同的上游模型桩。对拍连接已启动的后端和只读 Oracle 账号。压测用配置指定的已构建程序逐一启动后端，测到 `/api/ready` 就绪后再运行负载。选择模式前确认环境并恢复快照。
+
+```text
+node scripts/benchmark/run.mjs parity --config path/to/backend-comparison.json --out .bench/parity
+node scripts/benchmark/run.mjs benchmark --config path/to/backend-comparison.json --out .bench/benchmark
+```
+
+对拍覆盖会话轮换和发帖、点赞幂等两个共享用例。压测记录七类工作负载的吞吐、P50/P95/P99、错误和样本数，以及启动时长与采样峰值 RSS。保留 JSON 和 Markdown 结果。夹具测试与命令可运行性已有离线记录，真实隔离端点的对拍与压测仍待执行。
+
 ## 最后验收范围
 
 待集中验收的范围包括清洁克隆构建、Nuxt/Go/Rust 与知识索引镜像构建及健康检查、业务与共享数据验证、重建后数据保留、Flutter Web 登录刷新退出及文件和实时流程、公共入口切换后端，以及在另一台 Windows 或 Linux 机器上部署。Windows Flutter 桌面构建等待 C++ 工具链。
+
+vNext Windows Flutter 构建预检仍缺 MSVC、Windows SDK 和 Inno Setup。Android Flutter 仍缺 SDK Platform 35、36 与完整的 NDK `28.2.13676358`。验收主矩阵使用 Nuxt Web 与 Flutter Web，原生包及远端实际运行状态另行登记。[vNext 验收清单](../../docs/deployment/ACCEPTANCE-VNEXT-20261122.md)

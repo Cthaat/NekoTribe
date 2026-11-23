@@ -1,19 +1,19 @@
 import { reactive } from 'vue';
-import type { PostPageVM, PostVM } from '@/types/posts';
+import type { PageViewModel, PostVM } from '@/types/posts';
 
-interface UsePostFeedOptions {
+interface UsePostFeedOptions<T> {
   debugName?: string;
   pageSize?: number;
   loadPage: (
     page: number,
     pageSize: number
-  ) => Promise<PostPageVM>;
+  ) => Promise<PageViewModel<T>>;
 }
 
-interface PostFeedState {
+export interface PostFeedState<T = PostVM> {
   page: number;
   pageSize: number;
-  posts: PostVM[];
+  posts: T[];
   loading: boolean;
   error: string | null;
   total: number;
@@ -23,7 +23,7 @@ interface PostFeedState {
   removePost: (postId: number) => void;
   patchPost: (
     postId: number,
-    updater: (post: PostVM) => PostVM
+    updater: (post: T) => T
   ) => void;
 }
 
@@ -102,13 +102,13 @@ function logPostFeed(
   );
 }
 
-export function usePostFeed(
-  options: UsePostFeedOptions
-): PostFeedState {
+export function usePostFeed<T extends { id: number } = PostVM>(
+  options: UsePostFeedOptions<T>
+): PostFeedState<T> {
   const debugName = options.debugName ?? 'default';
   let request = 0;
 
-  const state = reactive<PostFeedState>({
+  const state = reactive<PostFeedState<T>>({
     page: 1,
     pageSize: options.pageSize ?? 15,
     posts: [],
@@ -116,7 +116,7 @@ export function usePostFeed(
     error: null,
     total: 0,
     totalPages: 1,
-    invalidate(this: PostFeedState): void {
+    invalidate(this: PostFeedState<T>): void {
       request++;
       this.posts = [];
       this.total = 0;
@@ -124,7 +124,7 @@ export function usePostFeed(
       this.loading = false;
       this.error = null;
     },
-    async refresh(this: PostFeedState): Promise<void> {
+    async refresh(this: PostFeedState<T>): Promise<void> {
       const current = ++request;
       this.loading = true;
       this.error = null;
@@ -175,9 +175,9 @@ export function usePostFeed(
         if (current === request) this.loading = false;
       }
     },
-    removePost(this: PostFeedState, postId: number): void {
+    removePost(this: PostFeedState<T>, postId: number): void {
       this.posts = this.posts.filter(
-        (post: PostVM) => post.id !== postId
+        post => post.id !== postId
       );
       this.total = Math.max(this.total - 1, 0);
       this.totalPages = Math.max(
@@ -190,12 +190,12 @@ export function usePostFeed(
       });
     },
     patchPost(
-      this: PostFeedState,
+      this: PostFeedState<T>,
       postId: number,
-      updater: (post: PostVM) => PostVM
+      updater: (post: T) => T
     ): void {
       const index = this.posts.findIndex(
-        (post: PostVM) => post.id === postId
+        post => post.id === postId
       );
       if (index === -1) {
         console.warn(
@@ -212,5 +212,5 @@ export function usePostFeed(
     }
   });
 
-  return state;
+  return state as PostFeedState<T>;
 }

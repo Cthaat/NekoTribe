@@ -14,8 +14,8 @@ function* chunks(content) {
   }
 }
 
-function addSource(hash, {kind,id,version}) {
-  hash.update(`${kind}:${id}:${version}\n`);
+function addSource(hash, {kind,id,version,group_id}) {
+  hash.update(`${kind}:${id}:${version}${group_id === undefined ? '' : `:${group_id}`}\n`);
 }
 
 export async function snapshotDigest({signal,onProgress} = {}) {
@@ -28,8 +28,9 @@ export async function snapshotDigest({signal,onProgress} = {}) {
   return digest.digest('hex');
 }
 
-function pointId({kind,id,version,chunk}) {
-  const bytes = createHash('sha256').update(`neko-knowledge-point-v1:${kind}:${id}:${version}:${chunk}`).digest();
+function pointId({kind,id,version,chunk,group_id}) {
+  const group = group_id === undefined ? '' : `:${group_id}`;
+  const bytes = createHash('sha256').update(`neko-knowledge-point-v1:${kind}:${id}:${version}:${chunk}${group}`).digest();
   bytes[6] = (bytes[6] & 15) | 128;
   bytes[8] = (bytes[8] & 63) | 128;
   const hex = bytes.subarray(0,16).toString('hex');
@@ -39,7 +40,8 @@ function pointId({kind,id,version,chunk}) {
 export async function buildIndex(profile, previous, {signal,onProgress} = {}) {
   signal?.throwIfAborted();
   onProgress?.({stage:'checking-sources'});
-  const {ready} = await checkOracleSources({signal});
+  const {scope} = profile;
+  const {ready} = await checkOracleSources({signal,scope});
   signal?.throwIfAborted();
   if (!ready) throw Error('ORACLE_SOURCES_NOT_READY');
 
@@ -73,15 +75,16 @@ export async function buildIndex(profile, previous, {signal,onProgress} = {}) {
     batch.length = 0;
     report('writing-points');
   }
-  for await (const {kind,id,version,content} of oracleSnapshot({signal})) {
-    addSource(digest,{kind,id,version});
+  for await (const source of oracleSnapshot({signal,scope})) {
+    const {kind,id,version,content,group_id} = source;
+    addSource(digest,source);
     let indexed = false;
     for (const {index,text} of chunks(content)) {
       if (!indexed) {
         indexed = true;
         sources++;
       }
-      const payload = {kind,id,version,chunk:index};
+      const payload = {kind,id,version,chunk:index,...(scope === 'group' ? {scope,group_id} : {})};
       batch.push({id:pointId(payload),text,payload});
       if (batch.length === embeddingBatch-1) await writeBatch();
     }

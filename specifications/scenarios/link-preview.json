@@ -1,0 +1,9 @@
+{
+  "id": "LINK-PREVIEW",
+  "revision": 1,
+  "cases": [
+    {"id":"public-page-and-cache","assertion":"A logged-in viewer receives bounded OpenGraph text from a public HTML page. Redis caches successful metadata, and cache failure still allows a safe fetch."},
+    {"id":"private-target-denied","assertion":"A loopback, private, link-local or cloud address is refused before connecting, including when discovered during DNS resolution or a redirect."},
+    {"id":"bounded-and-nothing-loaded-implicitly","assertion":"The outbound fetch checks each redirect and stays within the request time and body-byte budget. Clients keep the original post or message visible if no card can be shown and never load remote images."}
+  ]
+}

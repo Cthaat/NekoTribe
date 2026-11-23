@@ -1,0 +1,12 @@
+{
+  "id": "CHAT-MESSAGE-SEARCH",
+  "revision": 1,
+  "max_keyword_bytes": 400,
+  "sql": {
+    "keyword": "AND INSTR(LOWER({message}.content), LOWER(:search_keyword)) > 0",
+    "channel_sender": "AND {message}.author_id = :search_sender",
+    "direct_sender": "AND {message}.sender_id = :search_sender",
+    "start": "AND {message}.created_at >= CAST((TO_TIMESTAMP_TZ(:search_start, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL) AS TIMESTAMP)",
+    "end": "AND {message}.created_at < CAST((TO_TIMESTAMP_TZ(:search_end, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL) AS TIMESTAMP)"
+  }
+}

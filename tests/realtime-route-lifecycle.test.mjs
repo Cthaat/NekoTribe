@@ -14,6 +14,7 @@ test('unauthenticated upgrade is rejected before any notification-capable socket
  try{
   const response=await subject.handler.upgrade({url:'http://api.test/_ws',headers:new Headers(),context:{}});
   assert(response instanceof Response,'unauthenticated upgrade must return an HTTP error');
+  assert.match(response.headers.get('x-request-id'),/^[a-f0-9-]{36}$/);
   assert.equal(response.status,401);assert.equal((await response.json()).code,40101);assert.equal(globalThis.__wsRoute.transports.length,0);
  }finally{delete globalThis.__wsRoute;}
 });
@@ -51,7 +52,8 @@ test('upgrade fails closed for an unverified session and reports exhausted capac
   assert.deepEqual(await full.json(),{code:50301,message:'服务暂不可用，请稍后重试。',data:null,meta:null});
   assert.equal(state.transports.length,0);
   subject.sessionManager.removeSession(sessions.pop());
-  assert.equal(await subject.handler.upgrade(request),undefined);
+  const accepted=await subject.handler.upgrade(request);
+  assert.match(new Headers(accepted.headers).get('x-request-id'),/^[a-f0-9-]{36}$/);
  }finally{
   for(const id of sessions)subject.sessionManager.removeSession(id);
   delete globalThis.__wsRoute;
@@ -63,8 +65,11 @@ test('actual Node WebSocket upgrade carries degraded status, local presence and 
  server.on('upgrade',(request,socket,head)=>{void adapter.handleUpgrade(request,socket,head);});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));let socket;
  try{
-  const received=[];socket=new WebSocket('ws://127.0.0.1:'+server.address().port+'/_ws?token=valid');socket.on('message',raw=>received.push(JSON.parse(raw.toString())));
-  await once(socket,'open');await waitFor(()=>received.some(event=>event.data?.remote_events==='unavailable'));
+  const received=[];socket=new WebSocket('ws://127.0.0.1:'+server.address().port+'/_ws?token=valid',{headers:{'X-Request-Id':'ws:local-01'}});socket.on('message',raw=>received.push(JSON.parse(raw.toString())));
+  const connected=once(socket,'open');
+  const [upgrade]=await once(socket,'upgrade');
+  assert.equal(upgrade.headers['x-request-id'],'ws:local-01');
+  await connected;await waitFor(()=>received.some(event=>event.data?.remote_events==='unavailable'));
   assert.equal(received[0].data.message,'WebSocket connected');
   const presence={type:'presence_update',data:{user_id:9,online_status:'hidden',last_seen_at:null,server_id:subject.WS_SERVER_ID},timestamp:1};
   await subject.sendWsToAll(presence);await waitFor(()=>received.some(event=>event.type==='presence_update'));

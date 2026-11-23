@@ -37,13 +37,13 @@ async function fixture(run){const owner={runWithContext:fn=>fn()},queue=api.auth
  try{await run({...state,state,queue,all,unmount});}finally{unmount();delete globalThis.__gate;}
 }
 test('actual security template unmounts every private form on same-account identity revision change',()=>fixture(async({state,queue,all})=>{
- assert.equal(state.mounts,4);queue.beginIdentityChange();await vue.nextTick();assert.equal(state.unmounts,4);assert.equal(all().filter(n=>n.props?.['data-secret-form']).length,0);
- const button=all().find(n=>n.type==='button');button.props.onClick();await vue.nextTick();assert.equal(state.mounts,8);
+ assert.equal(state.mounts,6);queue.beginIdentityChange();await vue.nextTick();assert.equal(state.unmounts,6);assert.equal(all().filter(n=>n.props?.['data-secret-form']).length,0);
+ const button=all().find(n=>n.type==='button');button.props.onClick();await vue.nextTick();assert.equal(state.mounts,12);
 }));
 test('queued identity work blocks reopening until its response settles',()=>fixture(async({state,queue,all})=>{
  let finish;const pending=queue.runIdentityChange(()=>new Promise(r=>{finish=r;}));await vue.nextTick();
- const button=all().find(n=>n.type==='button');assert.equal(button.props.disabled,true);button.props.onClick();await vue.nextTick();assert.equal(state.mounts,4);
- finish();await pending;await vue.nextTick();const current=all().find(n=>n.type==='button');assert.equal(current.props.disabled,false);current.props.onClick();await vue.nextTick();assert.equal(state.mounts,8);
+ const button=all().find(n=>n.type==='button');assert.equal(button.props.disabled,true);button.props.onClick();await vue.nextTick();assert.equal(state.mounts,6);
+ finish();await pending;await vue.nextTick();const current=all().find(n=>n.type==='button');assert.equal(current.props.disabled,false);current.props.onClick();await vue.nextTick();assert.equal(state.mounts,12);
 }));
 test('ordinary refresh and another SSR owner preserve current private forms',()=>fixture(async({state,queue})=>{
  await queue.run(async()=>{});api.authQueueFor({}).beginIdentityChange();await vue.nextTick();assert.equal(state.unmounts,0);

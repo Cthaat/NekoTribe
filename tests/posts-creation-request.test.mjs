@@ -76,7 +76,7 @@ const compiled = await build({
         assert.equal(source.split(observationAnchor).length, 2, 'one pre-write observation boundary');
         return {
           contents: source.replace(observationAnchor,
-            '  event.context.observeRequest(payload, postType);\n' + observationAnchor),
+            '  connection.observeRequest(payload, postType);\n' + observationAnchor),
           loader: 'ts'
         };
       });
@@ -125,7 +125,7 @@ async function invoke(vector, connection) {
   event.context.auth = {userId: 1};
   event.context.params = {id: vector.path_id};
   event.context.getOracleConnection = async () => connection;
-  event.context.observeRequest = (payload, postType) => {
+  connection.observeRequest = (payload, postType) => {
     // Normalize absence only; all conversions and validation came from Nuxt.
     connection.observed = {
       post_type: postType,

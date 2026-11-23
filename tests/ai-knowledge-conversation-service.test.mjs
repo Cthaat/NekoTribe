@@ -5,11 +5,11 @@ import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const ref={kind:'post',id:1,version:'a'.repeat(64)};
 const stubs={
- '~/server/utils/logging':`export const logInfo=(scope,event)=>globalThis.__aiKnowledgeAudit.push(event);`,
+ '~/server/utils/logging':`export const logInfo=(scope,event)=>globalThis.__aiKnowledgeAudit.push(event); export const getRequestLogContext=()=>null;`,
  '~/server/utils/ai-model-quota':`export class AiQuotaError extends Error {}`,
  '~/server/utils/v2':`export const v2Auth=e=>{if(!e.user)throw Error('401');return {userId:42}};export const v2Connection=e=>e.open();export const v2ServerError=()=>{throw Error('500')};`,
  './skill-conversation':`export async function selectConfiguredConversationSkill(e,c,scope){e.events.push('skill');if(e.disabled)throw Error('SKILL_UNAVAILABLE');if(scope.ownerUserId!==42 || scope.purpose!=='knowledge')throw Error('bad scope');return {configGeneration:e.generation,skill:{id:'knowledge-answer'}}}`,
- './conversation-store':`export async function readConversation(e){e.events.push('read');return {purpose:e.purpose}};export async function listRecentConversationMessages(e){e.events.push('history');return e.messages};export async function appendKnowledgeAssistantMessage(e,c,id,input){e.events.push('append');e.saved=input;return {sequence_no:2}};`,
+ './conversation-store':`export async function readConversation(e){e.events.push('read');return {purpose:e.purpose}};export async function listRecentConversationMessages(e){e.events.push('history');return e.messages};export async function appendKnowledgeAssistantMessage(e,c,id,input){e.events.push('append');e.saved=input;return {sequence_no:2}};export const knowledgeFilter=c=>({kind:c.knowledge_scope??'public',groupId:c.group_id??null});`,
  './knowledge-service':`export async function generateKnowledgeReply(e,query,config,signal,search,history,audit){audit.stage='evidence';audit.configRevision=e.reply.configRevision;e.events.push('generate');e.query=query;e.search=search;e.history=history;e.onGenerate?.();return e.reply}`
 };
 const built=await build({stdin:{contents:`export * from './server/services/ai/knowledge-conversation-service.ts'`,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'boundaries',setup(b){b.onResolve({filter:/.*/},a=>{if(Object.hasOwn(stubs,a.path))return {path:a.path,namespace:'stub'}});b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path],loader:'js'}))}}]});

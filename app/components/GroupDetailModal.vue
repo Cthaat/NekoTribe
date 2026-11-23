@@ -35,6 +35,7 @@ import { toast } from 'vue-sonner';
 import GroupMemberCard from './GroupMemberCard.vue';
 import GroupPostCard from './GroupPostCard.vue';
 import {
+  canPublishGroupPost,
   changeGroupMemberRole,
   getGroup,
   getGroupNotificationPreference,
@@ -663,6 +664,7 @@ const handleTabChange = (value: string | number) => {
                 :key="post.id"
                 :post="post"
                 :can-manage="group.isOwner || group.isAdmin"
+                :can-vote="canPublishGroupPost(group)"
                 read-only
                 @comment="openPostComments"
                 @report="openPostReport"

@@ -545,6 +545,16 @@ test('readiness and search recover after initial activation, outages and incompl
   assert.equal(embeddings,1);
   assert.equal(searches,1);
   assert.equal(requests.at(-1),next.collection);
+  const attemptedAt = Date.now();
+  await writeWatchStatus(active, {phase:'waiting',attemptedAt,nextAt:attemptedAt + 60000,
+    lastSuccessAt:attemptedAt,lastFinishedAt:attemptedAt,lastOutcome:'updated'});
+  const detail = await fetch(endpoint + '?detail=1', {headers:{authorization:`Bearer ${token}`}});
+  assert.equal(detail.status,200);
+  assert.deepEqual(await detail.json(), {version:1,ready:true,status:{
+    point_count:2,phase:'waiting',last_success_at:attemptedAt,next_at:attemptedAt + 60000
+  }});
+  const publicDetail = await fetch(endpoint + '?detail=1');
+  assert.equal(publicDetail.status,401);
 });
 
 for (const item of vectors.cases) {
