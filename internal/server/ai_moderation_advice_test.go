@@ -16,9 +16,12 @@ import (
 
 type moderationFixtureStore struct {
 	OracleSessions
-	condition string
-	text      string
-	written   *assistantMessageInput
+	condition        string
+	text             string
+	images           []storedVisionImage
+	vision           bool
+	visionPreflights int
+	written          *assistantMessageInput
 }
 
 func (s *moderationFixtureStore) Touch(_ context.Context, claims auth.Claims) (int64, error) {
@@ -28,6 +31,7 @@ func (s *moderationFixtureStore) Touch(_ context.Context, claims auth.Claims) (i
 	return 0, nil
 }
 func (s *moderationFixtureStore) loadModerationAdvice(_ context.Context, _ int64, _ string, request moderationAdviceRequest, _ moderationPolicy) (*moderationMaterial, int64, error) {
+	s.vision = request.Vision
 	switch s.condition {
 	case "wrong_purpose":
 		return nil, 0, errConversationInvalid
@@ -42,8 +46,8 @@ func (s *moderationFixtureStore) loadModerationAdvice(_ context.Context, _ int64
 	default:
 		target := moderationTargetReference{Kind: request.Kind, ID: request.ID, PostID: request.ID}
 		target.Digest = targetDigest(target, s.text)
-		return &moderationMaterial{target, s.text, termsAuthority{Digest: strings.Repeat("a", 64), Generation: 9},
-			[]moderationRule{{ID: 3, Version: strings.Repeat("b", 64), Title: "Conduct", Blocks: []string{"Rule text"}}}}, 4, nil
+		return &moderationMaterial{Target: target, Content: s.text, Authority: termsAuthority{Digest: strings.Repeat("a", 64), Generation: 9},
+			Rules: []moderationRule{{ID: 3, Version: strings.Repeat("b", 64), Title: "Conduct", Blocks: []string{"Rule text"}}}, Images: s.images}, 4, nil
 	}
 }
 func (s *moderationFixtureStore) appendAIAssistantMessage(_ context.Context, _ int64, id string, in assistantMessageInput, _ moderationPolicy) (conversationMessage, error) {
@@ -52,6 +56,14 @@ func (s *moderationFixtureStore) appendAIAssistantMessage(_ context.Context, _ i
 	}
 	s.written = &in
 	return conversationMessage{ID: "review", ConversationID: id, SequenceNo: 1, Role: "assistant"}, nil
+}
+
+func (s *moderationFixtureStore) verifyModerationVisionInputs(_ context.Context, actor int64, record *moderationAdviceRecord) error {
+	s.visionPreflights++
+	if s.condition == "image_changed" || actor != 42 || record.Version != 2 || !validModerationImageReferences(record.ImageSources) {
+		return errConversationConflict
+	}
+	return nil
 }
 
 func TestModerationAdviceSharedScenarios(t *testing.T) {

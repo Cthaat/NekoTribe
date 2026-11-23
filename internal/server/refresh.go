@@ -42,6 +42,13 @@ type RefreshConfig struct {
 	ModerationAdminAccounts       string
 	AIModelConfig                 string
 	aiModelFile                   *aiModelFile
+	sentiment                     *sentimentClient
+	userProvider                  userProviderSettings
+	webRTCIce                     webRTCIceConfig
+	linkPreview                   *linkPreviewService
+	passkeys                      *passkeyEngine
+	githubOAuth                   *githubOAuthProvider
+	metricsToken                  string
 	AIModelQuotaLimiter           AIModelQuotaLimiter
 	aiCredential                  func(string) (string, error)
 	otpMailer                     otpMailSender

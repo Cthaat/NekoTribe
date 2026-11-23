@@ -1,0 +1,9 @@
+{
+  "id": "HOME-FEED",
+  "revision": 1,
+  "cases": [
+    {"id":"rank-visible-recommendations","assertion":"The explicit recommended timeline orders visible posts by follow, recent tag interactions and age; feedback hides or demotes the same targets as before. Anonymous results use stable recency order, and other timelines and searches keep their existing behavior."},
+    {"id":"group-activity-is-membership-scoped","assertion":"An authenticated member can page through recent group posts with the group name. A logged-out viewer receives 401 and missing or revoked membership, disabled groups or authors, removed posts and blocked authors never appear."},
+    {"id":"four-home-tabs","assertion":"Web and Flutter switch among recommended, following, trending and group activity, keep each response in its tab and discard previous-account results."}
+  ]
+}

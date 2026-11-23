@@ -63,6 +63,7 @@ func newUserEventPublisher(options *redis.Options) (*UserEventPublisher, error) 
 	if err != nil {
 		return nil, errNotificationEvent
 	}
+	options.ContextTimeoutEnabled = true
 	return &UserEventPublisher{client: redis.NewClient(options), serverID: "go_" + id, clock: time.Now}, nil
 }
 

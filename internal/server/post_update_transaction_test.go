@@ -119,6 +119,9 @@ func (c *updatePostConn) QueryContext(_ context.Context, q string, args []driver
 	if q == lockPostMediaSQL {
 		return &updatePostRows{values: []driver.Value{int64(1), c.s.mediaKey}}, nil
 	}
+	if q == directExtrasContract.SQL["asset_is_linked"] {
+		return emptyRows{&c.s.driverState}, nil
+	}
 	if q == privateMediaBinding.Post {
 		if c.s.privateDenied {
 			return emptyRows{&c.s.driverState}, nil

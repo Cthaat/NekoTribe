@@ -128,6 +128,10 @@ func generateKnowledgeWithTransport(ctx context.Context, store knowledgeServiceS
 }
 
 func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceStore, viewer int64, query string, selection ai.Selection, transport knowledgeTransport, messages []conversationHistoryMessage, searchPhrase ...string) (knowledgeTurnResult, knowledgeContext, error) {
+	return generateScopedKnowledgeWithHistory(ctx, store, viewer, query, selection, transport, messages, knowledgePublic, searchPhrase...)
+}
+
+func generateScopedKnowledgeWithHistory(ctx context.Context, store knowledgeServiceStore, viewer int64, query string, selection ai.Selection, transport knowledgeTransport, messages []conversationHistoryMessage, scope knowledgeScope, searchPhrase ...string) (knowledgeTurnResult, knowledgeContext, error) {
 	if viewer <= 0 || viewer > 9007199254740991 || selection.Role != "knowledge" || len(searchPhrase) > 1 {
 		return knowledgeTurnResult{}, knowledgeContext{}, errKnowledgeInvalid
 	}
@@ -149,6 +153,9 @@ func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceSto
 		if cancelled := ctx.Err(); cancelled != nil {
 			return cancelled
 		}
+		if errors.Is(err, errConversationForbidden) {
+			return err
+		}
 		if err != nil {
 			return errKnowledgeSourceChanged
 		}
@@ -165,7 +172,7 @@ func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceSto
 		system = numberedKnowledgeSystem
 	}
 	lexicalStore, _ := store.(lexicalKnowledgeStore)
-	refreshStaleIndex := lexicalStore != nil && os.Getenv("AI_KNOWLEDGE_INDEX_FALLBACK") == "lexical"
+	refreshStaleIndex := lexicalStore != nil && (scope == knowledgeGroup || os.Getenv("AI_KNOWLEDGE_INDEX_FALLBACK") == "lexical")
 	result, err := runKnowledgeTurn(ctx, knowledgeTurnDeps{
 		discover: func(ctx context.Context) ([]knowledgeSource, error) {
 			return store.discoverKnowledgeSources(ctx, viewer, term, 20)
@@ -238,7 +245,11 @@ func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceSto
 			if err != nil {
 				return "", errKnowledgeProvider
 			}
-			answer, err := transport.Infer(ctx, selection, request)
+			inferenceContext := ctx
+			if scope.restricted() {
+				inferenceContext = ai.WithStreamDeltas(ctx, nil)
+			}
+			answer, err := transport.Infer(inferenceContext, selection, request)
 			if cancelled := ctx.Err(); cancelled != nil {
 				return "", cancelled
 			}
@@ -258,12 +269,17 @@ func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceSto
 	if err != nil || result.Answer == nil {
 		return result, selected, err
 	}
-	result, err = parseKnowledgeCitations(*result.Answer, result.Sources, numbered)
+	evidence := result.Sources
+	result, err = parseKnowledgeCitations(*result.Answer, evidence, numbered)
 	if err != nil {
 		return knowledgeTurnResult{}, selected, err
 	}
-	versions := make(map[string]string, len(result.Sources))
-	for _, ref := range result.Sources {
+	guarded := result.Sources
+	if scope.restricted() {
+		guarded = evidence
+	}
+	versions := make(map[string]string, len(guarded))
+	for _, ref := range guarded {
 		versions[knowledgeKey(ref.Kind, ref.ID)] = ref.Version
 	}
 	for _, ref := range selected.Sources {
@@ -275,10 +291,15 @@ func generateKnowledgeWithHistory(ctx context.Context, store knowledgeServiceSto
 			continue
 		}
 		versions[key] = ref.Version
-		result.Sources = append(result.Sources, ref)
+		guarded = append(guarded, ref)
 	}
-	if len(result.Sources) > 20 {
+	if len(guarded) > 20 {
 		return knowledgeTurnResult{}, selected, errKnowledgeConversationContext
+	}
+	if scope.restricted() {
+		result.Dependencies = guarded
+	} else {
+		result.Sources = guarded
 	}
 	return result, selected, nil
 }

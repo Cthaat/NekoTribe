@@ -46,13 +46,13 @@ type chatReaction struct {
 }
 
 type chatMessageHistoryStore interface {
-	ListChatMessages(context.Context, int64, int64, SessionPage, string, StorageURLPolicy) ([]chatMessage, int64, error)
+	ListChatMessages(context.Context, int64, int64, SessionPage, chatMessageSearch, StorageURLPolicy) ([]chatMessage, int64, error)
 }
 
+const chatMessageScopeSQL = `WHERE m.channel_id=:channel_id AND m.is_deleted=0`
 const chatMessageCountSQL = `SELECT COUNT(*) FROM n_chat_messages m
 JOIN v_user_profile_public u ON u.user_id=m.author_id
-WHERE m.channel_id=:channel_id AND m.is_deleted=0
-AND (:search_disabled=1 OR LOWER(m.content) LIKE :search_pattern)`
+` + chatMessageScopeSQL
 const chatMessagePageSQL = `SELECT * FROM (
   SELECT m.message_id,m.channel_id,m.group_id,m.author_id AS user_id,m.message_type,m.content,
 m.is_pinned,m.is_deleted,m.created_at,m.updated_at,m.edited_at,m.deleted_at,
@@ -65,10 +65,7 @@ rm.message_id AS reply_id,rm.content AS reply_content,COALESCE(ru.display_name,r
   JOIN v_user_profile_public u ON u.user_id=m.author_id
   LEFT JOIN n_chat_messages rm ON rm.message_id=m.reply_to_message_id AND rm.channel_id=m.channel_id AND rm.is_deleted=0
   LEFT JOIN n_users ru ON ru.user_id=rm.author_id
-  WHERE m.channel_id=:channel_id AND m.is_deleted=0
-  AND (:search_disabled=1 OR LOWER(m.content) LIKE :search_pattern)
-) WHERE rn BETWEEN :start_row AND :end_row
-ORDER BY created_at ASC,message_id ASC`
+  ` + chatMessageScopeSQL
 const chatMessageByIDSQL = `SELECT m.message_id,m.channel_id,m.group_id,m.author_id AS user_id,m.message_type,m.content,
 m.is_pinned,m.is_deleted,m.created_at,m.updated_at,m.edited_at,m.deleted_at,
 u.username,u.avatar_url,u.display_name,u.bio,u.location,u.website,u.is_verified,
@@ -138,7 +135,7 @@ func timestampOrEmpty(value sql.NullTime) string {
 	return ""
 }
 
-func (s OracleSessions) ListChatMessages(ctx context.Context, viewer, channel int64, page SessionPage, search string, storage StorageURLPolicy) ([]chatMessage, int64, error) {
+func (s OracleSessions) ListChatMessages(ctx context.Context, viewer, channel int64, page SessionPage, search chatMessageSearch, storage StorageURLPolicy) ([]chatMessage, int64, error) {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, 0, errSessionStore
@@ -153,13 +150,14 @@ func (s OracleSessions) ListChatMessages(ctx context.Context, viewer, channel in
 	if err := tx.QueryRowContext(ctx, chatMessageAccessSQL, userBind, channelBind).Scan(&manage); err != nil {
 		return nil, 0, chatChannelAccessError(err)
 	}
-	binds := []any{channelBind, sql.Named("search_disabled", chatPrivateFlag(search == "")), sql.Named("search_pattern", "%"+search+"%")}
-	if err := tx.QueryRowContext(ctx, chatMessageCountSQL, binds...).Scan(&total); err != nil {
+	predicates, filterBinds := search.predicates("m", "channel_sender")
+	binds := append([]any{channelBind}, filterBinds...)
+	if err := tx.QueryRowContext(ctx, chatMessageCountSQL+predicates, binds...).Scan(&total); err != nil {
 		return nil, 0, errSessionStore
 	}
 	args := append([]any{sql.Named("viewer_id", viewer)}, binds...)
 	args = append(args, sql.Named("start_row", page.Start), sql.Named("end_row", page.End))
-	items, err := collectChatRows(ctx, tx, chatMessagePageSQL, args, func(rows *sql.Rows) (chatMessage, error) {
+	items, err := collectChatRows(ctx, tx, chatMessagePageSQL+predicates+chatMessageSearchWindowSQL, args, func(rows *sql.Rows) (chatMessage, error) {
 		message, err := scanChatMessage(rows, viewer, manage == 1)
 		if err == nil {
 			message.Author.AvatarURL, err = normalizeAvatarURL(storage, message.Author.AvatarURL)
@@ -173,7 +171,7 @@ func (s OracleSessions) ListChatMessages(ctx context.Context, viewer, channel in
 		if err := loadChatMessageDetails(ctx, tx, viewer, items, storage); err != nil {
 			return nil, 0, errSessionStore
 		}
-		if search == "" && page.Page == 1 {
+		if !search.active() && page.Page == 1 {
 			if _, err := tx.ExecContext(ctx, mergeChatReadSQL, channelBind, userBind, sql.Named("message_id", items[len(items)-1].ID)); err != nil {
 				return nil, 0, errSessionStore
 			}
@@ -271,9 +269,10 @@ func chatMessageRoute(w http.ResponseWriter, r *http.Request, codec *auth.TokenM
 	}
 	query := parseSessionQuery(r.URL.RawQuery)
 	page := sessionPagination(query)
-	search := ""
-	if values := query["q"]; len(values) == 1 {
-		search = strings.ToLower(strings.TrimSpace(values[0]))
+	search, valid := parseChatMessageSearch(r.URL.RawQuery)
+	if !valid {
+		respond(w, 400, 40001, "消息搜索参数错误", nil)
+		return true
 	}
 	items, total, err := store.ListChatMessages(r.Context(), user, channel, page, search, config.Storage)
 	switch {

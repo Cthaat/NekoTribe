@@ -1,0 +1,11 @@
+{
+  "id": "DIRECT-MESSAGE-EXTRAS",
+  "revision": 1,
+  "cases": [
+    {"id":"private-attachment-and-reply","status":200,"assertion":"A participant sends an owned private upload, optionally without body text, and quotes a live message in the same conversation."},
+    {"id":"other-user-or-other-scope","status":404,"assertion":"A foreign, reused, public or incorrectly scoped upload cannot be attached or downloaded through the direct conversation."},
+    {"id":"cross-conversation-reply","status":400,"assertion":"A reply reference to another conversation is rejected, with no partial message."},
+    {"id":"reactions-and-refresh","status":200,"assertion":"A participant can add/remove an own reaction idempotently. Private update delivery allows live viewer-specific receipt refresh without changing read pointers."},
+    {"id":"deleted-message-download","status":404,"assertion":"Only current participants may download an attached object, and deletion hides it."}
+  ]
+}

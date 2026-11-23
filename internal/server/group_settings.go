@@ -95,6 +95,13 @@ func lockGroupMediaURLs(ctx context.Context, tx *sql.Tx, urls []string, storage 
 		if err != nil {
 			return errSessionStore
 		}
+		linked, err := directAssetLinked(ctx, tx, sql.Named("media_id", media.id))
+		if err != nil {
+			return err
+		}
+		if linked {
+			return errGroupImageMissing
+		}
 		locked[media.key] = url
 	}
 	for index, key := range targets {

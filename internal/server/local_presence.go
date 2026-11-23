@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 )
@@ -184,7 +185,8 @@ func (h *LocalPresenceEvents) remote(ctx context.Context, sub *localPresenceSubs
 				if !socketEventMatchesChannel(channel, fmt.Sprintf("ws:user:%d", user), body) {
 					continue
 				}
-				if (frame.Type == "direct_message" || frame.Type == "direct_message_deleted") && frame.Data.ServerID == h.serverID {
+				if (isDirectRealtimeEvent(frame.Type) || frame.Type == directReadUpdatedEvent || isTypingEvent(frame.Type) || isWebRTCBrokerEvent(frame.Type)) &&
+					frame.Data.ServerID == h.serverID {
 					h.mu.Lock()
 					until := sub.echoes[sha256.Sum256(body)]
 					h.mu.Unlock()
@@ -209,6 +211,24 @@ type directEventPublisher interface {
 	PublishDirect(context.Context, int64, int64, DirectMessage) error
 }
 
+func (h *LocalPresenceEvents) webRTCCallState() webRTCStateStore {
+	if h.publisher != nil {
+		if client, ok := h.publisher.client.(webRTCRedisClient); ok {
+			return webRTCRedisStore{client: client}
+		}
+	}
+	return nil
+}
+
+func (h *LocalPresenceEvents) publishWebRTCCall(ctx context.Context, kind string, event webRTCEvent, recipients ...int64) error {
+	for _, id := range recipients {
+		if event.call.peerOf(id) == 0 {
+			return errNotificationEvent
+		}
+	}
+	return h.publishUserRealtime(ctx, kind, event.payload(h.serverID), recipients...)
+}
+
 func (h *LocalPresenceEvents) PublishDirect(ctx context.Context, sender, recipient int64, message DirectMessage) error {
 	return h.publishDirectEvent(ctx, sender, recipient, "direct_message", map[string]any{
 		"conversation_id": message.ConversationID, "direct_message": message, "server_id": h.serverID,
@@ -221,8 +241,46 @@ func (h *LocalPresenceEvents) PublishDirectDeleted(ctx context.Context, sender, 
 	})
 }
 
+func (h *LocalPresenceEvents) PublishDirectUpdated(ctx context.Context, sender, recipient, conversation, message int64) error {
+	return h.publishDirectEvent(ctx, sender, recipient, "direct_message_updated", map[string]any{
+		"conversation_id": conversation, "message_id": message, "server_id": h.serverID,
+	})
+}
+
+func (h *LocalPresenceEvents) PublishDirectRead(ctx context.Context, reader, peer, conversation, message int64) error {
+	return h.publishDirectEvent(ctx, reader, peer, directReadUpdatedEvent, map[string]any{
+		"conversation_id": conversation, "reader_id": reader, "last_read_message_id": message, "server_id": h.serverID,
+	})
+}
+
+func (h *LocalPresenceEvents) PublishTyping(ctx context.Context, signal typingSignal) error {
+	if !isTypingEvent(signal.kind) {
+		return errNotificationEvent
+	}
+	data := map[string]any{"user_id": signal.actor, "server_id": h.serverID}
+	if signal.channel != 0 {
+		if signal.conversation != 0 || signal.peer != 0 || h.publisher == nil {
+			return errNotificationEvent
+		}
+		data["channel_id"] = signal.channel
+		return h.publisher.publishChatRoomData(ctx, signal.channel, signal.kind, data)
+	}
+	if signal.peer == signal.actor || signal.peer < 1 || signal.peer > maxSocketID {
+		return errNotificationEvent
+	}
+	data["conversation_id"] = signal.conversation
+	return h.publishUserRealtime(ctx, signal.kind, data, signal.peer)
+}
+
 func (h *LocalPresenceEvents) publishDirectEvent(ctx context.Context, sender, recipient int64, kind string, data map[string]any) error {
-	if ctx.Err() != nil || sender == recipient || sender < 1 || recipient < 1 || sender > maxSocketID || recipient > maxSocketID {
+	if sender == recipient || sender < 1 || recipient < 1 || sender > maxSocketID || recipient > maxSocketID {
+		return errNotificationEvent
+	}
+	return h.publishUserRealtime(ctx, kind, data, sender, recipient)
+}
+
+func (h *LocalPresenceEvents) publishUserRealtime(ctx context.Context, kind string, data map[string]any, recipients ...int64) error {
+	if ctx.Err() != nil {
 		return errNotificationEvent
 	}
 	payload, err := json.Marshal(map[string]any{
@@ -238,7 +296,7 @@ func (h *LocalPresenceEvents) publishDirectEvent(ctx context.Context, sender, re
 		return errNotificationEvent
 	}
 	for id, sub := range h.subscriptions {
-		if sub.user != sender && sub.user != recipient {
+		if !slices.Contains(recipients, sub.user) {
 			continue
 		}
 		select {
@@ -268,12 +326,13 @@ func (h *LocalPresenceEvents) publishDirectEvent(ctx context.Context, sender, re
 	}
 	ctx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 	defer cancel()
-	first := h.publisher.client.Publish(ctx, fmt.Sprintf("ws:user:%d", sender), payload).Err()
-	second := h.publisher.client.Publish(ctx, fmt.Sprintf("ws:user:%d", recipient), payload).Err()
-	if first != nil || second != nil {
-		return errNotificationEvent
+	var publishErr error
+	for _, recipient := range recipients {
+		if h.publisher.client.Publish(ctx, fmt.Sprintf("ws:user:%d", recipient), payload).Err() != nil {
+			publishErr = errNotificationEvent
+		}
 	}
-	return nil
+	return publishErr
 }
 
 func (h *LocalPresenceEvents) PublishPresence(ctx context.Context, presence userPresence) error {

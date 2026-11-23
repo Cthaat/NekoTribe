@@ -262,15 +262,24 @@ func (p *UserEventPublisher) PublishChatRoomEvent(ctx context.Context, event cha
 	} else {
 		data["message_id"] = event.messageID
 	}
-	payload, err := json.Marshal(map[string]any{
-		"type": event.kind, "room": chatSocketRoom(event.channel), "timestamp": p.clock().UnixMilli(), "data": data,
-	})
-	if err != nil || len(payload) > 262144 || !validChatSocketEvent(event.channel, payload) {
+	return p.publishChatRoomData(ctx, event.channel, event.kind, data)
+}
+
+func (p *UserEventPublisher) publishChatRoomData(ctx context.Context, channel int64, kind string, data map[string]any) error {
+	if p == nil || p.client == nil || p.clock == nil || p.serverID == "" || channel < 1 || channel > maxSocketID {
+		return errNotificationEvent
+	}
+	frame := map[string]any{"type": kind, "timestamp": p.clock().UnixMilli(), "data": data}
+	if !isTypingEvent(kind) {
+		frame["room"] = chatSocketRoom(channel)
+	}
+	payload, err := json.Marshal(frame)
+	if err != nil || len(payload) > 262144 || !validChatSocketEvent(channel, payload) {
 		return errNotificationEvent
 	}
 	ctx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 	defer cancel()
-	if p.client.Publish(ctx, fmt.Sprintf("ws:chat:channel:%d", event.channel), payload).Err() != nil {
+	if p.client.Publish(ctx, fmt.Sprintf("ws:chat:channel:%d", channel), payload).Err() != nil {
 		return errNotificationEvent
 	}
 	return nil

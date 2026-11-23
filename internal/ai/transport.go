@@ -278,7 +278,11 @@ func encodeHistoryMessages(selection Selection, messages []any) ([]any, bool, er
 	}
 	return encoded, hasHistory, nil
 }
-func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool, bool, error) {
+func encodeTransport(selection Selection, data []byte, stream bool) ([]byte, map[string]bool, bool, error) {
+	return encodeTransportWithImages(selection, data, stream, nil)
+}
+
+func encodeTransportWithImages(selection Selection, data []byte, stream bool, images []VisionImage) ([]byte, map[string]bool, bool, error) {
 	if len(data) > transportLimit {
 		return nil, nil, false, ErrInvalidRequest
 	}
@@ -295,6 +299,10 @@ func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool,
 		return nil, nil, false, ErrInvalidRequest
 	}
 	encodedMessages, hasHistory, err := encodeHistoryMessages(selection, messages)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	imageBudget, err := attachVisionImages(selection, encodedMessages, images)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -336,7 +344,7 @@ func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool,
 	if ((len(tools) > 0 || hasHistory) && !contains(selection.Capabilities, "tools")) || (structured && !contains(selection.Capabilities, "structured-output")) {
 		return nil, nil, false, ErrUnsupportedCapability
 	}
-	body := map[string]any{"model": selection.Model, "messages": encodedMessages, "stream": false}
+	body := map[string]any{"model": selection.Model, "messages": encodedMessages, "stream": stream && len(names) == 0}
 	switch selection.Adapter {
 	case "openai-compatible":
 		body["n"] = 1
@@ -362,7 +370,7 @@ func encodeTransport(selection Selection, data []byte) ([]byte, map[string]bool,
 	encoder.SetEscapeHTML(false)
 	err = encoder.Encode(body)
 	encoded := bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'})
-	if err != nil || len(encoded) > transportLimit {
+	if err != nil || len(encoded) > transportLimit+imageBudget {
 		return nil, nil, false, ErrInvalidRequest
 	}
 	if _, ok = boundedJSON(encoded, 70); !ok {
@@ -550,11 +558,16 @@ func transportIOError(parent, request context.Context) error {
 // Infer receives only a server-created routing snapshot and JSON request. It
 // never executes tools or claims JSON Schema validation of a provider reply.
 func (t *Transport) Infer(ctx context.Context, snapshot Selection, request []byte) (InferenceResult, error) {
+	return t.InferWithImages(ctx, snapshot, request, nil)
+}
+
+func (t *Transport) InferWithImages(ctx context.Context, snapshot Selection, request []byte, images []VisionImage) (InferenceResult, error) {
 	if ctx.Err() != nil {
 		return InferenceResult{}, ErrCancelled
 	}
 	selection := cloneSelection(snapshot)
-	encoded, names, structured, err := encodeTransport(selection, request)
+	emit, _ := ctx.Value(deltaListenerKey{}).(DeltaListener)
+	encoded, names, structured, err := encodeTransportWithImages(selection, request, emit != nil, images)
 	if err != nil {
 		return InferenceResult{}, err
 	}
@@ -605,6 +618,13 @@ func (t *Transport) Infer(ctx context.Context, snapshot Selection, request []byt
 	encoding, encodingPresent := response.Header["Content-Encoding"]
 	if encodingPresent && (len(encoding) != 1 || strings.ToLower(strings.Trim(encoding[0], " \t\n\v\f\r")) != "identity") {
 		return InferenceResult{}, ErrInvalidProviderResponse
+	}
+	if emit != nil && len(names) == 0 {
+		result, err := readProviderStream(response.Body, selection, structured, emit)
+		if err != nil && requestContext.Err() != nil {
+			return InferenceResult{}, transportIOError(ctx, requestContext)
+		}
+		return result, err
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, transportLimit+1))
 	if err != nil {

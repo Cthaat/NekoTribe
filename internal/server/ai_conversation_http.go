@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/Cthaat/NekoTribe/backend-go/internal/ai"
 	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
 	"io"
 	"math"
@@ -21,7 +22,7 @@ type aiConversationStore interface {
 	deleteAIConversation(context.Context, int64, string, moderationPolicy) error
 	appendAIUserMessage(context.Context, int64, string, string, moderationPolicy) (conversationMessage, error)
 	listAIConversationMessages(context.Context, int64, string, int64, int64, int64, moderationPolicy) ([]conversationHistoryMessage, error)
-	listAIConversations(context.Context, int64, string, int, string, *int64, string, moderationPolicy) (conversationPage, error)
+	listAIConversations(context.Context, int64, string, int, string, *int64, string, knowledgeScope, moderationPolicy) (conversationPage, error)
 }
 
 var aiDecimal = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
@@ -97,6 +98,11 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 		return true
 	}
 	policy := conversationPolicy(config.ModerationAllowAll, config.ModerationAdminAccounts)
+	if strings.HasSuffix(operation, "generate") && wantsAIEventStream(r) {
+		stream := &aiStreamResponse{ResponseWriter: w}
+		r = r.WithContext(ai.WithStreamDeltas(r.Context(), stream.delta))
+		w = stream
+	}
 	var result interface{}
 	var err error
 	switch operation {
@@ -123,6 +129,15 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 			}
 			purpose = values[0]
 		}
+		var scope knowledgeScope
+		if values, found := query["knowledge_scope"]; found {
+			if len(values) != 1 || !knowledgeScope(values[0]).valid() || (purpose != "" && purpose != "knowledge") {
+				respond(w, 400, 40001, "知识范围错误", nil)
+				return true
+			}
+			scope = knowledgeScope(values[0])
+			purpose = "knowledge"
+		}
 		var groupID *int64
 		if _, found := query["group_id"]; found {
 			value, valid := aiPageParam(query, "group_id", 0, 9007199254740991)
@@ -144,7 +159,7 @@ func aiConversationRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 			}
 			targetTitle = "moderation:" + kinds[0] + ":" + strconv.FormatInt(targetID, 10)
 		}
-		result, err = store.listAIConversations(r.Context(), actor, after, int(limit), purpose, groupID, targetTitle, policy)
+		result, err = store.listAIConversations(r.Context(), actor, after, int(limit), purpose, groupID, targetTitle, scope, policy)
 	case "create":
 		body, valid := readAIConversationBody(r)
 		if !valid {
@@ -358,7 +373,7 @@ func aiPageParam(values url.Values, key string, fallback, max int64) (int64, boo
 }
 func parseAIConversationInput(body map[string]interface{}) (conversationInput, bool) {
 	for key := range body {
-		if key != "purpose" && key != "group_id" && key != "title" {
+		if key != "purpose" && key != "group_id" && key != "title" && key != "knowledge_scope" {
 			return conversationInput{}, false
 		}
 	}
@@ -367,6 +382,13 @@ func parseAIConversationInput(body map[string]interface{}) (conversationInput, b
 		return conversationInput{}, false
 	}
 	input := conversationInput{Purpose: purpose}
+	if value, present := body["knowledge_scope"]; present {
+		scope, valid := value.(string)
+		if !valid || !knowledgeScope(scope).valid() {
+			return input, false
+		}
+		input.KnowledgeScope = knowledgeScope(scope)
+	}
 	if value := body["group_id"]; value != nil {
 		group, ok := value.(float64)
 		if !ok || math.IsNaN(group) || math.IsInf(group, 0) || group != math.Trunc(group) || group <= 0 || group > 9007199254740991 {

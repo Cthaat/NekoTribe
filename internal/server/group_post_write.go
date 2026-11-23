@@ -21,6 +21,8 @@ type groupPostMutation struct {
 	group, post            int64
 	content, media, reason string
 	pin, announcement      bool
+	poll                   *postPollCreation
+	markdown               *string
 }
 
 type groupPostWriteStore interface {
@@ -101,7 +103,19 @@ func requireGroupPostAuthor(ctx context.Context, tx *sql.Tx, group, post sql.Nam
 }
 
 func (s OracleSessions) WriteGroupPost(ctx context.Context, actor int64, in groupPostMutation, storage StorageURLPolicy) (any, error) {
-	tx, err := s.DB.BeginTx(ctx, nil)
+	beginTx := s.DB.BeginTx
+	if in.action == "create" && (in.poll != nil || in.markdown != nil) {
+		conn, err := s.DB.Conn(ctx)
+		if err != nil {
+			return nil, errSessionStore
+		}
+		defer conn.Close()
+		if err := checkPostCreationExtras(ctx, conn, in.poll, in.markdown); err != nil {
+			return nil, err
+		}
+		beginTx = conn.BeginTx
+	}
+	tx, err := beginTx(ctx, nil)
 	if err != nil {
 		return nil, errSessionStore
 	}
@@ -120,58 +134,101 @@ func (s OracleSessions) WriteGroupPost(ctx context.Context, actor int64, in grou
 	return result, nil
 }
 
+func requireGroupPostCreationAccess(ctx context.Context, tx *sql.Tx, actor int64, in groupPostMutation) error {
+	group, user := sql.Named("group_id", in.group), sql.Named("user_id", actor)
+	allowed, err := checkGroupContentPermission(ctx, tx, canPostGroupContentSQL, user, group)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &groupMembershipFailure{422, "无权发帖"}
+	}
+	if in.announcement {
+		allowed, err := checkGroupContentPermission(ctx, tx, canModerateGroupContentSQL, user, group)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return &groupMembershipFailure{422, "无权发布公告"}
+		}
+	}
+	return checkPublishAccess(ctx, tx, actor)
+}
+
+func createGroupPostOn(ctx context.Context, tx *sql.Tx, actor int64, in groupPostMutation, storage StorageURLPolicy) (int64, error) {
+	if err := requireGroupPostCreationAccess(ctx, tx, actor, in); err != nil {
+		return 0, err
+	}
+	urls := strings.Split(in.media, ",")
+	if err := lockGroupMediaURLs(ctx, tx, urls, storage); err != nil {
+		if errors.Is(err, errGroupImageMissing) {
+			return 0, &groupMembershipFailure{400, "群组附件不存在或已删除"}
+		}
+		return 0, err
+	}
+	for _, url := range urls {
+		if strings.Contains(url, ",") {
+			return 0, &groupMembershipFailure{400, "media_urls 参数错误"}
+		}
+	}
+	media := strings.Join(urls, ",")
+	if len(media) > 2000 {
+		return 0, &groupMembershipFailure{400, "media_urls 参数错误"}
+	}
+	var post int64
+	if tx.QueryRowContext(ctx, "SELECT seq_group_post_id.NEXTVAL AS id FROM dual").Scan(&post) != nil || post < 1 || post > maxSocketID {
+		return 0, errSessionStore
+	}
+	announcement := 0
+	if in.announcement {
+		announcement = 1
+	}
+	if err := writeOneChatRow(ctx, tx, insertGroupPostSQL, sql.Named("post_id", post),
+		sql.Named("group_id", in.group), sql.Named("user_id", actor), sql.Named("content", in.content),
+		sql.Named("media_urls", emptyGroupFilter(media)), sql.Named("is_announcement", announcement)); err != nil {
+		return 0, err
+	}
+	if in.poll != nil {
+		if err := insertPostPoll(ctx, tx, postPollTarget{group: in.group, post: post}, in.poll); err != nil {
+			return 0, err
+		}
+	}
+	if in.markdown != nil {
+		if err := insertPostMarkdown(ctx, tx, post, true, *in.markdown); err != nil {
+			return 0, err
+		}
+	}
+	return post, nil
+}
+
 func writeGroupPost(ctx context.Context, tx *sql.Tx, actor int64, in groupPostMutation, storage StorageURLPolicy) (any, error) {
 	gb, ab, pb := sql.Named("group_id", in.group), sql.Named("user_id", actor), sql.Named("post_id", in.post)
 	if in.action == "create" {
-		allowed, err := checkGroupContentPermission(ctx, tx, canPostGroupContentSQL, ab, gb)
+		post, err := createGroupPostOn(ctx, tx, actor, in, storage)
 		if err != nil {
 			return nil, err
-		}
-		if !allowed {
-			return nil, &groupMembershipFailure{422, "无权发帖"}
-		}
-		announcement := 0
-		if in.announcement {
-			allowed, err := checkGroupContentPermission(ctx, tx, canModerateGroupContentSQL, ab, gb)
-			if err != nil {
-				return nil, err
-			}
-			if !allowed {
-				return nil, &groupMembershipFailure{422, "无权发布公告"}
-			}
-			announcement = 1
-		}
-		if err := checkPublishAccess(ctx, tx, actor); err != nil {
-			return nil, err
-		}
-		urls := strings.Split(in.media, ",")
-		if err := lockGroupMediaURLs(ctx, tx, urls, storage); err != nil {
-			if errors.Is(err, errGroupImageMissing) {
-				return nil, &groupMembershipFailure{400, "群组附件不存在或已删除"}
-			}
-			return nil, err
-		}
-		for _, url := range urls {
-			if strings.Contains(url, ",") {
-				return nil, &groupMembershipFailure{400, "media_urls 参数错误"}
-			}
-		}
-		media := strings.Join(urls, ",")
-		if len(media) > 2000 {
-			return nil, &groupMembershipFailure{400, "media_urls 参数错误"}
-		}
-		var post int64
-		if tx.QueryRowContext(ctx, "SELECT seq_group_post_id.NEXTVAL AS id FROM dual").Scan(&post) != nil || post < 1 || post > maxSocketID {
-			return nil, errSessionStore
-		}
-		if writeOneChatRow(ctx, tx, insertGroupPostSQL, sql.Named("post_id", post), gb, ab,
-			sql.Named("content", in.content), sql.Named("media_urls", emptyGroupFilter(media)), sql.Named("is_announcement", announcement)) != nil {
-			return nil, errSessionStore
 		}
 		result, _, err := readGroupContent(ctx, tx, actor,
 			groupContentRequest{group: in.group, post: post, page: SessionPage{Start: 1, End: 1}, order: "all"}, storage)
 		if err != nil {
 			return nil, errSessionStore
+		}
+		if in.poll != nil || in.markdown != nil {
+			created, ok := result.(groupPost)
+			if !ok {
+				return nil, errSessionStore
+			}
+			if in.poll != nil {
+				created.Poll, err = readPostPoll(ctx, tx, &actor, postPollTarget{group: in.group, post: post}, false)
+				if err != nil {
+					return nil, err
+				}
+				if created.Poll == nil {
+					return nil, errSessionStore
+				}
+			}
+			created.Markdown = in.markdown
+			result = created
 		}
 		return result, nil
 	}
@@ -284,6 +341,28 @@ func parseGroupPostMutation(raw []byte, in *groupPostMutation) string {
 				return "media_urls 参数错误"
 			}
 		}
+		if field, exists := obj["poll"]; exists {
+			var value any
+			if json.Unmarshal(field, &value) != nil {
+				return "poll 参数错误"
+			}
+			poll, err := parsePostPollCreation(value)
+			if err != nil {
+				return "poll 参数错误"
+			}
+			in.poll = poll
+		}
+		if field, exists := obj["markdown"]; exists {
+			var value any
+			if json.Unmarshal(field, &value) != nil {
+				return "markdown 参数错误"
+			}
+			markdown, err := parsePostMarkdown(value)
+			if err != nil {
+				return "markdown 参数错误"
+			}
+			in.markdown = markdown
+		}
 	case "delete":
 		if field, exists := obj["reason"]; exists {
 			var reason *string
@@ -360,6 +439,16 @@ func groupPostWriteRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 	}
 	result, err := store.WriteGroupPost(r.Context(), actor, in, config.Storage)
 	if err != nil {
+		if errors.Is(err, errPostPollCutoff) || errors.Is(err, errPostPollUnavailable) {
+			failure := postPollFailure(err)
+			respond(w, failure.status, failure.status*100+1, failure.message, nil)
+			return true
+		}
+		if errors.Is(err, errPostMarkdownInvalid) || errors.Is(err, errPostMarkdownUnavailable) {
+			failure := postMarkdownFailure(err)
+			respond(w, failure.status, failure.status*100+1, failure.message, nil)
+			return true
+		}
 		groupInviteReadError(w, err)
 		return true
 	}

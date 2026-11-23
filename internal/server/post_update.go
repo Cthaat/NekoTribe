@@ -3,10 +3,11 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/Cthaat/NekoTribe/backend-go/internal/auth"
 )
 
 type PostUpdateInput struct {
@@ -17,12 +18,23 @@ type PostUpdateInput struct {
 	MediaIDs   *[]float64 `json:"media_ids,omitempty"`
 	Tags       *[]string  `json:"tag_names,omitempty"`
 	Mentions   *[]float64 `json:"mention_user_ids,omitempty"`
+	markdown   *postMarkdownEdit
 }
 
 var postLanguagePattern = regexp.MustCompile(`^[a-z]{2}(-[a-z0-9]{2,7})?$`)
 
 func readPostUpdateInput(body map[string]interface{}) (PostUpdateInput, string) {
 	input := PostUpdateInput{}
+	if value, present := body["markdown"]; present {
+		input.markdown = &postMarkdownEdit{}
+		if value != nil {
+			markdown, err := parsePostMarkdown(value)
+			if err != nil {
+				return input, "markdown 参数错误"
+			}
+			input.markdown.body = markdown
+		}
+	}
 	if value, present := body["content"]; present {
 		v := registrationString(value)
 		input.Content = &v
@@ -109,6 +121,9 @@ func updatePost(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 			respond(w, 400, 40001, "附件不存在或无权使用", nil)
 		case errors.Is(err, errPostContentEmpty):
 			respond(w, 400, 40001, "content 不能为空", nil)
+		case errors.Is(err, errPostMarkdownInvalid), errors.Is(err, errPostMarkdownUnavailable):
+			failure := postMarkdownFailure(err)
+			respond(w, failure.status, failure.status*100+1, failure.message, nil)
 		default:
 			respond(w, 500, 50001, "服务器内部错误", nil)
 		}

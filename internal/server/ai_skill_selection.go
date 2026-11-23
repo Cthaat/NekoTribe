@@ -9,10 +9,16 @@ import (
 var errSkillUnavailable = errors.New("SKILL_UNAVAILABLE")
 
 type skillScope struct {
-	ActorID int64
-	Purpose string
-	GroupID *int64
+	ActorID        int64
+	Purpose        string
+	GroupID        *int64
+	KnowledgeScope knowledgeScope
 }
+
+func (scope skillScope) access() conversationInput {
+	return conversationInput{Purpose: scope.Purpose, GroupID: scope.GroupID, KnowledgeScope: scope.KnowledgeScope}
+}
+
 type skillSelection struct {
 	skillScope
 	ID        string
@@ -74,7 +80,8 @@ func cloneSkillScope(scope skillScope) skillScope {
 // Authorization must be supplied by the current backend, not by a client or model.
 func (r *skillRegistry) selectSkill(ctx context.Context, scope skillScope, id *string, authorize func(context.Context, skillScope) error) (skillSelection, error) {
 	item, ok := skillForPurpose(scope.Purpose)
-	if r == nil || !ok || scope.ActorID < 1 || scope.ActorID > 9007199254740991 || (scope.Purpose == "group" && (scope.GroupID == nil || *scope.GroupID < 1 || *scope.GroupID > 999999999999999)) || (scope.Purpose != "group" && scope.GroupID != nil) || (id != nil && (*id == "" || *id != item.id)) || !r.enabled[item.id] || authorize == nil {
+	_, accessErr := validateConversationInput(scope.access())
+	if r == nil || !ok || scope.ActorID < 1 || scope.ActorID > 9007199254740991 || accessErr != nil || (scope.Purpose == "group" && *scope.GroupID > knowledgeMaxID) || (id != nil && (*id == "" || *id != item.id)) || !r.enabled[item.id] || authorize == nil {
 		return skillSelection{}, errSkillUnavailable
 	}
 	scope = cloneSkillScope(scope)
@@ -98,8 +105,8 @@ func selectConversationSkill(ctx context.Context, tx *sql.Tx, registry *skillReg
 	if err != nil {
 		return skillSelection{}, errSkillUnavailable
 	}
-	scope := skillScope{ActorID: actor, Purpose: record.Purpose, GroupID: record.GroupID}
+	scope := skillScope{ActorID: actor, Purpose: record.Purpose, GroupID: record.GroupID, KnowledgeScope: record.KnowledgeScope}
 	return registry.selectSkill(ctx, scope, skillID, func(ctx context.Context, s skillScope) error {
-		return authorizeConversation(ctx, tx, s.ActorID, conversationInput{Purpose: s.Purpose, GroupID: s.GroupID}, policy)
+		return authorizeConversation(ctx, tx, s.ActorID, s.access(), policy)
 	})
 }

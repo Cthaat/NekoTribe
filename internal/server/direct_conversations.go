@@ -104,7 +104,7 @@ func scanDirectConversation(row notificationScanner, total *int64) (directConver
 	}
 	item.CreatedAt, item.UpdatedAt = date(created), date(updated)
 	if lastID.Valid && lastID.Int64 > 0 {
-		item.LastMessage = &directLastMessage{lastID.Int64, content.String, name.String, date(latest)}
+		item.LastMessage = &directLastMessage{lastID.Int64, directVisibleContent(content.String), name.String, date(latest)}
 	}
 	return item, nil
 }

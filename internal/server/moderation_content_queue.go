@@ -27,23 +27,24 @@ var contentQueueContract = func() contentQueueSpec {
 }()
 
 type contentQueueItem struct {
-	CaseID      int64              `json:"case_id"`
-	PostID      int64              `json:"post_id"`
-	Content     string             `json:"content"`
-	Author      PublicUser         `json:"author"`
-	Media       []PostMedia        `json:"media"`
-	ReportCount int64              `json:"report_count"`
-	Reasons     []string           `json:"report_reasons"`
-	Reports     []moderationReport `json:"reports"`
-	Status      string             `json:"status"`
-	Priority    string             `json:"priority"`
-	Assigned    *PublicUser        `json:"assigned_to"`
-	Created     string             `json:"created_at"`
-	Updated     string             `json:"updated_at"`
-	Reported    string             `json:"reported_at"`
-	Likes       int64              `json:"likes_count"`
-	Retweets    int64              `json:"retweets_count"`
-	Replies     int64              `json:"replies_count"`
+	CaseID          int64              `json:"case_id"`
+	PostID          int64              `json:"post_id"`
+	Content         string             `json:"content"`
+	Author          PublicUser         `json:"author"`
+	Media           []PostMedia        `json:"media"`
+	ReportCount     int64              `json:"report_count"`
+	Reasons         []string           `json:"report_reasons"`
+	Reports         []moderationReport `json:"reports"`
+	Status          string             `json:"status"`
+	Priority        string             `json:"priority"`
+	Assigned        *PublicUser        `json:"assigned_to"`
+	Created         string             `json:"created_at"`
+	Updated         string             `json:"updated_at"`
+	Reported        string             `json:"reported_at"`
+	Likes           int64              `json:"likes_count"`
+	Retweets        int64              `json:"retweets_count"`
+	Replies         int64              `json:"replies_count"`
+	SentimentSignal *sentimentSignal   `json:"sentiment_signal,omitempty"`
 }
 
 type contentQueueFilters struct{ Status, Priority, Reason, Search, Date, Sort string }
@@ -224,6 +225,11 @@ func handleModerationContentQueue(w http.ResponseWriter, r *http.Request, codec 
 	if err != nil {
 		serverError()
 		return true
+	}
+	if option := params["sentiment_signal"]; len(option) == 1 && option[0] == "1" && config.sentiment != nil {
+		if source, ok := repo.(contentQueueSentimentSource); ok {
+			addContentQueueSentiment(ctx, source, config.sentiment, viewer, data)
+		}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(map[string]any{"code": 200, "message": "moderation content listed", "data": data,

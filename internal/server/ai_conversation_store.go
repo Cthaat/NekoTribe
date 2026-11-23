@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -25,29 +26,47 @@ var (
 )
 
 type conversationRecord struct {
-	ID        string  `json:"conversation_id"`
-	Purpose   string  `json:"purpose"`
-	GroupID   *int64  `json:"group_id"`
-	Title     *string `json:"title"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	ID             string         `json:"conversation_id"`
+	Purpose        string         `json:"purpose"`
+	GroupID        *int64         `json:"group_id"`
+	KnowledgeScope knowledgeScope `json:"knowledge_scope,omitempty"`
+	Title          *string        `json:"title"`
+	CreatedAt      string         `json:"created_at"`
+	UpdatedAt      string         `json:"updated_at"`
 }
 type conversationInput struct {
-	Purpose string
-	GroupID *int64
-	Title   string
+	Purpose        string
+	GroupID        *int64
+	KnowledgeScope knowledgeScope
+	Title          string
 }
+
+func (r conversationRecord) access() conversationInput {
+	return conversationInput{Purpose: r.Purpose, GroupID: r.GroupID, KnowledgeScope: r.KnowledgeScope}
+}
+
+func (r *conversationRecord) readKnowledgeScope(stored knowledgeScope) error {
+	if !stored.valid() || (r.Purpose != "knowledge" && stored != knowledgePublic) {
+		return errSessionStore
+	}
+	if r.Purpose == "knowledge" {
+		r.KnowledgeScope = stored
+	}
+	return nil
+}
+
 type assistantMessageInput struct {
-	Content          string
-	ExpectedSequence int64
-	ModelID          string
-	ModelVersion     string
-	ConfigRevision   int64
-	SkillGeneration  int64
-	Knowledge        bool
-	ContextSnapshot  []conversationHistoryMessage
-	GroupDraft       *groupDraftRecord
-	ModerationAdvice *moderationAdviceRecord
+	Content               string
+	ExpectedSequence      int64
+	ModelID               string
+	ModelVersion          string
+	ConfigRevision        int64
+	SkillGeneration       int64
+	Knowledge             bool
+	KnowledgeDependencies []knowledgeCandidate
+	ContextSnapshot       []conversationHistoryMessage
+	GroupDraft            *groupDraftRecord
+	ModerationAdvice      *moderationAdviceRecord
 }
 type conversationMessage struct {
 	ID             string `json:"message_id"`
@@ -56,20 +75,21 @@ type conversationMessage struct {
 	Role           string `json:"role"`
 }
 type conversationHistoryMessage struct {
-	ID                 string              `json:"message_id"`
-	ConversationID     string              `json:"conversation_id"`
-	SequenceNo         int64               `json:"sequence_no"`
-	Role               string              `json:"role"`
-	Content            string              `json:"content"`
-	ModelID            *string             `json:"model_id"`
-	ModelVersion       *string             `json:"model_version"`
-	ConfigRevision     *int64              `json:"config_revision"`
-	CreatedAt          string              `json:"created_at"`
-	Citations          []knowledgeCitation `json:"citations,omitempty"`
-	GroupSources       *[]groupDraftSource `json:"group_sources,omitempty"`
-	GroupTools         []string            `json:"group_tools,omitempty"`
-	ModerationAdvice   json.RawMessage     `json:"moderation_advice,omitempty"`
-	ModerationFeedback string              `json:"moderation_feedback,omitempty"`
+	ID                    string               `json:"message_id"`
+	ConversationID        string               `json:"conversation_id"`
+	SequenceNo            int64                `json:"sequence_no"`
+	Role                  string               `json:"role"`
+	Content               string               `json:"content"`
+	ModelID               *string              `json:"model_id"`
+	ModelVersion          *string              `json:"model_version"`
+	ConfigRevision        *int64               `json:"config_revision"`
+	CreatedAt             string               `json:"created_at"`
+	Citations             []knowledgeCitation  `json:"citations,omitempty"`
+	KnowledgeDependencies []knowledgeCandidate `json:"-"`
+	GroupSources          *[]groupDraftSource  `json:"group_sources,omitempty"`
+	GroupTools            []string             `json:"group_tools,omitempty"`
+	ModerationAdvice      json.RawMessage      `json:"moderation_advice,omitempty"`
+	ModerationFeedback    string               `json:"moderation_feedback,omitempty"`
 }
 type moderationPolicy struct {
 	AllowAll bool
@@ -129,7 +149,7 @@ func (s OracleSessions) deleteAIConversationOperation(ctx context.Context, user 
 	if e != nil || rows != 1 {
 		return errSessionStore
 	}
-	if e = authorizeConversation(ctx, tx, user, conversationInput{Purpose: record.Purpose, GroupID: record.GroupID}, policy); e != nil {
+	if e = authorizeConversation(ctx, tx, user, record.access(), policy); e != nil {
 		return e
 	}
 	commitStarted = true
@@ -173,13 +193,24 @@ func conversationPolicy(allowAll, accounts string) moderationPolicy {
 }
 
 func validateConversationInput(input conversationInput) (conversationInput, error) {
+	validGroup := input.GroupID != nil && *input.GroupID > 0 && *input.GroupID <= maxKnowledgeGroupID
+	if input.Purpose != "knowledge" && input.KnowledgeScope != "" {
+		return input, errConversationInvalid
+	}
 	switch input.Purpose {
-	case "knowledge", "writing", "moderation":
+	case "knowledge":
+		if input.KnowledgeScope == "" {
+			input.KnowledgeScope = knowledgePublic
+		}
+		if !input.KnowledgeScope.valid() || (input.KnowledgeScope == knowledgeGroup && !validGroup) || (input.KnowledgeScope != knowledgeGroup && input.GroupID != nil) {
+			return input, errConversationInvalid
+		}
+	case "writing", "moderation":
 		if input.GroupID != nil {
 			return input, errConversationInvalid
 		}
 	case "group":
-		if input.GroupID == nil || *input.GroupID <= 0 || *input.GroupID > 9007199254740991 {
+		if !validGroup {
 			return input, errConversationInvalid
 		}
 	default:
@@ -202,6 +233,10 @@ func verifyConversationSchema(ctx context.Context, conn *sql.Conn) error {
 
 func authorizeConversation(ctx context.Context, tx *sql.Tx, user int64, input conversationInput, policy moderationPolicy) error {
 	switch input.Purpose {
+	case "knowledge":
+		if input.KnowledgeScope == knowledgeGroup {
+			return requireKnowledgeGroupMember(ctx, tx, user, input.GroupID)
+		}
 	case "group":
 		var allowed sql.NullInt64
 		if tx.QueryRowContext(ctx, `SELECT fn_has_group_permission(:user_id,:group_id,:role) AS allowed FROM dual`, sql.Named("user_id", user), sql.Named("group_id", *input.GroupID), sql.Named("role", "admin")).Scan(&allowed) != nil {
@@ -243,13 +278,14 @@ func checkModerationAccess(ctx context.Context, db publicProfileQueryer, user in
 func readConversationRow(ctx context.Context, tx *sql.Tx, user int64, id string, policy moderationPolicy, lock bool) (conversationRecord, error) {
 	var result conversationRecord
 	var group sql.NullInt64
+	var storedScope knowledgeScope
 	var title sql.NullString
 	var created, updated sql.NullTime
-	query := `SELECT conversation_id,purpose,group_id,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`
+	query := `SELECT conversation_id,purpose,group_id,knowledge_scope,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id`
 	if lock {
 		query += " FOR UPDATE"
 	}
-	err := tx.QueryRowContext(ctx, query, sql.Named("conversation_id", id), sql.Named("owner_user_id", user)).Scan(&result.ID, &result.Purpose, &group, &title, &created, &updated)
+	err := tx.QueryRowContext(ctx, query, sql.Named("conversation_id", id), sql.Named("owner_user_id", user)).Scan(&result.ID, &result.Purpose, &group, &storedScope, &title, &created, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return result, errConversationNotFound
 	}
@@ -267,11 +303,19 @@ func readConversationRow(ctx context.Context, tx *sql.Tx, user int64, id string,
 	if value := profileDate(updated); value != nil {
 		result.UpdatedAt = *value
 	}
-	input, err := validateConversationInput(conversationInput{Purpose: result.Purpose, GroupID: result.GroupID})
+	if err := result.readKnowledgeScope(storedScope); err != nil {
+		return conversationRecord{}, err
+	}
+	input, err := validateConversationInput(result.access())
 	if err != nil {
 		return conversationRecord{}, errSessionStore
 	}
-	if err = authorizeConversation(ctx, tx, user, input, policy); err != nil {
+	if lock && input.KnowledgeScope == knowledgeGroup {
+		err = lockKnowledgeGroup(ctx, tx, user, input.GroupID)
+	} else {
+		err = authorizeConversation(ctx, tx, user, input, policy)
+	}
+	if err != nil {
 		return conversationRecord{}, err
 	}
 	return result, nil
@@ -316,14 +360,23 @@ func (s OracleSessions) conversationOperation(ctx context.Context, user int64, i
 		}
 	}()
 	if input != nil {
-		if e = authorizeConversation(ctx, tx, user, *input, policy); e != nil {
+		if input.KnowledgeScope == knowledgeGroup {
+			e = lockKnowledgeGroup(ctx, tx, user, input.GroupID)
+		} else {
+			e = authorizeConversation(ctx, tx, user, *input, policy)
+		}
+		if e != nil {
 			return result, e
 		}
 		id, e = randomUUID()
 		if e != nil {
 			return result, errSessionStore
 		}
-		insert, e := tx.ExecContext(ctx, `INSERT INTO n_ai_conversations (conversation_id,owner_user_id,purpose,group_id,title) VALUES (:conversation_id,:owner_user_id,:purpose,:group_id,:title)`, sql.Named("conversation_id", id), sql.Named("owner_user_id", user), sql.Named("purpose", input.Purpose), sql.Named("group_id", input.GroupID), sql.Named("title", nullableRegistration(input.Title)))
+		storedScope := input.KnowledgeScope
+		if storedScope == "" {
+			storedScope = knowledgePublic
+		}
+		insert, e := tx.ExecContext(ctx, `INSERT INTO n_ai_conversations (conversation_id,owner_user_id,purpose,group_id,knowledge_scope,title) VALUES (:conversation_id,:owner_user_id,:purpose,:group_id,:knowledge_scope,:title)`, sql.Named("conversation_id", id), sql.Named("owner_user_id", user), sql.Named("purpose", input.Purpose), sql.Named("group_id", input.GroupID), sql.Named("knowledge_scope", string(storedScope)), sql.Named("title", nullableRegistration(input.Title)))
 		if e != nil {
 			return result, errSessionStore
 		}
@@ -379,21 +432,16 @@ func (s OracleSessions) appendAIKnowledgeAssistantOperation(ctx context.Context,
 		if err != nil || len(selected.Snapshot) != len(input.ContextSnapshot) || selected.Snapshot[len(selected.Snapshot)-1].SequenceNo != input.ExpectedSequence {
 			return conversationMessage{}, errConversationInvalid
 		}
-		for _, ref := range selected.Sources {
-			found := false
-			for _, source := range sources {
-				if ref == source {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return conversationMessage{}, errConversationInvalid
-			}
+		guarded := sources
+		if len(input.KnowledgeDependencies) > 0 {
+			guarded = input.KnowledgeDependencies
+		}
+		if !knowledgeContainsReferences(guarded, selected.Sources) {
+			return conversationMessage{}, errConversationInvalid
 		}
 		input.ContextSnapshot = selected.Snapshot
 	}
-	content, err := encodeKnowledgeMessage(input.Content, sources)
+	content, err := encodeKnowledgeMessageWithDependencies(input.Content, sources, input.KnowledgeDependencies)
 	if err != nil {
 		return conversationMessage{}, errConversationInvalid
 	}
@@ -402,7 +450,7 @@ func (s OracleSessions) appendAIKnowledgeAssistantOperation(ctx context.Context,
 	return s.appendAIAssistantMessageOperation(ctx, user, id, input, policy, verify)
 }
 
-func checkKnowledgeContextSnapshot(ctx context.Context, tx *sql.Tx, user int64, id string, snapshot []conversationHistoryMessage) error {
+func checkKnowledgeContextSnapshot(ctx context.Context, tx *sql.Tx, user int64, id string, access conversationInput, snapshot []conversationHistoryMessage) error {
 	rows, err := tx.QueryContext(ctx, `SELECT m.sequence_no,m.role,m.content FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no>:after_sequence ORDER BY m.sequence_no ASC FETCH FIRST :row_limit ROWS ONLY`, sql.Named("conversation_id", id), sql.Named("owner_user_id", user), sql.Named("after_sequence", snapshot[0].SequenceNo-1), sql.Named("row_limit", len(snapshot)))
 	if err != nil {
 		return errSessionStore
@@ -432,17 +480,21 @@ func checkKnowledgeContextSnapshot(ctx context.Context, tx *sql.Tx, user int64, 
 			return errConversationConflict
 		}
 		if m.Role == "assistant" {
-			restored, e := restoreKnowledgeMessage(ctx, m.Content, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
-				return hydrateKnowledge(ctx, oracleKnowledgeReader{tx}, user, refs)
-			})
+			restored, e := restoreConversationKnowledgeMessage(ctx, tx, user, access, m.Content, false)
 			if errors.Is(e, errKnowledgeHistory) || errors.Is(e, errKnowledgeSourceChanged) {
 				return errConversationConflict
 			}
-			if e != nil || restored.Answer == nil {
+			if e != nil {
+				return e
+			}
+			if restored.Answer == nil {
 				return errSessionStore
 			}
 			m.Content = *restored.Answer
 			m.Citations = restored.Citations
+			if !slices.Equal(restored.Dependencies, expected.KnowledgeDependencies) {
+				return errConversationConflict
+			}
 		}
 		if m.Content != expected.Content || len(m.Citations) != len(expected.Citations) {
 			return errConversationConflict
@@ -496,6 +548,9 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 	if assistant != nil && ((record.Purpose == "knowledge") != assistant.Knowledge) {
 		return result, errConversationConflict
 	}
+	if assistant != nil && assistant.Knowledge && record.KnowledgeScope.restricted() != (len(assistant.KnowledgeDependencies) > 0) {
+		return result, errConversationInvalid
+	}
 	var groupDraft *groupDraftRecord
 	var review *moderationAdviceRecord
 	if assistant != nil {
@@ -531,7 +586,7 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 		if config.Generation != assistant.SkillGeneration {
 			return result, errConversationConflict
 		}
-		scope := skillScope{ActorID: user, Purpose: record.Purpose, GroupID: record.GroupID}
+		scope := skillScope{ActorID: user, Purpose: record.Purpose, GroupID: record.GroupID, KnowledgeScope: record.KnowledgeScope}
 		id := "writing-draft"
 		if assistant.Knowledge {
 			id = "knowledge-answer"
@@ -543,7 +598,7 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 			id = "moderation-advice"
 		}
 		if _, e = config.Registry.selectSkill(ctx, scope, &id, func(ctx context.Context, scope skillScope) error {
-			return authorizeConversation(ctx, tx, scope.ActorID, conversationInput{Purpose: scope.Purpose, GroupID: scope.GroupID}, policy)
+			return authorizeConversation(ctx, tx, scope.ActorID, scope.access(), policy)
 		}); e != nil {
 			return result, e
 		}
@@ -554,10 +609,11 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 		}
 	}
 	recheck := func() error {
-		_, e := restoreKnowledgeMessage(ctx, content, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
-			return hydrateKnowledge(ctx, lockedKnowledgeReader{tx}, user, refs)
-		})
+		_, e := restoreConversationKnowledgeMessage(ctx, tx, user, record.access(), content, true)
 		if e != nil {
+			if record.KnowledgeScope.restricted() {
+				return e
+			}
 			return errSessionStore
 		}
 		return nil
@@ -583,7 +639,7 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 		}
 	}
 	if assistant != nil && assistant.ContextSnapshot != nil {
-		if e = checkKnowledgeContextSnapshot(ctx, tx, user, id, assistant.ContextSnapshot); e != nil {
+		if e = checkKnowledgeContextSnapshot(ctx, tx, user, id, record.access(), assistant.ContextSnapshot); e != nil {
 			return result, e
 		}
 	}
@@ -606,8 +662,7 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 	if count, e := updated.RowsAffected(); e != nil || count != 1 {
 		return result, errSessionStore
 	}
-	scope := conversationInput{Purpose: record.Purpose, GroupID: record.GroupID}
-	if e = authorizeConversation(ctx, tx, user, scope, policy); e != nil {
+	if e = authorizeConversation(ctx, tx, user, record.access(), policy); e != nil {
 		return result, e
 	}
 	if assistant != nil && assistant.Knowledge {
@@ -616,7 +671,7 @@ func (s OracleSessions) appendAIMessageOperation(ctx context.Context, user int64
 		}
 	}
 	if assistant != nil && assistant.ContextSnapshot != nil {
-		if e = checkKnowledgeContextSnapshot(ctx, tx, user, id, assistant.ContextSnapshot); e != nil {
+		if e = checkKnowledgeContextSnapshot(ctx, tx, user, id, record.access(), assistant.ContextSnapshot); e != nil {
 			return result, e
 		}
 	}
@@ -732,9 +787,7 @@ func (s OracleSessions) listAIHistoryOperation(ctx context.Context, user int64, 
 			if items[i].Role != "assistant" {
 				continue
 			}
-			message, e := restoreKnowledgeMessage(ctx, items[i].Content, func(ctx context.Context, refs []knowledgeCandidate) ([]knowledgeSource, error) {
-				return hydrateKnowledge(ctx, oracleKnowledgeReader{tx}, user, refs)
-			})
+			message, e := restoreConversationKnowledgeMessage(ctx, tx, user, record.access(), items[i].Content, false)
 			if errors.Is(e, errKnowledgeHistory) || errors.Is(e, errKnowledgeSourceChanged) {
 				// Recent context is read newest first, so keep the contiguous newer suffix.
 				if newest {
@@ -742,13 +795,20 @@ func (s OracleSessions) listAIHistoryOperation(ctx context.Context, user int64, 
 					break
 				}
 				items[i].Content = "公开资料已变更，历史回答不可用。"
+				if record.KnowledgeScope.restricted() {
+					items[i].Content = "资料已变更，历史回答不可用。"
+				}
 				continue
+			}
+			if errors.Is(e, errConversationForbidden) {
+				return nil, e
 			}
 			if e != nil || message.Answer == nil {
 				return nil, errSessionStore
 			}
 			items[i].Content = *message.Answer
 			items[i].Citations = message.Citations
+			items[i].KnowledgeDependencies = message.Dependencies
 		}
 	}
 	if record.Purpose == "group" && record.GroupID != nil {

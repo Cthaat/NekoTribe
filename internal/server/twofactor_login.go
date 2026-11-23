@@ -73,7 +73,7 @@ func truncateDevice(value string) string {
 	return value
 }
 
-func beginTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, store LoginRepository, user LoginAccount, account string, remember bool, config RefreshConfig) {
+func beginTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, store LoginRepository, user LoginAccount, account, staleMessage string, remember bool, config RefreshConfig, success loginSuccessResponse) {
 	factor, ok := store.(TwoFactorRepository)
 	if !ok {
 		respond(w, 503, 50301, "双因素登录暂不可用", nil)
@@ -84,7 +84,7 @@ func beginTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.TokenMan
 	ip := requestIP(r, config.TrustProxy)
 	agent := headerDefault(r, "User-Agent")
 	if key := trustedDeviceKey(r); key != "" &&
-		issueLogin(w, r, codec, store, user, "账号或密码错误", config, loginSessionOptions{requiredKey: key}) {
+		issueLogin(w, r, codec, store, user, staleMessage, config, loginSessionOptions{requiredKey: key, success: success}) {
 		return
 	}
 	// Nuxt rechecks readiness before creating a challenge, after the trusted
@@ -102,13 +102,13 @@ func beginTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.TokenMan
 	challenge.verifiedPasswordHash = user.PasswordHash
 	if err = factor.CreateLoginChallenge(r.Context(), challenge); err != nil {
 		if errors.Is(err, errLoginCredentialsChanged) {
-			respond(w, 401, 40101, "账号或密码错误", nil)
+			respond(w, 401, 40101, staleMessage, nil)
 			return
 		}
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
-	respond(w, 200, 200, "two factor required", map[string]interface{}{"two_factor_required": true, "challenge_id": challenge.ID, "account": account, "expires_at": challenge.ExpiresAt.Format("2006-01-02T15:04:05.000Z")})
+	success.send(w, "two factor required", map[string]interface{}{"two_factor_required": true, "challenge_id": challenge.ID, "account": account, "expires_at": challenge.ExpiresAt.Format("2006-01-02T15:04:05.000Z")})
 }
 
 func completeTwoFactor(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig, pathID string) {

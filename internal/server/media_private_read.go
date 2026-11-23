@@ -28,8 +28,17 @@ type privateMediaReader interface {
 }
 
 func (s OracleSessions) ReadPrivateMedia(ctx context.Context, viewer, media int64) (string, string, error) {
+	conn, err := s.DB.Conn(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	defer conn.Close()
 	var key, scope sql.NullString
-	err := s.DB.QueryRowContext(ctx, privateMediaReadQuery, sql.Named("viewer_id", viewer), sql.Named("media_id", media)).Scan(&key, &scope)
+	args := []any{sql.Named("viewer_id", viewer), sql.Named("media_id", media)}
+	err = conn.QueryRowContext(ctx, directExtrasContract.SQL["private_media_read"], args...).Scan(&key, &scope)
+	if directExtrasAbsent(ctx, conn, "attachment_table_present", err) {
+		err = conn.QueryRowContext(ctx, privateMediaReadQuery, args...).Scan(&key, &scope)
+	}
 	return key.String, scope.String, err
 }
 
@@ -54,11 +63,18 @@ func normalizePrivateMediaStorageKey(raw, scope string) (string, error) {
 }
 
 func privateMediaSchemaMissing(err error) bool {
+	return oracleErrorCode(err, "ORA-00904") || oracleErrorCode(err, "ORA-00942")
+}
+
+func oracleErrorCode(err error, code string) bool {
+	if err == nil {
+		return false
+	}
 	var oracleErr interface{ ErrorCode() string }
 	if errors.As(err, &oracleErr) {
-		return oracleErr.ErrorCode() == "ORA-00904" || oracleErr.ErrorCode() == "ORA-00942"
+		return oracleErr.ErrorCode() == code
 	}
-	return strings.HasPrefix(err.Error(), "ORA-00904:") || strings.HasPrefix(err.Error(), "ORA-00942:")
+	return strings.HasPrefix(err.Error(), code+":")
 }
 
 func respondPrivateMediaError(w http.ResponseWriter, status int) {

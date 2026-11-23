@@ -1,0 +1,11 @@
+{
+  "id": "AI-USER-PROVIDER",
+  "revision": 1,
+  "cases": [
+    {"id":"saved-test-writing","status":200,"assertion":"An authenticated account can save its preset and key, test model availability, and use it in writing with ordinary platform permission and quota checks."},
+    {"id":"no-credential-response","status":200,"assertion":"Reading and saving return only safe metadata for the actor. The key and encrypted record are absent."},
+    {"id":"preset-changed","status":409,"assertion":"A stored key cannot carry over to a changed endpoint. A fresh key requires explicit user submission."},
+    {"id":"arbitrary-client-url-denied","status":400,"assertion":"Clients can submit only a recognized preset ID. An injected endpoint is never contacted."},
+    {"id":"removal","status":200,"assertion":"Deleting the actor's configuration is idempotent. Further writing uses the platform default."}
+  ]
+}

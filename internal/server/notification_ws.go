@@ -113,24 +113,26 @@ func validRealtimeStatus(kind string, data map[string]json.RawMessage, timestamp
 }
 
 func socketEventMatchesChannel(channel, userChannel string, body []byte) bool {
-	var event struct {
-		Type      string                     `json:"type"`
-		Data      map[string]json.RawMessage `json:"data"`
-		Timestamp *float64                   `json:"timestamp"`
-	}
+	var event socketEventFrame
 	if json.Unmarshal(body, &event) != nil || !validSocketTimestamp(event.Timestamp) || event.Data == nil {
 		return false
 	}
-	return (channel == userChannel && (isNotificationEvent(event.Type) || validDirectSocketEvent(event.Type, event.Data))) ||
-		(channel == "ws:presence" && event.Type == "presence_update" && validPresenceEvent(event.Data))
+	if channel == userChannel {
+		if isNotificationEvent(event.Type) || validDirectSocketEvent(event.Type, event.Data) || validUserSocketSignal(event.Type, body) {
+			return true
+		}
+		_, valid := decodeWebRTCBrokerFrame(body, event.Type)
+		return valid
+	}
+	return channel == "ws:presence" && event.Type == "presence_update" && validPresenceEvent(event.Data)
 }
 
-func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, cors CorsPolicy, siteBaseURL string, source NotificationEventSource, chatSource chatChannelSource) {
+func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, cors CorsPolicy, config RefreshConfig) {
 	if !validSocketHandshake(r) {
 		respond(w, 400, 40001, "请求参数错误", nil)
 		return
 	}
-	if !socketOriginAllowed(r, cors, siteBaseURL) {
+	if !socketOriginAllowed(r, cors, config.Storage.BaseURL) {
 		respond(w, 403, 40301, "Forbidden", nil)
 		return
 	}
@@ -148,6 +150,7 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 		respond(w, 401, 40101, "Token无效或已过期", nil)
 		return
 	}
+	source, chatSource := config.NotificationEvents, config.ChatChannelEvents
 	if source == nil {
 		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
 		return
@@ -169,11 +172,17 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 		return
 	}
 	defer conn.CloseNow()
-	conn.SetReadLimit(65536)
+	metrics := requestTelemetryFrom(ctx).telemetry
+	metrics.changeSocketConnections(1)
+	defer metrics.changeSocketConnections(-1)
+	const legacySocketReadLimit = 65536
+	conn.SetReadLimit(262144)
 	id, err := randomUUID()
 	if err != nil {
 		return
 	}
+	callSocket := newWebRTCSocket(claims.UserID, "ws_"+id, repository, config)
+	defer callSocket.disconnect(ctx)
 	write := func(kind string, data map[string]interface{}) bool {
 		body, e := json.Marshal(map[string]interface{}{"type": kind, "data": data, "timestamp": time.Now().UnixMilli()})
 		if e != nil {
@@ -196,6 +205,10 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 				return
 			}
 			if kind != websocket.MessageText {
+				if len(body) > legacySocketReadLimit {
+					_ = conn.Close(websocket.StatusMessageTooBig, "message too large")
+					return
+				}
 				continue
 			}
 			select {
@@ -215,7 +228,23 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 	}
 	chatAccess, _ := repository.(chatChannelAccess)
 	directAccess, _ := repository.(directMessageAccess)
+	signalAccess, _ := repository.(directSignalAccess)
+	typing, _ := config.DirectEvents.(typingPublisher)
+	lastTyping := make(map[string]time.Time, 2)
+	typingInterval := time.Duration(chatRealtimeDetails.TypingMinIntervalMS) * time.Millisecond
 	rooms := make(map[int64]*chatSocketRoomSubscription)
+	leaveRoom := func(channelID int64) {
+		if room := rooms[channelID]; room != nil {
+			room.cancel()
+			delete(rooms, channelID)
+			metrics.changeSocketChannel(channelID, -1)
+		}
+	}
+	defer func() {
+		for channelID := range rooms {
+			leaveRoom(channelID)
+		}
+	}()
 	chatEvents := make(chan chatSocketDelivery, 16)
 	canReadRoom := func(id int64) (bool, error) {
 		checkCtx, finish := context.WithTimeout(ctx, 5*time.Second)
@@ -237,6 +266,8 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 			if !alive() {
 				return
 			}
+		case <-callSocket.ringDeadline():
+			callSocket.expire(ctx)
 		case message, ok := <-in:
 			if !ok || !alive() {
 				return
@@ -245,7 +276,12 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 				Type string                     `json:"type"`
 				Data map[string]json.RawMessage `json:"data"`
 			}
-			if json.Unmarshal(message.body, &value) != nil {
+			decodeErr := json.Unmarshal(message.body, &value)
+			if len(message.body) > legacySocketReadLimit && (decodeErr != nil || webRTCAction(value.Type) == "") {
+				_ = conn.Close(websocket.StatusMessageTooBig, "message too large")
+				return
+			}
+			if decodeErr != nil {
 				if strings.Contains(string(message.body), "ping") {
 					value.Type = "ping"
 				} else {
@@ -255,11 +291,46 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 					continue
 				}
 			}
+			if webRTCAction(value.Type) != "" {
+				reply, data := callSocket.request(ctx, value.Type, message.body)
+				if reply != "" && !write(reply, data) {
+					return
+				}
+				continue
+			}
 			switch value.Type {
 			case "ping":
 				if !write("pong", map[string]interface{}{"timestamp": time.Now().UnixMilli()}) {
 					return
 				}
+			case "typing_start", "typing_stop":
+				conversation, channel := parseTypingIngress(message.body)
+				now := time.Now()
+				if typing == nil || (conversation == 0 && channel == 0) || now.Sub(lastTyping[value.Type]) < typingInterval {
+					continue
+				}
+				lastTyping[value.Type] = now
+				signal := typingSignal{kind: value.Type, actor: claims.UserID, conversation: conversation, channel: channel}
+				if channel != 0 {
+					if rooms[channel] == nil {
+						continue
+					}
+					if allowed, err := canReadRoom(channel); err != nil || !allowed {
+						continue
+					}
+				} else {
+					if signalAccess == nil {
+						continue
+					}
+					checkCtx, finish := context.WithTimeout(ctx, 5*time.Second)
+					peer, err := signalAccess.DirectTypingPeer(checkCtx, claims.UserID, conversation)
+					finish()
+					if err != nil || peer == 0 {
+						continue
+					}
+					signal.peer = peer
+				}
+				_ = typing.PublishTyping(ctx, signal)
 			case "chat_join_channel", "chat_leave_channel":
 				raw := value.Data["channelId"]
 				if len(raw) == 0 || string(raw) == "null" {
@@ -267,10 +338,7 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 				}
 				channelID := chatSocketID(raw)
 				if value.Type == "chat_leave_channel" {
-					if room := rooms[channelID]; room != nil {
-						room.cancel()
-						delete(rooms, channelID)
-					}
+					leaveRoom(channelID)
 					continue
 				}
 				var failure string
@@ -299,6 +367,7 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 					roomCtx, stopRoom := context.WithCancel(ctx)
 					room := &chatSocketRoomSubscription{id: channelID, cancel: stopRoom}
 					rooms[channelID] = room
+					metrics.changeSocketChannel(channelID, 1)
 					go runChatSocketRoom(roomCtx, room, chatSource, chatEvents, cancel)
 				}
 				if !write("system_notification", map[string]interface{}{"message": "chat channel joined", "channel_id": channelID, "room": chatSocketRoom(channelID)}) {
@@ -318,8 +387,7 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 			}
 			allowed, err := canReadRoom(delivery.room.id)
 			if err != nil || !allowed {
-				delivery.room.cancel()
-				delete(rooms, delivery.room.id)
+				leaveRoom(delivery.room.id)
 				continue
 			}
 			if delivery.body == nil {
@@ -327,6 +395,19 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 					return
 				}
 				continue
+			}
+			event := delivery.frame
+			if isTypingEvent(event.Type) {
+				actor := numericChatSocketID(event.Data["user_id"])
+				if actor == 0 || actor == claims.UserID || !freshTypingSignal(event.Timestamp, time.Now()) {
+					continue
+				}
+				checkCtx, finish := context.WithTimeout(ctx, 5*time.Second)
+				allowed, err := chatAccess.CanReadChatChannel(checkCtx, actor, delivery.room.id)
+				finish()
+				if err != nil || !allowed {
+					continue
+				}
 			}
 			if !writeBody(delivery.body) {
 				return
@@ -338,21 +419,20 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 			if len(body) > 262144 {
 				continue
 			}
-			var event struct {
-				Type      string                     `json:"type"`
-				Data      map[string]json.RawMessage `json:"data"`
-				Timestamp *float64                   `json:"timestamp"`
+			var event socketEventFrame
+			if json.Unmarshal(body, &event) != nil || event.Data == nil || !validSocketTimestamp(event.Timestamp) {
+				continue
 			}
-			if json.Unmarshal(body, &event) != nil || event.Data == nil || !validSocketTimestamp(event.Timestamp) ||
-				(!isNotificationEvent(event.Type) && !(event.Type == "presence_update" && validPresenceEvent(event.Data)) &&
-					!validDirectSocketEvent(event.Type, event.Data) &&
-					!validRealtimeStatus(event.Type, event.Data, event.Timestamp, claims.UserID)) {
+			call, callEvent := decodeWebRTCBrokerFrame(body, event.Type)
+			if !callEvent && !isNotificationEvent(event.Type) && !(event.Type == "presence_update" && validPresenceEvent(event.Data)) &&
+				!validDirectSocketEvent(event.Type, event.Data) && !validUserSocketSignal(event.Type, body) &&
+				!validRealtimeStatus(event.Type, event.Data, event.Timestamp, claims.UserID) {
 				continue
 			}
 			if !alive() {
 				return
 			}
-			if event.Type == "direct_message" || event.Type == "direct_message_deleted" {
+			if isDirectRealtimeEvent(event.Type) {
 				if directAccess == nil {
 					continue
 				}
@@ -363,6 +443,12 @@ func notificationWebSocket(w http.ResponseWriter, r *http.Request, codec *auth.T
 				if err != nil || !allowed {
 					continue
 				}
+			} else if event.Type == directReadUpdatedEvent || isTypingEvent(event.Type) {
+				if signalAccess == nil || !canDeliverUserSignal(ctx, signalAccess, claims.UserID, event) {
+					continue
+				}
+			} else if callEvent && !callSocket.canDeliver(ctx, event.Type, call) {
+				continue
 			}
 			if !writeBody(body) {
 				return

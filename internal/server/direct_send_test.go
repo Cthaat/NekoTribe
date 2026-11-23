@@ -25,7 +25,10 @@ func (f *directSendFixture) SendDirectMessage(_ context.Context, sender, convers
 		return directSendResult{}, f.err
 	}
 	f.saved = true
-	return directSendResult{target: 9, message: DirectMessage{ID: 11, ConversationID: 7, Content: content}}, nil
+	return directSendResult{
+		target: 9, message: DirectMessage{ID: 11, ConversationID: 7, Content: content},
+		read: directReadAdvance{9, 11},
+	}, nil
 }
 
 func (*directSendFixture) NotificationByID(context.Context, int64, int64) (NotificationItem, bool, error) {
@@ -45,21 +48,29 @@ func TestDirectSendPublishesOnlyAfterStorageSucceeds(t *testing.T) {
 		status int
 	}{{errDirectStrangers, 403}, {errDirectBlocked, 403}, {errDirectRecipientMissing, 404}, {errSessionStore, 500}, {nil, 200}} {
 		f := &directSendFixture{memorySessions: store(), err: tc.err}
-		published := false
-		publisher := directPublisherFunc(func(_ context.Context, sender, recipient int64, message DirectMessage) error {
-			if !f.saved || sender != 42 || recipient != 9 || message.ID != 11 {
-				t.Fatal("publish did not use committed result")
-			}
-			published = true
-			return errNotificationEvent
-		})
+		published, read := false, false
+		publisher := directReadTestPublisher{
+			directPublisherFunc: func(_ context.Context, sender, recipient int64, message DirectMessage) error {
+				if !f.saved || sender != 42 || recipient != 9 || message.ID != 11 {
+					t.Fatal("publish did not use committed result")
+				}
+				published = true
+				return errNotificationEvent
+			},
+			read: func(reader, peer, conversation, message int64) {
+				if !f.saved || reader != 42 || peer != 9 || conversation != 7 || message != 11 {
+					t.Fatal("read publication did not use the committed sender cursor")
+				}
+				read = true
+			},
+		}
 		app := NewHandlerWithConfig(codec, f, CorsPolicy{}, RefreshConfig{DirectEvents: publisher})
 		r := httptest.NewRequest("POST", "/api/v2/chat/direct-conversations/7/messages", strings.NewReader(`{"content":" hello "}`))
 		r.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
 		w := httptest.NewRecorder()
 		app.ServeHTTP(w, r)
-		if w.Code != tc.status || published != (tc.err == nil) {
-			t.Fatalf("status=%d published=%t body=%s", w.Code, published, w.Body)
+		if w.Code != tc.status || published != (tc.err == nil) || read != (tc.err == nil) {
+			t.Fatalf("status=%d published=%t read=%t body=%s", w.Code, published, read, w.Body)
 		}
 	}
 }
@@ -187,10 +198,11 @@ func TestDirectSendTransactionRollsBackEachFailedWrite(t *testing.T) {
 				t.Fatalf("muted send wrote or failed to roll back: err=%v writes=%d state=%+v", err, f.writes, f.state)
 			}
 		} else if failure == 0 {
-			if err != nil || f.writes != 4 || f.state.commits != 1 || result.notice == nil || result.notice.ID != 12 || result.message.ID != 11 {
+			if err != nil || f.writes != 4 || f.state.commits != 1 || result.notice == nil || result.notice.ID != 12 ||
+				result.message.ID != 11 || result.read != (directReadAdvance{9, 11}) {
 				t.Fatalf("transaction did not return committed result: %+v %v", result, err)
 			}
-		} else if err == nil || f.state.commits != 0 || f.state.rollbacks != 1 || result.message.ID != 0 {
+		} else if err == nil || f.state.commits != 0 || f.state.rollbacks != 1 || result.message.ID != 0 || result.read.message != 0 {
 			t.Fatalf("write %d failure escaped rollback", failure)
 		}
 	}

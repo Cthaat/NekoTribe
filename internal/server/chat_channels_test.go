@@ -122,11 +122,11 @@ func TestChatMessageSendRejectsEmptyPayload(t *testing.T) {
 	}
 }
 
-func (*chatChannelFixture) ListChatMessages(_ context.Context, user, channel int64, page SessionPage, search string, _ StorageURLPolicy) ([]chatMessage, int64, error) {
+func (*chatChannelFixture) ListChatMessages(_ context.Context, user, channel int64, page SessionPage, search chatMessageSearch, _ StorageURLPolicy) ([]chatMessage, int64, error) {
 	if user != 42 || channel != 7 {
 		return nil, 0, errChatGroupForbidden
 	}
-	if page.Page != 2 || page.PageSize != 3 || search != "hello" {
+	if page.Page != 2 || page.PageSize != 3 || search.keyword != "Hello" {
 		return nil, 0, errors.New("unexpected search or pagination")
 	}
 	return []chatMessage{{ID: 8, ChannelID: channel, Media: []PostMedia{}, Reactions: []chatReaction{}}}, 10, nil
@@ -275,11 +275,13 @@ type chatChannelConnector struct {
 	statusCurrent  driver.Value
 	historyEnrich  bool
 	historyFail    bool
+	historyQueries []listQueryCall
 	sendStatus     string
 	accountMuted   bool
 	sendFail       bool
 	sendMediaKey   string
 	privateDenied  bool
+	directLinked   bool
 	privateChecks  int
 	mutationAuthor int64
 	mutationFail   bool
@@ -295,6 +297,13 @@ func (f *chatChannelConnector) Connect(context.Context) (driver.Conn, error) {
 }
 func (c *chatChannelConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	var result []driver.Value
+	for _, statement := range []string{chatMessageCountSQL, chatMessagePageSQL} {
+		if strings.HasPrefix(query, statement) {
+			c.fixture.historyQueries = append(c.fixture.historyQueries, listQueryCall{query, args})
+			query = statement
+			break
+		}
+	}
 	switch query {
 	case chatMemberListSQL:
 		if len(args) != 2 || args[1].Name != "user_id" || args[1].Value != int64(42) {
@@ -329,6 +338,11 @@ func (c *chatChannelConn) QueryContext(_ context.Context, query string, args []d
 		result = []driver.Value{int64(77)}
 	case chatSendMediaSQL:
 		result = []driver.Value{int64(77), c.fixture.sendMediaKey}
+	case directExtrasContract.SQL["asset_is_linked"]:
+		if c.fixture.directLinked {
+			return &alertRows{values: []driver.Value{int64(1)}}, nil
+		}
+		return emptyRows{&c.fixture.state}, nil
 	case privateMediaBinding.Chat:
 		c.fixture.privateChecks++
 		if len(args) != 1 || args[0].Name != "media_id" || args[0].Value != int64(77) {
@@ -560,7 +574,7 @@ func TestChatMessageHistoryLoadsDetailsBeforeAdvancingCursor(t *testing.T) {
 		f := &chatChannelConnector{historyEnrich: true, historyFail: tc.fail}
 		db := sql.OpenDB(f)
 		messages, total, err := (OracleSessions{DB: db}).ListChatMessages(
-			context.Background(), 42, 7, SessionPage{Page: tc.page, Start: 1, End: 20}, tc.search, StorageURLPolicy{})
+			context.Background(), 42, 7, SessionPage{Page: tc.page, Start: 1, End: 20}, chatMessageSearch{keyword: tc.search}, StorageURLPolicy{})
 		db.Close()
 		if f.writes != tc.writes {
 			t.Fatalf("page=%v writes=%d", tc.page, f.writes)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -15,19 +16,31 @@ import (
 var errKnowledgeHistory = errors.New("invalid knowledge history")
 
 type knowledgeHistoryEnvelope struct {
-	Version int                  `json:"version"`
-	Answer  string               `json:"answer"`
-	Sources []knowledgeCandidate `json:"sources"`
+	Version      int                  `json:"version"`
+	Answer       string               `json:"answer"`
+	Sources      []knowledgeCandidate `json:"sources"`
+	Dependencies []knowledgeCandidate `json:"dependencies,omitempty"`
 }
 
 func encodeKnowledgeMessage(answer string, sources []knowledgeCandidate) (string, error) {
+	return encodeKnowledgeMessageWithDependencies(answer, sources, nil)
+}
+
+func encodeKnowledgeMessageWithDependencies(answer string, sources, dependencies []knowledgeCandidate) (string, error) {
 	if !utf8.ValidString(answer) || strings.TrimFunc(answer, jsTrimSpace) == "" || len(answer) > 65536 || len(sources) == 0 || validateKnowledgeCandidates(1, sources) != nil {
 		return "", errKnowledgeHistory
+	}
+	version := 1
+	if len(dependencies) > 0 {
+		if validateKnowledgeCandidates(1, dependencies) != nil || !knowledgeContainsReferences(dependencies, sources) {
+			return "", errKnowledgeHistory
+		}
+		version = 2
 	}
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
 	encoder.SetEscapeHTML(false)
-	if encoder.Encode(knowledgeHistoryEnvelope{Version: 1, Answer: answer, Sources: sources}) != nil {
+	if encoder.Encode(knowledgeHistoryEnvelope{Version: version, Answer: answer, Sources: sources, Dependencies: dependencies}) != nil {
 		return "", errKnowledgeHistory
 	}
 	encoded := strings.TrimSuffix(output.String(), "\n")
@@ -35,6 +48,15 @@ func encodeKnowledgeMessage(answer string, sources []knowledgeCandidate) (string
 		return "", errKnowledgeHistory
 	}
 	return encoded, nil
+}
+
+func knowledgeContainsReferences(all, required []knowledgeCandidate) bool {
+	for _, ref := range required {
+		if !slices.Contains(all, ref) {
+			return false
+		}
+	}
+	return true
 }
 
 type knowledgeCitation struct {
@@ -58,48 +80,54 @@ func restoreKnowledgeMessage(ctx context.Context, encoded string, hydrate func(c
 		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	body, ok := value.(map[string]any)
-	if !ok || len(body) != 3 || body["version"] != float64(1) {
+	if !ok {
+		return knowledgeRestored{}, errKnowledgeHistory
+	}
+	var dependencies []knowledgeCandidate
+	switch body["version"] {
+	case float64(1):
+		if len(body) != 3 {
+			return knowledgeRestored{}, errKnowledgeHistory
+		}
+	case float64(2):
+		if len(body) != 4 {
+			return knowledgeRestored{}, errKnowledgeHistory
+		}
+		dependencies = decodeKnowledgeReferences(body["dependencies"])
+		if len(dependencies) == 0 {
+			return knowledgeRestored{}, errKnowledgeHistory
+		}
+	default:
 		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	answer, ok := body["answer"].(string)
 	if !ok {
 		return knowledgeRestored{}, errKnowledgeHistory
 	}
-	raw, ok := body["sources"].([]any)
-	if !ok || len(raw) == 0 || len(raw) > 20 {
+	candidates := decodeKnowledgeReferences(body["sources"])
+	if len(candidates) == 0 {
 		return knowledgeRestored{}, errKnowledgeHistory
 	}
-	packed, err := json.Marshal(map[string]any{"answer": answer, "citations": raw})
+	packed, err := json.Marshal(map[string]any{"answer": answer, "citations": candidates})
 	if err != nil {
-		return knowledgeRestored{}, errKnowledgeHistory
-	}
-	// Validate exact citation shape and scalar IDs before accepting stored references.
-	var candidates []knowledgeCandidate
-	for _, item := range raw {
-		object, valid := item.(map[string]any)
-		if !valid || len(object) != 3 {
-			return knowledgeRestored{}, errKnowledgeHistory
-		}
-		kind, kindOK := object["kind"].(string)
-		version, versionOK := object["version"].(string)
-		id, idOK := object["id"].(float64)
-		if !kindOK || !versionOK || !idOK || id < 1 || id > float64(knowledgeMaxID) || math.Trunc(id) != id {
-			return knowledgeRestored{}, errKnowledgeHistory
-		}
-		candidates = append(candidates, knowledgeCandidate{Kind: kind, ID: int64(id), Version: version})
-	}
-	if validateKnowledgeCandidates(1, candidates) != nil {
 		return knowledgeRestored{}, errKnowledgeHistory
 	}
 	message, err := parseKnowledgeAnswer(string(packed), candidates)
 	if err != nil {
 		return knowledgeRestored{}, errKnowledgeHistory
 	}
-	rows, err := hydrate(ctx, append([]knowledgeCandidate(nil), message.Sources...))
+	refs := message.Sources
+	if len(dependencies) > 0 {
+		if !knowledgeContainsReferences(dependencies, refs) {
+			return knowledgeRestored{}, errKnowledgeHistory
+		}
+		refs = dependencies
+	}
+	rows, err := hydrate(ctx, slices.Clone(refs))
 	if err != nil {
 		return knowledgeRestored{}, err
 	}
-	if len(rows) != len(message.Sources) || checkKnowledgeRows(message.Sources, rows) != nil {
+	if len(rows) != len(refs) || checkKnowledgeRows(refs, rows) != nil {
 		return knowledgeRestored{}, errKnowledgeSourceChanged
 	}
 	byKey := make(map[string]knowledgeSource, len(rows))
@@ -114,5 +142,31 @@ func restoreKnowledgeMessage(ctx context.Context, encoded string, hydrate func(c
 		row := byKey[knowledgeKey(ref.Kind, ref.ID)]
 		citations = append(citations, knowledgeCitation{Kind: ref.Kind, ID: ref.ID, Version: ref.Version, PostID: row.PostID, GroupID: row.GroupID})
 	}
+	message.Dependencies = dependencies
 	return knowledgeRestored{knowledgeTurnResult: message, Citations: citations}, nil
+}
+
+func decodeKnowledgeReferences(value any) []knowledgeCandidate {
+	raw, ok := value.([]any)
+	if !ok || len(raw) == 0 || len(raw) > 20 {
+		return nil
+	}
+	refs := make([]knowledgeCandidate, 0, len(raw))
+	for _, item := range raw {
+		object, valid := item.(map[string]any)
+		if !valid || len(object) != 3 {
+			return nil
+		}
+		kind, kindOK := object["kind"].(string)
+		version, versionOK := object["version"].(string)
+		id, idOK := object["id"].(float64)
+		if !kindOK || !versionOK || !idOK || id < 1 || id > float64(knowledgeMaxID) || math.Trunc(id) != id {
+			return nil
+		}
+		refs = append(refs, knowledgeCandidate{Kind: kind, ID: int64(id), Version: version})
+	}
+	if validateKnowledgeCandidates(1, refs) != nil {
+		return nil
+	}
+	return refs
 }

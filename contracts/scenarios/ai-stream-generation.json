@@ -1,0 +1,25 @@
+{
+  "id": "AI-STREAM-GENERATION",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "successful-generation",
+      "accept": "text/event-stream",
+      "purposes": ["writing", "knowledge", "group", "moderation"],
+      "providers": ["openai-compatible", "ollama"],
+      "events": ["delta", "done"],
+      "assertion": "Deltas remain provisional. The done event returns the saved message through the existing success envelope."
+    },
+    {
+      "id": "cancellation",
+      "accept": "text/event-stream",
+      "assertion": "Disconnect before the provider terminal event cancels the provider request and leaves history unchanged."
+    },
+    {
+      "id": "persist-conflict",
+      "accept": "text/event-stream",
+      "events": ["delta", "failed"],
+      "assertion": "Concurrent sequence or permission change rejects the save and reports a public error."
+    }
+  ]
+}

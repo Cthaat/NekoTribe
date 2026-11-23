@@ -66,6 +66,12 @@ func createPost(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 			respond(w, 400, 40001, "媒体不存在或不可用", nil)
 		case errors.Is(err, errPostContentEmpty):
 			respond(w, 400, 40001, "content 不能为空", nil)
+		case errors.Is(err, errPostPollInvalid), errors.Is(err, errPostPollCutoff), errors.Is(err, errPostPollUnavailable):
+			failure := postPollFailure(err)
+			respond(w, failure.status, failure.status*100+1, failure.message, nil)
+		case errors.Is(err, errPostMarkdownInvalid), errors.Is(err, errPostMarkdownUnavailable):
+			failure := postMarkdownFailure(err)
+			respond(w, failure.status, failure.status*100+1, failure.message, nil)
 		default:
 			respond(w, 500, 50001, "服务器内部错误", nil)
 		}
@@ -157,6 +163,12 @@ func readPostCreateInput(body map[string]interface{}, repost *int64) (PostCreate
 		return input, "visibility 参数错误"
 	}
 	if repost != nil {
+		if _, present := body["poll"]; present {
+			return input, "只有普通帖子可以附带投票"
+		}
+		if _, present := body["markdown"]; present {
+			return input, "只有普通帖子可以附带长文"
+		}
 		input.RepostOfPostID = repost
 		return input, ""
 	}
@@ -185,6 +197,26 @@ func readPostCreateInput(body map[string]interface{}, repost *int64) (PostCreate
 	}
 	if count > 1 {
 		return input, "引用字段只能传一个"
+	}
+	if value, present := body["poll"]; present {
+		if count != 0 {
+			return input, "只有普通帖子可以附带投票"
+		}
+		poll, err := parsePostPollCreation(value)
+		if err != nil {
+			return input, "poll 参数错误"
+		}
+		input.Poll = poll
+	}
+	if value, present := body["markdown"]; present {
+		if count != 0 {
+			return input, "只有普通帖子可以附带长文"
+		}
+		markdown, err := parsePostMarkdown(value)
+		if err != nil {
+			return input, "markdown 参数错误"
+		}
+		input.Markdown = markdown
 	}
 	if input.RepostOfPostID == nil && strings.TrimFunc(input.Content, jsTrimSpace) == "" && len(input.MediaIDs) == 0 {
 		return input, "content 不能为空"

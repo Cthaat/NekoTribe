@@ -5,11 +5,11 @@
   "sources": [
     {
       "path": "server/database/schema-definition.mjs",
-      "sha256": "bb3941895845ae897ddf1eed0c1a7d652cfd6fceab2b8ae7e038d1d5f60f44b5"
+      "sha256": "2627ffbd2cc22ee2f798823a675e10454c1b8a59998e3c117875b65d1ecc25a8"
     },
     {
       "path": "server/database/schema.mjs",
-      "sha256": "a6836cbae5bb2d19d7373c718a1f28e46ec2c138dc3baff0159d2ecaa90b2df2"
+      "sha256": "9335ded9fb0293c43e44976d36be79b266851e7082f64939666f95e480c7bd3a"
     }
   ],
   "ledger": {
@@ -54,6 +54,7 @@
     "t14-ai-conversations-idx_ai_conv_owner": "27b071842e0d027761657909278475ccc5a5eb7e5f7f5485ae9ee6950acba6f1",
     "ai-conversations-title-char": "fe3944264226dafcb573d6ccdb8c17ba65e802006fafff0c1f09b16f618532a4",
     "ai-conversations-group-id-precision": "2e4946e5831ed32fdfc74227c737e1dc219e26710ba4c73c657392c512586d5b",
+    "ai-conversations-knowledge-scope": "dd5b59fcb09efb6dac69c24db95fcb479bc6efa2ec8cda2cab1be4674ff8c1c7",
     "t13-two-factor-seq_2fa_recovery_code_id": "90a60fd64eabdac15f4e7a8af14f0c8a9d6279510f95293897e2c966cee41b1d",
     "t13-two-factor-seq_2fa_trusted_device_id": "e1be11f71aa8d6be57b7a3b5e8d20e15421567610ba1b3cddf5159464b3d0dbf",
     "t13-two-factor-n_user_two_factor_secrets": "eec88e92a4d4d900267f80ff3be6e3e9cd69c664bcf9830ee774846bc172b026",
@@ -89,7 +90,29 @@
     "t16-ai-skills-n_ai_skill_config": "f9a6d75c20fe03b45b3439dc86f2b9ab93d9b025a54ae73efc4fdb4b0521985a",
     "t17-recommendation-feedback-n_recommendation_feedback": "aa17f7ffdaf79ea8a32202d9597547286998daef4eb61630b4d46c4a86042e52",
     "t18-ai-moderation-feedback-n_ai_moderation_feedback": "6701376638003a989acdab20fa0218e03f1a82e588d6d5708019cc051f75d3b4",
-    "t19-media-n_media_assets.access_scope": "8db63002388883c7ac268a2de8355ff9b8c66e94da98932a2c3475a6f7830977"
+    "t19-media-n_media_assets.access_scope": "8db63002388883c7ac268a2de8355ff9b8c66e94da98932a2c3475a6f7830977",
+    "t20-ai-user-provider": "f1e476dae90597e987996b819d3cc2c3d9f512f96f851f10b46a46c1425d6a01",
+    "t21-direct-message-media": "6d15216c722394078171a9355876e00d2f0d0d2c950ec4978aa988211bd4ded6",
+    "t21-direct-message-replies": "fd512d7facbcc5e369ac4473f0982f7493975d26952bf1a23c88534372e95f77",
+    "t21-direct-message-reactions": "3372629b6219debcc301009c9b56195e616d01f6fe6e621331ce16d0a8cd0a1b",
+    "t22-post-polls": "0878bc8e5342ab32ea88748ed5b975c006ab28377cd081fb5bd8defe824f4010",
+    "t22-post-poll-options": "58c8fc435e7d9626058d95ba03beaf65e8d6594bc006c62578e4d2b48386001a",
+    "t22-post-poll-ballots": "a35cfd76fcdb59ac3df0f5bcdb795d4bf516f300a38fd1a7cafc527f021f2ce4",
+    "t22-post-poll-votes": "6f2188d4605a62022689268094d43a52314be1ac10794e9018531556b180a7f3",
+    "t22-post-poll-sequence": "1c3026ed973c355893bf62bedf3a65d0259204ffb7f08c2c806daa2d3dbb97a3",
+    "t23-post-drafts": "0b3f05148cc904d2609523f8cbc456987a4e689c16f7ebe9ea66c8b852c41c2b",
+    "t23-post-draft-sequence": "5da2739c7cec627cce46a906363c799719b8bd4e46694712a26bb53c3459e731",
+    "t23-post-draft-owner-index": "c41826509033ab08c333b838abda10e66b2af3f12a862a9f5f0f15f92eef6ed3",
+    "t23-post-draft-due-index": "dcdf484a7a8aec60e8111ca2b4ce7fb048d0ab5e3c4ea70b19874f7478737576",
+    "t24-profile-pinned-post": "74c2aedcddccda09e6a3d72833c55084d7d66cef919b5c8d17becee69c85ac7c",
+    "t25-post-markdown": "b746114576988ee06adf63a83ea26717534f7a0954ac81fbb666c43f40d04eb4",
+    "t26-webauthn-credentials": "59770d8d4d7d521e25d599462c83dae882b95c34977f7d93506e57d16d8cbba5",
+    "t26-webauthn-credentials-owner": "8199630245b312298b114fccdc8c75f2a5df12a2897a4c7c34b863c2107603dd",
+    "t26-webauthn-challenges": "2a3454b1f7b9ee4fe057001c64381bca93b427ee05671d5dc399087f1c11a5c0",
+    "t26-webauthn-challenges-expiry": "7f623d7fc91375688c8c99a0bf19c14d351f152b6fbe460ee0200faa5867eceb",
+    "t27-github-oauth-links": "5c216d51ce65f0071c34280a49bd05eb19407dabd339eab9bb0fb32301b6ac94",
+    "t27-github-oauth-flows": "c0e4534627681f6dd92605b2e2735a6beb8df1ff4472171467e9bdd9292e6375",
+    "t27-github-oauth-expiry": "b9636d7d9d5f5ac70f4fceed44053398c3ea0f96462d89a28cea640f84dcb621"
   },
   "feature": {
     "id": "ai-skills",

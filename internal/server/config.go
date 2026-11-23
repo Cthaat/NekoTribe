@@ -84,6 +84,12 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	c.Refresh.ModerationAllowAll = get("MODERATION_ALLOW_ALL")
 	c.Refresh.ModerationAdminAccounts = get("MODERATION_ADMIN_ACCOUNTS")
 	c.Refresh.AIModelConfig = get("AI_MODEL_CONFIG_JSON")
+	c.Refresh.sentiment = configuredSentiment(get)
+	c.Refresh.userProvider = configuredUserProvider(get)
+	c.Refresh.webRTCIce = configuredWebRTCIce(get)
+	c.Refresh.passkeys = configuredPasskeys(get("WEBAUTHN_RP_ID"), get("WEBAUTHN_ORIGINS"))
+	c.Refresh.githubOAuth = configuredGitHubOAuth(get("GITHUB_OAUTH_CLIENT_ID"), get("GITHUB_OAUTH_CLIENT_SECRET"), get("GITHUB_OAUTH_REDIRECT_URI"))
+	c.Refresh.metricsToken = get(observabilityPolicy.TokenEnvironmentVariable)
 	if path := get("AI_MODEL_CONFIG_FILE"); path != "" {
 		c.Refresh.aiModelFile = &aiModelFile{path: path}
 	}

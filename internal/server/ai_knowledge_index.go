@@ -24,6 +24,10 @@ var knowledgeIndexHTTP = &http.Client{
 
 // The index supplies references only. The knowledge turn hydrates every reference using the caller's permissions.
 func discoverIndexedKnowledge(ctx context.Context, viewer int64, address, query string, limit int) ([]knowledgeSource, error) {
+	return discoverScopedIndexedKnowledge(ctx, viewer, address, query, limit, nil)
+}
+
+func discoverScopedIndexedKnowledge(ctx context.Context, viewer int64, address, query string, limit int, groupID *int64) ([]knowledgeSource, error) {
 	if ctx.Err() != nil {
 		return nil, errKnowledgeProvider
 	}
@@ -36,14 +40,24 @@ func discoverIndexedKnowledge(ctx context.Context, viewer int64, address, query 
 		strings.IndexFunc(token, func(r rune) bool { return r <= ' ' || r > '~' }) >= 0 {
 		return nil, errKnowledgeProvider
 	}
+	path := "/internal/v1/knowledge/search"
+	expectedFields := 2
+	if groupID != nil {
+		path = scopedKnowledgeContract().GroupIndexPath
+		if path == "" || *groupID <= 0 || *groupID > maxKnowledgeGroupID {
+			return nil, errKnowledgeInvalid
+		}
+		expectedFields++
+	}
 	payload, err := json.Marshal(struct {
-		Query string `json:"query"`
-		Limit int    `json:"limit"`
-	}{term, limit})
+		Query   string `json:"query"`
+		Limit   int    `json:"limit"`
+		GroupID *int64 `json:"group_id,omitempty"`
+	}{term, limit, groupID})
 	if err != nil {
 		return nil, errKnowledgeProvider
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(address, "/")+"/internal/v1/knowledge/search", bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(address, "/")+path, bytes.NewReader(payload))
 	if err != nil {
 		return nil, errKnowledgeProvider
 	}
@@ -78,10 +92,16 @@ func discoverIndexedKnowledge(ctx context.Context, viewer int64, address, query 
 	var result map[string]json.RawMessage
 	var version int
 	var candidates []json.RawMessage
-	if json.Unmarshal(body, &result) != nil || len(result) != 2 ||
+	if json.Unmarshal(body, &result) != nil || len(result) != expectedFields ||
 		json.Unmarshal(result["version"], &version) != nil || version != 1 ||
 		json.Unmarshal(result["candidates"], &candidates) != nil || candidates == nil || len(candidates) > limit {
 		return nil, errKnowledgeProvider
+	}
+	if groupID != nil {
+		var responseGroup int64
+		if json.Unmarshal(result["group_id"], &responseGroup) != nil || responseGroup != *groupID {
+			return nil, errKnowledgeProvider
+		}
 	}
 	sources := make([]knowledgeSource, 0, len(candidates))
 	for _, raw := range candidates {
@@ -94,7 +114,7 @@ func discoverIndexedKnowledge(ctx context.Context, viewer int64, address, query 
 			return nil, errKnowledgeProvider
 		}
 		var hit knowledgeCandidate
-		if json.Unmarshal(raw, &hit) != nil {
+		if json.Unmarshal(raw, &hit) != nil || (groupID != nil && !isGroupKnowledgeKind(hit.Kind)) {
 			return nil, errKnowledgeProvider
 		}
 		source := knowledgeSource{Kind: hit.Kind, ID: hit.ID, Version: hit.Version, indexed: true}

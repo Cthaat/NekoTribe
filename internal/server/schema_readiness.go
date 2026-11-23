@@ -346,17 +346,31 @@ FROM XMLTABLE('/ROWSET/ROW' PASSING DBMS_XMLGEN.GETXMLTYPE(
 	return nil
 }
 
+const schemaOwnerSQL = `SELECT USER AS USER_NAME, SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS SCHEMA_NAME FROM dual`
+
+func schemaOwnerMatches(ctx context.Context, q schemaQueryer) bool {
+	owner, err := schemaRows(ctx, q, schemaOwnerSQL)
+	return err == nil && len(owner) == 1 && schemaText(owner[0]["USER_NAME"]) != "" && schemaText(owner[0]["USER_NAME"]) == schemaText(owner[0]["SCHEMA_NAME"])
+}
+
 func validateFeatureSchema(ctx context.Context, q schemaQueryer, catalog schemaCatalog, feature string) error {
-	valid := feature == "two-factor" && catalog.ID == "AUTH-2FA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 9 || feature == "media" && catalog.ID == "MEDIA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1 || feature == "user-settings" && catalog.ID == "USER-SETTINGS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5 || feature == "ai-conversations" && catalog.ID == "AI-CONVERSATION-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5 || feature == "ai-skills" && catalog.ID == "AI-SKILL-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1
+	valid := feature == "two-factor" && catalog.ID == "AUTH-2FA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 9 || feature == "media" && catalog.ID == "MEDIA-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1 || feature == "user-settings" && catalog.ID == "USER-SETTINGS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5 || feature == "ai-conversations" && catalog.ID == "AI-CONVERSATION-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 6 || feature == "ai-skills" && catalog.ID == "AI-SKILL-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1
+	valid = valid || feature == "ai-user-provider" && catalog.ID == "AI-USER-PROVIDER-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1
+	valid = valid || feature == "direct-message-extras" && catalog.ID == "DIRECT-MESSAGE-EXTRAS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 3
+	valid = valid || feature == "post-polls" && catalog.ID == "POST-POLLS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 5
+	valid = valid || feature == "post-drafts" && catalog.ID == "POST-DRAFTS-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 4
+	valid = valid || feature == "profile-pinned-post" && catalog.ID == "PROFILE-PINNED-POST-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1
+	valid = valid || feature == "post-markdown" && catalog.ID == "POST-MARKDOWN-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 1
+	valid = valid || feature == "passkey-auth" && catalog.ID == "PASSKEY-AUTH-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 4
+	valid = valid || feature == "github-oauth" && catalog.ID == "GITHUB-OAUTH-SCHEMA-CATALOG" && len(catalog.Feature.Steps) == 3
 	revision := 1
 	if feature == "ai-conversations" {
-		revision = 3
+		revision = 4
 	}
 	if !valid || catalog.Revision != revision || catalog.Feature.ID != feature || len(catalog.MigrationChecksums) == 0 {
 		return errSessionStore
 	}
-	owner, err := schemaRows(ctx, q, `SELECT USER AS USER_NAME, SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS SCHEMA_NAME FROM dual`)
-	if err != nil || len(owner) == 0 || schemaText(owner[0]["USER_NAME"]) == "" || schemaText(owner[0]["USER_NAME"]) != schemaText(owner[0]["SCHEMA_NAME"]) {
+	if !schemaOwnerMatches(ctx, q) {
 		return errSessionStore
 	}
 	ledger, err := schemaRows(ctx, q, `SELECT table_name AS NAME FROM user_tables WHERE table_name = :name`, sql.Named("name", catalog.Ledger.Table))
@@ -434,6 +448,9 @@ func (s OracleSessions) CheckAIConversationSchema(ctx context.Context) error {
 }
 func (s OracleSessions) CheckAISkillSchema(ctx context.Context) error {
 	return s.checkFeatureSchema(ctx, "ai-skills", contracts.AISkillSchemaCatalog)
+}
+func (s OracleSessions) CheckAIUserProviderSchema(ctx context.Context) error {
+	return s.checkFeatureSchema(ctx, "ai-user-provider", contracts.AIUserProviderSchemaCatalog)
 }
 func (s OracleSessions) checkFeatureSchema(ctx context.Context, feature string, data []byte) error {
 	var catalog schemaCatalog

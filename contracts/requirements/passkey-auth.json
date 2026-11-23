@@ -1,0 +1,26 @@
+{
+  "id": "PASSKEY-AUTH",
+  "revision": 1,
+  "ttlSeconds": 300,
+  "timeoutMs": 60000,
+  "maxPayloadBytes": 65536,
+  "maxLabelChars": 80,
+  "algorithm": -7,
+  "challengeIdBytes": 32,
+  "maxCredentialIdBytes": 1023,
+  "userHandleBytes": 16,
+  "sql": {
+    "owner": "SELECT user_id,username,display_name,password_hash,is_active,status FROM n_users WHERE user_id=:user_id",
+    "lockOwner": "SELECT user_id,password_hash FROM n_users WHERE user_id=:user_id AND is_active=1 AND status='active' FOR UPDATE",
+    "credentialList": "SELECT credential_id,label,created_at,last_used_at FROM n_webauthn_credentials WHERE user_id=:user_id ORDER BY created_at DESC,credential_id",
+    "credentialRead": "SELECT credential_id,user_id,public_x,public_y,sign_count,backup_eligible,backed_up,label,created_at,last_used_at FROM n_webauthn_credentials WHERE credential_id=:credential_id FOR UPDATE",
+    "credentialInsert": "INSERT INTO n_webauthn_credentials (credential_id,user_id,public_x,public_y,sign_count,backup_eligible,backed_up,label) VALUES (:credential_id,:user_id,:public_x,:public_y,:sign_count,:backup_eligible,:backed_up,:label)",
+    "credentialUse": "UPDATE n_webauthn_credentials SET sign_count=:sign_count,backed_up=:backed_up,last_used_at=CURRENT_TIMESTAMP WHERE credential_id=:credential_id AND user_id=:user_id",
+    "credentialDelete": "DELETE FROM n_webauthn_credentials WHERE credential_id=:credential_id AND user_id=:user_id",
+    "challengePrune": "DELETE FROM n_webauthn_challenges WHERE expires_at <= LOCALTIMESTAMP",
+    "challengeInsert": "INSERT INTO n_webauthn_challenges (challenge_id,purpose,issuer,owner_user_id,owner_session_id,challenge,engine_state,expires_at) VALUES (:challenge_id,:purpose,:issuer,:owner_user_id,:owner_session_id,:challenge,:engine_state,LOCALTIMESTAMP+NUMTODSINTERVAL(:ttl_seconds,'SECOND'))",
+    "challengeLock": "SELECT challenge,engine_state FROM n_webauthn_challenges WHERE challenge_id=:challenge_id AND issuer=:issuer AND purpose=:purpose AND expires_at>LOCALTIMESTAMP AND (purpose='login' OR (owner_user_id=:owner_user_id AND owner_session_id=:owner_session_id)) FOR UPDATE",
+    "challengeDelete": "DELETE FROM n_webauthn_challenges WHERE challenge_id=:challenge_id"
+  },
+  "passwordHashPattern": "^[$]2[aby][$](0[4-9]|[12][0-9]|3[01])[$][./A-Za-z0-9]{53}$"
+}

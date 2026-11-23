@@ -17,11 +17,13 @@ type directHistoryFixture struct {
 	user, conversation int64
 	page               SessionPage
 	failure            error
+	markRead           bool
 }
 
-func (f *directHistoryFixture) ListDirectMessages(_ context.Context, user, conversation int64, page SessionPage) ([]DirectMessage, int64, error) {
+func (f *directHistoryFixture) ListDirectMessages(_ context.Context, user, conversation int64, page SessionPage, markRead bool, _ chatMessageSearch) ([]DirectMessage, int64, directReadAdvance, error) {
 	f.user, f.conversation, f.page = user, conversation, page
-	return nil, 5, f.failure
+	f.markRead = markRead
+	return nil, 5, directReadAdvance{}, f.failure
 }
 
 func TestDirectHistoryHTTP(t *testing.T) {
@@ -65,6 +67,22 @@ func TestDirectHistoryHTTP(t *testing.T) {
 			}
 		}
 	}
+	for _, tc := range []struct {
+		query string
+		code  int
+		mark  bool
+	}{
+		{"", 200, true}, {"?mark_read=false", 200, false}, {"?mark_read=true", 200, true},
+		{"?mark_read=no", 400, false}, {"?mark_read=false&mark_read=true", 400, false},
+	} {
+		r := httptest.NewRequest("GET", "/api/v2/chat/direct-conversations/7/messages"+tc.query, nil)
+		r.Header.Set("Authorization", "Bearer "+tokens["access-hs256"])
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != tc.code || (tc.code == 200 && repository.markRead != tc.mark) {
+			t.Fatal(tc.query, w.Code, repository.markRead)
+		}
+	}
 }
 
 type directHistoryConnector struct {
@@ -72,6 +90,7 @@ type directHistoryConnector struct {
 	denied, failMark bool
 	marked           int64
 	reads            int
+	historyQueries   []listQueryCall
 }
 
 type directHistoryConn struct {
@@ -87,22 +106,30 @@ func (c *directHistoryConnector) Connect(context.Context) (driver.Conn, error) {
 func (c *directHistoryConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.fixture.reads++
 	switch {
-	case query == directHistoryAccessSQL:
-		if args[0].Value != int64(7) || args[1].Value != int64(42) {
+	case query == directSendAccessSQL:
+		if args[0].Value != int64(42) || args[1].Value != int64(7) {
 			return nil, errors.New("wrong participant binds")
 		}
 		if c.fixture.denied {
 			return emptyRows{&c.fixture.state}, nil
 		}
-		return &alertRows{values: []driver.Value{int64(7)}}, nil
-	case strings.HasPrefix(query, "SELECT COUNT"):
+		return &alertRows{values: []driver.Value{int64(9)}}, nil
+	case strings.HasPrefix(query, directHistoryCountSQL):
+		c.fixture.historyQueries = append(c.fixture.historyQueries, listQueryCall{query, args})
 		return &alertRows{values: []driver.Value{int64(5)}}, nil
-	case query == directHistoryPageSQL:
+	case strings.HasPrefix(query, directHistoryPageSQL):
+		c.fixture.historyQueries = append(c.fixture.historyQueries, listQueryCall{query, args})
 		at := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 		return &alertRows{values: []driver.Value{
 			int64(11), int64(7), int64(42), "message", int64(0), at, at, nil, nil,
 			"author", nil, nil, nil, nil, nil, int64(0), int64(0), int64(0), int64(0), int64(0), "self",
 		}}, nil
+	case query == directExtrasContract.SQL["list_media"]:
+		return nil, errors.New("ORA-00942: relation absent")
+	case query == schemaOwnerSQL:
+		return &schemaFixtureRows{columns: []string{"USER_NAME", "SCHEMA_NAME"}, values: [][]driver.Value{{"fixture", "fixture"}}}, nil
+	case query == directExtrasContract.SQL["any_extras_table_present"]:
+		return emptyRows{&c.fixture.state}, nil
 	default:
 		return nil, errors.New("unexpected query")
 	}
@@ -112,7 +139,7 @@ func (c *directHistoryConn) ExecContext(_ context.Context, query string, args []
 	if c.fixture.failMark || query != markDirectReadSQL {
 		return nil, errors.New("mark read failed")
 	}
-	if !strings.Contains(query, "GREATEST(NVL(r.last_read_message_id,0),src.message_id)") {
+	if !strings.Contains(query, "WHERE NVL(r.last_read_message_id,0)<s.last_read_message_id") {
 		return nil, errors.New("read marker must keep the higher cursor")
 	}
 	c.fixture.marked = args[2].Value.(int64)
@@ -122,16 +149,18 @@ func (c *directHistoryConn) ExecContext(_ context.Context, query string, args []
 func TestDirectHistoryRepository(t *testing.T) {
 	for _, tc := range []struct {
 		page             string
+		mark             bool
 		denied, failMark bool
 	}{
-		{"1", false, false},
-		{"2", false, false},
-		{"1", true, false},
-		{"1", false, true},
+		{"1", true, false, false},
+		{"1", false, false, false},
+		{"2", true, false, false},
+		{"1", true, true, false},
+		{"1", true, false, true},
 	} {
 		f := &directHistoryConnector{denied: tc.denied, failMark: tc.failMark}
 		db := sql.OpenDB(f)
-		messages, total, err := (OracleSessions{DB: db}).ListDirectMessages(context.Background(), 42, 7, sessionPagination(parseSessionQuery("page="+tc.page)))
+		messages, total, advance, err := (OracleSessions{DB: db}).ListDirectMessages(context.Background(), 42, 7, sessionPagination(parseSessionQuery("page="+tc.page)), tc.mark, chatMessageSearch{})
 		db.Close()
 		switch {
 		case tc.denied:
@@ -147,7 +176,11 @@ func TestDirectHistoryRepository(t *testing.T) {
 				messages[0].Author.UserID != 42 || !messages[0].Author.Relationship.IsSelf || f.state.commits != 1 {
 				t.Fatal(messages, total, err)
 			}
-			if (tc.page == "1" && f.marked != 11) || (tc.page == "2" && f.marked != 0) {
+			want := directReadAdvance{}
+			if tc.page == "1" && tc.mark {
+				want = directReadAdvance{9, 11}
+			}
+			if f.marked != want.message || advance != want {
 				t.Fatal("incorrect first-page read marker", f.marked)
 			}
 		}

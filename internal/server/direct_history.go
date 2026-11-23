@@ -14,20 +14,23 @@ import (
 )
 
 type DirectMessage struct {
-	ID             int64      `json:"message_id"`
-	ConversationID int64      `json:"conversation_id"`
-	Content        string     `json:"content"`
-	Author         PublicUser `json:"author"`
-	IsDeleted      bool       `json:"is_deleted"`
-	CanDelete      bool       `json:"can_delete"`
-	CreatedAt      string     `json:"created_at"`
-	UpdatedAt      string     `json:"updated_at"`
-	EditedAt       *string    `json:"edited_at"`
-	DeletedAt      *string    `json:"deleted_at"`
+	ID             int64          `json:"message_id"`
+	ConversationID int64          `json:"conversation_id"`
+	Content        string         `json:"content"`
+	Author         PublicUser     `json:"author"`
+	IsDeleted      bool           `json:"is_deleted"`
+	CanDelete      bool           `json:"can_delete"`
+	CreatedAt      string         `json:"created_at"`
+	UpdatedAt      string         `json:"updated_at"`
+	EditedAt       *string        `json:"edited_at"`
+	DeletedAt      *string        `json:"deleted_at"`
+	Reply          *chatReply     `json:"reply_to,omitempty"`
+	Media          []PostMedia    `json:"media,omitempty"`
+	Reactions      []chatReaction `json:"reactions,omitempty"`
 }
 
 type directHistoryStore interface {
-	ListDirectMessages(context.Context, int64, int64, SessionPage) ([]DirectMessage, int64, error)
+	ListDirectMessages(context.Context, int64, int64, SessionPage, bool, chatMessageSearch) ([]DirectMessage, int64, directReadAdvance, error)
 }
 
 var errDirectConversationForbidden = errors.New("direct conversation inaccessible")
@@ -36,6 +39,11 @@ const directHistoryAccessSQL = `SELECT conversation_id FROM n_direct_conversatio
 WHERE conversation_id=:conversation_id AND is_deleted=0
   AND (user_low_id=:user_id OR user_high_id=:user_id)
 FOR UPDATE`
+
+const directHistoryScopeSQL = `FROM n_direct_messages dm
+  JOIN v_user_profile_public u ON u.user_id=dm.sender_id
+  WHERE dm.conversation_id=:conversation_id AND dm.is_deleted=0`
+const directHistoryCountSQL = `SELECT COUNT(*) ` + directHistoryScopeSQL
 
 const directHistoryPageSQL = `SELECT message_id,conversation_id,sender_id,content,is_deleted,
 created_at,updated_at,edited_at,deleted_at,username,avatar_url,display_name,bio,location,website,
@@ -47,22 +55,7 @@ FROM (
     u.followers_count,u.following_count,u.posts_count,u.likes_count,
     fn_get_user_relationship(:viewer_id,u.user_id) AS relation,
     ROW_NUMBER() OVER (ORDER BY dm.created_at DESC,dm.message_id DESC) AS rn
-  FROM n_direct_messages dm
-  JOIN v_user_profile_public u ON u.user_id=dm.sender_id
-  WHERE dm.conversation_id=:conversation_id AND dm.is_deleted=0
-)
-WHERE rn BETWEEN :start_row AND :end_row
-ORDER BY created_at ASC,message_id ASC`
-
-const markDirectReadSQL = `MERGE INTO n_direct_conversation_reads r
-USING (SELECT :conversation_id AS conversation_id,:user_id AS user_id,
-              :message_id AS message_id FROM dual) src
-ON (r.conversation_id=src.conversation_id AND r.user_id=src.user_id)
-WHEN MATCHED THEN UPDATE SET
-  r.last_read_message_id=GREATEST(NVL(r.last_read_message_id,0),src.message_id),
-  r.last_read_at=CURRENT_TIMESTAMP
-WHEN NOT MATCHED THEN INSERT (conversation_id,user_id,last_read_message_id,last_read_at)
-VALUES (src.conversation_id,src.user_id,src.message_id,CURRENT_TIMESTAMP)`
+  ` + directHistoryScopeSQL
 
 func scanDirectMessage(row notificationScanner, viewer int64) (DirectMessage, error) {
 	var message DirectMessage
@@ -77,7 +70,7 @@ func scanDirectMessage(row notificationScanner, viewer int64) (DirectMessage, er
 	if err != nil {
 		return DirectMessage{}, err
 	}
-	message.Content = content.String
+	message.Content = directVisibleContent(content.String)
 	message.IsDeleted = deleted.Int64 != 0
 	message.CanDelete = author.UserID == viewer
 	if date := profileDate(createdAt); date != nil {
@@ -103,53 +96,63 @@ func scanDirectMessage(row notificationScanner, viewer int64) (DirectMessage, er
 	return message, nil
 }
 
-func (s OracleSessions) ListDirectMessages(ctx context.Context, viewer, conversation int64, page SessionPage) ([]DirectMessage, int64, error) {
+func (s OracleSessions) ListDirectMessages(ctx context.Context, viewer, conversation int64, page SessionPage, markRead bool, search chatMessageSearch) ([]DirectMessage, int64, directReadAdvance, error) {
+	var advance directReadAdvance
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, 0, errSessionStore
+		return nil, 0, advance, errSessionStore
 	}
 	defer tx.Rollback()
 	conversationBind := sql.Named("conversation_id", conversation)
 	viewerBind := sql.Named("user_id", viewer)
-	var found, total int64
-	err = tx.QueryRowContext(ctx, directHistoryAccessSQL, conversationBind, viewerBind).Scan(&found)
+	var target, total int64
+	err = tx.QueryRowContext(ctx, directSendAccessSQL, viewerBind, conversationBind).Scan(&target)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, 0, errDirectConversationForbidden
+		return nil, 0, advance, errDirectConversationForbidden
 	}
+	if err != nil || target <= 0 || target > maxSocketID || target == viewer {
+		return nil, 0, advance, errSessionStore
+	}
+	predicates, filterBinds := search.predicates("dm", "direct_sender")
+	binds := append([]any{conversationBind}, filterBinds...)
+	if err := tx.QueryRowContext(ctx, directHistoryCountSQL+predicates, binds...).Scan(&total); err != nil {
+		return nil, 0, advance, errSessionStore
+	}
+	args := append([]any{sql.Named("viewer_id", viewer)}, binds...)
+	args = append(args, sql.Named("start_row", page.Start), sql.Named("end_row", page.End))
+	rows, err := tx.QueryContext(ctx, directHistoryPageSQL+predicates+chatMessageSearchWindowSQL, args...)
 	if err != nil {
-		return nil, 0, errSessionStore
-	}
-	const count = `SELECT COUNT(*) FROM n_direct_messages WHERE conversation_id=:conversation_id AND is_deleted=0`
-	if err := tx.QueryRowContext(ctx, count, conversationBind).Scan(&total); err != nil {
-		return nil, 0, errSessionStore
-	}
-	rows, err := tx.QueryContext(ctx, directHistoryPageSQL, sql.Named("viewer_id", viewer),
-		conversationBind, sql.Named("start_row", page.Start), sql.Named("end_row", page.End))
-	if err != nil {
-		return nil, 0, errSessionStore
+		return nil, 0, advance, errSessionStore
 	}
 	defer rows.Close()
 	items := make([]DirectMessage, 0)
 	for rows.Next() {
 		message, err := scanDirectMessage(rows, viewer)
 		if err != nil {
-			return nil, 0, errSessionStore
+			return nil, 0, advance, errSessionStore
 		}
 		items = append(items, message)
 	}
 	if rows.Err() != nil || rows.Close() != nil {
-		return nil, 0, errSessionStore
+		return nil, 0, advance, errSessionStore
 	}
-	if page.Page == 1 && len(items) > 0 {
-		if _, err := tx.ExecContext(ctx, markDirectReadSQL, conversationBind, viewerBind,
-			sql.Named("message_id", items[len(items)-1].ID)); err != nil {
-			return nil, 0, errSessionStore
+	if err := loadDirectMessageExtras(ctx, tx, viewer, items, true); err != nil {
+		return nil, 0, advance, err
+	}
+	if markRead && !search.active() && page.Page == 1 && len(items) > 0 {
+		message := items[len(items)-1].ID
+		changed, err := advanceDirectRead(ctx, tx, viewer, conversation, message)
+		if err != nil {
+			return nil, 0, directReadAdvance{}, err
+		}
+		if changed {
+			advance = directReadAdvance{target, message}
 		}
 	}
 	if tx.Commit() != nil {
-		return nil, 0, errSessionStore
+		return nil, 0, directReadAdvance{}, errSessionStore
 	}
-	return items, total, nil
+	return items, total, advance, nil
 }
 
 func directMessagesRoute(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, repository SessionRepository, config RefreshConfig) bool {
@@ -198,16 +201,35 @@ func directMessagesRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return true
 	}
-	page := sessionPagination(parseSessionQuery(r.URL.RawQuery))
-	items, total, err := store.ListDirectMessages(r.Context(), claims.UserID, conversation, page)
+	query := parseSessionQuery(r.URL.RawQuery)
+	search, valid := parseChatMessageSearch(r.URL.RawQuery)
+	if !valid {
+		respond(w, 400, 40001, "消息搜索参数错误", nil)
+		return true
+	}
+	markRead := true
+	if values, present := query["mark_read"]; present {
+		if len(values) != 1 || (values[0] != "true" && values[0] != "false") {
+			respond(w, 400, 40001, "mark_read 参数错误", nil)
+			return true
+		}
+		markRead = values[0] == "true"
+	}
+	page := sessionPagination(query)
+	items, total, advance, err := store.ListDirectMessages(r.Context(), claims.UserID, conversation, page, markRead, search)
 	if errors.Is(err, errDirectConversationForbidden) {
 		respond(w, 403, 40301, "无权访问该私聊会话", nil)
+		return true
+	}
+	if errors.Is(err, errDirectExtrasUnavailable) {
+		respond(w, 503, 50301, "私信服务暂不可用", nil)
 		return true
 	}
 	if err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return true
 	}
+	publishDirectReadAdvance(r.Context(), config.DirectEvents, claims.UserID, conversation, advance)
 	if items == nil {
 		items = []DirectMessage{}
 	}

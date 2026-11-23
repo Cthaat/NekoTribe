@@ -10,10 +10,10 @@
 
 ## 身份和过滤
 
-- GET 列表可以匿名，若带 Cookie 或 Bearer 则必须正常验证 access token 和会话；失效凭据不能降级为匿名，Cookie 优先。viewer 使用认证会话 ID，不能采用查询参数。`timeline=following` 与 `timeline=mentions` 仅登录后可用，其他 timeline 值按普通列表处理，区分大小写。
+- GET 列表可以匿名，若带 Cookie 或 Bearer 则必须正常验证 access token 和会话；失效凭据不能降级为匿名，Cookie 优先。viewer 使用认证会话 ID，不能采用查询参数。`timeline=following` 与 `timeline=mentions` 仅登录后可用。`GET /api/v2/posts` 无搜索词时可显式选择 `timeline=recommended`，采用[首页推荐排序](home-feed.md)。其余 timeline 值按普通列表处理，区分大小写。
 - 所有列表和总数都绑定同一 viewer，应用 `fn_can_view_post(:viewer_id,v.post_id)=1`；匿名 viewer 为数据库 NULL。`following` 额外限定 `n_user_follows` 中 viewer 关注作者且状态为 `active`，`mentions` 额外限定 viewer 被当前帖子提及。不可用客户端输入拼接 SQL。
 - `q` 经 trim 和小写后，按 `%q%` 查询内容前 4000 字符、位置或标签；标签查询另外去除开头的所有 `#` 后 trim，为空则回用原 q。保持现有 Oracle LIKE 语义：`%` 和 `_` 是通配符，不做隐式转义。空 q 不加搜索过滤。搜索由参数绑定，不能把文本拼接进 SQL。
-- `sort=oldest` 按创建时间升序，`popular` 按互动分降序、创建时间降序，其他值按创建时间降序；现有规则不保证相同排序键的稳定次序。不要虚构 tie-breaker 改变兼容行为。
+- 常规列表的 `sort=oldest` 按创建时间升序，`popular` 按互动分降序、创建时间降序，其他值按创建时间降序。推荐流使用独立排序规则，常规列表的排序键维持原有行为。
 - `trending` 允许匿名并强制 popular 排序，忽略客户端 sort；仍应用 timeline 和搜索过滤。`me`、`bookmarks`、`likes` 路由必须登录，分别限定作者是当前用户、当前用户已收藏、当前用户已点赞；不可根据查询参数选择他人。它们仍叠加 timeline、搜索及数据库可见性过滤。
 - 点赞列表的默认/未知 sort 按当前用户点赞时间降序，`oldest` 按点赞时间升序，`popular` 仍按互动分排序；其他模式按帖子时间或互动分排序。查询按现有 `MAX(n_post_likes.created_at)` 取该用户的点赞时间。
 - `users/{id}/posts`、`tags/{name}/posts`、`posts/{id}/replies`、`posts/{id}/retweets` 均需有效会话；分别按作者 ID、标签不区分大小写的精确名称、回复目标 ID、转发目标 ID 过滤。目标不存在时返回空列表，不自行暴露目标存在性。其余 timeline、搜索、排序及可见性条件照常叠加。标签是 URL 解码后的非空字符串，通过 SQL 绑定并在数据库中比较大小写；Nuxt 原来使用未解码的路径片段，本次修复中文及特殊字符名称的查询。

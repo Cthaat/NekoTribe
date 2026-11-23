@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -21,10 +22,15 @@ type directSendStore interface {
 	NotificationByID(context.Context, int64, int64) (NotificationItem, bool, error)
 }
 
+type directExtrasSendStore interface {
+	SendDirectMessageWithExtras(context.Context, int64, int64, chatSendInput, StorageURLPolicy) (directSendResult, error)
+}
+
 type directSendResult struct {
 	message DirectMessage
 	target  int64
 	notice  *notificationStored
+	read    directReadAdvance
 }
 
 const directSendAccessSQL = `SELECT CASE WHEN user_low_id=:user_id THEN user_high_id ELSE user_low_id END
@@ -72,7 +78,20 @@ func checkDirectRecipient(ctx context.Context, query notificationQueryer, sender
 }
 
 func (s OracleSessions) SendDirectMessage(ctx context.Context, actor, conversation int64, content string, storage StorageURLPolicy) (directSendResult, error) {
-	tx, err := s.DB.BeginTx(ctx, nil)
+	return sendDirectMessageOn(ctx, s.DB, actor, conversation, chatSendInput{content: content}, storage)
+}
+
+func (s OracleSessions) SendDirectMessageWithExtras(ctx context.Context, actor, conversation int64, input chatSendInput, storage StorageURLPolicy) (directSendResult, error) {
+	conn, err := s.directExtrasConnection(ctx)
+	if err != nil {
+		return directSendResult{}, err
+	}
+	defer conn.Close()
+	return sendDirectMessageOn(ctx, conn, actor, conversation, input, storage)
+}
+
+func sendDirectMessageOn(ctx context.Context, connection directTxBeginner, actor, conversation int64, input chatSendInput, storage StorageURLPolicy) (directSendResult, error) {
+	tx, err := connection.BeginTx(ctx, nil)
 	if err != nil {
 		return directSendResult{}, errSessionStore
 	}
@@ -94,6 +113,12 @@ func (s OracleSessions) SendDirectMessage(ctx context.Context, actor, conversati
 	if err := checkPublishAccess(ctx, tx, actor); err != nil {
 		return directSendResult{}, err
 	}
+	if err := validateDirectReply(ctx, tx, conversation, input.reply); err != nil {
+		return directSendResult{}, err
+	}
+	if err := lockDirectAttachments(ctx, tx, actor, input.media); err != nil {
+		return directSendResult{}, err
+	}
 	var messageID int64
 	if err := tx.QueryRowContext(ctx, `SELECT seq_direct_message_id.NEXTVAL FROM dual`).Scan(&messageID); err != nil || messageID < 1 || messageID > maxSocketID {
 		return directSendResult{}, errSessionStore
@@ -113,14 +138,43 @@ func (s OracleSessions) SendDirectMessage(ctx context.Context, actor, conversati
 VALUES (:message_id,:conversation_id,:sender_id,:content)`
 	const update = `UPDATE n_direct_conversations SET last_message_id=:message_id,last_message_at=CURRENT_TIMESTAMP,
 message_count=message_count+1,updated_at=CURRENT_TIMESTAMP WHERE conversation_id=:conversation_id`
-	if execOne(ctx, insert, messageBind, conversationBind, senderBind, sql.Named("content", content)) != nil ||
-		execOne(ctx, update, messageBind, conversationBind) != nil ||
-		execOne(ctx, markDirectReadSQL, conversationBind, actorBind, messageBind) != nil {
+	content := input.content
+	if content == "" {
+		content = " "
+	}
+	if execOne(ctx, insert, messageBind, conversationBind, senderBind, sql.Named("content", content)) != nil {
 		return directSendResult{}, errSessionStore
+	}
+	if input.reply != nil {
+		if err := execOne(ctx, directExtrasContract.SQL["insert_reply"], messageBind, sql.Named("reply_to_message_id", *input.reply)); err != nil {
+			return directSendResult{}, err
+		}
+	}
+	for index, mediaID := range input.media {
+		if err := execOne(ctx, directExtrasContract.SQL["insert_media"], messageBind, sql.Named("media_id", mediaID), sql.Named("position", index+1)); err != nil {
+			return directSendResult{}, err
+		}
+	}
+	if execOne(ctx, update, messageBind, conversationBind) != nil {
+		return directSendResult{}, errSessionStore
+	}
+	changed, err := advanceDirectRead(ctx, tx, actor, conversation, messageID)
+	if err != nil {
+		return directSendResult{}, err
+	}
+	if changed {
+		result.read = directReadAdvance{result.target, messageID}
 	}
 	result.message, err = scanDirectMessage(tx.QueryRowContext(ctx, directMessageByIDSQL, messageBind, senderBind), actor)
 	if err != nil {
 		return directSendResult{}, errSessionStore
+	}
+	if input.reply != nil || len(input.media) > 0 {
+		items := []DirectMessage{result.message}
+		if err := loadDirectMessageExtras(ctx, tx, actor, items, false); err != nil {
+			return directSendResult{}, err
+		}
+		result.message = items[0]
 	}
 	author := &result.message.Author
 	author.AvatarURL, err = normalizeAvatarURL(storage, author.AvatarURL)
@@ -134,7 +188,10 @@ message_count=message_count+1,updated_at=CURRENT_TIMESTAMP WHERE conversation_id
 	if name == "" {
 		name = "有人"
 	}
-	preview := directPreview(content)
+	preview := directPreview(input.content)
+	if preview == "" {
+		preview = "附件"
+	}
 	metadata, err := json.Marshal(map[string]any{"conversation_id": conversation, "event": "direct_message_created"})
 	if err != nil {
 		return directSendResult{}, errSessionStore
@@ -167,18 +224,10 @@ func directPreview(content string) string {
 }
 
 func createDirectMessage(w http.ResponseWriter, r *http.Request, repository SessionRepository, config RefreshConfig, actor, conversation int64) {
-	body, ok := readLoginBody(r)
-	if !ok {
-		respond(w, 400, 40001, "请求体必须是 JSON 对象", nil)
-		return
-	}
-	content := loginString(body["content"])
-	if content == "" {
-		respond(w, 400, 40001, "content 不能为空", nil)
-		return
-	}
-	if len(content) > 4000 {
-		respond(w, 400, 40001, "content 超过最大长度", nil)
+	raw, readErr := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
+	input, parseErr := parseDirectSend(raw)
+	if readErr != nil || len(raw) > 1<<20 || parseErr != nil {
+		respond(w, 400, 40001, "私信内容或附件参数错误", nil)
 		return
 	}
 	store, ok := repository.(directSendStore)
@@ -186,7 +235,17 @@ func createDirectMessage(w http.ResponseWriter, r *http.Request, repository Sess
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return
 	}
-	result, err := store.SendDirectMessage(r.Context(), actor, conversation, content, config.Storage)
+	var result directSendResult
+	var err error
+	if input.reply != nil || len(input.media) > 0 {
+		if extras, supported := repository.(directExtrasSendStore); supported {
+			result, err = extras.SendDirectMessageWithExtras(r.Context(), actor, conversation, input, config.Storage)
+		} else {
+			err = errDirectExtrasUnavailable
+		}
+	} else {
+		result, err = store.SendDirectMessage(r.Context(), actor, conversation, input.content, config.Storage)
+	}
 	switch {
 	case errors.Is(err, errPublishForbidden):
 		respond(w, 403, 40301, publishPolicy.Message, nil)
@@ -198,12 +257,19 @@ func createDirectMessage(w http.ResponseWriter, r *http.Request, repository Sess
 		respond(w, 403, 40301, "无法向该用户发送私信", nil)
 	case errors.Is(err, errDirectStrangers):
 		respond(w, 403, 40301, "对方不接收陌生人私信", nil)
+	case errors.Is(err, errDirectReply):
+		respond(w, 400, 40001, "无法引用该私信", nil)
+	case errors.Is(err, errDirectAttachment):
+		respond(w, 404, 40401, "私信附件不存在或不可用", nil)
+	case errors.Is(err, errDirectExtrasUnavailable):
+		respond(w, 503, 50301, "私信服务暂不可用", nil)
 	case err != nil:
 		respond(w, 500, 50001, "服务器内部错误", nil)
 	default:
 		if config.DirectEvents == nil || config.DirectEvents.PublishDirect(r.Context(), actor, result.target, result.message) != nil {
 			log.Print("direct message delivery unavailable")
 		}
+		publishDirectReadAdvance(r.Context(), config.DirectEvents, actor, conversation, result.read)
 		if result.notice != nil && result.notice.PushEnabled {
 			item, found, err := store.NotificationByID(r.Context(), result.target, result.notice.ID)
 			if err != nil || !found || hydrateNotification(r.Context(), repository, result.target, &item, config.Storage) != nil ||

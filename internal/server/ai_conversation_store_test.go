@@ -14,22 +14,25 @@ import (
 
 type conversationDB struct {
 	driverState
-	mode             string
-	permissionCalls  int
-	owner            int64
-	id               string
-	purpose          string
-	group            driver.Value
-	title            driver.Value
-	calls            []listQueryCall
-	messages         int64
-	messageContent   string
-	messageRole      string
-	messageModel     driver.Value
-	messageVersion   driver.Value
-	messageRevision  driver.Value
-	knowledgeQueries int
-	historyChecks    int
+	mode                 string
+	permissionCalls      int
+	owner                int64
+	id                   string
+	purpose              string
+	knowledgeScope       string
+	group                driver.Value
+	member               bool
+	revokeMemberOnInsert bool
+	title                driver.Value
+	calls                []listQueryCall
+	messages             int64
+	messageContent       string
+	messageRole          string
+	messageModel         driver.Value
+	messageVersion       driver.Value
+	messageRevision      driver.Value
+	knowledgeQueries     int
+	historyChecks        int
 }
 
 func TestKnowledgeWriteChecksSkillGenerationUnderLock(t *testing.T) {
@@ -283,6 +286,9 @@ func (c *conversationConn) ExecContext(_ context.Context, query string, args []d
 			}
 		}
 		c.state.messages++
+		if c.state.revokeMemberOnInsert {
+			c.state.member = false
+		}
 		return driver.RowsAffected(1), nil
 	}
 	if strings.Contains(query, "UPDATE n_ai_conversations") {
@@ -296,6 +302,8 @@ func (c *conversationConn) ExecContext(_ context.Context, query string, args []d
 			c.state.owner = arg.Value.(int64)
 		case "purpose":
 			c.state.purpose = arg.Value.(string)
+		case "knowledge_scope":
+			c.state.knowledgeScope = arg.Value.(string)
 		case "group_id":
 			c.state.group = arg.Value
 		case "title":
@@ -308,10 +316,12 @@ func (c *conversationConn) ExecContext(_ context.Context, query string, args []d
 type groupDraftTxConnector struct {
 	skillConfigConnector
 	evidence groupEvidence
+	previous *groupEvidence
 }
 type groupDraftTxConn struct {
 	*skillConfigConn
 	evidence groupEvidence
+	previous *groupEvidence
 }
 
 func (c groupDraftTxConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -319,20 +329,29 @@ func (c groupDraftTxConnector) Connect(ctx context.Context) (driver.Conn, error)
 	if err != nil {
 		return nil, err
 	}
-	return &groupDraftTxConn{conn.(*skillConfigConn), c.evidence}, nil
+	return &groupDraftTxConn{conn.(*skillConfigConn), c.evidence, c.previous}, nil
 }
 func (c *groupDraftTxConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	if strings.HasPrefix(query, "SELECT group_id FROM n_groups") && strings.HasSuffix(query, "FOR UPDATE") {
 		return &alertRows{values: []driver.Value{int64(7)}}, nil
 	}
 	if query == groupEvidenceSQL {
-		example := c.evidence.Examples[0]
+		evidence := c.evidence
+		if c.previous != nil {
+			for _, arg := range args {
+				if arg.Name == "window_end" && arg.Value == c.previous.WindowEnd {
+					evidence = *c.previous
+				}
+			}
+			c.state.conversation.calls = append(c.state.conversation.calls, listQueryCall{query, args})
+		}
+		example := evidence.Examples[0]
 		excerpt := example.Excerpt
 		if c.state.conversation.mode == "changed" && c.state.conversation.messageRole == "assistant" {
 			excerpt = "modified"
 		}
 		return &schemaFixtureRows{columns: make([]string, 8), values: [][]driver.Value{{
-			c.evidence.WindowStart, c.evidence.WindowEnd, c.evidence.PostsCount, c.evidence.CommentsCount,
+			evidence.WindowStart, evidence.WindowEnd, evidence.PostsCount, evidence.CommentsCount,
 			example.Kind, example.SourceID, example.PostID, excerpt,
 		}}}, nil
 	}
@@ -356,7 +375,7 @@ func TestAppendGroupDraftChecksVersionSourcesAndCurrentSequence(t *testing.T) {
 			config := &skillConfigState{conversation: conversationDB{mode: mode, owner: 42, id: id, purpose: "group", group: int64(7), messages: 1},
 				rows: [][]driver.Value{{int64(1), `["group-brief"]`}}}
 			state := &config.conversation
-			db := sql.OpenDB(groupDraftTxConnector{skillConfigConnector{config}, evidence})
+			db := sql.OpenDB(groupDraftTxConnector{skillConfigConnector: skillConfigConnector{config}, evidence: evidence})
 			defer db.Close()
 			input := assistantMessageInput{Content: "result", ExpectedSequence: 1, ModelID: "profile-a", ModelVersion: "2026.11+q4", ConfigRevision: 12, SkillGeneration: 1}
 			if mode != "unverified" {
@@ -399,6 +418,52 @@ func TestAppendGroupDraftChecksVersionSourcesAndCurrentSequence(t *testing.T) {
 }
 func (c *conversationConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.state.calls = append(c.state.calls, listQueryCall{query, append([]driver.NamedValue(nil), args...)})
+	contract := scopedKnowledgeContract()
+	if query == contract.SQL["membership"] || query == contract.SQL["lock_membership"] {
+		binds := map[string]driver.Value{}
+		for _, arg := range args {
+			binds[arg.Name] = arg.Value
+		}
+		if binds["viewer_id"] != int64(42) || binds["group_id"] != c.state.group {
+			return nil, errors.New("unscoped membership query")
+		}
+		if !c.state.member {
+			return emptyRows{&c.state.driverState}, nil
+		}
+		return &alertRows{values: []driver.Value{int64(1)}}, nil
+	}
+	if query == contract.SQL["lock_group"] {
+		if c.state.mode == "member-revoked-before-lock" {
+			c.state.member = false
+		}
+		return &alertRows{values: []driver.Value{c.state.group}}, nil
+	}
+	if query == scopedKnowledgeContract().SQL["group_post"] {
+		c.state.knowledgeQueries++
+		binds := map[string]driver.Value{}
+		for _, arg := range args {
+			binds[arg.Name] = arg.Value
+		}
+		if binds["viewer_id"] != int64(42) || binds["group_id"] != c.state.group || binds["source_id"] != int64(11) {
+			return nil, errors.New("unscoped query")
+		}
+		group := c.state.group
+		if c.state.mode == "cross-group-source" {
+			group = int64(18)
+		}
+		return &alertRows{values: []driver.Value{int64(11), int64(11), "evidence", group}}, nil
+	}
+	if query == scopedKnowledgeContract().SQL["personal_post"] {
+		c.state.knowledgeQueries++
+		binds := map[string]driver.Value{}
+		for _, arg := range args {
+			binds[arg.Name] = arg.Value
+		}
+		if binds["viewer_id"] != int64(42) || binds["source_id"] != int64(11) {
+			return nil, errors.New("unscoped query")
+		}
+		return &alertRows{values: []driver.Value{int64(11), int64(11), "evidence"}}, nil
+	}
 	if strings.Contains(query, "FROM n_ai_terms_active") && c.state.mode == "terms-write" {
 		if !strings.Contains(query, "FOR UPDATE WAIT 5") {
 			return nil, errors.New("missing terms lock")
@@ -438,7 +503,7 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 			return nil, errors.New("wrong bindings")
 		}
 		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-		return &alertRows{values: []driver.Value{c.state.id, int64(42), "writing", nil, "draft", stamp, stamp}}, nil
+		return &alertRows{values: []driver.Value{c.state.id, int64(42), "writing", nil, "public", "draft", stamp, stamp}}, nil
 	}
 	if strings.Contains(query, "fn_has_group_permission") {
 		c.state.permissionCalls++
@@ -504,7 +569,11 @@ func (c *conversationConn) QueryContext(_ context.Context, query string, args []
 			return emptyRows{&c.state.driverState}, nil
 		}
 		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-		return &alertRows{values: []driver.Value{id, c.state.purpose, c.state.group, c.state.title, stamp, stamp}}, nil
+		storedScope := c.state.knowledgeScope
+		if storedScope == "" {
+			storedScope = "public"
+		}
+		return &alertRows{values: []driver.Value{id, c.state.purpose, c.state.group, storedScope, c.state.title, stamp, stamp}}, nil
 	}
 	return nil, errors.New("unexpected")
 }

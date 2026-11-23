@@ -167,6 +167,13 @@ func postListSQL(viewer *int64, query PostListQuery, personalize bool) (string, 
 		}
 		order = "(SELECT MAX(l.created_at) FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id) " + direction
 	}
+	recommended := query.Mode == "all" && query.Timeline == "recommended" && query.Search == ""
+	if recommended {
+		order = homeFeed.RecommendationRecency
+		if viewer != nil {
+			order = "(" + homeFeed.RecommendationScore + ") DESC, " + order
+		}
+	}
 	if personalize {
 		where += " " + recommendationFeedbackSQL.FeedFilter
 		order = recommendationFeedbackSQL.FeedOrder + ", " + order
@@ -178,6 +185,9 @@ func postListSQL(viewer *int64, query PostListQuery, personalize bool) (string, 
 	}
 	count := "SELECT COUNT(*) FROM v_post_feed_item v" + where
 	rows := "SELECT * FROM (" + columns + ",ROW_NUMBER() OVER (ORDER BY " + order + ") AS rn FROM v_post_feed_item v" + where + ") WHERE rn BETWEEN :start_row AND :end_row"
+	if recommended {
+		rows += " ORDER BY rn"
+	}
 	rowArgs := append(append([]any{}, args...), sql.Named("start_row", query.Page.Start), sql.Named("end_row", query.Page.End))
 	return count, rows, args, rowArgs
 }

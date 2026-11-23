@@ -27,7 +27,21 @@ func NewHandler(codec *auth.TokenManager, repository SessionRepository, cors Cor
 }
 
 func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository, cors CorsPolicy, refresh RefreshConfig) http.Handler {
+	t := newTelemetry(refresh.metricsToken)
+	switch repo := repository.(type) {
+	case OracleSessions:
+		t.oracle = repo.DB
+	case *OracleSessions:
+		t.oracle = repo.DB
+	}
+	return observedHTTP{telemetry: t, next: newHTTPRoutes(codec, repository, cors, refresh)}
+}
+
+func newHTTPRoutes(codec *auth.TokenManager, repository SessionRepository, cors CorsPolicy, refresh RefreshConfig) http.Handler {
 	refresh = refresh.defaults()
+	if refresh.linkPreview == nil {
+		refresh.linkPreview = newLinkPreviewService(refresh.NotificationPublisher)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		privateMediaID, privateMedia := privateMediaContentSegment(r.URL.EscapedPath())
 		if privateMedia {
@@ -67,10 +81,18 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			respond(w, 200, 200, "ok", map[string]string{"status": "ok", "service": "nekotribe-go"})
 			return
 		}
-		if aiConversationRoute(w, r, codec, repository, refresh) {
+		if userProviderRoute(w, r, codec, repository, refresh.userProvider) || aiMediaVisionRoute(w, r, codec, repository, refresh) || aiConversationRoute(w, r, codec, repository, refresh) {
 			return
 		}
 		if directConversationsRoute(w, r, codec, repository, refresh) ||
+			webRTCIceRoute(w, r, codec, repository, refresh) ||
+			linkPreviewRoute(w, r, codec, repository, refresh.linkPreview) ||
+			passkeyRoute(w, r, codec, repository, refresh) ||
+			githubOAuthRoute(w, r, codec, repository, refresh) ||
+			postPollRoute(w, r, codec, repository) ||
+			postDraftRoute(w, r, codec, repository, refresh) ||
+			profilePinnedPostRoute(w, r, codec, repository, refresh.Storage) ||
+			groupActivityRoute(w, r, codec, repository, refresh.Storage) ||
 			groupDetailRoute(w, r, codec, repository, refresh.Storage) ||
 			groupListRoute(w, r, codec, repository, refresh.Storage) ||
 			groupContentRoute(w, r, codec, repository, refresh.Storage) ||
@@ -88,6 +110,8 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			directedInviteRoute(w, r, codec, repository, refresh.Storage) ||
 			groupMemberListRoute(w, r, codec, repository, refresh.Storage) ||
 			directMessagesRoute(w, r, codec, repository, refresh) ||
+			directReadStatusRoute(w, r, codec, repository, refresh) ||
+			directMessageExtrasRoute(w, r, codec, repository, refresh) ||
 			directMessageDeleteRoute(w, r, codec, repository, refresh.DirectEvents) ||
 			chatGroupsRoute(w, r, codec, repository) ||
 			chatMembersRoute(w, r, codec, repository, refresh.Storage) ||
@@ -99,7 +123,7 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			return
 		}
 		if r.Method == http.MethodGet && r.URL.EscapedPath() == "/_ws" {
-			notificationWebSocket(w, r, codec, repository, cors, refresh.Storage.BaseURL, refresh.NotificationEvents, refresh.ChatChannelEvents)
+			notificationWebSocket(w, r, codec, repository, cors, refresh)
 			return
 		}
 		if r.URL.EscapedPath() == "/api/v2/auth/tokens" && r.Method == http.MethodPost {
@@ -135,6 +159,9 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 		if handleAccountStatements(w, r, codec, repository) {
 			return
 		}
+		if handleAccountResources(w, r, codec, repository, refresh.AIModelQuotaLimiter) {
+			return
+		}
 		if handleModerationAppeals(w, r, codec, repository, refresh) {
 			return
 		}
@@ -142,6 +169,9 @@ func NewHandlerWithConfig(codec *auth.TokenManager, repository SessionRepository
 			return
 		}
 		if handleModerationDashboard(w, r, codec, repository, refresh) {
+			return
+		}
+		if handleAIOperations(w, r, codec, repository, refresh) {
 			return
 		}
 		if handleModerationUserQueue(w, r, codec, repository, refresh) {
@@ -490,7 +520,7 @@ func (p CorsPolicy) allows(origin string) bool {
 func preflight(w http.ResponseWriter, r *http.Request, p CorsPolicy) bool {
 	w.Header().Add("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
 	methods, headersAllowed := allowedMethods, allowedHeaders
-	exposedHeaders := "content-length,content-type,Retry-After"
+	exposedHeaders := "content-length,content-type,Retry-After," + observabilityPolicy.RequestIDHeader
 	path := r.URL.EscapedPath()
 	_, privateMedia := privateMediaContentSegment(path)
 	publicStorage := strings.HasPrefix(path, "/storage/") && len(path) > len("/storage/")

@@ -63,6 +63,9 @@ func (c *createPostConn) QueryContext(_ context.Context, q string, args []driver
 		id := args[0].Value.(float64)
 		return &alertRows{values: []driver.Value{int64(id), c.s.mediaKeys[id]}}, nil
 	}
+	if q == directExtrasContract.SQL["asset_is_linked"] {
+		return emptyRows{&c.s.driverState}, nil
+	}
 	if q == privateMediaBinding.Post {
 		if c.s.privateDenied {
 			return emptyRows{&c.s.driverState}, nil

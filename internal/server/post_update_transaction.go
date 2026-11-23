@@ -54,6 +54,14 @@ func (s OracleSessions) UpdatePostAtomic(ctx context.Context, user, id int64, in
 	if owner != user {
 		return errPostUpdateNotOwner
 	}
+	if input.markdown != nil {
+		if kind != "post" {
+			return errPostMarkdownInvalid
+		}
+		if err := checkPostMarkdownSchema(ctx, tx); err != nil {
+			return err
+		}
+	}
 	nextContent := content.String
 	if input.Content != nil {
 		nextContent = *input.Content
@@ -89,7 +97,7 @@ func (s OracleSessions) UpdatePostAtomic(ctx context.Context, user, id int64, in
 			binds = append(binds, sql.Named(field.name, nullablePostString(*field.value)))
 		}
 	}
-	if len(fields) > 0 || input.MediaIDs != nil || input.Tags != nil || input.Mentions != nil {
+	if len(fields) > 0 || input.MediaIDs != nil || input.Tags != nil || input.Mentions != nil || input.markdown != nil {
 		fields = append(fields, "updated_at=CURRENT_TIMESTAMP")
 		n, e := postTxExecute(ctx, tx, "UPDATE n_posts SET "+strings.Join(fields, ",")+" WHERE post_id=:post_id AND author_id=:user_id AND is_deleted=0", binds...)
 		if e != nil {
@@ -140,6 +148,11 @@ func (s OracleSessions) UpdatePostAtomic(ctx context.Context, user, id int64, in
 			if _, e := postTxExecute(ctx, tx, attachPostMentionAtomicSQL, sql.Named("post_id", id), sql.Named("user_id", user)); e != nil {
 				return e
 			}
+		}
+	}
+	if input.markdown != nil {
+		if err := updatePostMarkdown(ctx, tx, id, *input.markdown); err != nil {
+			return err
 		}
 	}
 	if tx.Commit() != nil {

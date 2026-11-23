@@ -62,17 +62,6 @@ func generateAIWriting(ctx context.Context, store aiWritingStore, user int64, id
 	if err := ctx.Err(); err != nil {
 		return conversationMessage{}, errWritingUnavailable
 	}
-	router, err := config.modelRouter()
-	if err != nil {
-		return conversationMessage{}, errWritingUnavailable
-	}
-	selection, err := router.Select("writing", nil)
-	if err != nil {
-		return conversationMessage{}, errWritingUnavailable
-	}
-	if selection.ConfigurationRevision > 999999999999999 {
-		return conversationMessage{}, errWritingContext
-	}
 	conversation, err := store.readAIConversation(ctx, user, id, policy)
 	if err != nil {
 		return conversationMessage{}, err
@@ -104,6 +93,13 @@ func generateAIWriting(ctx context.Context, store aiWritingStore, user int64, id
 	skillGeneration, err := store.selectAIWritingSkill(ctx, user, id, policy, input.SkillID)
 	if err != nil {
 		return conversationMessage{}, err
+	}
+	selection, resolveCredential, err := writingSelection(ctx, store, user, config)
+	if err != nil {
+		return conversationMessage{}, errWritingUnavailable
+	}
+	if selection.ConfigurationRevision > 999999999999999 {
+		return conversationMessage{}, errWritingContext
 	}
 	audit := newAIRunAudit("writing_draft", skillGeneration)
 	audit.configRevision = selection.ConfigurationRevision
@@ -143,7 +139,7 @@ func generateAIWriting(ctx context.Context, store aiWritingStore, user int64, id
 	if err != nil {
 		return conversationMessage{}, errWritingUnavailable
 	}
-	transport, err := ai.NewTransport(config.aiCredential)
+	transport, err := ai.NewTransport(resolveCredential)
 	if err != nil {
 		return conversationMessage{}, errWritingUnavailable
 	}

@@ -45,6 +45,7 @@ func TestPostListRoute(t *testing.T) {
 		wantEvents                []string
 	}{
 		{"public", "?page=2&page_size=1&q=%20%23%23Cat_%25%20&sort=popular&viewer_id=99", "", "", false, 200, []string{"list", "author", "media-ready", "media", "tags", "mentions"}},
+		{"anonymous recommended", "?timeline=recommended", "", "", false, 200, []string{"list", "author", "media-ready", "media", "tags", "mentions"}},
 		{"following requires auth", "?timeline=following", "", "", false, 401, nil},
 		{"mentions requires auth", "?timeline=mentions", "", "", false, 401, nil},
 		{"authorized following", "?timeline=following", "valid", "", false, 200, []string{"list", "author", "media-ready", "media", "tags", "mentions"}},

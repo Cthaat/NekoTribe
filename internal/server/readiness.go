@@ -17,6 +17,14 @@ type readinessProbe struct {
 }
 
 func WithReadiness(next http.Handler, cors CorsPolicy, checkOracle, checkRedis func(context.Context) error) http.Handler {
+	if observed, ok := next.(observedHTTP); ok {
+		observed.next = withReadiness(observed.next, cors, checkOracle, checkRedis)
+		return observed
+	}
+	return withReadiness(next, cors, checkOracle, checkRedis)
+}
+
+func withReadiness(next http.Handler, cors CorsPolicy, checkOracle, checkRedis func(context.Context) error) http.Handler {
 	var mu sync.Mutex
 	var active *readinessProbe
 	start := func() *readinessProbe {

@@ -48,6 +48,7 @@ type moderationAdviceRequest struct {
 	ID, Sequence int64
 	Locale       string
 	SkillID      *string
+	Vision       bool
 }
 type moderationTargetReference struct {
 	Kind    string `json:"target_type"`
@@ -70,6 +71,7 @@ type moderationAdviceRecord struct {
 	TermsGeneration int64                     `json:"terms_generation"`
 	SkillGeneration int64                     `json:"skill_generation"`
 	Advice          moderationOpinion         `json:"advice"`
+	ImageSources    []visionImageReference    `json:"image_sources,omitempty"`
 }
 type moderationRule struct {
 	ID      int64    `json:"id"`
@@ -82,6 +84,7 @@ type moderationMaterial struct {
 	Content   string
 	Authority termsAuthority
 	Rules     []moderationRule
+	Images    []storedVisionImage
 }
 
 func moderationInteger(value interface{}) (int64, bool) {
@@ -165,9 +168,21 @@ func validModerationTarget(target moderationTargetReference) bool {
 }
 func decodeModerationAdvice(content string) *moderationAdviceRecord {
 	var record moderationAdviceRecord
-	if json.Unmarshal([]byte(content), &record) != nil || record.Version != 1 || !validModerationTarget(record.Target) ||
+	if json.Unmarshal([]byte(content), &record) != nil || !validModerationTarget(record.Target) ||
 		!moderationDigestHex(record.Target.Digest) || !moderationDigestHex(record.TermsDigest) ||
 		!validKnowledgeID(record.TermsGeneration) || !validKnowledgeID(record.SkillGeneration) {
+		return nil
+	}
+	switch record.Version {
+	case 1:
+		if len(record.ImageSources) != 0 {
+			return nil
+		}
+	case 2:
+		if !moderationHasImages(record.Target.Kind) || !validModerationImageReferences(record.ImageSources) {
+			return nil
+		}
+	default:
 		return nil
 	}
 	raw, err := json.Marshal(record.Advice)
@@ -214,11 +229,11 @@ func readModerationMaterial(ctx context.Context, tx *sql.Tx, actor int64, reques
 	if !validModerationTarget(target) {
 		return nil, errSessionStore
 	}
-	if !length.Valid || length.Int64 < 1 || length.Int64 > 1000 || !content.Valid ||
-		len(content.String) > 4000 || strings.TrimFunc(content.String, jsTrimSpace) == "" {
+	textPresent := length.Valid && length.Int64 >= 1 && content.Valid && strings.TrimFunc(content.String, jsTrimSpace) != ""
+	if length.Int64 > 1000 || len(content.String) > 4000 || (!textPresent && (!request.Vision || !moderationHasImages(request.Kind))) {
 		return nil, nil
 	}
-	if !termsTextValid(content.String) {
+	if textPresent && !termsTextValid(content.String) {
 		return nil, errSessionStore
 	}
 	target.Digest = targetDigest(target, content.String)
@@ -237,7 +252,7 @@ func readModerationMaterial(ctx context.Context, tx *sql.Tx, actor int64, reques
 			rules = append(rules, moderationRule{row.ID, row.Version, row.Title, row.Blocks})
 		}
 	}
-	return &moderationMaterial{target, content.String, authority, rules}, nil
+	return &moderationMaterial{Target: target, Content: content.String, Authority: authority, Rules: rules}, nil
 }
 
 type moderationDisplayTarget struct {
@@ -248,13 +263,14 @@ type moderationDisplayTarget struct {
 }
 type visibleModerationAdvice struct {
 	moderationOpinion
-	Target moderationDisplayTarget `json:"target"`
-	Rules  []publicTermsReference  `json:"rules"`
+	Target       moderationDisplayTarget `json:"target"`
+	Rules        []publicTermsReference  `json:"rules"`
+	AnalysisMode string                  `json:"analysis_mode"`
 }
 
 func currentModerationAdvice(ctx context.Context, tx *sql.Tx, actor int64, record *moderationAdviceRecord, lockTerms bool) (*visibleModerationAdvice, error) {
 	material, err := readModerationMaterial(ctx, tx, actor, moderationAdviceRequest{
-		Kind: record.Target.Kind, ID: record.Target.ID, Locale: record.Locale,
+		Kind: record.Target.Kind, ID: record.Target.ID, Locale: record.Locale, Vision: record.Version == 2,
 	}, lockTerms)
 	if err != nil {
 		return nil, err
@@ -264,7 +280,13 @@ func currentModerationAdvice(ctx context.Context, tx *sql.Tx, actor int64, recor
 		return nil, errConversationConflict
 	}
 	result := &visibleModerationAdvice{moderationOpinion: record.Advice,
-		Target: moderationDisplayTarget{record.Target.Kind, record.Target.ID, record.Target.PostID, record.Target.GroupID}}
+		Target: moderationDisplayTarget{record.Target.Kind, record.Target.ID, record.Target.PostID, record.Target.GroupID}, AnalysisMode: "text_only"}
+	if record.Version == 2 {
+		if err := recheckModerationVisionImages(ctx, tx, actor, record); err != nil {
+			return nil, err
+		}
+		result.AnalysisMode = "text_and_images"
+	}
 	for _, rule := range material.Rules {
 		for _, id := range record.Advice.RuleIDs {
 			if id == rule.ID {
@@ -277,6 +299,7 @@ func currentModerationAdvice(ctx context.Context, tx *sql.Tx, actor int64, recor
 
 type moderationAdviceStore interface {
 	loadModerationAdvice(context.Context, int64, string, moderationAdviceRequest, moderationPolicy) (*moderationMaterial, int64, error)
+	verifyModerationVisionInputs(context.Context, int64, *moderationAdviceRecord) error
 	appendAIAssistantMessage(context.Context, int64, string, assistantMessageInput, moderationPolicy) (conversationMessage, error)
 }
 
@@ -316,12 +339,24 @@ func (s OracleSessions) loadModerationAdvice(ctx context.Context, actor int64, i
 	if err != nil {
 		return nil, 0, err
 	}
+	if material != nil && request.Vision && moderationHasImages(request.Kind) {
+		material.Images, err = readModerationVisionImages(ctx, tx, actor, material.Target)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
 	if tx.Rollback() != nil {
 		return nil, 0, errSessionStore
 	}
 	return material, selected.Generation, nil
 }
 func generateModerationAdvice(ctx context.Context, store moderationAdviceStore, actor int64, id string, policy moderationPolicy, config RefreshConfig, request moderationAdviceRequest) (saved *conversationMessage, runErr error) {
+	router, modelErr := config.modelRouter()
+	var model ai.Selection
+	if modelErr == nil {
+		model, modelErr = router.Select("moderation", []string{"structured-output"})
+	}
+	request.Vision = modelErr == nil && moderationHasImages(request.Kind) && slices.Contains(model.Capabilities, "vision")
 	material, generation, err := store.loadModerationAdvice(ctx, actor, id, request, policy)
 	if err != nil {
 		return nil, err
@@ -338,24 +373,34 @@ func generateModerationAdvice(ctx context.Context, store moderationAdviceStore, 
 		return nil, nil
 	}
 	audit.stage = "configuration"
-	router, err := config.modelRouter()
-	if err != nil {
-		return nil, errModerationAdviceUnavailable
-	}
-	model, err := router.Select("moderation", []string{"structured-output"})
-	if err != nil {
+	if modelErr != nil {
 		return nil, errModerationAdviceUnavailable
 	}
 	audit.configRevision = model.ConfigurationRevision
 	contract := moderationAdviceContract
+	var images []ai.VisionImage
+	var imageSources []visionImageReference
+	system := contract.System
+	if request.Vision {
+		images, imageSources = moderationVisionInputs(ctx, config.LocalStorage, material.Images)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if len(images) > 0 {
+			system = strings.Replace(contract.System, "这条公开文本", "这条公开帖子提供的文本和附带图片", 1)
+		}
+	}
+	if len(images) == 0 && strings.TrimFunc(material.Content, jsTrimSpace) == "" {
+		return nil, nil
+	}
 	prompt, err := json.Marshal(map[string]interface{}{"target_type": request.Kind, "locale": request.Locale, "content": material.Content, "rules": material.Rules})
 	budget := min(16384, model.ContextWindowTokens-model.MaxOutputTokens-512)
-	if err != nil || int64(len(prompt)+len(contract.System)+len(contract.ResponseSchema)+64) > budget {
+	if err != nil || int64(len(prompt)+len(system)+len(contract.ResponseSchema)+64) > budget {
 		return nil, errModerationAdviceUnavailable
 	}
 	packet, err := json.Marshal(map[string]interface{}{
 		"responseSchema": contract.ResponseSchema, "messages": []map[string]string{
-			{"role": "system", "content": contract.System}, {"role": "user", "content": string(prompt)},
+			{"role": "system", "content": system}, {"role": "user", "content": string(prompt)},
 		},
 	})
 	if err != nil {
@@ -366,12 +411,25 @@ func generateModerationAdvice(ctx context.Context, store moderationAdviceStore, 
 		return nil, errModerationAdviceUnavailable
 	}
 	defer transport.CloseIdleConnections()
+	review := &moderationAdviceRecord{Version: 1, Target: material.Target, Locale: request.Locale, TermsDigest: material.Authority.Digest,
+		TermsGeneration: material.Authority.Generation, SkillGeneration: generation, ImageSources: imageSources}
+	if len(imageSources) > 0 {
+		review.Version = 2
+		audit.stage = "evidence"
+		if err := store.verifyModerationVisionInputs(ctx, actor, review); err != nil {
+			return nil, err
+		}
+	}
 	audit.stage = "quota"
 	if err := requireAIModelQuota(ctx, config.AIModelQuotaLimiter, actor, 1); err != nil {
 		return nil, err
 	}
 	audit.stage = "inference"
-	result, err := transport.Infer(ctx, model, packet)
+	inferenceCtx := ctx
+	if len(images) > 0 {
+		inferenceCtx = ai.WithStreamDeltas(ctx, nil)
+	}
+	result, err := transport.InferWithImages(inferenceCtx, model, packet, images)
 	if err != nil || result.FinishReason != "stop" || len(result.ToolCalls) != 0 || ctx.Err() != nil {
 		return nil, errModerationAdviceUnavailable
 	}
@@ -384,7 +442,7 @@ func generateModerationAdvice(ctx context.Context, store moderationAdviceStore, 
 			return nil, errModerationAdviceUnavailable
 		}
 	}
-	review := &moderationAdviceRecord{1, material.Target, request.Locale, material.Authority.Digest, material.Authority.Generation, generation, advice}
+	review.Advice = advice
 	audit.stage = "persist"
 	message, err := store.appendAIAssistantMessage(ctx, actor, id, assistantMessageInput{
 		ModerationAdvice: review, ExpectedSequence: request.Sequence, ModelID: model.ProfileID, ModelVersion: model.ModelVersion,

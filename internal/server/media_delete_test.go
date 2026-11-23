@@ -49,6 +49,15 @@ func (c *mediaDeleteConn) QueryContext(_ context.Context, q string, args []drive
 		}
 		return emptyRows{&c.state.driverState}, nil
 	}
+	if q == visionContract.SQL["lock_owned_image"] {
+		return &alertRows{values: []driver.Value{int64(20)}}, nil
+	}
+	if q == directExtrasContract.SQL["asset_is_linked"] {
+		if c.state.mode == "direct-in-use" {
+			return &alertRows{values: []driver.Value{int64(1)}}, nil
+		}
+		return emptyRows{&c.state.driverState}, nil
+	}
 	return &alertRows{values: []driver.Value{"owned/a.txt", "/storage/owned/a.txt", nil}}, nil
 }
 func (c *mediaDeleteConn) ExecContext(_ context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
@@ -65,7 +74,7 @@ func (c *mediaDeleteConn) ExecContext(_ context.Context, q string, args []driver
 	return driver.RowsAffected(1), nil
 }
 func TestMediaDeleteRepositoryCommitAndOwnership(t *testing.T) {
-	for _, mode := range []string{"success", "missing", "in-use", "race", "multiple", "query-error", "write-error", "commit-error"} {
+	for _, mode := range []string{"success", "missing", "in-use", "direct-in-use", "race", "multiple", "query-error", "write-error", "commit-error"} {
 		t.Run(mode, func(t *testing.T) {
 			state := &mediaDeleteDBState{mode: mode}
 			if mode == "commit-error" {
@@ -74,7 +83,8 @@ func TestMediaDeleteRepositoryCommitAndOwnership(t *testing.T) {
 			db := sql.OpenDB(mediaDeleteConnector{state})
 			defer db.Close()
 			record, err := (OracleSessions{db}).DeleteMedia(context.Background(), 42, 20)
-			shouldError := mode == "in-use" || mode == "multiple" || strings.HasSuffix(mode, "-error")
+			inUse := mode == "in-use" || mode == "direct-in-use"
+			shouldError := inUse || mode == "multiple" || strings.HasSuffix(mode, "-error")
 			if (err != nil) != shouldError || (err != nil && strings.Contains(err.Error(), "private")) {
 				t.Fatal(record, err)
 			}
@@ -88,7 +98,11 @@ func TestMediaDeleteRepositoryCommitAndOwnership(t *testing.T) {
 				t.Fatal(state.reads)
 			}
 			if mode != "missing" && mode != "query-error" {
-				if len(state.reads) != 2 ||
+				expectedReads := 3
+				if mode == "in-use" {
+					expectedReads = 2
+				}
+				if len(state.reads) != expectedReads || (expectedReads == 3 && state.reads[2].sql != directExtrasContract.SQL["asset_is_linked"]) ||
 					!strings.Contains(state.reads[1].sql, "n_post_media") ||
 					!strings.Contains(state.reads[1].sql, "n_chat_message_media") ||
 					!strings.Contains(state.reads[1].sql, "avatar_media_id") ||
@@ -97,10 +111,10 @@ func TestMediaDeleteRepositoryCommitAndOwnership(t *testing.T) {
 					t.Fatal(state.reads)
 				}
 			}
-			if mode == "in-use" && (!errors.Is(err, errMediaInUse) || state.commits != 0) {
+			if inUse && (!errors.Is(err, errMediaInUse) || state.commits != 0) {
 				t.Fatal(err, state.commits)
 			}
-			if mode != "missing" && mode != "query-error" && mode != "in-use" {
+			if mode != "missing" && mode != "query-error" && !inUse {
 				if len(state.writes) != 1 || !strings.Contains(state.writes[0].sql, "owner_user_id=:user_id") {
 					t.Fatal(state.writes)
 				}

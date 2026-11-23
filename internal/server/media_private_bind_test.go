@@ -118,12 +118,14 @@ func TestPrivateMediaBindChatSend(t *testing.T) {
 	}{
 		{"private", "private/chat/files/42/a.png", false, 1, nil},
 		{"already bound", "private/chat/files/42/a.png", true, 1, errChatAttachment},
+		{"bound to a direct message", "private/chat/files/42/a.png", false, 1, errChatAttachment},
 		{"wrong scope", "private/post/files/42/a.png", false, 0, errChatAttachment},
 		{"reserved spelling", "Private/chat/files/42/a.png", false, 0, errChatAttachment},
 		{"legacy", "posts/files/42/a.png", false, 0, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			state := &chatChannelConnector{historyEnrich: true, sendStatus: "active", sendMediaKey: tc.key, privateDenied: tc.denied}
+			state := &chatChannelConnector{historyEnrich: true, sendStatus: "active", sendMediaKey: tc.key, privateDenied: tc.denied,
+				directLinked: tc.name == "bound to a direct message"}
 			db := sql.OpenDB(state)
 			defer db.Close()
 			message, err := (OracleSessions{DB: db}).SendChatMessage(context.Background(), 42, 7, chatSendInput{

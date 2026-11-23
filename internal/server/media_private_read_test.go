@@ -244,12 +244,41 @@ func TestPrivateMediaReadS3(t *testing.T) {
 type privateMediaQueryFixture struct {
 	*testConn
 	calls []listQueryCall
+	mode  string
 }
 
 func (s *privateMediaQueryFixture) Connect(context.Context) (driver.Conn, error) { return s, nil }
 func (*privateMediaQueryFixture) Driver() driver.Driver                          { return testDriver{} }
 func (s *privateMediaQueryFixture) QueryContext(_ context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
 	s.calls = append(s.calls, listQueryCall{q, args})
+	switch q {
+	case directExtrasContract.SQL["private_media_read"]:
+		switch s.mode {
+		case "unauthorized":
+			return emptyRows{s.state}, nil
+		case "legacy", "present-but-unreadable", "different-schema":
+			return nil, errors.New("ORA-00942: relation unavailable")
+		case "missing-column":
+			return nil, errors.New("ORA-00904: invalid identifier")
+		}
+	case schemaOwnerSQL:
+		schema := "fixture"
+		if s.mode == "different-schema" {
+			schema = "other"
+		}
+		return &schemaFixtureRows{columns: []string{"USER_NAME", "SCHEMA_NAME"}, values: [][]driver.Value{{"fixture", schema}}}, nil
+	case directExtrasContract.SQL["attachment_table_present"]:
+		if s.mode == "legacy" {
+			return emptyRows{s.state}, nil
+		}
+		return &alertRows{values: []driver.Value{int64(1)}}, nil
+	case privateMediaReadQuery:
+		if s.mode != "legacy" {
+			return nil, errors.New("unexpected old authorization fallback")
+		}
+	default:
+		return nil, errors.New("unexpected private media query")
+	}
 	return &alertRows{values: []driver.Value{"private/chat/42/file.txt", "chat"}}, nil
 }
 
@@ -262,12 +291,35 @@ func TestPrivateMediaReadRepository(t *testing.T) {
 	if err != nil || key != "private/chat/42/file.txt" || scope != "chat" {
 		t.Fatal(key, scope, err)
 	}
-	if len(dbFixture.calls) != 1 || dbFixture.calls[0].sql != privateMediaReadQuery {
+	if len(dbFixture.calls) != 1 || dbFixture.calls[0].sql != directExtrasContract.SQL["private_media_read"] {
 		t.Fatal("expected the shared authorization query")
 	}
 	args := dbFixture.calls[0].args
 	if len(args) != 2 || args[0].Name != "viewer_id" || args[0].Value != int64(42) ||
 		args[1].Name != "media_id" || args[1].Value != int64(20) {
 		t.Fatal(args)
+	}
+}
+
+func TestPrivateMediaLegacyReadRequiresProvenMissingTable(t *testing.T) {
+	for _, tc := range []struct {
+		mode    string
+		calls   int
+		success bool
+	}{
+		{"legacy", 4, true}, {"unauthorized", 1, false}, {"missing-column", 1, false}, {"present-but-unreadable", 3, false}, {"different-schema", 2, false},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			fixture := &privateMediaQueryFixture{testConn: &testConn{state: &driverState{}}, mode: tc.mode}
+			db := sql.OpenDB(fixture)
+			defer db.Close()
+			key, scope, err := (OracleSessions{db}).ReadPrivateMedia(context.Background(), 42, 20)
+			if len(fixture.calls) != tc.calls || (err == nil) != tc.success || (tc.success && (key != "private/chat/42/file.txt" || scope != "chat")) || (!tc.success && key != "") {
+				t.Fatal(len(fixture.calls), key, scope, err)
+			}
+			if tc.success && fixture.calls[3].sql != privateMediaReadQuery {
+				t.Fatal("confirmed legacy tenant did not use legacy ACL")
+			}
+		})
 	}
 }

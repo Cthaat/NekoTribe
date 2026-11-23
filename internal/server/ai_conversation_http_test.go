@@ -17,18 +17,20 @@ type aiHTTPFixture struct {
 	content              string
 	cursor               string
 	purpose              string
+	scope                knowledgeScope
 	groupID              *int64
 	targetTitle          string
 	policy               moderationPolicy
 	fail                 error
 }
 
-func (s *aiHTTPFixture) listAIConversations(_ context.Context, user int64, after string, limit int, purpose string, groupID *int64, targetTitle string, policy moderationPolicy) (conversationPage, error) {
+func (s *aiHTTPFixture) listAIConversations(_ context.Context, user int64, after string, limit int, purpose string, groupID *int64, targetTitle string, scope knowledgeScope, policy moderationPolicy) (conversationPage, error) {
 	s.operation = "list-owned"
 	s.actor = user
 	s.cursor = after
 	s.limit = int64(limit)
 	s.purpose = purpose
+	s.scope = scope
 	s.groupID = groupID
 	s.targetTitle = targetTitle
 	return conversationPage{Items: []conversationRecord{}}, s.fail
@@ -38,7 +40,7 @@ func (s *aiHTTPFixture) createAIConversation(_ context.Context, user int64, inpu
 	s.operation = "create"
 	s.actor = user
 	s.policy = policy
-	return conversationRecord{ID: "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb", Purpose: input.Purpose}, s.fail
+	return conversationRecord{ID: "f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb", Purpose: input.Purpose, GroupID: input.GroupID, KnowledgeScope: input.KnowledgeScope}, s.fail
 }
 func (s *aiHTTPFixture) readAIConversation(_ context.Context, user int64, id string, policy moderationPolicy) (conversationRecord, error) {
 	s.operation = "read"

@@ -81,16 +81,17 @@ func parseGroupDraftRequest(raw []byte) (groupDraftRequest, error) {
 }
 
 type groupDraftRecord struct {
-	Version         int      `json:"version"`
-	Kind            string   `json:"kind"`
-	WindowEnd       string   `json:"window_end"`
-	SourceDigest    string   `json:"source_digest"`
-	ExampleCount    int      `json:"example_count"`
-	SkillGeneration int64    `json:"skill_generation"`
-	Draft           string   `json:"draft"`
-	ToolsUsed       []string `json:"tools_used,omitempty"`
-	SearchTerm      *string  `json:"search_term,omitempty"`
-	MatchExcerpt    bool     `json:"match_excerpt,omitempty"`
+	Version               int      `json:"version"`
+	Kind                  string   `json:"kind"`
+	WindowEnd             string   `json:"window_end"`
+	SourceDigest          string   `json:"source_digest"`
+	ExampleCount          int      `json:"example_count"`
+	SkillGeneration       int64    `json:"skill_generation"`
+	Draft                 string   `json:"draft"`
+	ToolsUsed             []string `json:"tools_used,omitempty"`
+	SearchTerm            *string  `json:"search_term,omitempty"`
+	MatchExcerpt          bool     `json:"match_excerpt,omitempty"`
+	SentimentSourceDigest string   `json:"sentiment_source_digest,omitempty"`
 }
 
 type groupDraftSource struct {
@@ -130,6 +131,13 @@ func decodeGroupDraft(content string) *groupDraftRecord {
 	if _, err := hex.DecodeString(draft.SourceDigest); err != nil || draft.SourceDigest != strings.ToLower(draft.SourceDigest) {
 		return nil
 	}
+	if slices.Contains(draft.ToolsUsed, sentimentContract.Tool.Name) {
+		if !moderationDigestHex(draft.SentimentSourceDigest) {
+			return nil
+		}
+	} else if draft.SentimentSourceDigest != "" {
+		return nil
+	}
 	return &draft
 }
 
@@ -140,12 +148,12 @@ func validGroupDraftSearchTerm(term string) bool {
 }
 
 func validGroupDraftTools(names []string) bool {
-	if len(names) > len(groupDraftContract.Tools) || !slices.Contains(names, groupDraftContract.RequiredTool) {
+	if len(names) > len(groupDraftContract.Tools)+1 || !slices.Contains(names, groupDraftContract.RequiredTool) {
 		return false
 	}
 	for index, name := range names {
 		if slices.Contains(names[:index], name) ||
-			!slices.ContainsFunc(groupDraftContract.Tools, func(tool groupDraftTool) bool { return tool.Name == name }) {
+			(name != sentimentContract.Tool.Name && !slices.ContainsFunc(groupDraftContract.Tools, func(tool groupDraftTool) bool { return tool.Name == name })) {
 			return false
 		}
 	}
@@ -163,11 +171,21 @@ func recheckGroupDraft(ctx context.Context, tx *sql.Tx, actor, groupID int64, dr
 	if err != nil {
 		return groupEvidence{}, err
 	}
-	evidence.Examples = evidence.Examples[:min(len(evidence.Examples), draft.ExampleCount)]
-	if groupEvidenceDigest(evidence) != draft.SourceDigest {
+	base := evidence
+	base.Examples = base.Examples[:min(len(base.Examples), draft.ExampleCount)]
+	if groupEvidenceDigest(base) != draft.SourceDigest {
 		return groupEvidence{}, errConversationConflict
 	}
-	return evidence, nil
+	if draft.SentimentSourceDigest != "" {
+		previous, err := readGroupEvidence(ctx, tx, actor, groupID, groupSentimentEvidenceQuery(draft.Kind, draft.SearchTerm, draft.MatchExcerpt, evidence))
+		if err != nil {
+			return groupEvidence{}, err
+		}
+		if groupSentimentSourceDigest(evidence, previous) != draft.SentimentSourceDigest {
+			return groupEvidence{}, errConversationConflict
+		}
+	}
+	return base, nil
 }
 
 type groupDraftStore interface {
@@ -274,6 +292,17 @@ func generateGroupDraft(ctx context.Context, store groupDraftStore, actor int64,
 	if err != nil || int64(len(packet)+64) > budget {
 		return nil, errGroupDraftUnavailable
 	}
+	sentimentOffered := false
+	if config.sentiment != nil {
+		tools := append(slices.Clone(groupDraftContract.Tools), sentimentContract.Tool)
+		messages[0]["content"] = system + "\n如需概括讨论情绪，可请求一次 community_sentiment_summary，仅传空对象。情绪结果是可见样本趋势，不代表全部成员。工具不可用时不推测情绪。"
+		withSentiment, err := encodeGroupDraftInput(map[string]any{"messages": messages, "tools": tools})
+		if err == nil && int64(len(withSentiment)+64) <= budget {
+			packet, sentimentOffered = withSentiment, true
+		} else {
+			messages[0]["content"] = system
+		}
+	}
 	transport, err := ai.NewTransport(config.aiCredential)
 	if err != nil {
 		return nil, errGroupDraftUnavailable
@@ -300,7 +329,8 @@ func generateGroupDraft(ctx context.Context, store groupDraftStore, actor int64,
 		}
 		names = append(names, call.Name)
 	}
-	if !validGroupDraftTools(names) {
+	sentimentRequested := slices.Contains(names, sentimentContract.Tool.Name)
+	if !validGroupDraftTools(names) || (sentimentRequested && !sentimentOffered) {
 		return nil, errGroupDraftUnavailable
 	}
 	audit.stage = "evidence"
@@ -317,30 +347,54 @@ func generateGroupDraft(ctx context.Context, store groupDraftStore, actor int64,
 	if len(evidence.Examples) == 0 {
 		return nil, nil
 	}
-	audit.toolCount = len(names)
+	var sentiment *groupSentimentReport
+	var sentimentDigest string
+	if sentimentRequested {
+		sentiment, sentimentDigest = groupSentiment(ctx, store, config.sentiment, actor, id, policy, request, evidence)
+		if sentiment == nil {
+			names = slices.DeleteFunc(names, func(name string) bool { return name == sentimentContract.Tool.Name })
+		}
+	}
 	messages = append(messages, map[string]any{"role": "assistant", "content": "", "toolCalls": proposal.ToolCalls})
+	fullEvidence := evidence
 	for {
-		packet, err = groupDraftFollowup(messages, proposal.ToolCalls, evidence)
+		packet, err = groupDraftFollowup(messages, proposal.ToolCalls, evidence, sentiment)
 		if err != nil {
 			return nil, errGroupDraftUnavailable
 		}
 		if int64(len(packet)+64) <= budget {
 			break
 		}
-		if len(evidence.Examples) <= 1 {
+		if len(evidence.Examples) > 1 {
+			evidence.Examples = evidence.Examples[:len(evidence.Examples)-1]
+			continue
+		}
+		if !sentimentRequested {
 			return nil, errGroupDraftUnavailable
 		}
-		evidence.Examples = evidence.Examples[:len(evidence.Examples)-1]
+		// Preserve the existing draft when only the optional tool history exceeds the budget.
+		proposal.ToolCalls = slices.DeleteFunc(proposal.ToolCalls, func(call ai.ToolProposal) bool { return call.Name == sentimentContract.Tool.Name })
+		messages[len(messages)-1]["toolCalls"] = proposal.ToolCalls
+		messages[0]["content"] = system
+		names = slices.DeleteFunc(names, func(name string) bool { return name == sentimentContract.Tool.Name })
+		sentimentRequested, sentiment, sentimentDigest = false, nil, ""
+		evidence = fullEvidence
 	}
+	audit.toolCount = len(names)
 	audit.stage = "inference"
-	result, err := transport.Infer(ctx, selection, packet)
+	inferenceCtx := ctx
+	if sentiment != nil {
+		inferenceCtx = ai.WithStreamDeltas(ctx, nil)
+	}
+	result, err := transport.Infer(inferenceCtx, selection, packet)
 	if err != nil || result.FinishReason != "stop" || len(result.ToolCalls) != 0 ||
 		strings.TrimFunc(result.Text, jsTrimSpace) == "" || len(result.Text) > 8192 || ctx.Err() != nil {
 		return nil, errGroupDraftUnavailable
 	}
 	draft := &groupDraftRecord{Version: 1, Kind: request.Kind, WindowEnd: evidence.WindowEnd,
 		SourceDigest: groupEvidenceDigest(evidence), ExampleCount: len(evidence.Examples), SkillGeneration: generation,
-		Draft: result.Text, ToolsUsed: names, SearchTerm: request.searchTerm, MatchExcerpt: request.searchTerm != nil}
+		Draft: result.Text, ToolsUsed: names, SearchTerm: request.searchTerm, MatchExcerpt: request.searchTerm != nil,
+		SentimentSourceDigest: sentimentDigest}
 	audit.stage = "persist"
 	message, err := store.appendAIAssistantMessage(ctx, actor, id, assistantMessageInput{
 		ExpectedSequence: request.ExpectedSequence, ModelID: selection.ProfileID, ModelVersion: selection.ModelVersion,
@@ -352,17 +406,27 @@ func generateGroupDraft(ctx context.Context, store groupDraftStore, actor int64,
 	return &message, nil
 }
 
-func groupDraftFollowup(messages []map[string]any, calls []ai.ToolProposal, evidence groupEvidence) ([]byte, error) {
+func groupDraftFollowup(messages []map[string]any, calls []ai.ToolProposal, evidence groupEvidence, sentiment *groupSentimentReport) ([]byte, error) {
 	followup := append([]map[string]any(nil), messages...)
 	for _, call := range calls {
-		data := map[string]any{"window_start": evidence.WindowStart, "window_end": evidence.WindowEnd}
-		if call.Name == groupDraftContract.RequiredTool {
-			data["examples"] = evidence.Examples
+		var output any
+		if call.Name == sentimentContract.Tool.Name {
+			if sentiment == nil {
+				output = map[string]string{"status": "unavailable"}
+			} else {
+				output = sentiment
+			}
 		} else {
-			data["posts_count"] = evidence.PostsCount
-			data["comments_count"] = evidence.CommentsCount
+			data := map[string]any{"window_start": evidence.WindowStart, "window_end": evidence.WindowEnd}
+			if call.Name == groupDraftContract.RequiredTool {
+				data["examples"] = evidence.Examples
+			} else {
+				data["posts_count"] = evidence.PostsCount
+				data["comments_count"] = evidence.CommentsCount
+			}
+			output = data
 		}
-		content, err := encodeGroupDraftInput(data)
+		content, err := encodeGroupDraftInput(output)
 		if err != nil {
 			return nil, err
 		}

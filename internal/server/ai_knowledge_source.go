@@ -59,7 +59,7 @@ func validKnowledgeLocation(kind string, id, postID, groupID int64) bool {
 		return false
 	}
 	if isGroupKnowledgeKind(kind) {
-		return validKnowledgeID(groupID)
+		return groupID > 0 && groupID <= maxKnowledgeGroupID
 	}
 	return groupID == 0
 }
@@ -172,7 +172,11 @@ func (r oracleKnowledgeReader) getMode(ctx context.Context, viewer int64, c know
 	default:
 		return knowledgeSource{}, false, errKnowledgeInvalid
 	}
-	rows, err := r.conn.QueryContext(ctx, query, sql.Named("source_id", c.ID), sql.Named("viewer_id", viewer), sql.Named("max_id", knowledgeMaxID))
+	return queryKnowledgeSource(ctx, r.conn, query, c.Kind, sql.Named("source_id", c.ID), sql.Named("viewer_id", viewer), sql.Named("max_id", knowledgeMaxID))
+}
+
+func queryKnowledgeSource(ctx context.Context, conn knowledgeQueryer, query, kind string, args ...any) (knowledgeSource, bool, error) {
+	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return knowledgeSource{}, false, errSessionStore
 	}
@@ -186,9 +190,9 @@ func (r oracleKnowledgeReader) getMode(ctx context.Context, viewer int64, c know
 		}
 		return knowledgeSource{}, false, nil
 	}
-	result := knowledgeSource{Kind: c.Kind}
+	result := knowledgeSource{Kind: kind}
 	var scanErr error
-	if isGroupKnowledgeKind(c.Kind) {
+	if isGroupKnowledgeKind(kind) {
 		scanErr = rows.Scan(&result.ID, &result.PostID, &result.Content, &result.GroupID)
 	} else {
 		scanErr = rows.Scan(&result.ID, &result.PostID, &result.Content)

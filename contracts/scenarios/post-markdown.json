@@ -1,0 +1,9 @@
+{
+  "id": "POST-MARKDOWN",
+  "revision": 1,
+  "cases": [
+    {"id":"publish-and-resume-markdown","assertion":"A long ordinary or group post keeps its text and highlighted code through creation, draft resume and scheduled publication. An explicit null removes an ordinary post's long body."},
+    {"id":"read-scope","assertion":"A viewer who cannot read the original post cannot obtain the long body. Plain history remains readable before first applying the Markdown feature migration."},
+    {"id":"allowed-formatting-only","assertion":"Headings, emphasis, code and permitted links remain readable. Clients do not render raw HTML or auto-load Markdown images, and ignore disallowed link schemes."}
+  ]
+}

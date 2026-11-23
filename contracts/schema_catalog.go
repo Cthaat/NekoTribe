@@ -60,6 +60,12 @@ var UserAvatarContract []byte
 //go:embed requirements/account-statements.json
 var AccountStatementsContract []byte
 
+//go:embed requirements/account-resources.json
+var AccountResourcesContract []byte
+
+//go:embed requirements/ai-operations.json
+var AIOperationsContract []byte
+
 //go:embed requirements/moderation-appeals.json
 var ModerationAppealsContract []byte
 
@@ -112,6 +118,87 @@ var AIGroupEvidence []byte
 
 //go:embed requirements/ai-group-knowledge-source.json
 var AIGroupKnowledgeSource string
+
+//go:embed requirements/ai-knowledge-scope.json
+var AIKnowledgeScope []byte
+
+//go:embed requirements/ai-vision.json
+var AIVision []byte
+
+//go:embed requirements/ai-sentiment.json
+var AISentiment []byte
+
+//go:embed requirements/ai-user-provider.json
+var AIUserProvider []byte
+
+//go:embed requirements/ai-user-provider-schema-catalog.json
+var AIUserProviderSchemaCatalog []byte
+
+//go:embed requirements/direct-message-extras.json
+var DirectMessageExtras []byte
+
+//go:embed requirements/chat-realtime-details.json
+var ChatRealtimeDetails []byte
+
+//go:embed requirements/chat-message-search.json
+var ChatMessageSearch []byte
+
+//go:embed requirements/webrtc-calls.json
+var WebRTCCalls []byte
+
+//go:embed requirements/webrtc-call-state.json
+var WebRTCCallState []byte
+
+//go:embed requirements/direct-message-extras-schema-catalog.json
+var DirectMessageExtrasSchemaCatalog []byte
+
+//go:embed requirements/post-polls.json
+var PostPolls []byte
+
+//go:embed requirements/post-polls-schema-catalog.json
+var PostPollsSchemaCatalog []byte
+
+//go:embed requirements/post-drafts.json
+var PostDrafts []byte
+
+//go:embed requirements/post-drafts-schema-catalog.json
+var PostDraftsSchemaCatalog []byte
+
+//go:embed requirements/profile-pinned-post.json
+var ProfilePinnedPost []byte
+
+//go:embed requirements/profile-pinned-post-schema-catalog.json
+var ProfilePinnedPostSchemaCatalog []byte
+
+//go:embed requirements/post-markdown.json
+var PostMarkdown []byte
+
+//go:embed requirements/post-markdown-schema-catalog.json
+var PostMarkdownSchemaCatalog []byte
+
+//go:embed requirements/link-preview.json
+var LinkPreview []byte
+
+//go:embed requirements/home-feed.json
+var HomeFeed []byte
+
+//go:embed requirements/passkey-auth.json
+var PasskeyAuth []byte
+
+//go:embed requirements/passkey-auth-schema-catalog.json
+var PasskeyAuthSchemaCatalog []byte
+
+//go:embed requirements/github-oauth.json
+var GitHubOAuth []byte
+
+//go:embed requirements/github-oauth-schema-catalog.json
+var GitHubOAuthSchemaCatalog []byte
+
+//go:embed requirements/observability.json
+var Observability []byte
+
+//go:embed v2.openapi.json
+var V2OpenAPI []byte
 
 //go:embed requirements/ai-knowledge-answer.json
 var AIKnowledgeAnswerSchema []byte

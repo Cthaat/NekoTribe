@@ -136,6 +136,22 @@ func login(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, rep
 		respond(w, 401, 40101, "账号或密码错误", nil)
 		return
 	}
+	remember, _ := body["remember_me"].(bool)
+	finishPrimaryLogin(w, r, codec, store, user, account, "账号或密码错误", remember, config, nil)
+}
+
+type loginSuccessResponse func(http.ResponseWriter, string, any)
+
+func (success loginSuccessResponse) send(w http.ResponseWriter, message string, data any) {
+	if success != nil {
+		success(w, message, data)
+		return
+	}
+	respond(w, 200, 200, message, data)
+}
+
+func finishPrimaryLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, store LoginRepository, user LoginAccount,
+	account, staleMessage string, remember bool, config RefreshConfig, success loginSuccessResponse) {
 	if err := store.CheckTwoFactorSchema(r.Context()); err != nil {
 		respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
 		return
@@ -146,11 +162,10 @@ func login(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, rep
 		return
 	}
 	if enabled {
-		remember, _ := body["remember_me"].(bool)
-		beginTwoFactor(w, r, codec, store, user, account, remember, config)
+		beginTwoFactor(w, r, codec, store, user, account, staleMessage, remember, config, success)
 		return
 	}
-	issueLogin(w, r, codec, store, user, "账号或密码错误", config, loginSessionOptions{})
+	issueLogin(w, r, codec, store, user, staleMessage, config, loginSessionOptions{success: success})
 }
 
 func matchesLoginPassword(hash, password string) bool {
@@ -240,6 +255,7 @@ type loginSessionOptions struct {
 	requiredKey string
 	issuedProof string
 	completion  *factorCompletion
+	success     loginSuccessResponse
 }
 
 func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager, store LoginRepository, user LoginAccount, staleMessage string, config RefreshConfig, options loginSessionOptions) bool {
@@ -324,6 +340,6 @@ func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 		http.SetCookie(w, &http.Cookie{Name: trustedDeviceCookie, Value: options.issuedProof, Path: "/", MaxAge: int(trustedDeviceLifetime / time.Second), HttpOnly: true, Secure: config.CookieSecure, SameSite: http.SameSiteLaxMode})
 	}
 	const iso = "2006-01-02T15:04:05.000Z"
-	respond(w, 200, 200, "login success", map[string]interface{}{"two_factor_required": false, "user": profile, "tokens": map[string]string{"session_id": id, "access_token": access, "refresh_token": refresh, "access_token_expires_at": session.AccessExpiresAt.Format(iso), "refresh_token_expires_at": session.RefreshExpiresAt.Format(iso)}})
+	options.success.send(w, "login success", map[string]interface{}{"two_factor_required": false, "user": profile, "tokens": map[string]string{"session_id": id, "access_token": access, "refresh_token": refresh, "access_token_expires_at": session.AccessExpiresAt.Format(iso), "refresh_token_expires_at": session.RefreshExpiresAt.Format(iso)}})
 	return true
 }

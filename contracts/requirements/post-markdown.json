@@ -1,0 +1,13 @@
+{
+  "id": "POST-MARKDOWN",
+  "revision": 1,
+  "max_markdown_bytes": 16384,
+  "excerpt_codepoints": 280,
+  "sql": {
+    "insert": "INSERT INTO n_post_markdown (post_id,group_post_id,markdown_body) VALUES (:post_id,:group_post_id,:markdown_body)",
+    "read": "SELECT markdown_body FROM n_post_markdown WHERE (:is_group=0 AND post_id=:post_id) OR (:is_group=1 AND group_post_id=:post_id)",
+    "update": "UPDATE n_post_markdown SET markdown_body=:markdown_body WHERE post_id=:post_id",
+    "remove": "DELETE FROM n_post_markdown WHERE post_id=:post_id",
+    "present": "SELECT 1 FROM user_tables WHERE table_name='N_POST_MARKDOWN'"
+  }
+}

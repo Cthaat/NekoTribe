@@ -39,6 +39,8 @@ type groupPost struct {
 	Liked        bool       `json:"is_liked_by_me"`
 	Created      string     `json:"created_at"`
 	Updated      string     `json:"updated_at"`
+	Poll         *postPoll  `json:"poll,omitempty"`
+	Markdown     *string    `json:"markdown,omitempty"`
 }
 
 type groupComment struct {
@@ -142,6 +144,11 @@ type groupPostRow struct {
 	created, updated                                                       sql.NullTime
 }
 
+func (r *groupPostRow) scan(row interface{ Scan(...any) error }, allowed, total *int64) error {
+	return row.Scan(allowed, total, &r.id, &r.group, &r.author, &r.content, &r.media, &r.pinned, &r.announcement,
+		&r.likes, &r.comments, &r.views, &r.created, &r.updated, &r.liked)
+}
+
 type groupCommentRow struct {
 	id, post, author, parent, reply, likes, liked, canDelete sql.NullInt64
 	content                                                  sql.NullString
@@ -174,7 +181,41 @@ func hydrateGroupComment(ctx context.Context, db publicProfileQueryer, viewer in
 }
 
 func (s OracleSessions) ReadGroupContent(ctx context.Context, viewer int64, req groupContentRequest, storage StorageURLPolicy) (any, int64, error) {
-	return readGroupContent(ctx, s.DB, viewer, req, storage)
+	if req.comments {
+		return readGroupContent(ctx, s.DB, viewer, req, storage)
+	}
+	conn, err := s.DB.Conn(ctx)
+	if err != nil {
+		return nil, 0, errSessionStore
+	}
+	defer conn.Close()
+	result, total, err := readGroupContent(ctx, conn, viewer, req, storage)
+	if err != nil {
+		return nil, 0, err
+	}
+	switch posts := result.(type) {
+	case groupPost:
+		err = hydrateGroupPostExtras(ctx, conn, viewer, &posts)
+		result = posts
+	case []groupPost:
+		for i := range posts {
+			err = hydrateGroupPostExtras(ctx, conn, viewer, &posts[i])
+			if err != nil {
+				break
+			}
+		}
+	}
+	return result, total, err
+}
+
+func hydrateGroupPostExtras(ctx context.Context, conn *sql.Conn, viewer int64, post *groupPost) error {
+	var err error
+	post.Poll, err = readPostPoll(ctx, conn, &viewer, postPollTarget{group: post.Group, post: post.ID}, true)
+	if err != nil {
+		return err
+	}
+	post.Markdown, err = readPostMarkdown(ctx, conn, post.ID, true)
+	return err
 }
 
 func readGroupContent(ctx context.Context, db groupDetailQueryer, viewer int64, req groupContentRequest, storage StorageURLPolicy) (any, int64, error) {
@@ -208,9 +249,7 @@ func readGroupContent(ctx context.Context, db groupDetailQueryer, viewer int64, 
 			}
 		} else {
 			var r groupPostRow
-			err = rows.Scan(&allowed, &total,
-				&r.id, &r.group, &r.author, &r.content, &r.media, &r.pinned, &r.announcement,
-				&r.likes, &r.comments, &r.views, &r.created, &r.updated, &r.liked)
+			err = r.scan(rows, &allowed, &total)
 			if r.id.Valid {
 				posts = append(posts, r)
 			}
@@ -241,26 +280,9 @@ func readGroupContent(ctx context.Context, db groupDetailQueryer, viewer int64, 
 	}
 	items := make([]groupPost, 0, len(posts))
 	for _, r := range posts {
-		author, err := readGroupPublicUser(ctx, db, viewer, r.author.Int64, storage)
+		item, err := hydrateGroupPost(ctx, db, viewer, r, storage)
 		if err != nil {
 			return nil, 0, err
-		}
-		item := groupPost{
-			ID: r.id.Int64, Group: r.group.Int64, Author: author, Content: r.content.String, Media: []string{},
-			Pinned: r.pinned.Int64 == 1, Announcement: r.announcement.Int64 == 1, Likes: r.likes.Int64,
-			Comments: r.comments.Int64, Views: r.views.Int64, Liked: r.liked.Int64 == 1,
-			Created: groupContentDate(r.created), Updated: groupContentDate(r.updated),
-		}
-		for _, raw := range strings.Split(r.media.String, ",") {
-			value := strings.TrimFunc(raw, jsTrimSpace)
-			if value == "" {
-				continue
-			}
-			value, err = normalizeAvatarURL(storage, value)
-			if err != nil {
-				return nil, 0, errSessionStore
-			}
-			item.Media = append(item.Media, value)
 		}
 		items = append(items, item)
 	}
@@ -268,6 +290,31 @@ func readGroupContent(ctx context.Context, db groupDetailQueryer, viewer int64, 
 		return items[0], total, nil
 	}
 	return items, total, nil
+}
+
+func hydrateGroupPost(ctx context.Context, db publicProfileQueryer, viewer int64, r groupPostRow, storage StorageURLPolicy) (groupPost, error) {
+	author, err := readGroupPublicUser(ctx, db, viewer, r.author.Int64, storage)
+	if err != nil {
+		return groupPost{}, err
+	}
+	item := groupPost{
+		ID: r.id.Int64, Group: r.group.Int64, Author: author, Content: r.content.String, Media: []string{},
+		Pinned: r.pinned.Int64 == 1, Announcement: r.announcement.Int64 == 1, Likes: r.likes.Int64,
+		Comments: r.comments.Int64, Views: r.views.Int64, Liked: r.liked.Int64 == 1,
+		Created: groupContentDate(r.created), Updated: groupContentDate(r.updated),
+	}
+	for _, raw := range strings.Split(r.media.String, ",") {
+		value := strings.TrimFunc(raw, jsTrimSpace)
+		if value == "" {
+			continue
+		}
+		value, err = normalizeAvatarURL(storage, value)
+		if err != nil {
+			return groupPost{}, errSessionStore
+		}
+		item.Media = append(item.Media, value)
+	}
+	return item, nil
 }
 
 func groupContentDate(value sql.NullTime) string {
@@ -347,6 +394,12 @@ func groupContentRoute(w http.ResponseWriter, r *http.Request, codec *auth.Token
 	case errors.Is(err, errGroupMemberProfileMissing):
 		respond(w, 404, 40401, "用户不存在", nil)
 	case errors.As(err, &failure):
+		respond(w, failure.status, failure.status*100+1, failure.message, nil)
+	case errors.Is(err, errPostPollUnavailable):
+		failure := postPollFailure(err)
+		respond(w, failure.status, failure.status*100+1, failure.message, nil)
+	case errors.Is(err, errPostMarkdownUnavailable):
+		failure := postMarkdownFailure(err)
 		respond(w, failure.status, failure.status*100+1, failure.message, nil)
 	case err != nil:
 		respond(w, 500, 50001, "服务器内部错误", nil)

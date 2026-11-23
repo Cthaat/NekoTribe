@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -22,10 +22,14 @@ func newAIRunAudit(operation string, skillGeneration int64) aiRunAudit {
 }
 
 func (audit *aiRunAudit) finish(ctx context.Context, message *conversationMessage, err error) {
+	audit.finishResult(ctx, message != nil, err)
+}
+
+func (audit *aiRunAudit) finishResult(ctx context.Context, generated bool, err error) {
 	outcome := "failed"
 	var exhausted aiQuotaExceeded
 	switch {
-	case message != nil:
+	case generated:
 		outcome = "generated"
 	case err == nil:
 		outcome = "insufficient_evidence"
@@ -36,6 +40,21 @@ func (audit *aiRunAudit) finish(ctx context.Context, message *conversationMessag
 	case errors.Is(err, errAIQuotaUnavailable):
 		outcome = "quota_unavailable"
 	}
-	log.Printf("event=ai.run version=1 operation=%s stage=%s outcome=%s config_revision=%d skill_generation=%d skill_selection=%s tool_count=%d elapsed_ms=%d",
-		audit.operation, audit.stage, outcome, audit.configRevision, audit.skillGeneration, audit.skillSelection, audit.toolCount, time.Since(audit.startedAt).Milliseconds())
+	elapsed := time.Since(audit.startedAt)
+	request := requestTelemetryFrom(ctx)
+	attrs := []slog.Attr{
+		slog.String("event", "ai.run"), slog.Int("version", 1), slog.String("operation", audit.operation),
+		slog.String("stage", audit.stage), slog.String("outcome", outcome), slog.Int64("config_revision", audit.configRevision),
+		slog.Int64("skill_generation", audit.skillGeneration), slog.String("skill_selection", audit.skillSelection),
+		slog.Int("tool_count", audit.toolCount), slog.Int64("elapsed_ms", elapsed.Milliseconds()),
+	}
+	logger := telemetryLogger
+	if request.id != "" {
+		attrs = append(attrs, slog.String("request_id", request.id))
+	}
+	if request.telemetry != nil {
+		logger = request.telemetry.logger
+		request.telemetry.recordAI(audit.operation, outcome, elapsed.Seconds())
+	}
+	logger.LogAttrs(ctx, slog.LevelInfo, "ai.run", attrs...)
 }

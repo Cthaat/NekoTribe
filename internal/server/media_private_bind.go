@@ -60,6 +60,13 @@ func checkPrivateMediaBinding(ctx context.Context, tx *sql.Tx, key, scope string
 	if permitted != 1 {
 		return unavailable
 	}
+	linked, err := directAssetLinked(ctx, tx, media)
+	if err != nil {
+		return err
+	}
+	if linked {
+		return unavailable
+	}
 	return nil
 }
 

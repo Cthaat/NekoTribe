@@ -56,6 +56,7 @@ type chatChannelSource interface {
 const readChatChannelSQL = `SELECT 1 FROM n_chat_channels c
 JOIN n_groups g ON g.group_id = c.group_id
 JOIN n_group_members gm ON gm.group_id = c.group_id AND gm.user_id = :user_id
+JOIN n_users u ON u.user_id = gm.user_id AND u.is_active = 1 AND u.status = 'active'
 WHERE c.channel_id = :channel_id AND c.is_deleted = 0
 AND g.is_active = 1 AND g.is_deleted = 0 AND gm.status IN ('active', 'muted')
 AND (c.is_private = 0 OR gm.role IN ('owner', 'admin', 'moderator'))`
@@ -97,7 +98,7 @@ func numericChatSocketID(raw json.RawMessage) int64 {
 
 func directSocketMessageIDs(kind string, data map[string]json.RawMessage) (int64, int64) {
 	id := numericChatSocketID(data["conversation_id"])
-	if kind == "direct_message_deleted" {
+	if kind == "direct_message_deleted" || kind == "direct_message_updated" {
 		for key := range data {
 			if key != "conversation_id" && key != "message_id" && key != "server_id" {
 				return 0, 0
@@ -121,6 +122,10 @@ func directSocketMessageIDs(kind string, data map[string]json.RawMessage) (int64
 	return id, numericChatSocketID(message["message_id"])
 }
 
+func isDirectRealtimeEvent(kind string) bool {
+	return kind == "direct_message" || kind == "direct_message_deleted" || kind == "direct_message_updated"
+}
+
 func validDirectSocketEvent(kind string, data map[string]json.RawMessage) bool {
 	conversation, message := directSocketMessageIDs(kind, data)
 	return conversation != 0 && message != 0
@@ -131,21 +136,23 @@ func chatSocketRoom(id int64) string {
 }
 
 func validChatSocketEvent(id int64, body []byte) bool {
-	var frame struct {
-		Type      string
-		Room      *string
-		Data      map[string]json.RawMessage
-		Timestamp *float64
-	}
+	_, ok := parseChatSocketEvent(id, body)
+	return ok
+}
+
+func parseChatSocketEvent(id int64, body []byte) (socketEventFrame, bool) {
+	var frame socketEventFrame
 	if json.Unmarshal(body, &frame) != nil || frame.Data == nil || !validSocketTimestamp(frame.Timestamp) ||
 		(frame.Room != nil && *frame.Room != chatSocketRoom(id)) || numericChatSocketID(frame.Data["channel_id"]) != id {
-		return false
+		return frame, false
 	}
 	switch frame.Type {
 	case "chat_message", "chat_message_updated", "chat_message_deleted", "chat_reaction_updated", "chat_channel_updated", "room_message":
-		return true
+		return frame, true
+	case "typing_start", "typing_stop":
+		return frame, validSocketSignalFrame(body, "channel_id", "user_id")
 	}
-	return false
+	return frame, false
 }
 
 type chatSocketRoomSubscription struct {
@@ -154,14 +161,15 @@ type chatSocketRoomSubscription struct {
 }
 
 type chatSocketDelivery struct {
-	room *chatSocketRoomSubscription
-	body []byte
+	room  *chatSocketRoomSubscription
+	body  []byte
+	frame socketEventFrame
 }
 
 func runChatSocketRoom(ctx context.Context, room *chatSocketRoomSubscription, source chatChannelSource, out chan<- chatSocketDelivery, overflow context.CancelFunc) {
-	send := func(body []byte) bool {
+	send := func(body []byte, frame socketEventFrame) bool {
 		select {
-		case out <- chatSocketDelivery{room, body}:
+		case out <- chatSocketDelivery{room, body, frame}:
 			return true
 		case <-ctx.Done():
 			return false
@@ -175,7 +183,7 @@ func runChatSocketRoom(ctx context.Context, room *chatSocketRoomSubscription, so
 	for ctx.Err() == nil {
 		events, stop, err := source.SubscribeChatChannel(ctx, room.id)
 		if err == nil && events != nil && stop != nil {
-			if !send(nil) { // Acknowledged subscription, before the first event.
+			if !send(nil, socketEventFrame{}) { // Acknowledged subscription, before the first event.
 				stop()
 				return
 			}
@@ -189,10 +197,14 @@ func runChatSocketRoom(ctx context.Context, room *chatSocketRoomSubscription, so
 						events = nil
 						continue
 					}
-					if len(body) > 262144 || !validChatSocketEvent(room.id, body) {
+					if len(body) > 262144 {
 						continue
 					}
-					if !send(body) {
+					frame, valid := parseChatSocketEvent(room.id, body)
+					if !valid {
+						continue
+					}
+					if !send(body, frame) {
 						stop()
 						return
 					}

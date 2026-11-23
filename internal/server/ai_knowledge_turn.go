@@ -19,8 +19,9 @@ type knowledgeTurnDeps struct {
 	infer          func(context.Context, []knowledgeSource) (string, error)
 }
 type knowledgeTurnResult struct {
-	Answer  *string
-	Sources []knowledgeCandidate
+	Answer       *string
+	Sources      []knowledgeCandidate
+	Dependencies []knowledgeCandidate
 }
 
 func knowledgeCandidates(rows []knowledgeSource) []knowledgeCandidate {

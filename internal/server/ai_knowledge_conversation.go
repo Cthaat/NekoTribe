@@ -37,6 +37,14 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 	if conversation.Purpose != "knowledge" || len(messages) > 50 {
 		return nil, errKnowledgeConversationContext
 	}
+	evidenceStore := knowledgeServiceStore(store)
+	if conversation.KnowledgeScope.restricted() {
+		scoped, ok := store.(scopedKnowledgeStore)
+		if !ok {
+			return nil, errKnowledgeConversationContext
+		}
+		evidenceStore = scoped.knowledgeStoreForConversation(conversation.access())
+	}
 	if input.ExpectedSequence != 0 && (len(messages) == 0 || messages[len(messages)-1].SequenceNo != input.ExpectedSequence || messages[len(messages)-1].Role != "user") {
 		return nil, errConversationConflict
 	}
@@ -72,7 +80,7 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 		phrases = []string{*input.Phrase}
 	}
 	audit.stage = "evidence"
-	result, selected, err := generateKnowledgeWithHistory(ctx, store, user, last.Content, selection, transport, messages, phrases...)
+	result, selected, err := generateScopedKnowledgeWithHistory(ctx, evidenceStore, user, last.Content, selection, transport, messages, conversation.KnowledgeScope, phrases...)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +91,7 @@ func generateKnowledgeConversationWithTransport(ctx context.Context, store knowl
 		return nil, nil
 	}
 	audit.stage = "persist"
-	message, err := store.appendAIKnowledgeAssistantMessage(ctx, user, id, assistantMessageInput{Content: *result.Answer, ExpectedSequence: last.SequenceNo, ModelID: selection.ProfileID, ModelVersion: selection.ModelVersion, ConfigRevision: selection.ConfigurationRevision, SkillGeneration: skillGeneration, ContextSnapshot: selected.Snapshot}, result.Sources, policy)
+	message, err := store.appendAIKnowledgeAssistantMessage(ctx, user, id, assistantMessageInput{Content: *result.Answer, ExpectedSequence: last.SequenceNo, ModelID: selection.ProfileID, ModelVersion: selection.ModelVersion, ConfigRevision: selection.ConfigurationRevision, SkillGeneration: skillGeneration, ContextSnapshot: selected.Snapshot, KnowledgeDependencies: result.Dependencies}, result.Sources, policy)
 	if err != nil {
 		return nil, err
 	}

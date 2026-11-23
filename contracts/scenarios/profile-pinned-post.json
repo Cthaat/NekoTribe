@@ -1,0 +1,9 @@
+{
+  "id": "PROFILE-PINNED-POST",
+  "revision": 1,
+  "cases": [
+    {"id":"pin-replace-unpin","assertion":"Pinning an owned post, replacing it with another, and clearing it yield at most one pinned row. Profile page one deduplicates the pin against the ordinary timeline."},
+    {"id":"current-post-visibility","assertion":"A non-owner cannot pin a post. A removed or inaccessible pinned post produces a null result for the requesting viewer and does not increment its views."},
+    {"id":"explicit-pin-migration","assertion":"Pin endpoints return 503 with no request DDL on a missing feature schema. Ordinary profile posts still load."}
+  ]
+}

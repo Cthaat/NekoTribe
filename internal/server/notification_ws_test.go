@@ -267,6 +267,12 @@ func TestGoRealtimeChatRoomAndPrivateDirectDelivery(t *testing.T) {
 		event["data"].(map[string]interface{})["message_id"] != float64(10) {
 		t.Fatal(event)
 	}
+	source.send(42, `{"type":"direct_message_updated","data":{"conversation_id":12,"message_id":10},"timestamp":1}`)
+	source.send(42, `{"type":"direct_message_updated","data":{"conversation_id":12,"message_id":9,"reactions":[]},"timestamp":1}`)
+	source.send(42, `{"type":"direct_message_updated","data":{"conversation_id":12,"message_id":9},"timestamp":1}`)
+	if event := socketRead(t, conn); event["type"] != "direct_message_updated" || event["data"].(map[string]any)["message_id"] != float64(9) {
+		t.Fatal(event)
+	}
 	sessions.allowed.Store(false)
 	chat.events <- []byte(`{"type":"chat_message","data":{"channel_id":7},"timestamp":1}`)
 	select {

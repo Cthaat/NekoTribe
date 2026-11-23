@@ -1,6 +1,9 @@
 package server
 
-import "unicode/utf8"
+import (
+	"slices"
+	"unicode/utf8"
+)
 
 type knowledgeModelMessage struct {
 	Role    string `json:"role"`
@@ -11,6 +14,14 @@ type knowledgeContext struct {
 	History  []knowledgeModelMessage
 	Sources  []knowledgeCandidate
 	Snapshot []conversationHistoryMessage
+}
+
+func knowledgeCitationReferences(citations []knowledgeCitation) []knowledgeCandidate {
+	refs := make([]knowledgeCandidate, 0, len(citations))
+	for _, c := range citations {
+		refs = append(refs, knowledgeCandidate{Kind: c.Kind, ID: c.ID, Version: c.Version})
+	}
+	return refs
 }
 
 // jsJSONStringSize counts JSON.stringify UTF-8 bytes without Go's HTML or U+2028 escaping.
@@ -44,17 +55,19 @@ func selectKnowledgeContext(messages []conversationHistoryMessage, maxBytes, max
 			if len(message.Citations) == 0 || len(message.Citations) > 20 {
 				return knowledgeContext{}, errKnowledgeConversationContext
 			}
-			refs := make([]knowledgeCandidate, 0, len(message.Citations))
 			for _, c := range message.Citations {
 				if !validKnowledgeLocation(c.Kind, c.ID, c.PostID, c.GroupID) {
 					return knowledgeContext{}, errKnowledgeConversationContext
 				}
-				refs = append(refs, knowledgeCandidate{Kind: c.Kind, ID: c.ID, Version: c.Version})
 			}
+			refs := knowledgeCitationReferences(message.Citations)
 			if validateKnowledgeCandidates(1, refs) != nil {
 				return knowledgeContext{}, errKnowledgeConversationContext
 			}
-		} else if message.Citations != nil {
+			if len(message.KnowledgeDependencies) > 0 && (validateKnowledgeCandidates(1, message.KnowledgeDependencies) != nil || !knowledgeContainsReferences(message.KnowledgeDependencies, refs)) {
+				return knowledgeContext{}, errKnowledgeConversationContext
+			}
+		} else if message.Citations != nil || len(message.KnowledgeDependencies) > 0 {
 			return knowledgeContext{}, errKnowledgeConversationContext
 		}
 	}
@@ -79,7 +92,11 @@ func selectKnowledgeContext(messages []conversationHistoryMessage, maxBytes, max
 			break
 		}
 		newSources := []knowledgeCandidate{}
-		for _, c := range message.Citations {
+		refs := message.KnowledgeDependencies
+		if len(refs) == 0 {
+			refs = knowledgeCitationReferences(message.Citations)
+		}
+		for _, c := range refs {
 			key := knowledgeKey(c.Kind, c.ID)
 			if version, ok := versions[key]; ok {
 				if version != c.Version {
@@ -87,7 +104,7 @@ func selectKnowledgeContext(messages []conversationHistoryMessage, maxBytes, max
 				}
 				continue
 			}
-			newSources = append(newSources, knowledgeCandidate{Kind: c.Kind, ID: c.ID, Version: c.Version})
+			newSources = append(newSources, c)
 		}
 		if len(result.Sources)+len(newSources) > maxSources {
 			break
@@ -105,6 +122,7 @@ func selectKnowledgeContext(messages []conversationHistoryMessage, maxBytes, max
 		if result.Snapshot[i].Citations != nil {
 			result.Snapshot[i].Citations = append([]knowledgeCitation(nil), result.Snapshot[i].Citations...)
 		}
+		result.Snapshot[i].KnowledgeDependencies = slices.Clone(result.Snapshot[i].KnowledgeDependencies)
 	}
 	return result, nil
 }

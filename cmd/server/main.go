@@ -141,13 +141,19 @@ func run() (err error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	repo := server.OracleSessions{DB: db}
 	sweeperDone := make(chan struct{})
+	draftSweeperDone := make(chan struct{})
 	go func() {
 		defer close(sweeperDone)
 		repo.RunBanExpiry(ctx)
 	}()
+	go func() {
+		defer close(draftSweeperDone)
+		repo.RunPostDraftSweep(ctx, config.Refresh)
+	}()
 	defer func() {
 		stop()
 		<-sweeperDone
+		<-draftSweeperDone
 	}()
 	handler := server.NewHandlerWithConfig(codec, repo, config.Cors, config.Refresh)
 	handler = server.WithReadiness(handler, config.Cors, db.PingContext, redisEvents.Ping)

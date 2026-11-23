@@ -138,6 +138,13 @@ func (s OracleSessions) DeleteMedia(ctx context.Context, user int64, id float64)
 	if !errors.Is(err, sql.ErrNoRows) {
 		return mediaDeleteRecord{}, errSessionStore
 	}
+	linked, err := directAssetLinked(ctx, tx, mediaID)
+	if err != nil {
+		return mediaDeleteRecord{}, err
+	}
+	if linked {
+		return mediaDeleteRecord{}, errMediaInUse
+	}
 	const remove = `DELETE FROM n_media_assets WHERE media_id=:media_id AND owner_user_id=:user_id`
 	count, err := postTxExecute(ctx, tx, remove, mediaID, owner)
 	if err != nil {

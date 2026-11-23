@@ -15,6 +15,10 @@ type knowledgeDiscoveryReader interface {
 }
 
 func discoverKnowledge(ctx context.Context, reader knowledgeDiscoveryReader, viewer int64, query string, limit int) ([]knowledgeSource, error) {
+	return discoverKnowledgeByKinds(ctx, reader, viewer, query, limit, []string{"post", "comment", "terms", "group_post", "group_comment"})
+}
+
+func discoverKnowledgeByKinds(ctx context.Context, reader knowledgeDiscoveryReader, viewer int64, query string, limit int, kinds []string) ([]knowledgeSource, error) {
 	if viewer <= 0 || viewer > 9007199254740991 || !utf8.ValidString(query) || limit < 1 || limit > 20 {
 		return nil, errKnowledgeInvalid
 	}
@@ -22,7 +26,6 @@ func discoverKnowledge(ctx context.Context, reader knowledgeDiscoveryReader, vie
 	if term == "" || len(term) > 256 || strings.IndexFunc(term, func(r rune) bool { return r <= 0x1f || r == 0x7f }) >= 0 {
 		return nil, errKnowledgeInvalid
 	}
-	kinds := []string{"post", "comment", "terms", "group_post", "group_comment"}
 	lists := make([][]knowledgeSource, 0, len(kinds))
 	for _, kind := range kinds {
 		rows, err := reader.search(ctx, viewer, kind, term, limit)
@@ -98,7 +101,11 @@ func (r oracleKnowledgeReader) search(ctx context.Context, viewer int64, kind, t
 	default:
 		return nil, errKnowledgeInvalid
 	}
-	rows, err := r.conn.QueryContext(ctx, query, sql.Named("viewer_id", viewer), sql.Named("term", term), sql.Named("row_limit", limit), sql.Named("max_id", knowledgeMaxID))
+	return queryKnowledgeSearch(ctx, r.conn, query, kind, limit, sql.Named("viewer_id", viewer), sql.Named("term", term), sql.Named("row_limit", limit), sql.Named("max_id", knowledgeMaxID))
+}
+
+func queryKnowledgeSearch(ctx context.Context, conn knowledgeQueryer, query, kind string, limit int, args ...any) ([]knowledgeSource, error) {
+	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, errSessionStore
 	}

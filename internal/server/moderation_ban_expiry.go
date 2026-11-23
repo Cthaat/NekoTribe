@@ -42,17 +42,21 @@ func (s OracleSessions) restoreBan(ctx context.Context, user int64, lock string)
 		if err != nil {
 			return done, errSessionStore
 		}
-		restored, err := postTxExecute(ctx, tx, banExpirySQL["restore"], key)
-		if err != nil || restored == 0 {
-			return done, err
-		}
-		expired, err := postTxExecute(ctx, tx, banExpirySQL["expire"], key)
-		if err != nil || expired < 1 {
-			return done, errSessionStore
-		}
-		return done, nil
+		return done, restoreExpiredBanLocked(ctx, tx, key)
 	})
 	return err
+}
+
+func restoreExpiredBanLocked(ctx context.Context, tx *sql.Tx, user sql.NamedArg) error {
+	restored, err := postTxExecute(ctx, tx, banExpirySQL["restore"], user)
+	if err != nil || restored == 0 {
+		return err
+	}
+	expired, err := postTxExecute(ctx, tx, banExpirySQL["expire"], user)
+	if err != nil || expired < 1 {
+		return errSessionStore
+	}
+	return nil
 }
 
 // RunBanExpiry reconciles a bounded batch on each tick. Contended rows are retried on later ticks.

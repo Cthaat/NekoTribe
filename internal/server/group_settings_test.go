@@ -60,6 +60,11 @@ func (c *groupSettingsConn) QueryContext(_ context.Context, stmt string, _ []dri
 			return emptyRows{&c.f.state}, nil
 		}
 		return &alertRows{values: []driver.Value{"/storage/" + fixtureGroupImage}}, nil
+	case directExtrasContract.SQL["asset_is_linked"]:
+		if c.f.failure == "image-direct-linked" {
+			return &alertRows{values: []driver.Value{int64(1)}}, nil
+		}
+		return emptyRows{&c.f.state}, nil
 	case "SELECT seq_group_id.NEXTVAL AS id FROM dual":
 		return &alertRows{values: []driver.Value{int64(7)}}, nil
 	case membershipGroupSQL:
@@ -82,7 +87,7 @@ func (c *groupSettingsConn) QueryContext(_ context.Context, stmt string, _ []dri
 
 func TestGroupImageGuardUsesSameTransaction(t *testing.T) {
 	for _, create := range []bool{true, false} {
-		for _, failure := range []string{"", "image-deleted"} {
+		for _, failure := range []string{"", "image-deleted", "image-direct-linked"} {
 			f := &groupSettingsFixture{failure: failure}
 			db := sql.OpenDB(f)
 			url := "https://old.example.test/uploads/" + fixtureGroupImage + "?preview=1"
@@ -101,7 +106,7 @@ func TestGroupImageGuardUsesSameTransaction(t *testing.T) {
 			if f.imageLocks != 1 {
 				t.Fatal(f.imageLocks)
 			}
-			if failure == "image-deleted" {
+			if failure != "" {
 				if !errors.Is(err, errGroupImageMissing) || f.writes != 0 || f.state.commits != 0 || f.state.rollbacks != 1 {
 					t.Fatal(f, err)
 				}

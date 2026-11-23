@@ -134,6 +134,14 @@ func aiAvailabilityRoute(w http.ResponseWriter, r *http.Request, codec *auth.Tok
 		return true
 	}
 	inference, revision := inferenceAvailability(config, result)
+	if result.Writing && config.userProvider.key != nil {
+		personal, _, err := activeUserWritingProvider(r.Context(), repository, actor, config.userProvider)
+		if err != nil {
+			inference.Writing = false
+		} else if personal != nil {
+			inference.Writing = true
+		}
+	}
 	respond(w, 200, 200, "success", aiAvailabilityResponse{
 		aiAvailability: result, Inference: inference, ModelConfigRevision: revision, Skills: availableSkillMetadata(result),
 	})

@@ -57,6 +57,8 @@ type PostDetail struct {
 	ViewerState    PostViewerState `json:"viewer_state"`
 	CreatedAt      string          `json:"created_at"`
 	UpdatedAt      string          `json:"updated_at"`
+	Poll           *postPoll       `json:"poll,omitempty"`
+	Markdown       *string         `json:"markdown,omitempty"`
 }
 type postDetailStore interface {
 	ReadVisiblePost(context.Context, *int64, int64) (PostDetail, bool, error)
@@ -176,6 +178,18 @@ func hydratePost(ctx context.Context, store postDetailStore, viewer *int64, post
 		post.Mentions[i].AvatarURL, err = normalizeAvatarURL(storage, post.Mentions[i].AvatarURL)
 		if err != nil {
 			return post, &postFailure{500, "服务器内部错误"}
+		}
+	}
+	if polls, ok := store.(postPollHydrator); ok {
+		post.Poll, err = polls.ReadAttachedPostPoll(ctx, viewer, post.PostID)
+		if err != nil {
+			return post, postPollFailure(err)
+		}
+	}
+	if markdown, ok := store.(postMarkdownHydrator); ok {
+		post.Markdown, err = markdown.ReadAttachedPostMarkdown(ctx, post.PostID)
+		if err != nil {
+			return post, postMarkdownFailure(err)
 		}
 	}
 	return post, nil
