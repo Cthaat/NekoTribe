@@ -1810,11 +1810,11 @@
       },
       {
         "path": "server/services/ai/vision-image-record.ts",
-        "sha256": "5696cfb319f507ad80800cfc2e269ea4cb68d6932846bc385a1b097d004a267b"
+        "sha256": "7ae0869e5c2689c62a7cee3fe39338bc1cca1bd38eeae8f96b7eef8b0670f1cf"
       },
       {
         "path": "server/services/ai/vision-images.ts",
-        "sha256": "fb2ad16b7f1ce96f84c8a589c7e2ba9111ddcd0fdd4bed46713de7812538b0d3"
+        "sha256": "93d66f407048c75ce2895cbd4c28383d4c2bbc136d1ddb73e09673825d97eb10"
       },
       {
         "path": "server/services/ai/vision-media.ts",
