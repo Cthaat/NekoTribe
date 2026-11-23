@@ -115,6 +115,7 @@ fn native_router(
         Some(realtime.clone()),
         Some(realtime),
     )
+    .merge(crate::observability::router(options.metrics_access.clone()))
     .merge(readiness.layer(axum_middleware::from_fn_with_state(
         options.cors.clone(), sessions::cors_middleware,
     )))
@@ -138,6 +139,7 @@ fn native_router(
         config,
         security_headers::security_headers,
     ))
+    .layer(axum_middleware::from_fn(logging::observe_request))
     .layer(axum_middleware::from_fn(request_id::request_id)))
 }
 

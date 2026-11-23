@@ -278,6 +278,8 @@ fn shared_ai_conversation_readiness_matches_nuxt_scenarios() {
     ))
     .unwrap();
     assert_eq!(fixture["id"], "AI-CONVERSATION-READINESS");
+    assert_eq!(fixture["revision"], 4);
+    assert_eq!(fixture["cases"].as_array().unwrap().len(), 11);
     for case in fixture["cases"].as_array().unwrap() {
         let mut snapshot = fixture["baseline"].clone();
         for mutation in case["mutations"].as_array().unwrap() {

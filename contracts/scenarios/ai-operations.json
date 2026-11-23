@@ -1,0 +1,32 @@
+{
+  "id": "AI-OPERATIONS",
+  "revision": 1,
+  "cases": [
+    {
+      "id": "moderator-overview",
+      "method": "GET",
+      "path": "/api/v2/moderation/ai/operations",
+      "status": 200,
+      "assertion": "Includes four model purposes, service quota, index status, feedback distribution and skill availability. Never includes service URLs or credentials."
+    },
+    {
+      "id": "dependency-unavailable",
+      "method": "GET",
+      "path": "/api/v2/moderation/ai/operations",
+      "status": 200,
+      "assertion": "Model, index or quota failures are represented in the corresponding section. Feedback history is still shown."
+    },
+    {
+      "id": "regular-account",
+      "method": "GET",
+      "path": "/api/v2/moderation/ai/operations",
+      "status": 403
+    },
+    {
+      "id": "signed-out",
+      "method": "GET",
+      "path": "/api/v2/moderation/ai/operations",
+      "status": 401
+    }
+  ]
+}

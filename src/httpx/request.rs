@@ -10,6 +10,8 @@ const SENSITIVE_KEYS: &[&str] = &[
     "cookie",
     "secret",
     "client_secret",
+    "api_key",
+    "secret_box",
     "code",
 ];
 
@@ -46,6 +48,8 @@ mod tests {
         assert!(is_sensitive_key("password"));
         assert!(is_sensitive_key("refresh_token"));
         assert!(is_sensitive_key("client_secret"));
+        assert!(is_sensitive_key("api_key"));
+        assert!(is_sensitive_key("secret_box"));
         assert!(!is_sensitive_key("page"));
 
         let pairs = redact_query_pairs([("password", "123456"), ("page", "2")]);

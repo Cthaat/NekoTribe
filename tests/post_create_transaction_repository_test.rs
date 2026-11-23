@@ -39,6 +39,7 @@ struct MemoryTransaction {
     source_changes: bool,
     media: Vec<(f64, u64, &'static str)>,
     private_media: Option<(&'static str, bool)>,
+    direct_linked: bool,
     fail_at: Option<&'static str>,
     fail_commit: bool,
     commit_applies_before_failure: bool,
@@ -60,6 +61,7 @@ impl Default for MemoryTransaction {
             source_changes: false,
             media: vec![(1.0, 42, "ready"), (2.0, 42, "uploaded")],
             private_media: None,
+            direct_linked: false,
             fail_at: None,
             fail_commit: false,
             commit_applies_before_failure: false,
@@ -104,6 +106,9 @@ impl PostCreateTransaction for MemoryTransaction {
                 ("MEDIA_ID".into(), DbValue::I64(1)),
                 ("STORAGE_KEY".into(), DbValue::String(key.into())),
             ])]);
+        }
+        if sql.starts_with("SELECT 1 FROM n_direct_message_media WHERE") {
+            return Ok(if self.direct_linked { vec![DbRow::new()] } else { vec![] });
         }
         if sql.starts_with("SELECT 1 AS permitted") {
             assert!(sql.contains("a.access_scope = 'post'"));
@@ -208,15 +213,17 @@ impl PostCreateTransaction for MemoryTransaction {
 
 #[test]
 fn private_post_media_requires_a_restricted_visibility_and_binding() {
-    for (visibility, key, permitted, expected, query_binding) in [
-        ("private", "private/post/42/a.txt", true, PostCreation::Created(100), true),
-        ("followers", "private/post/42/a.txt", false, PostCreation::MediaUnavailable, true),
-        ("public", "private/post/42/a.txt", true, PostCreation::MediaUnavailable, false),
-        ("mentioned", "private/chat/42/a.txt", true, PostCreation::MediaUnavailable, false),
-        ("private", "PRIVATE\\post\\42\\a.txt", true, PostCreation::MediaUnavailable, false),
+    for (visibility, key, permitted, direct_linked, expected, query_binding) in [
+        ("private", "private/post/42/a.txt", true, false, PostCreation::Created(100), true),
+        ("followers", "private/post/42/a.txt", false, false, PostCreation::MediaUnavailable, true),
+        ("private", "private/post/42/a.txt", true, true, PostCreation::MediaUnavailable, false),
+        ("public", "private/post/42/a.txt", true, false, PostCreation::MediaUnavailable, false),
+        ("mentioned", "private/chat/42/a.txt", true, false, PostCreation::MediaUnavailable, false),
+        ("private", "PRIVATE\\post\\42\\a.txt", true, false, PostCreation::MediaUnavailable, false),
     ] {
         let tx = MemoryTransaction {
             private_media: Some((key, permitted)),
+            direct_linked,
             ..Default::default()
         };
         let mut data = input();
@@ -246,6 +253,8 @@ fn input() -> PostCreateInput {
         reply_to_post_id: None,
         repost_of_post_id: None,
         quoted_post_id: None,
+        poll: None,
+        markdown: None,
     }
 }
 

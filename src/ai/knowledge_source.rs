@@ -1,7 +1,7 @@
-//! Revalidate index candidates against the current public business source.
+//! Revalidate search candidates against the current business source and conversation scope.
 use super::{public_terms_authority, public_terms_source};
 use crate::db::{
-    oracle::{bind_refs, bind_values, BindMap},
+    oracle::{BindMap, bind_refs, bind_values},
     row::oracle_row_to_db_row,
     value::DbValue,
 };
@@ -13,15 +13,84 @@ use std::{
 
 const MAX_ID: i64 = 999_999_999_999_999;
 const MAX_USER: i64 = 9_007_199_254_740_991;
-const POST_SQL:&str="SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 WHERE p.post_id=:source_id AND p.post_id BETWEEN 1 AND :max_id AND p.visibility='public' AND p.is_deleted=0 AND DBMS_LOB.GETLENGTH(p.content) BETWEEN 1 AND 65536 AND fn_can_view_post(:viewer_id,p.post_id)=1";
-const COMMENT_SQL:&str="SELECT c.comment_id AS source_id,p.post_id AS post_id,c.content AS content FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 JOIN n_users comment_author ON comment_author.user_id=c.user_id AND comment_author.is_active=1 WHERE c.comment_id=:source_id AND p.post_id BETWEEN 1 AND :max_id AND c.is_deleted=0 AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 AND NOT EXISTS (SELECT 1 FROM n_user_blocks b WHERE (b.user_id=:viewer_id AND b.target_user_id=c.user_id) OR (b.target_user_id=:viewer_id AND b.user_id=c.user_id))";
-const DISCOVER_POST_SQL:&str="SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 WHERE p.post_id BETWEEN 1 AND :max_id AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 AND DBMS_LOB.GETLENGTH(p.content) BETWEEN 1 AND 65536 AND DBMS_LOB.INSTR(p.content,:term)>0 ORDER BY p.post_id DESC FETCH FIRST :row_limit ROWS ONLY";
-const DISCOVER_COMMENT_SQL:&str="SELECT c.comment_id AS source_id,p.post_id AS post_id,c.content AS content FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 JOIN n_users comment_author ON comment_author.user_id=c.user_id AND comment_author.is_active=1 WHERE c.comment_id BETWEEN 1 AND :max_id AND p.post_id BETWEEN 1 AND :max_id AND c.is_deleted=0 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 AND NOT EXISTS (SELECT 1 FROM n_user_blocks b WHERE (b.user_id=:viewer_id AND b.target_user_id=c.user_id) OR (b.target_user_id=:viewer_id AND b.user_id=c.user_id)) AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND DBMS_LOB.INSTR(c.content,:term)>0 ORDER BY c.comment_id DESC FETCH FIRST :row_limit ROWS ONLY";
+const POST_SQL: &str = "SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 WHERE p.post_id=:source_id AND p.post_id BETWEEN 1 AND :max_id AND p.visibility='public' AND p.is_deleted=0 AND DBMS_LOB.GETLENGTH(p.content) BETWEEN 1 AND 65536 AND fn_can_view_post(:viewer_id,p.post_id)=1";
+const COMMENT_SQL: &str = "SELECT c.comment_id AS source_id,p.post_id AS post_id,c.content AS content FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 JOIN n_users comment_author ON comment_author.user_id=c.user_id AND comment_author.is_active=1 WHERE c.comment_id=:source_id AND p.post_id BETWEEN 1 AND :max_id AND c.is_deleted=0 AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 AND NOT EXISTS (SELECT 1 FROM n_user_blocks b WHERE (b.user_id=:viewer_id AND b.target_user_id=c.user_id) OR (b.target_user_id=:viewer_id AND b.user_id=c.user_id))";
+const DISCOVER_POST_SQL: &str = "SELECT p.post_id AS source_id,p.post_id AS post_id,p.content AS content FROM n_posts p JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 WHERE p.post_id BETWEEN 1 AND :max_id AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 AND DBMS_LOB.GETLENGTH(p.content) BETWEEN 1 AND 65536 AND DBMS_LOB.INSTR(p.content,:term)>0 ORDER BY p.post_id DESC FETCH FIRST :row_limit ROWS ONLY";
+const DISCOVER_COMMENT_SQL: &str = "SELECT c.comment_id AS source_id,p.post_id AS post_id,c.content AS content FROM n_comments c JOIN n_posts p ON p.post_id=c.post_id JOIN n_users post_author ON post_author.user_id=p.author_id AND post_author.is_active=1 JOIN n_users comment_author ON comment_author.user_id=c.user_id AND comment_author.is_active=1 WHERE c.comment_id BETWEEN 1 AND :max_id AND p.post_id BETWEEN 1 AND :max_id AND c.is_deleted=0 AND p.visibility='public' AND p.is_deleted=0 AND fn_can_view_post(:viewer_id,p.post_id)=1 AND NOT EXISTS (SELECT 1 FROM n_user_blocks b WHERE (b.user_id=:viewer_id AND b.target_user_id=c.user_id) OR (b.target_user_id=:viewer_id AND b.user_id=c.user_id)) AND DBMS_LOB.GETLENGTH(c.content) BETWEEN 1 AND 65536 AND DBMS_LOB.INSTR(c.content,:term)>0 ORDER BY c.comment_id DESC FETCH FIRST :row_limit ROWS ONLY";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Invalid,
+    Forbidden,
+    Contended,
     Store,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScopeName {
+    #[default]
+    Public,
+    Personal,
+    Group,
+}
+
+impl ScopeName {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "public" => Some(Self::Public),
+            "personal" => Some(Self::Personal),
+            "group" => Some(Self::Group),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Personal => "personal",
+            Self::Group => "group",
+        }
+    }
+
+    pub(crate) fn resolve(self, group_id: Option<i64>) -> Option<Scope> {
+        match (self, group_id) {
+            (Self::Public, None) => Some(Scope::Public),
+            (Self::Personal, None) => Some(Scope::Personal),
+            (Self::Group, Some(id)) if (1..=MAX_USER).contains(&id) => Some(Scope::Group(id)),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scope {
+    Public,
+    Personal,
+    Group(i64),
+}
+
+impl Scope {
+    fn kinds(self) -> &'static [&'static str] {
+        match self {
+            Self::Public => &["post", "comment", "terms", "group_post", "group_comment"],
+            Self::Personal => &["post"],
+            Self::Group(_) => &["group_post", "group_comment"],
+        }
+    }
+
+    pub(crate) fn allows_kind(self, kind: &str) -> bool {
+        self.kinds().contains(&kind)
+    }
+
+    pub(crate) fn allows_source(self, source: &Source) -> bool {
+        self.allows_kind(&source.kind)
+            && match self {
+                Self::Public => true,
+                Self::Personal => source.group_id == 0,
+                Self::Group(group_id) => source.group_id == group_id,
+            }
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
@@ -64,6 +133,16 @@ pub fn discover(
     query: &str,
     limit: usize,
 ) -> Result<Vec<Source>, Error> {
+    discover_in_scope(reader, viewer, Scope::Public, query, limit)
+}
+
+fn discover_in_scope(
+    reader: &impl DiscoveryReader,
+    viewer: i64,
+    scope: Scope,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<Source>, Error> {
     let term = crate::auth::login::js_trim(query);
     if !(1..=MAX_USER).contains(&viewer)
         || !(1..=20).contains(&limit)
@@ -73,9 +152,9 @@ pub fn discover(
     {
         return Err(Error::Invalid);
     }
-    let kinds = ["post", "comment", "terms", "group_post", "group_comment"];
+    let kinds = scope.kinds();
     let mut lists = Vec::with_capacity(kinds.len());
-    for kind in kinds {
+    for &kind in kinds {
         let rows = reader
             .search(viewer, kind, term, limit)
             .map_err(|_| Error::Store)?;
@@ -86,6 +165,7 @@ pub fn discover(
         let mut valid = Vec::new();
         for mut row in rows {
             if row.kind != kind
+                || !scope.allows_source(&row)
                 || !valid_id(row.id)
                 || (kind == "terms"
                     && (row.id > 8
@@ -181,6 +261,76 @@ fn group_source_query(kind: &str) -> Option<&'static str> {
         .map(String::as_str)
         .filter(|query| !query.is_empty())
 }
+
+fn scoped_query(kind: &str) -> Result<&'static str, Error> {
+    static QUERIES: OnceLock<HashMap<String, String>> = OnceLock::new();
+    QUERIES
+        .get_or_init(|| {
+            serde_json::from_str::<serde_json::Value>(include_str!(
+                "../../contracts/requirements/ai-knowledge-scope.json"
+            ))
+            .ok()
+            .and_then(|spec| serde_json::from_value(spec["sql"].clone()).ok())
+            .unwrap_or_default()
+        })
+        .get(kind)
+        .map(String::as_str)
+        .filter(|query| !query.is_empty())
+        .ok_or(Error::Store)
+}
+
+pub(crate) fn check_membership(
+    connection: &oracle::Connection,
+    viewer: i64,
+    group_id: i64,
+) -> Result<(), Error> {
+    if !(1..=MAX_USER).contains(&viewer) || !(1..=MAX_USER).contains(&group_id) {
+        return Err(Error::Invalid);
+    }
+    require_row(
+        connection,
+        scoped_query("membership")?,
+        &[("viewer_id", &viewer), ("group_id", &group_id)],
+    )
+}
+
+pub(crate) fn lock_group_membership(
+    connection: &oracle::Connection,
+    viewer: i64,
+    group_id: i64,
+) -> Result<(), Error> {
+    require_row(
+        connection,
+        scoped_query("lock_group")?,
+        &[("group_id", &group_id)],
+    )?;
+    require_row(
+        connection,
+        scoped_query("lock_membership")?,
+        &[("viewer_id", &viewer), ("group_id", &group_id)],
+    )
+}
+
+fn require_row(
+    connection: &oracle::Connection,
+    sql: &str,
+    binds: &[(&str, &dyn oracle::sql_type::ToSql)],
+) -> Result<(), Error> {
+    let mut rows = connection.query_named(sql, binds).map_err(row_error)?;
+    match rows.next().transpose().map_err(row_error)? {
+        Some(_) if rows.next().is_none() => Ok(()),
+        Some(_) => Err(Error::Store),
+        None => Err(Error::Forbidden),
+    }
+}
+
+fn row_error(error: oracle::Error) -> Error {
+    if error.db_error().is_some_and(|detail| detail.code() == 54) {
+        Error::Contended
+    } else {
+        Error::Store
+    }
+}
 pub(crate) fn validate(viewer: i64, candidates: &[Candidate]) -> Result<(), Error> {
     if !(1..=MAX_USER).contains(&viewer) || candidates.len() > 20 {
         return Err(Error::Invalid);
@@ -209,9 +359,21 @@ pub fn hydrate(
     viewer: i64,
     candidates: &[Candidate],
 ) -> Result<Vec<Source>, Error> {
+    hydrate_in_scope(reader, viewer, Scope::Public, candidates)
+}
+
+fn hydrate_in_scope(
+    reader: &impl Reader,
+    viewer: i64,
+    scope: Scope,
+    candidates: &[Candidate],
+) -> Result<Vec<Source>, Error> {
     validate(viewer, candidates)?;
     let mut output = Vec::new();
     for candidate in candidates {
+        if !scope.allows_kind(&candidate.kind) {
+            continue;
+        }
         let Some(mut row) = reader.get(viewer, candidate).map_err(|_| Error::Store)? else {
             continue;
         };
@@ -220,6 +382,9 @@ pub fn hydrate(
             || !valid_location(&row.kind, row.id, row.post_id, row.group_id)
         {
             return Err(Error::Store);
+        }
+        if !scope.allows_source(&row) {
+            continue;
         }
         if row.content.is_empty() || row.content.len() > 65536 {
             continue;
@@ -245,7 +410,7 @@ pub(super) fn valid_location(kind: &str, id: i64, post_id: i64, group_id: i64) -
         return false;
     }
     if matches!(kind, "group_post" | "group_comment") {
-        return valid_id(group_id);
+        return (1..=MAX_USER).contains(&group_id);
     }
     group_id == 0
 }
@@ -285,7 +450,7 @@ pub fn read_terms_source(
         version: row.version,
     }))
 }
-struct OracleReader<'a>(&'a oracle::Connection);
+struct OracleReader<'a>(&'a oracle::Connection, Scope);
 fn discovery_query_parts(
     viewer: i64,
     kind: &str,
@@ -309,6 +474,34 @@ fn discovery_query_parts(
         ]),
     ))
 }
+
+fn scoped_discovery_query_parts(
+    scope: Scope,
+    viewer: i64,
+    kind: &str,
+    term: &str,
+    limit: usize,
+) -> Result<(&'static str, BindMap), Error> {
+    if scope == Scope::Public {
+        return discovery_query_parts(viewer, kind, term, limit);
+    }
+    let query = match (scope, kind) {
+        (Scope::Personal, "post") => scoped_query("search_personal_post")?,
+        (Scope::Group(_), "group_post") => scoped_query("search_group_post")?,
+        (Scope::Group(_), "group_comment") => scoped_query("search_group_comment")?,
+        _ => return Err(Error::Invalid),
+    };
+    let mut binds = BindMap::from([
+        ("viewer_id".into(), DbValue::I64(viewer)),
+        ("max_id".into(), DbValue::I64(MAX_ID)),
+        ("term".into(), DbValue::String(term.into())),
+        ("row_limit".into(), DbValue::I64(limit as i64)),
+    ]);
+    if let Scope::Group(group_id) = scope {
+        binds.insert("group_id".into(), DbValue::I64(group_id));
+    }
+    Ok((query, binds))
+}
 impl DiscoveryReader for OracleReader<'_> {
     fn search(
         &self,
@@ -330,7 +523,7 @@ impl DiscoveryReader for OracleReader<'_> {
                 &raw,
             );
         }
-        let (query, binds) = discovery_query_parts(viewer, kind, term, limit)?;
+        let (query, binds) = scoped_discovery_query_parts(self.1, viewer, kind, term, limit)?;
         let binds = bind_values(binds);
         let rows = self
             .0
@@ -382,7 +575,26 @@ pub fn discover_sources(
     query: &str,
     limit: usize,
 ) -> Result<Vec<Source>, Error> {
-    discover(&OracleReader(connection), viewer, query, limit)
+    discover_scoped_sources(connection, viewer, Scope::Public, query, limit)
+}
+
+pub(crate) fn discover_scoped_sources(
+    connection: &oracle::Connection,
+    viewer: i64,
+    scope: Scope,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<Source>, Error> {
+    if let Scope::Group(group_id) = scope {
+        check_membership(connection, viewer, group_id)?;
+    }
+    discover_in_scope(
+        &OracleReader(connection, scope),
+        viewer,
+        scope,
+        query,
+        limit,
+    )
 }
 fn query_parts(viewer: i64, candidate: &Candidate) -> Result<(&'static str, BindMap), Error> {
     let query = match candidate.kind.as_str() {
@@ -400,6 +612,31 @@ fn query_parts(viewer: i64, candidate: &Candidate) -> Result<(&'static str, Bind
     ]);
     Ok((query, binds))
 }
+
+fn scoped_query_parts(
+    scope: Scope,
+    viewer: i64,
+    candidate: &Candidate,
+) -> Result<(&'static str, BindMap), Error> {
+    if scope == Scope::Public {
+        return query_parts(viewer, candidate);
+    }
+    let query = match (scope, candidate.kind.as_str()) {
+        (Scope::Personal, "post") => scoped_query("personal_post")?,
+        (Scope::Group(_), "group_post") => scoped_query("group_post")?,
+        (Scope::Group(_), "group_comment") => scoped_query("group_comment")?,
+        _ => return Err(Error::Invalid),
+    };
+    let mut binds = BindMap::from([
+        ("viewer_id".into(), DbValue::I64(viewer)),
+        ("source_id".into(), DbValue::I64(candidate.id)),
+        ("max_id".into(), DbValue::I64(MAX_ID)),
+    ]);
+    if let Scope::Group(group_id) = scope {
+        binds.insert("group_id".into(), DbValue::I64(group_id));
+    }
+    Ok((query, binds))
+}
 impl Reader for OracleReader<'_> {
     fn get(&self, viewer: i64, candidate: &Candidate) -> Result<Option<Source>, Error> {
         if candidate.kind == "terms" {
@@ -414,7 +651,7 @@ impl Reader for OracleReader<'_> {
                 &raw,
             );
         }
-        let (query, binds) = query_parts(viewer, candidate)?;
+        let (query, binds) = scoped_query_parts(self.1, viewer, candidate)?;
         let binds = bind_values(binds);
         let mut rows = self
             .0
@@ -463,12 +700,75 @@ pub fn hydrate_sources(
     viewer: i64,
     candidates: &[Candidate],
 ) -> Result<Vec<Source>, Error> {
-    hydrate(&OracleReader(connection), viewer, candidates)
+    hydrate_scoped_sources(connection, viewer, Scope::Public, candidates)
+}
+
+pub(crate) fn hydrate_scoped_sources(
+    connection: &oracle::Connection,
+    viewer: i64,
+    scope: Scope,
+    candidates: &[Candidate],
+) -> Result<Vec<Source>, Error> {
+    if let Scope::Group(group_id) = scope {
+        check_membership(connection, viewer, group_id)?;
+    }
+    hydrate_in_scope(&OracleReader(connection, scope), viewer, scope, candidates)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn restricted_search_and_hydration_include_the_same_live_scope_predicates() {
+        let membership = scoped_query("membership").unwrap();
+        let locked_membership = scoped_query("lock_membership").unwrap();
+        assert!(
+            scoped_query("lock_group")
+                .unwrap()
+                .ends_with("FOR UPDATE NOWAIT")
+        );
+        assert_eq!(
+            locked_membership.strip_suffix(" FOR UPDATE OF gm.status NOWAIT"),
+            Some(membership)
+        );
+        for (scope, kind) in [
+            (Scope::Personal, "post"),
+            (Scope::Group(MAX_USER), "group_post"),
+            (Scope::Group(MAX_USER), "group_comment"),
+        ] {
+            let candidate = Candidate {
+                kind: kind.into(),
+                id: 11,
+                version: "a".repeat(64),
+            };
+            for (sql, binds) in [
+                scoped_query_parts(scope, 42, &candidate).unwrap(),
+                scoped_discovery_query_parts(scope, 42, kind, "猫", 2).unwrap(),
+            ] {
+                assert_eq!(binds.get("viewer_id"), Some(&DbValue::I64(42)));
+                assert_eq!(binds.contains_key("max_id"), sql.contains(":max_id"));
+                assert!(sql.contains("p.is_deleted=0"));
+                match scope {
+                    Scope::Personal => {
+                        assert!(sql.contains("p.author_id=:viewer_id OR EXISTS"));
+                        assert!(sql.contains("b.user_id=:viewer_id"));
+                        assert!(sql.contains("fn_can_view_post(:viewer_id,p.post_id)=1"));
+                        assert!(!binds.contains_key("group_id"));
+                    }
+                    Scope::Group(group_id) => {
+                        assert_eq!(binds.get("group_id"), Some(&DbValue::I64(group_id)));
+                        assert!(sql.contains("p.group_id=:group_id"));
+                        assert!(sql.contains("gm.user_id=:viewer_id AND gm.status='active'"));
+                        assert!(sql.contains("g.is_active=1 AND g.is_deleted=0"));
+                        assert!(sql.contains("n_user_blocks"));
+                        assert!(!sql.contains("g.privacy='public'"));
+                    }
+                    Scope::Public => unreachable!(),
+                }
+            }
+        }
+    }
     #[test]
     fn discovery_statements_bind_query_and_filter_current_visibility() {
         for kind in ["post", "comment"] {

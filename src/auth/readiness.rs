@@ -35,17 +35,57 @@ fn catalog(feature: &str) -> Result<Value, SessionStoreError> {
         "ai-conversations" => (
             include_str!("../../contracts/requirements/ai-conversation-schema-catalog.json"),
             "AI-CONVERSATION-SCHEMA-CATALOG",
-            5,
+            6,
         ),
         "ai-skills" => (
             include_str!("../../contracts/requirements/ai-skill-schema-catalog.json"),
             "AI-SKILL-SCHEMA-CATALOG",
             1,
         ),
+        "ai-user-provider" => (
+            include_str!("../../contracts/requirements/ai-user-provider-schema-catalog.json"),
+            "AI-USER-PROVIDER-SCHEMA-CATALOG",
+            1,
+        ),
+        "direct-message-extras" => (
+            include_str!("../../contracts/requirements/direct-message-extras-schema-catalog.json"),
+            "DIRECT-MESSAGE-EXTRAS-SCHEMA-CATALOG",
+            3,
+        ),
+        "post-polls" => (
+            include_str!("../../contracts/requirements/post-polls-schema-catalog.json"),
+            "POST-POLLS-SCHEMA-CATALOG",
+            5,
+        ),
+        "post-drafts" => (
+            include_str!("../../contracts/requirements/post-drafts-schema-catalog.json"),
+            "POST-DRAFTS-SCHEMA-CATALOG",
+            4,
+        ),
+        "profile-pinned-post" => (
+            include_str!("../../contracts/requirements/profile-pinned-post-schema-catalog.json"),
+            "PROFILE-PINNED-POST-SCHEMA-CATALOG",
+            1,
+        ),
+        "post-markdown" => (
+            include_str!("../../contracts/requirements/post-markdown-schema-catalog.json"),
+            "POST-MARKDOWN-SCHEMA-CATALOG",
+            1,
+        ),
+        "passkey-auth" => (
+            include_str!("../../contracts/requirements/passkey-auth-schema-catalog.json"),
+            "PASSKEY-AUTH-SCHEMA-CATALOG",
+            4,
+        ),
+        "github-oauth" => (
+            include_str!("../../contracts/requirements/github-oauth-schema-catalog.json"),
+            "GITHUB-OAUTH-SCHEMA-CATALOG",
+            3,
+        ),
         _ => return Err(SessionStoreError),
     };
     let value: Value = serde_json::from_str(content).map_err(|_| SessionStoreError)?;
-    let revision = if feature == "ai-conversations" { 3 } else { 1 };
+    let revision = if feature == "ai-conversations" { 4 } else { 1 };
     if value["id"] != expected_id
         || value["revision"] != revision
         || value["feature"]["id"] != feature
@@ -412,6 +452,28 @@ pub(crate) fn collect_ai_skill_snapshot(
     connection: &::oracle::Connection,
 ) -> Result<Value, DbError> {
     collect_feature_with("ai-skills", |sql, binds| query(connection, sql, binds))
+}
+
+pub(crate) fn collect_ai_user_provider_snapshot(connection: &::oracle::Connection) -> Result<Value, DbError> {
+    collect_feature_with("ai-user-provider", |sql, binds| query(connection, sql, binds))
+}
+
+pub(crate) fn collect_direct_extras_snapshot(connection: &::oracle::Connection) -> Result<Value, DbError> {
+    collect_feature_with("direct-message-extras", |sql, binds| query(connection, sql, binds))
+}
+
+pub(crate) fn collect_profile_pin_snapshot(connection: &::oracle::Connection) -> Result<Value, DbError> {
+    collect_feature_with("profile-pinned-post", |sql, binds| query(connection, sql, binds))
+}
+
+pub(crate) fn passkey_ready(connection: &::oracle::Connection) -> bool {
+    collect_feature_with("passkey-auth", |sql, binds| query(connection, sql, binds))
+        .is_ok_and(|snapshot| validate_feature_snapshot(&snapshot, "passkey-auth").is_ok())
+}
+
+pub(crate) fn github_oauth_ready(connection: &::oracle::Connection) -> bool {
+    collect_feature_with("github-oauth", |sql, binds| query(connection, sql, binds))
+        .is_ok_and(|snapshot| validate_feature_snapshot(&snapshot, "github-oauth").is_ok())
 }
 
 /// Collects an Oracle dictionary snapshot through an injected SELECT executor.

@@ -4,6 +4,7 @@ use crate::{
         TokenKind,
     },
     httpx::errors::ApiError,
+    notification_events::{typing_kind, TypingScope},
 };
 use axum::{
     extract::{
@@ -55,17 +56,18 @@ fn command_channel_id(data: &Value) -> Option<u64> {
 
 fn direct_message_ids(event: &NotificationEnvelope<'_>) -> Option<(u64, u64, bool)> {
     let deleted = event.kind == "direct_message_deleted";
-    if (!deleted && event.kind != "direct_message") || !valid_timestamp(&event.timestamp) {
+    let receipt_refresh = deleted || event.kind == "direct_message_updated";
+    if (!receipt_refresh && event.kind != "direct_message") || !valid_timestamp(&event.timestamp) {
         return None;
     }
     let data = serde_json::from_str::<Value>(event.data.get()).ok()?;
     let conversation = positive_socket_id(&data["conversation_id"])?;
-    if deleted {
+    if receipt_refresh {
         let fields = data.as_object()?;
         if fields.keys().any(|key| !matches!(key.as_str(), "conversation_id" | "message_id" | "server_id")) { return None; }
         if fields.get("server_id").is_some_and(|value| value.as_str().is_none_or(str::is_empty)) { return None; }
         let message = positive_socket_id(&data["message_id"])?;
-        return Some((conversation, message, true));
+        return Some((conversation, message, deleted));
     }
     let message = &data["direct_message"];
     let message_id = positive_socket_id(&message["message_id"])?;
@@ -73,10 +75,85 @@ fn direct_message_ids(event: &NotificationEnvelope<'_>) -> Option<(u64, u64, boo
         .then_some((conversation, message_id, false))
 }
 
+fn valid_server_id(fields: &serde_json::Map<String, Value>) -> bool {
+    fields
+        .get("server_id")
+        .is_none_or(|id| id.as_str().is_some_and(|id| !id.is_empty()))
+}
+
+#[derive(Clone, Copy)]
+enum TypingTarget {
+    Direct(u64),
+    Channel(u64),
+}
+
+fn typing_target(data: &Value) -> Option<TypingTarget> {
+    match (data.get("conversation_id"), data.get("channel_id")) {
+        (Some(id), None) => positive_socket_id(id).map(TypingTarget::Direct),
+        (None, Some(id)) => positive_socket_id(id).map(TypingTarget::Channel),
+        _ => None,
+    }
+}
+
+fn typing_command(data: &Value) -> Option<TypingTarget> {
+    if data.as_object()?.len() != 1 {
+        return None;
+    }
+    typing_target(data)
+}
+
+fn strict_detail_data(event: &NotificationEnvelope<'_>, body: &[u8]) -> Option<Value> {
+    if !valid_timestamp(&event.timestamp) {
+        return None;
+    }
+    let mut frame = serde_json::from_slice::<Value>(body).ok()?;
+    let fields = frame.as_object_mut()?;
+    if fields.len() != 3 || !fields.contains_key("type") || !fields.contains_key("timestamp") {
+        return None;
+    }
+    fields.remove("data")
+}
+
+fn typing_event(event: &NotificationEnvelope<'_>, body: &[u8]) -> Option<(TypingTarget, u64)> {
+    typing_kind(&event.kind)?;
+    let data = strict_detail_data(event, body)?;
+    let fields = data.as_object()?;
+    if !valid_server_id(fields)
+        || fields.keys().any(|key| !matches!(key.as_str(), "user_id" | "conversation_id" | "channel_id" | "server_id"))
+    {
+        return None;
+    }
+    Some((typing_target(&data)?, positive_socket_id(&data["user_id"])?))
+}
+
+fn direct_read_ids(event: &NotificationEnvelope<'_>, body: &[u8]) -> Option<(u64, u64, u64)> {
+    if event.kind != "direct_read_updated" {
+        return None;
+    }
+    let data = strict_detail_data(event, body)?;
+    let fields = data.as_object()?;
+    if !valid_server_id(fields)
+        || fields.keys().any(|key| !matches!(key.as_str(), "conversation_id" | "reader_id" | "last_read_message_id" | "server_id"))
+    {
+        return None;
+    }
+    Some((
+        positive_socket_id(&data["conversation_id"])?,
+        positive_socket_id(&data["reader_id"])?,
+        positive_socket_id(&data["last_read_message_id"])?,
+    ))
+}
+
 pub(crate) fn valid_chat_event(channel_id: u64, body: &[u8]) -> bool {
     let Ok(event) = serde_json::from_slice::<NotificationEnvelope<'_>>(body) else {
         return false;
     };
+    if event.room.as_deref().is_some_and(|room| room != format!("chat:channel:{channel_id}")) {
+        return false;
+    }
+    if typing_kind(&event.kind).is_some() {
+        return matches!(typing_event(&event, body), Some((TypingTarget::Channel(id), _)) if id == channel_id);
+    }
     if !matches!(
         event.kind.as_str(),
         "chat_message"
@@ -86,9 +163,6 @@ pub(crate) fn valid_chat_event(channel_id: u64, body: &[u8]) -> bool {
             | "chat_channel_updated"
             | "room_message"
     ) || !valid_timestamp(&event.timestamp)
-        || event
-            .room
-            .is_some_and(|room| room != format!("chat:channel:{channel_id}"))
     {
         return false;
     }
@@ -178,7 +252,11 @@ pub(crate) fn event_matches_channel(channel: &str, user_channel: &str, body: &[u
     if !event.data.get().trim_start().starts_with('{') || !valid_timestamp(&event.timestamp) {
         return false;
     }
-    (channel == user_channel && (is_notification(&event.kind) || direct_message_ids(&event).is_some()))
+    if event.kind.starts_with("call_") {
+        return channel == user_channel && crate::webrtc::valid_on_user_channel(channel, body);
+    }
+    (channel == user_channel && (is_notification(&event.kind) || direct_message_ids(&event).is_some()
+        || direct_read_ids(&event, body).is_some() || matches!(typing_event(&event, body), Some((TypingTarget::Direct(_), _)))))
         || (channel == "ws:presence" && valid_presence_frame(&event))
 }
 
@@ -312,6 +390,12 @@ struct RoomDelivery {
     body: Option<Vec<u8>>,
 }
 
+struct RoomMembership {
+    marker: Arc<()>,
+    task: tokio::task::AbortHandle,
+    _observation: crate::observability::RoomObservation<'static>,
+}
+
 async fn relay_room(
     channel: u64,
     membership: Arc<()>,
@@ -352,6 +436,26 @@ async fn room_access(state: &NativeState, user: u64, channel: u64) -> Result<boo
     .map_err(|_| ())?
     .map_err(|_| ())
 }
+
+pub(crate) async fn typing_peer(state: &NativeState, user: u64, conversation: u64) -> Option<u64> {
+    tokio::time::timeout(Duration::from_secs(5), state.repository.direct_typing_peer(user, conversation))
+        .await.ok()?.ok()?.filter(|peer| *peer != user)
+}
+
+#[derive(Default)]
+struct TypingRate([Option<tokio::time::Instant>; 2]);
+
+impl TypingRate {
+    fn take(&mut self, kind: &str, now: tokio::time::Instant) -> bool {
+        let slot = &mut self.0[usize::from(kind == "typing_stop")];
+        let interval = Duration::from_millis(crate::direct_read::contract().typing_min_interval_ms);
+        if slot.is_some_and(|previous| now.duration_since(previous) < interval) {
+            return false;
+        }
+        *slot = Some(now);
+        true
+    }
+}
 async fn handle(
     mut socket: WebSocket,
     state: NativeState,
@@ -360,12 +464,15 @@ async fn handle(
     session: String,
     mut events: mpsc::Receiver<Vec<u8>>,
 ) {
+    let metrics = crate::observability::metrics();
+    let _socket = metrics.socket();
+    let mut calls = crate::webrtc::Socket::new();
     let now = || chrono::Utc::now().timestamp_millis();
     let welcome = json!({
         "type": "system_notification",
         "data": {
             "message": "WebSocket connected",
-            "session_id": format!("ws_{}", uuid::Uuid::new_v4()),
+            "session_id": calls.id(),
             "user_id": user,
         },
         "timestamp": now(),
@@ -380,11 +487,16 @@ async fn handle(
     let Some(source) = state.notification_source.clone() else {
         return;
     };
-    let mut rooms = HashMap::new();
+    let mut rooms: HashMap<u64, RoomMembership> = HashMap::new();
+    let mut typing_rate = TypingRate::default();
     let (room_tx, mut room_rx) = mpsc::channel::<RoomDelivery>(16);
     let mut room_tasks = JoinSet::new();
     loop {
+        let call_deadline = calls.deadline();
         tokio::select! {
+            _ = crate::webrtc::ring_timer(call_deadline) => {
+                calls.expire(&state, user).await;
+            },
             result = room_tasks.join_next(), if !room_tasks.is_empty() => {
                 if !result.is_some_and(|result| result.is_err_and(|error| error.is_cancelled())) {
                     break;
@@ -408,8 +520,8 @@ async fn handle(
                 let (kind, data) = match value["type"].as_str() {
                     Some("ping") => ("pong", json!({"timestamp": now()})),
                     Some("chat_leave_channel") => {
-                        if let Some((_, task)) = command_channel_id(&value["data"]).and_then(|id| rooms.remove(&id)) {
-                            tokio::task::AbortHandle::abort(&task);
+                        if let Some(room) = command_channel_id(&value["data"]).and_then(|id| rooms.remove(&id)) {
+                            room.task.abort();
                         }
                         continue;
                     }
@@ -423,7 +535,7 @@ async fn handle(
                                 rooms.entry(channel).or_insert_with(|| {
                                     let membership = Arc::new(());
                                     let task = room_tasks.spawn(relay_room(channel, membership.clone(), source.clone(), room_tx.clone()));
-                                    (membership, task)
+                                    RoomMembership { marker: membership, task, _observation: metrics.room(channel) }
                                 });
                                 ("system_notification", json!({"message":"chat channel joined","channel_id":channel,"room":format!("chat:channel:{channel}")}))
                             }
@@ -432,19 +544,44 @@ async fn handle(
                             Err(()) => ("error", json!({"message":"服务暂不可用","channel_id":channel})),
                         }
                     }
+                    Some(raw_kind @ ("typing_start" | "typing_stop")) => {
+                        if !value.as_object().is_some_and(|fields| fields.len() == 2 && fields.contains_key("data")) { continue; }
+                        let (Some(kind), Some(target), Some(publisher)) = (
+                            typing_kind(raw_kind), typing_command(&value["data"]), &state.notification_publisher,
+                        ) else { continue; };
+                        if !typing_rate.take(kind, tokio::time::Instant::now()) { continue; }
+                        let scope = match target {
+                            TypingTarget::Direct(conversation) => {
+                                let Some(recipient) = typing_peer(&state, user, conversation).await else { continue; };
+                                TypingScope::Direct { conversation, recipient }
+                            }
+                            TypingTarget::Channel(channel) => {
+                                if !rooms.contains_key(&channel) || room_access(&state, user, channel).await != Ok(true) { continue; }
+                                TypingScope::Channel(channel)
+                            }
+                        };
+                        let _ = publisher.publish_typing(scope, user, kind).await;
+                        continue;
+                    }
+                    Some(kind) if crate::webrtc::control(kind) => {
+                        if let Some(reply) = calls.incoming(&state, user, &value).await {
+                            if !send(&mut socket, reply).await { break; }
+                        }
+                        continue;
+                    }
                     Some(other) => ("error", json!({"message":"不支持的 WebSocket 消息类型","type":other})),
                     None => ("error", json!({"message":"消息格式错误"})),
                 };
                 if !send(&mut socket, json!({"type": kind, "data": data, "timestamp": now()})).await { break; }
             },
             Some(delivery) = room_rx.recv() => {
-                if !rooms.get(&delivery.channel).is_some_and(|(membership, _)| Arc::ptr_eq(membership, &delivery.membership)) {
+                if !rooms.get(&delivery.channel).is_some_and(|room| Arc::ptr_eq(&room.marker, &delivery.membership)) {
                     continue;
                 }
                 if !alive(&state, &token, user, &session).await { break; }
                 if room_access(&state, user, delivery.channel).await != Ok(true) {
-                    if let Some((_, task)) = rooms.remove(&delivery.channel) {
-                        task.abort();
+                    if let Some(room) = rooms.remove(&delivery.channel) {
+                        room.task.abort();
                     }
                     continue;
                 }
@@ -455,6 +592,11 @@ async fn handle(
                     },"timestamp":now()})).await { break; }
                     continue;
                 };
+                if let Ok(event) = serde_json::from_slice::<NotificationEnvelope<'_>>(&body) {
+                    if let Some((TypingTarget::Channel(_), actor)) = typing_event(&event, &body) {
+                        if actor == user || room_access(&state, actor, delivery.channel).await != Ok(true) { continue; }
+                    }
+                }
                 let Ok(text) = String::from_utf8(body) else { continue };
                 if !send_text(&mut socket, text).await { break; }
             },
@@ -462,9 +604,23 @@ async fn handle(
                 let Some(body) = event else { break };
                 if body.len() > 262144 { continue; }
                 let Ok(value) = serde_json::from_slice::<NotificationEnvelope<'_>>(&body) else { continue };
+                if value.kind.starts_with("call_") {
+                    if !alive(&state, &token, user, &session).await { break; }
+                    if calls.can_receive(&state, user, &body).await {
+                        let Ok(text) = String::from_utf8(body) else { continue };
+                        if !send_text(&mut socket, text).await { break; }
+                    }
+                    continue;
+                }
                 let direct = direct_message_ids(&value);
+                let receipt = direct_read_ids(&value, &body);
+                let typing = match typing_event(&value, &body) {
+                    Some((TypingTarget::Direct(conversation), actor)) => Some((conversation, actor)),
+                    _ => None,
+                };
                 if !valid_timestamp(&value.timestamp)
-                    || !(is_notification(&value.kind) || valid_presence_frame(&value) || direct.is_some() || valid_realtime_status(&value, user))
+                    || !(is_notification(&value.kind) || valid_presence_frame(&value) || direct.is_some()
+                        || receipt.is_some() || typing.is_some() || valid_realtime_status(&value, user))
                     || !value.data.get().trim_start().starts_with('{') { continue; }
                 if !alive(&state, &token, user, &session).await { break; }
                 if let Some((conversation, message, deleted)) = direct {
@@ -473,16 +629,63 @@ async fn handle(
                         continue;
                     }
                 }
+                if let Some((conversation, reader, cursor)) = receipt {
+                    if !matches!(tokio::time::timeout(Duration::from_secs(5),
+                        state.repository.can_deliver_direct_read(user, conversation, reader, cursor)).await, Ok(Ok(true))) {
+                        continue;
+                    }
+                }
+                if let Some((conversation, actor)) = typing {
+                    if actor == user || typing_peer(&state, user, conversation).await != Some(actor) { continue; }
+                }
                 let Ok(text) = String::from_utf8(body) else { continue };
                 if !send_text(&mut socket, text).await { break; }
             }
         }
     }
+    calls.disconnect(&state, user).await;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn typing_commands_have_one_scope_and_per_type_throttle() {
+        assert!(typing_command(&json!({"conversation_id":9})).is_some());
+        assert!(typing_command(&json!({"channel_id":9})).is_some());
+        for data in [json!({"channel_id":"9"}), json!({"channel_id":9,"user_id":42}), json!({"channel_id":9,"conversation_id":1}), json!({"conversation_id":0})] {
+            assert!(typing_command(&data).is_none());
+        }
+        let now = tokio::time::Instant::now();
+        let mut limiter = TypingRate::default();
+        assert!(limiter.take("typing_start", now));
+        assert!(limiter.take("typing_stop", now));
+        assert!(!limiter.take("typing_start", now + Duration::from_millis(1199)));
+        assert!(limiter.take("typing_start", now + Duration::from_millis(1200)));
+    }
+
+    #[test]
+    fn typing_and_receipts_only_admit_their_scoped_broker_channels() {
+        let input = |kind, data| json!({"type":kind,"data":data,"timestamp":1}).to_string();
+        let typing = |data| input("typing_start", data);
+        let direct = typing(json!({"conversation_id":11,"user_id":9}));
+        let room = typing(json!({"channel_id":7,"user_id":9}));
+        let receipt = input("direct_read_updated", json!({"conversation_id":11,"reader_id":9,"last_read_message_id":13}));
+        for frame in [&direct, &receipt] {
+            assert!(event_matches_channel("ws:user:42", "ws:user:42", frame.as_bytes()));
+            assert!(!event_matches_channel("ws:user:9", "ws:user:42", frame.as_bytes()));
+            assert!(!event_matches_channel("ws:presence", "ws:user:42", frame.as_bytes()));
+            assert!(!valid_chat_event(7, frame.as_bytes()));
+        }
+        assert!(valid_chat_event(7, room.as_bytes()));
+        assert!(!valid_chat_event(9, room.as_bytes()));
+        assert!(!event_matches_channel("ws:user:42", "ws:user:42", room.as_bytes()));
+        let extra = input("direct_read_updated", json!({"conversation_id":11,"reader_id":9,"last_read_message_id":13,"unread_count":8}));
+        assert!(!event_matches_channel("ws:user:42", "ws:user:42", extra.as_bytes()));
+        let extra = br#"{"type":"typing_start","data":{"channel_id":7,"user_id":9},"timestamp":1,"room":"chat:channel:7"}"#;
+        assert!(!valid_chat_event(7, extra));
+    }
     #[test]
     fn broker_event_admission_follows_shared_contract() {
         let fixture: Value = serde_json::from_str(include_str!(

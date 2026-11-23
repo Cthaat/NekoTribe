@@ -1,12 +1,15 @@
 use crate::{
-    ai::conversation_http::ModerationSettings,
+    ai::{
+        conversation_http::ModerationSettings,
+        sentiment::{self, SentimentFlow},
+    },
     auth::{
         login::js_trim,
-        session_list::{session_pagination, SessionPage},
+        session_list::{SessionPage, session_pagination},
         session_repository::{
-            media_json, public_profile_json, row_number, row_text, POST_MEDIA_SQL,
+            POST_MEDIA_SQL, media_json, public_profile_json, row_number, row_text,
         },
-        sessions::NativeState,
+        sessions::{NativeState, SessionRepository},
         storage_urls::StorageUrlPolicy,
     },
     db::{
@@ -15,22 +18,22 @@ use crate::{
     },
     direct_history::query,
     group_content::user,
+    media::normalize_attachment_urls,
     moderation::{
         appeals::{authorized, private, server_error},
         reports,
     },
-    media::normalize_attachment_urls,
 };
 use axum::{
+    Extension, Json,
     extract::{OriginalUri, State},
     http::HeaderMap,
     response::Response,
-    Extension, Json,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     sync::OnceLock,
 };
 
@@ -62,6 +65,94 @@ pub struct Filters {
     pub sort: String,
     pub page: SessionPage,
     pub storage: StorageUrlPolicy,
+}
+
+pub struct SentimentSample {
+    pub post_id: i64,
+    pub excerpt: String,
+}
+
+pub(crate) fn sentiment_samples(
+    conn: &oracle::Connection,
+    viewer: u64,
+    ids: &[i64],
+) -> Result<Vec<SentimentSample>, DbError> {
+    let mut samples = Vec::new();
+    let mut seen = HashSet::new();
+    for &post_id in ids {
+        if !seen.insert(post_id) || !(1..=9_007_199_254_740_991).contains(&post_id) {
+            continue;
+        }
+        let rows = query(
+            conn,
+            sentiment::queue_post_query(),
+            BindMap::from([
+                ("viewer_id".into(), DbValue::I64(viewer as i64)),
+                ("post_id".into(), DbValue::I64(post_id)),
+            ]),
+        )?;
+        let [row] = rows.as_slice() else {
+            continue;
+        };
+        let Some(text) = row.get("EXCERPT").and_then(DbValue::as_str) else {
+            continue;
+        };
+        if js_trim(text).is_empty() || text.chars().count() > 400 {
+            continue;
+        }
+        samples.push(SentimentSample {
+            post_id,
+            excerpt: text.to_owned(),
+        });
+        if samples.len() == sentiment::max_samples() {
+            break;
+        }
+    }
+    Ok(samples)
+}
+
+async fn enrich_sentiment(
+    repository: &dyn SessionRepository,
+    viewer: u64,
+    client: &SentimentFlow,
+    items: &mut [Value],
+) -> Option<()> {
+    let ids = items
+        .iter()
+        .filter_map(|item| item["post_id"].as_i64())
+        .collect();
+    let samples = repository
+        .moderation_sentiment_samples(viewer, ids)
+        .await
+        .ok()?;
+    let texts: Vec<_> = samples
+        .iter()
+        .map(|sample| sample.excerpt.as_str())
+        .collect();
+    let predictions = client.predict(&texts).await?;
+    let ids = samples.iter().map(|sample| sample.post_id).collect();
+    let current = repository
+        .moderation_sentiment_samples(viewer, ids)
+        .await
+        .ok()?;
+    let unchanged: HashMap<_, _> = current
+        .iter()
+        .map(|sample| (sample.post_id, sample.excerpt.as_str()))
+        .collect();
+    let signals: HashMap<_, _> = samples
+        .iter()
+        .zip(predictions)
+        .filter_map(|(sample, prediction)| {
+            (unchanged.get(&sample.post_id).copied() == Some(sample.excerpt.as_str()))
+                .then_some((sample.post_id, prediction))
+        })
+        .collect();
+    for item in items {
+        if let Some(signal) = item["post_id"].as_i64().and_then(|id| signals.get(&id)) {
+            item["sentiment_signal"] = json!(signal);
+        }
+    }
+    Some(())
 }
 
 pub(crate) fn execute(
@@ -127,7 +218,8 @@ pub(super) fn read(
             .iter()
             .map(|row| {
                 let mut item = media_json(row);
-                normalize_attachment_urls(&f.storage, &mut item).map_err(|_| DbError::SchemaNotReady)?;
+                normalize_attachment_urls(&f.storage, &mut item)
+                    .map_err(|_| DbError::SchemaNotReady)?;
                 Ok(item)
             })
             .collect::<Result<Vec<_>, DbError>>()?;
@@ -163,6 +255,7 @@ pub(crate) async fn list(
     State(state): State<NativeState>,
     OriginalUri(uri): OriginalUri,
     settings: Option<Extension<ModerationSettings>>,
+    sentiment: Option<Extension<SentimentFlow>>,
     headers: HeaderMap,
 ) -> Response {
     private(async {
@@ -184,7 +277,13 @@ pub(crate) async fn list(
             sort:value("sort").filter(|s|spec.sorts.contains(s)).unwrap_or_else(||"newest".into()),
             page,storage:state.storage_urls.clone(),
         };
-        let (data,total)=state.repository.moderation_content(viewer, filters).await.map_err(|_|server_error())?;
+        let (mut data,total)=state.repository.moderation_content(viewer, filters).await.map_err(|_|server_error())?;
+        if value("sentiment_signal").as_deref() == Some("1") {
+            let client = sentiment.as_ref().map(|Extension(client)| client).or_else(|| sentiment::configured());
+            if let Some(client) = client.filter(|client| client.available()) {
+                let _ = enrich_sentiment(state.repository.as_ref(), viewer, client, &mut data).await;
+            }
+        }
         Ok(Json(json!({"code":200,"message":"moderation content listed","data":data,"meta":{
             "page":page.page,"page_size":page.page_size,"total":total,"has_next":page.end<total as f64
         }})))

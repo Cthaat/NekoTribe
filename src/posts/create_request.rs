@@ -1,6 +1,10 @@
 use crate::{
     auth::{login::js_trim, sessions::percent_decode},
     httpx::errors::ApiError,
+    posts::{
+        markdown,
+        polls::{parse_draft, Draft},
+    },
 };
 use serde_json::value::RawValue;
 use std::collections::BTreeMap;
@@ -19,6 +23,8 @@ pub struct PostCreateInput {
     pub reply_to_post_id: Option<u64>,
     pub repost_of_post_id: Option<u64>,
     pub quoted_post_id: Option<u64>,
+    pub poll: Option<Draft>,
+    pub markdown: Option<String>,
 }
 
 impl Default for PostCreateInput {
@@ -33,6 +39,8 @@ impl Default for PostCreateInput {
             reply_to_post_id: None,
             repost_of_post_id: None,
             quoted_post_id: None,
+            poll: None,
+            markdown: None,
         }
     }
 }
@@ -67,6 +75,14 @@ pub fn parse_create_body(
         content: scalar(body.get("content").map(Box::as_ref)).unwrap_or_default(),
         visibility: scalar(body.get("visibility").map(Box::as_ref))
             .unwrap_or_else(|| "public".into()),
+        poll: body
+            .get("poll")
+            .map(|value| parse_draft(value.get()))
+            .transpose()?,
+        markdown: body
+            .get("markdown")
+            .map(|value| markdown::parse_raw(value.get()))
+            .transpose()?,
         ..PostCreateInput::default()
     };
     if !matches!(
@@ -76,6 +92,12 @@ pub fn parse_create_body(
         return Err(ApiError::bad_request("visibility 参数错误"));
     }
     if let Some(id) = repost {
+        if input.poll.is_some() {
+            return Err(ApiError::bad_request("只有普通帖可以附带投票"));
+        }
+        if input.markdown.is_some() {
+            return Err(markdown::not_allowed());
+        }
         input.repost_of_post_id = Some(id);
         return Ok(input);
     }
@@ -101,6 +123,12 @@ pub fn parse_create_body(
     .count();
     if reference_count > 1 {
         return Err(ApiError::bad_request("引用字段只能传一个"));
+    }
+    if input.poll.is_some() && input.post_type() != "post" {
+        return Err(ApiError::bad_request("只有普通帖可以附带投票"));
+    }
+    if input.markdown.is_some() && input.post_type() != "post" {
+        return Err(markdown::not_allowed());
     }
     if input.repost_of_post_id.is_none()
         && js_trim(&input.content).is_empty()

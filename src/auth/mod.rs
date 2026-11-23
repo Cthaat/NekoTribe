@@ -1,5 +1,7 @@
 //! Token codecs and native session revocation with persisted session checks.
 pub mod login;
+pub mod github_oauth;
+mod login_methods;
 pub mod factor_management;
 pub(crate) mod factor_management_transaction;
 pub(crate) mod input;
@@ -7,6 +9,7 @@ pub mod otp;
 mod login_write;
 pub mod otp_attempt_limit;
 pub mod otp_send_limit;
+pub mod passkey;
 pub mod password_reset;
 mod password_reset_transaction;
 pub mod readiness;

@@ -1,0 +1,11 @@
+{
+  "id": "PROFILE-PINNED-POST",
+  "revision": 1,
+  "sql": {
+    "owner": "SELECT user_id FROM n_users WHERE user_id=:user_id AND is_active=1 FOR UPDATE",
+    "eligible": "SELECT p.post_id FROM n_posts p WHERE p.post_id=:post_id AND p.author_id=:user_id AND p.is_deleted=0 AND EXISTS (SELECT 1 FROM v_post_feed_item v WHERE v.post_id=p.post_id) AND fn_can_view_post(:user_id,p.post_id)=1 FOR UPDATE OF p.post_id",
+    "read": "SELECT t.post_id FROM n_user_pinned_posts t JOIN v_post_feed_item p ON p.post_id=t.post_id AND p.author_id=t.user_id WHERE t.user_id=:profile_id AND fn_can_view_post(:viewer_id,p.post_id)=1",
+    "write": "MERGE INTO n_user_pinned_posts p USING (SELECT :user_id AS user_id,:post_id AS post_id FROM dual) src ON (p.user_id=src.user_id) WHEN MATCHED THEN UPDATE SET p.post_id=src.post_id WHEN NOT MATCHED THEN INSERT (user_id,post_id) VALUES (src.user_id,src.post_id)",
+    "remove": "DELETE FROM n_user_pinned_posts WHERE user_id=:user_id"
+  }
+}

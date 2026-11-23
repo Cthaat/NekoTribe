@@ -55,8 +55,17 @@ impl RedisPool {
     }
 
     pub async fn get(&self, key: &str) -> Result<Option<String>, RedisError> {
-        let mut manager = self.manager()?;
-        manager.get(key).await.map_err(Into::into)
+        use crate::observability::{metrics, CacheResult};
+        let result = match self.manager() {
+            Ok(mut manager) => manager.get(key).await.map_err(Into::into),
+            Err(error) => Err(error),
+        };
+        metrics().cache(match &result {
+            Ok(Some(_)) => CacheResult::Hit,
+            Ok(None) => CacheResult::Miss,
+            Err(_) => CacheResult::Degraded,
+        });
+        result
     }
 
     pub async fn set_ex(&self, key: &str, value: &str, ttl_seconds: u64) -> Result<(), RedisError> {

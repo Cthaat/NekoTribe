@@ -1,0 +1,8 @@
+{
+  "id": "LOCAL-CLIENT-CONTINUITY",
+  "revision": 1,
+  "cases": [
+    {"id":"desktop-notification-follows-settings","assertion":"A user gesture enables permission. Only current-account notifications allowed by site preferences appear while the tab is in the background, with a generic message and a click to the mailbox. Denial and unsupported platforms preserve in-app behavior."},
+    {"id":"draft-survives-editor-reopen","assertion":"Each Flutter account/backend can restore unfinished regular text or Markdown and drafts from joined group composers locally. Publish confirmation or explicit discard clears the matching cache. Another account, endpoint or group cannot see it."}
+  ]
+}

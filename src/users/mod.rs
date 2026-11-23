@@ -11,3 +11,5 @@ pub mod follow;
 pub mod discovery;
 pub mod avatar;
 pub mod statements;
+pub mod account_resources;
+pub mod profile_pin;

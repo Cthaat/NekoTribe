@@ -21,7 +21,9 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 hex = "0.4"
 getrandom = "=0.3.4"
 hmac = "=0.12.1"
+html5ever = "0.35"
 http = "1"
+ipnet = "2"
 jsonwebtoken = { version = "=10.3.0", default-features = false, features = ["rust_crypto"] }
 lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
 oracle = { version = "0.6.3", features = ["chrono"] }
@@ -41,6 +43,9 @@ tower-http = { version = "0.6", features = ["catch-panic", "cors", "request-id",
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4"] }
+url = "2"
+webauthn-rs = { version = "=0.6.2", features = ["conditional-ui", "danger-allow-state-serialisation", "danger-credential-internals"] }
+webauthn-rs-proto = "=0.6.2"
 ryu-js = "=1.0.3"
 multer = "3"
 tempfile = "3"
@@ -53,6 +58,8 @@ imagesize = { version = "0.14", default-features = false, features = ["gif", "he
 [dev-dependencies]
 dotenvy = "0.15"
 http-body-util = "0.1"
+p256 = "=0.14.0"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde_cbor_2 = "=0.13.0"
 tower = { version = "0.5", features = ["util"] }
 tokio-tungstenite = "0.29"

@@ -76,6 +76,9 @@ impl PostCreateTransaction for Transaction {
                 ("STORAGE_KEY".into(), DbValue::String(key.into())),
             ])]);
         }
+        if sql.starts_with("SELECT 1 FROM n_direct_message_media WHERE") {
+            return Ok(if self.mode == "private-direct-linked" { vec![DbRow::new()] } else { vec![] });
+        }
         if sql.starts_with("SELECT 1 AS permitted")
             || sql.starts_with("SELECT 1 AS found")
         {
@@ -195,6 +198,7 @@ fn private_post_update_respects_effective_visibility_and_retained_media() {
         ("private-retained", Some("public"), Some(vec![8.0]), PostUpdate::MediaUnavailable),
         ("private-retained", None, Some(vec![8.0]), PostUpdate::Updated),
         ("private-linked-elsewhere", None, Some(vec![8.0]), PostUpdate::MediaUnavailable),
+        ("private-direct-linked", None, Some(vec![8.0]), PostUpdate::MediaUnavailable),
     ] {
         let tx = Transaction::new(mode);
         let data = PostUpdateInput {

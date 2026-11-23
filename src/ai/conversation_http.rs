@@ -1,3 +1,4 @@
+use super::knowledge_source::ScopeName;
 use crate::{
     ai::conversation_store::{self, AiOperation, Error, Input, ModerationPolicy},
     auth::sessions::NativeState,
@@ -5,11 +6,11 @@ use crate::{
     posts::bookmark::interaction_actor,
 };
 use axum::{
-    body::{to_bytes, Body},
+    Extension, Json,
+    body::{Body, to_bytes},
     extract::{OriginalUri, Path, State},
     http::{Request, StatusCode},
     response::{IntoResponse, Response},
-    Extension, Json,
 };
 use std::sync::Arc;
 
@@ -19,6 +20,7 @@ pub struct KnowledgeRuntime(pub Arc<dyn crate::ai::knowledge_service::KnowledgeS
 pub(crate) async fn availability(
     State(state): State<NativeState>,
     models: Option<Extension<crate::ai::writing::Settings>>,
+    personal: Option<Extension<super::user_provider::Settings>>,
     request: Request<Body>,
 ) -> Response {
     async {
@@ -58,7 +60,23 @@ pub(crate) async fn availability(
             let settings = models
                 .map(|Extension(settings)| settings)
                 .unwrap_or_default();
-            let (inference, revision) = inference_availability(&settings, flags).await;
+            let personal_inference = if flags.writing {
+                match super::user_provider::writing_connection(
+                    state.repository.as_ref(),
+                    super::user_provider::configured(personal.as_ref()),
+                    actor,
+                )
+                .await
+                {
+                    Ok(Some(_)) => Some(true),
+                    Ok(None) => None,
+                    Err(_) => Some(false),
+                }
+            } else {
+                None
+            };
+            let (inference, revision) =
+                inference_availability(&settings, flags, personal_inference).await;
             data.insert("inference".into(), inference);
             data.insert("model_config_revision".into(), serde_json::json!(revision));
         }
@@ -71,6 +89,7 @@ pub(crate) async fn availability(
 async fn inference_availability(
     settings: &crate::ai::writing::Settings,
     flags: super::skill_selection::UserAvailability,
+    personal_writing: Option<bool>,
 ) -> (serde_json::Value, Option<u64>) {
     use super::model_config::ModelRouter;
     let router = settings
@@ -98,7 +117,7 @@ async fn inference_availability(
     };
     let inference = serde_json::json!({
         "knowledge": flags.knowledge && configured("knowledge"),
-        "writing": flags.writing && configured("writing"),
+        "writing": flags.writing && personal_writing.unwrap_or_else(|| configured("writing")),
         "group": flags.group && configured("agent"),
         "moderation": flags.moderation && configured("moderation")
     });
@@ -174,6 +193,9 @@ pub(crate) async fn generate_knowledge(
             Err(KnowledgeError::Knowledge(TurnError::Quota(quota_error))) => {
                 return Ok(quota_error.into_response());
             }
+            Err(KnowledgeError::Knowledge(TurnError::Forbidden)) => {
+                return Err(error(Error::Forbidden));
+            }
             Err(KnowledgeError::Store(e)) => return Err(error(e)),
             Err(KnowledgeError::Repository) => {
                 return Err(ApiError::server_error("服务器内部错误"));
@@ -213,6 +235,7 @@ pub(crate) async fn generate_group(
     settings: Option<Extension<ModerationSettings>>,
     writing: Option<Extension<crate::ai::writing::Settings>>,
     quota: Option<Extension<super::model_quota::AiModelQuota>>,
+    sentiment: Option<Extension<super::sentiment::SentimentFlow>>,
     request: Request<Body>,
 ) -> Response {
     let (sender, signal) = tokio::sync::watch::channel(false);
@@ -242,6 +265,10 @@ pub(crate) async fn generate_group(
             request,
             Some(signal),
             quota.as_ref().map(|Extension(value)| value),
+            sentiment
+                .as_ref()
+                .map(|Extension(value)| value)
+                .or_else(|| super::sentiment::configured()),
         )
         .await;
         let result = match result {
@@ -278,6 +305,7 @@ pub(crate) async fn generate_moderation(
     settings: Option<Extension<ModerationSettings>>,
     model: Option<Extension<crate::ai::writing::Settings>>,
     quota: Option<Extension<super::model_quota::AiModelQuota>>,
+    storage: Option<Extension<crate::storage::local_http::LocalStorageConfig>>,
     request: Request<Body>,
 ) -> Response {
     use crate::ai::moderation_advice as review;
@@ -308,6 +336,7 @@ pub(crate) async fn generate_moderation(
             input,
             Some(signal),
             quota.as_ref().map(|Extension(value)| value),
+            storage.map(|Extension(value)| value),
         )
         .await;
         let result = match result {
@@ -383,6 +412,7 @@ pub(crate) async fn generate(
     settings: Option<Extension<ModerationSettings>>,
     writing: Option<Extension<crate::ai::writing::Settings>>,
     quota: Option<Extension<super::model_quota::AiModelQuota>>,
+    personal: Option<Extension<super::user_provider::Settings>>,
     request: Request<Body>,
 ) -> Response {
     let (sender, signal) = tokio::sync::watch::channel(false);
@@ -410,6 +440,7 @@ pub(crate) async fn generate(
             Some(signal),
             quota.as_ref().map(|Extension(value)| value),
             input,
+            super::user_provider::configured(personal.as_ref()),
         )
         .await;
         let value = match result {
@@ -474,11 +505,12 @@ fn page(query: &str) -> Result<(i64, i64, i64), ApiError> {
     }
     Ok((after.unwrap_or(0), before.unwrap_or(0), limit))
 }
-fn owned_page(query: &str) -> Result<(String, i64, String, Option<i64>, String), ApiError> {
+fn owned_page(query: &str) -> Result<AiOperation, ApiError> {
     let url = reqwest::Url::parse(&format!("http://localhost/?{query}"))
         .map_err(|_| ApiError::bad_request("分页参数错误"))?;
     let (mut after, mut limit, mut purpose) = (None, None, None);
     let mut group_id = None;
+    let mut knowledge_scope = None;
     let (mut target_kind, mut target_id) = (None, None);
     for (key, value) in url.query_pairs() {
         match key.as_ref() {
@@ -530,6 +562,15 @@ fn owned_page(query: &str) -> Result<(String, i64, String, Option<i64>, String),
                         .ok_or_else(|| ApiError::bad_request("群组参数错误"))?,
                 );
             }
+            "knowledge_scope" => {
+                if knowledge_scope.is_some() {
+                    return Err(ApiError::bad_request("知识范围错误"));
+                }
+                knowledge_scope = Some(
+                    ScopeName::parse(&value)
+                        .ok_or_else(|| ApiError::bad_request("知识范围错误"))?,
+                );
+            }
             "target_type" => {
                 if target_kind.is_some()
                     || !matches!(
@@ -555,23 +596,28 @@ fn owned_page(query: &str) -> Result<(String, i64, String, Option<i64>, String),
             _ => (),
         }
     }
-    if group_id.is_some() && purpose.as_deref() != Some("group") {
-        return Err(ApiError::bad_request("群组参数错误"));
+    if knowledge_scope.is_some() && purpose.is_none() {
+        purpose = Some("knowledge".into());
+    }
+    let purpose = purpose.unwrap_or_default();
+    if !conversation_store::valid_list_scope(&purpose, knowledge_scope, group_id) {
+        return Err(ApiError::bad_request("会话参数错误"));
     }
     let target_title = match (target_kind, target_id) {
         (None, None) => String::new(),
-        (Some(kind), Some(id)) if purpose.as_deref() == Some("moderation") => {
+        (Some(kind), Some(id)) if purpose == "moderation" => {
             format!("moderation:{kind}:{id}")
         }
         _ => return Err(ApiError::bad_request("审核对象错误")),
     };
-    Ok((
-        after.unwrap_or_default(),
-        limit.unwrap_or(20),
-        purpose.unwrap_or_default(),
+    Ok(AiOperation::ListOwned {
+        after: after.unwrap_or_default(),
+        limit: limit.unwrap_or(20),
+        purpose,
         group_id,
+        knowledge_scope,
         target_title,
-    ))
+    })
 }
 async fn json_body(body: Body) -> Result<serde_json::Map<String, serde_json::Value>, ApiError> {
     let bytes = to_bytes(body, 1024 * 1024)
@@ -590,10 +636,12 @@ async fn json_body(body: Body) -> Result<serde_json::Map<String, serde_json::Val
         .ok_or_else(|| ApiError::bad_request("请求体必须是 JSON 对象"))
 }
 fn parse_create(body: serde_json::Map<String, serde_json::Value>) -> Result<Input, ApiError> {
-    if body
-        .keys()
-        .any(|key| !matches!(key.as_str(), "purpose" | "group_id" | "title"))
-    {
+    if body.keys().any(|key| {
+        !matches!(
+            key.as_str(),
+            "purpose" | "group_id" | "title" | "knowledge_scope"
+        )
+    }) {
         return Err(ApiError::bad_request("会话参数错误"));
     }
     let purpose = body
@@ -601,6 +649,14 @@ fn parse_create(body: serde_json::Map<String, serde_json::Value>) -> Result<Inpu
         .and_then(|v| v.as_str())
         .ok_or_else(|| ApiError::bad_request("会话用途错误"))?
         .to_owned();
+    let knowledge_scope = match body.get("knowledge_scope") {
+        None => ScopeName::Public,
+        Some(value) if purpose == "knowledge" => value
+            .as_str()
+            .and_then(ScopeName::parse)
+            .ok_or_else(|| ApiError::bad_request("知识范围错误"))?,
+        _ => return Err(ApiError::bad_request("知识范围错误")),
+    };
     let group_id = match body.get("group_id") {
         None | Some(serde_json::Value::Null) => None,
         Some(v) => {
@@ -623,10 +679,38 @@ fn parse_create(body: serde_json::Map<String, serde_json::Value>) -> Result<Inpu
     conversation_store::validate(Input {
         purpose,
         group_id,
+        knowledge_scope,
         title,
     })
     .map_err(|_| ApiError::bad_request("会话参数错误"))
 }
+#[cfg(test)]
+mod knowledge_scope_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn validates_knowledge_scope_on_create_and_listing() {
+        let create = |body: serde_json::Value| parse_create(body.as_object().unwrap().clone());
+        assert!(create(json!({"purpose":"knowledge"})).is_ok());
+        assert!(create(json!({"purpose":"knowledge","knowledge_scope":"personal"})).is_ok());
+        assert!(
+            create(json!({"purpose":"knowledge","knowledge_scope":"group","group_id":42})).is_ok()
+        );
+        assert!(create(json!({"purpose":"knowledge","knowledge_scope":"group"})).is_err());
+        assert!(
+            create(json!({"purpose":"knowledge","knowledge_scope":"personal","group_id":42}))
+                .is_err()
+        );
+        assert!(create(json!({"purpose":"writing","knowledge_scope":"public"})).is_err());
+        assert!(create(json!({"purpose":"knowledge","knowledge_scope":null})).is_err());
+        assert!(owned_page("purpose=knowledge&knowledge_scope=group&group_id=42").is_ok());
+        assert!(owned_page("purpose=knowledge&knowledge_scope=personal").is_ok());
+        assert!(owned_page("purpose=knowledge&knowledge_scope=personal&group_id=42").is_err());
+        assert!(owned_page("purpose=writing&knowledge_scope=public").is_err());
+    }
+}
+
 async fn execute(
     state: NativeState,
     request: Request<Body>,
@@ -643,17 +727,7 @@ async fn execute(
     }
     let operation = match kind {
         "create" => AiOperation::Create(parse_create(json_body(body).await?)?),
-        "list-owned" => {
-            let (after, limit, purpose, group_id, target_title) =
-                owned_page(parts.uri.query().unwrap_or_default())?;
-            AiOperation::ListOwned {
-                after,
-                limit,
-                purpose,
-                group_id,
-                target_title,
-            }
-        }
+        "list-owned" => owned_page(parts.uri.query().unwrap_or_default())?,
         "read" => AiOperation::Read(id.expect("route id")),
         "delete" => AiOperation::Delete(id.expect("route id")),
         "append" => {

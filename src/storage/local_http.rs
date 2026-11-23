@@ -167,6 +167,31 @@ pub(crate) async fn read_private(
     read_local(config.root, key.as_str(), headers, head_only).await
 }
 
+pub(crate) async fn read_vision_image(config: LocalStorageConfig, key: &str, scope: &str) -> Response<Body> {
+    if config.unsupported {
+        return error(StatusCode::SERVICE_UNAVAILABLE);
+    }
+    let headers = HeaderMap::new();
+    if scope == "post" {
+        let Some(key) = PrivateKey::new(key, scope) else {
+            return error(StatusCode::NOT_FOUND);
+        };
+        return read_private(config, &key, &headers, false).await;
+    }
+    let Ok(key) = normalize_local_key(key) else {
+        return error(StatusCode::NOT_FOUND);
+    };
+    if scope != "public" || key == "default-avatar.png" || key.split('/').next().is_none_or(|part| {
+        part.eq_ignore_ascii_case("temp") || part.eq_ignore_ascii_case("private")
+    }) {
+        return error(StatusCode::NOT_FOUND);
+    }
+    if let Some(s3) = config.s3 {
+        return s3.read(&key, &headers, false).await;
+    }
+    read_local(config.root, &key, &headers, false).await
+}
+
 async fn read_local(
     root: PathBuf,
     key: &str,

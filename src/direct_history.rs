@@ -1,34 +1,39 @@
 use crate::{
     auth::{
-        session_list::{session_pagination, SessionPage},
+        session_list::{SessionPage, session_pagination},
         session_repository::{
             nullable_text, profile_date, public_profile_json, row_number, row_text,
         },
         sessions::NativeState,
     },
+    chat_message_search::{Scope, Search},
     db::{
-        oracle::{bind_refs, bind_values, BindMap, DbError},
-        row::{oracle_row_to_db_row, DbRow},
+        oracle::{BindMap, DbError, bind_refs, bind_values},
+        row::{DbRow, oracle_row_to_db_row},
         tx::OracleTx,
         value::DbValue,
     },
+    direct_read::{self, ReadAdvance},
     httpx::errors::ApiError,
 };
 use axum::{
-    extract::{OriginalUri, Path, State},
-    http::{header::CACHE_CONTROL, HeaderMap, HeaderValue},
-    response::{IntoResponse, Response},
     Json,
+    extract::{OriginalUri, Path, State},
+    http::{HeaderMap, HeaderValue, header::CACHE_CONTROL},
+    response::{IntoResponse, Response},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-pub type DirectHistory = Option<(Vec<Value>, u64)>;
+pub struct HistoryPage {
+    pub messages: Vec<Value>,
+    pub total: u64,
+    pub advance: Option<ReadAdvance>,
+}
 
-const ACCESS: &str = "SELECT conversation_id FROM n_direct_conversations
-WHERE conversation_id=:conversation_id AND is_deleted=0
-AND (user_low_id=:user_id OR user_high_id=:user_id) FOR UPDATE";
-const COUNT: &str = "SELECT COUNT(*) AS total FROM n_direct_messages
-WHERE conversation_id=:conversation_id AND is_deleted=0";
+pub type DirectHistory = Option<HistoryPage>;
+const COUNT: &str = "SELECT COUNT(*) AS total FROM n_direct_messages dm
+JOIN v_user_profile_public u ON u.user_id=dm.sender_id
+WHERE dm.conversation_id=:conversation_id AND dm.is_deleted=0{search}";
 const PAGE: &str = "SELECT * FROM (
     SELECT dm.message_id,dm.conversation_id,dm.sender_id AS user_id,dm.content,dm.is_deleted,
         dm.created_at,dm.updated_at,dm.edited_at,dm.deleted_at,
@@ -37,17 +42,8 @@ const PAGE: &str = "SELECT * FROM (
         fn_get_user_relationship(:viewer_id,u.user_id) AS relation,
         ROW_NUMBER() OVER (ORDER BY dm.created_at DESC,dm.message_id DESC) AS rn
     FROM n_direct_messages dm JOIN v_user_profile_public u ON u.user_id=dm.sender_id
-    WHERE dm.conversation_id=:conversation_id AND dm.is_deleted=0
+    WHERE dm.conversation_id=:conversation_id AND dm.is_deleted=0{search}
 ) WHERE rn BETWEEN :start_row AND :end_row ORDER BY created_at ASC,message_id ASC";
-pub(crate) const MARK: &str = "MERGE INTO n_direct_conversation_reads r
-USING (SELECT :conversation_id AS conversation_id,:user_id AS user_id,
-       :message_id AS message_id FROM dual) src
-ON (r.conversation_id=src.conversation_id AND r.user_id=src.user_id)
-WHEN MATCHED THEN UPDATE SET
-  r.last_read_message_id=GREATEST(NVL(r.last_read_message_id,0),src.message_id),
-  r.last_read_at=CURRENT_TIMESTAMP
-WHEN NOT MATCHED THEN INSERT (conversation_id,user_id,last_read_message_id,last_read_at)
-VALUES (src.conversation_id,src.user_id,src.message_id,CURRENT_TIMESTAMP)";
 
 pub(crate) fn query(
     connection: &oracle::Connection,
@@ -64,10 +60,11 @@ pub(crate) fn query(
 
 pub(crate) fn map_message(row: &DbRow, viewer: i64) -> Value {
     let date = |column| nullable_text(row, column).map(|value| profile_date(&value));
+    let content = row_text(row, "CONTENT");
     json!({
         "message_id": row_number(row, "MESSAGE_ID"),
         "conversation_id": row_number(row, "CONVERSATION_ID"),
-        "content": row_text(row, "CONTENT"),
+        "content": crate::direct_extras::visible_content(&content),
         "author": public_profile_json(row),
         "is_deleted": row_number(row, "IS_DELETED") == 1,
         "can_delete": row_number(row, "USER_ID") == viewer,
@@ -83,49 +80,54 @@ pub(crate) fn execute(
     viewer: u64,
     conversation: u64,
     page: SessionPage,
+    mark_read: bool,
+    search: &Search,
 ) -> Result<DirectHistory, DbError> {
     let viewer = i64::try_from(viewer).map_err(|_| DbError::SchemaNotReady)?;
     let conversation = i64::try_from(conversation).map_err(|_| DbError::SchemaNotReady)?;
-    let conversation_bind =
-        || BindMap::from([("conversation_id".into(), DbValue::I64(conversation))]);
-    let actor_binds = || {
-        let mut binds = conversation_bind();
-        binds.insert("user_id".into(), DbValue::I64(viewer));
-        binds
-    };
     let tx = OracleTx::new(connection);
     let result = (|| {
-        if query(connection, ACCESS, actor_binds())?.is_empty() {
+        let Some(recipient) = crate::direct_send::locked_recipient(&tx, viewer, conversation)?
+        else {
             return Ok(None);
-        }
-        let count = query(connection, COUNT, conversation_bind())?;
+        };
+        let mut binds = BindMap::from([("conversation_id".into(), DbValue::I64(conversation))]);
+        let predicates = search.predicates(Scope::Direct, &mut binds);
+        let count = query(
+            connection,
+            &COUNT.replace("{search}", &predicates),
+            binds.clone(),
+        )?;
         let total = count
             .first()
             .map(|row| row_number(row, "TOTAL"))
             .and_then(|n| u64::try_from(n).ok())
             .ok_or(DbError::SchemaNotReady)?;
-        let mut binds = conversation_bind();
         binds.extend([
             ("viewer_id".into(), DbValue::I64(viewer)),
             ("start_row".into(), DbValue::F64(page.start)),
             ("end_row".into(), DbValue::F64(page.end)),
         ]);
-        let rows = query(connection, PAGE, binds)?;
-        if page.page == 1.0 {
+        let rows = query(connection, &PAGE.replace("{search}", &predicates), binds)?;
+        let mut messages: Vec<_> = rows.iter().map(|row| map_message(row, viewer)).collect();
+        if !messages.is_empty() && crate::direct_extras::metadata_ready(connection, true)? {
+            crate::direct_extras::enrich(&tx, viewer, &mut messages)?;
+        }
+        let mut advance = None;
+        if mark_read && search.is_empty() && page.page == 1.0 {
             if let Some(last) = rows.last() {
-                let id = row_number(last, "MESSAGE_ID");
-                if id <= 0 {
-                    return Err(DbError::SchemaNotReady);
+                let message = u64::try_from(row_number(last, "MESSAGE_ID"))
+                    .map_err(|_| DbError::SchemaNotReady)?;
+                if direct_read::advance(&tx, viewer, conversation, message)? {
+                    advance = Some(ReadAdvance { recipient, message });
                 }
-                let mut binds = actor_binds();
-                binds.insert("message_id".into(), DbValue::I64(id));
-                tx.execute(MARK, binds)?;
             }
         }
-        Ok(Some((
-            rows.iter().map(|row| map_message(row, viewer)).collect(),
+        Ok(Some(HistoryPage {
+            messages,
             total,
-        )))
+            advance,
+        }))
     })();
     match result {
         Ok(Some(history)) => match tx.commit() {
@@ -167,12 +169,19 @@ async fn list_inner(
     let conversation = conversation_id(raw)?;
     let page = session_pagination(query);
     let internal_error = || ApiError::server_error("服务器内部错误");
-    let (mut messages, total) = state
+    let search = Search::parse(query)?;
+    let mark_read = mark_read_option(query)? && search.is_empty();
+    let HistoryPage {
+        mut messages,
+        total,
+        advance,
+    } = state
         .repository
-        .list_direct_history(user, conversation, page)
+        .list_direct_history(user, conversation, page, mark_read, search)
         .await
         .map_err(|_| internal_error())?
         .ok_or_else(|| ApiError::forbidden("无权访问该私聊会话"))?;
+    direct_read::publish(state, user, conversation, advance).await;
     for message in &mut messages {
         normalize_author(message, &state.storage_urls).map_err(|_| internal_error())?;
     }
@@ -180,6 +189,21 @@ async fn list_inner(
         "code": 200, "message": "success", "data": messages,
         "meta": {"page": page.page, "page_size": page.page_size, "total": total, "has_next": page.end < total as f64}
     })))
+}
+
+fn mark_read_option(query: &str) -> Result<bool, ApiError> {
+    let invalid = || ApiError::bad_request("mark_read 参数错误");
+    let uri = reqwest::Url::parse(&format!("http://localhost/?{query}")).map_err(|_| invalid())?;
+    let mut options = uri.query_pairs().filter(|(key, _)| key == "mark_read");
+    let value = match options.next().as_ref().map(|(_, value)| value.as_ref()) {
+        None | Some("true") => true,
+        Some("false") => false,
+        _ => return Err(invalid()),
+    };
+    if options.next().is_some() {
+        return Err(invalid());
+    }
+    Ok(value)
 }
 
 pub(crate) fn conversation_id(raw: &str) -> Result<u64, ApiError> {
@@ -210,4 +234,18 @@ pub(crate) fn normalize_author(
         .map_err(|_| DbError::SchemaNotReady)?;
     author.insert("avatar_url".into(), normalized.into());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mark_read_option;
+
+    #[test]
+    fn legacy_history_marks_unless_explicitly_disabled() {
+        assert!(mark_read_option("page=1").unwrap());
+        assert!(mark_read_option("mark_read=true").unwrap());
+        assert!(!mark_read_option("mark_read=false&page=1").unwrap());
+        assert!(mark_read_option("mark_read=invalid").is_err());
+        assert!(mark_read_option("mark_read=false&mark_read=true").is_err());
+    }
 }

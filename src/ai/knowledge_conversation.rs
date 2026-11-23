@@ -2,6 +2,7 @@
 use super::{
     conversation_store::{AiOperation, AssistantInput, ModerationPolicy},
     knowledge_service::{self, KnowledgeStore, KnowledgeTransport},
+    knowledge_source::{Scope, ScopeName},
     knowledge_turn::{TurnError, TurnFuture},
     model_config::{ModelRouter, SelectionSnapshot},
     model_quota::{self, AiModelQuota},
@@ -116,6 +117,21 @@ pub async fn generate_with_transport_and_search<
         policy.clone(),
     )
     .await?;
+    if conversation["purpose"] != "knowledge" {
+        return Err(Error::Context);
+    }
+    let name = match conversation.get("knowledge_scope") {
+        None => ScopeName::Public,
+        Some(value) => value
+            .as_str()
+            .and_then(ScopeName::parse)
+            .ok_or(Error::Context)?,
+    };
+    let group_id = match conversation.get("group_id") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(value.as_i64().ok_or(Error::Context)?),
+    };
+    let scope = name.resolve(group_id).ok_or(Error::Context)?;
     let history = store(
         repository,
         user,
@@ -123,9 +139,6 @@ pub async fn generate_with_transport_and_search<
         policy.clone(),
     )
     .await?;
-    if conversation["purpose"] != "knowledge" {
-        return Err(Error::Context);
-    }
     let messages = history
         .as_array()
         .filter(|m| m.len() <= 50)
@@ -174,29 +187,35 @@ pub async fn generate_with_transport_and_search<
     let result = async {
         cancelled(&signal)?;
         audit.stage = "evidence";
-        let (result, context) = knowledge_service::generate_with_history(
+        let generate = knowledge_service::generate_scoped_with_history(
             knowledge,
             user as i64,
+            scope,
             query,
             input.phrase.as_deref(),
             selection.clone(),
             transport,
             signal.clone(),
             messages,
-        )
-        .await
+        );
+        let generated = if scope == Scope::Public {
+            generate.await
+        } else {
+            super::stream_response::without_deltas(generate).await
+        }
         .map_err(Error::Knowledge)?;
         cancelled(&signal)?;
-        let Some(answer) = result.answer else {
+        let Some(answer) = generated.turn.answer else {
             return Ok(None);
         };
-        let context = context.ok_or(Error::Context)?;
+        let context = generated.context.ok_or(Error::Context)?;
         audit.stage = "persist";
         let value = store(
             repository,
             user,
             AiOperation::KnowledgeAssistant {
                 id: id.into(),
+                scope,
                 input: AssistantInput {
                     content: answer,
                     expected_sequence: previous,
@@ -204,7 +223,8 @@ pub async fn generate_with_transport_and_search<
                     model_version: selection.model_version,
                     config_revision: selection.configuration_revision as i64,
                 },
-                sources: result.sources,
+                sources: generated.turn.sources,
+                dependencies: generated.dependencies,
                 context_snapshot: context.snapshot,
                 skill_generation,
                 cancel: signal.clone(),

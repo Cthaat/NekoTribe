@@ -72,6 +72,9 @@ async fn create_inner(
         PostCreation::ContentEmpty => return Err(ApiError::bad_request("content 不能为空")),
         PostCreation::Invalid => return Err(ApiError::server_error("服务器内部错误")),
         PostCreation::PublishForbidden => return Err(ApiError::forbidden(crate::moderation::publish_policy::message())),
+        PostCreation::PollUnavailable => return Err(crate::posts::poll_http::unavailable()),
+        PostCreation::PollCutoff => return Err(ApiError::bad_request("投票截止时间必须晚于当前时间")),
+        PostCreation::MarkdownUnavailable => return Err(crate::posts::markdown::unavailable()),
     };
     notify_created(state, actor, post_id, &input).await?;
     let post = state

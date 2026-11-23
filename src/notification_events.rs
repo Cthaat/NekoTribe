@@ -38,7 +38,47 @@ pub(crate) fn notification_json_raw(
 }
 
 pub type PublishFuture<'a> = Pin<Box<dyn Future<Output = Result<(), EventError>> + Send + 'a>>;
+
+#[derive(Clone, Copy)]
+pub enum TypingScope {
+    Direct { conversation: u64, recipient: u64 },
+    Channel(u64),
+}
+
+pub(crate) fn typing_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "typing_start" => Some("typing_start"),
+        "typing_stop" => Some("typing_stop"),
+        _ => None,
+    }
+}
+
+pub(crate) fn encode_typing(scope: TypingScope, user: u64, kind: &'static str, server_id: &str) -> Result<Vec<u8>, EventError> {
+    let safe = |id| (1..=crate::notification_websocket::MAX_SOCKET_ID).contains(&id);
+    if typing_kind(kind).is_none() || !safe(user) || server_id.is_empty() {
+        return Err(EventError);
+    }
+    let mut data = json!({"user_id":user,"server_id":server_id});
+    match scope {
+        TypingScope::Direct { conversation, recipient } if safe(conversation) && safe(recipient) && user != recipient => {
+            data["conversation_id"] = conversation.into();
+        }
+        TypingScope::Channel(channel) if safe(channel) => {
+            data["channel_id"] = channel.into();
+        }
+        _ => return Err(EventError),
+    }
+    let frame = json!({"type":kind,"timestamp":chrono::Utc::now().timestamp_millis(),"data":data});
+    Ok(frame.to_string().into_bytes())
+}
+
 pub trait NotificationPublisher: Send + Sync {
+    fn call_store(&self) -> Option<std::sync::Arc<dyn crate::webrtc::Store>> {
+        None
+    }
+    fn publish_call_wire<'a>(&'a self, _user: u64, _payload: &'a [u8]) -> PublishFuture<'a> {
+        Box::pin(async { Err(EventError) })
+    }
     fn publish_chat_message<'a>(&'a self, channel: u64, message: &'a Value) -> PublishFuture<'a> {
         self.publish_chat_room_event(
             channel,
@@ -70,6 +110,19 @@ pub trait NotificationPublisher: Send + Sync {
         self.publish_direct_event(sender, recipient, "direct_message_deleted", serde_json::json!({
             "conversation_id":conversation, "message_id":message
         }))
+    }
+    fn publish_direct_updated(&self, sender: u64, recipient: u64, conversation: u64, message: u64) -> PublishFuture<'_> {
+        self.publish_direct_event(sender, recipient, "direct_message_updated", serde_json::json!({
+            "conversation_id":conversation, "message_id":message
+        }))
+    }
+    fn publish_direct_read(&self, reader: u64, recipient: u64, conversation: u64, message: u64) -> PublishFuture<'_> {
+        self.publish_direct_event(reader, recipient, "direct_read_updated", json!({
+            "conversation_id":conversation, "reader_id":reader, "last_read_message_id":message
+        }))
+    }
+    fn publish_typing(&self, _scope: TypingScope, _user: u64, _kind: &'static str) -> PublishFuture<'_> {
+        Box::pin(async { Err(EventError) })
     }
     fn publish_direct_event(&self, _sender: u64, _recipient: u64, _kind: &'static str, _data: Value) -> PublishFuture<'_> {
         Box::pin(async { Err(EventError) })
@@ -108,8 +161,41 @@ impl RedisNotificationPublisher {
             server_id: format!("rust_{}", uuid::Uuid::new_v4()),
         })
     }
+    async fn publish_user_wire(&self, user: u64, payload: &[u8]) -> Result<(), EventError> {
+        let mut conn = self.client.get_multiplexed_async_connection().await.map_err(|_| EventError)?;
+        redis::cmd("PUBLISH").arg(format!("{}{user}", REDIS_CHANNELS.user_prefix))
+            .arg(payload).query_async::<usize>(&mut conn).await.map_err(|_| EventError)?;
+        Ok(())
+    }
 }
 impl NotificationPublisher for RedisNotificationPublisher {
+    fn call_store(&self) -> Option<std::sync::Arc<dyn crate::webrtc::Store>> {
+        Some(std::sync::Arc::new(crate::webrtc::RedisStore(self.client.clone())))
+    }
+    fn publish_call_wire<'a>(&'a self, user: u64, payload: &'a [u8]) -> PublishFuture<'a> {
+        Box::pin(async move {
+            let channel = format!("{}{user}", REDIS_CHANNELS.user_prefix);
+            if payload.len() > 262144 || !crate::webrtc::valid_on_user_channel(&channel, payload) {
+                return Err(EventError);
+            }
+            tokio::time::timeout(Duration::from_millis(1500), self.publish_user_wire(user, payload))
+                .await.map_err(|_| EventError)?
+        })
+    }
+    fn publish_typing(&self, scope: TypingScope, user: u64, kind: &'static str) -> PublishFuture<'_> {
+        Box::pin(async move {
+            let payload = encode_typing(scope, user, kind, &self.server_id)?;
+            let channel = match scope {
+                TypingScope::Direct { recipient, .. } => format!("{}{recipient}", REDIS_CHANNELS.user_prefix),
+                TypingScope::Channel(id) => format!("{}{id}", REDIS_CHANNELS.chat_channel_prefix),
+            };
+            tokio::time::timeout(Duration::from_millis(1500), async {
+                let mut conn = self.client.get_multiplexed_async_connection().await.map_err(|_| EventError)?;
+                redis::cmd("PUBLISH").arg(channel).arg(payload).query_async::<usize>(&mut conn).await.map_err(|_| EventError)?;
+                Ok(())
+            }).await.map_err(|_| EventError)?
+        })
+    }
     fn publish_chat_room_event<'a>(
         &'a self,
         channel: u64,
@@ -177,22 +263,8 @@ impl NotificationPublisher for RedisNotificationPublisher {
         payload: &'a [u8],
     ) -> PublishFuture<'a> {
         Box::pin(async move {
-            let publish = |user| async move {
-                let mut conn = self
-                    .client
-                    .get_multiplexed_async_connection()
-                    .await
-                    .map_err(|_| EventError)?;
-                redis::cmd("PUBLISH")
-                    .arg(format!("ws:user:{user}"))
-                    .arg(payload)
-                    .query_async::<usize>(&mut conn)
-                    .await
-                    .map_err(|_| EventError)?;
-                Ok(())
-            };
             tokio::time::timeout(Duration::from_millis(1500), async {
-                let (first, second) = tokio::join!(publish(sender), publish(recipient));
+                let (first, second) = tokio::join!(self.publish_user_wire(sender, payload), self.publish_user_wire(recipient, payload));
                 first.and(second)
             })
             .await

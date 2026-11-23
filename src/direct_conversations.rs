@@ -64,7 +64,7 @@ fn map_conversation(row: &DbRow, storage: &StorageUrlPolicy) -> Result<Value, Db
     participant["avatar_url"] = avatar.into();
     let last = row_number(row, "LAST_MESSAGE_ID");
     let last_message = if last > 0 {
-        json!({"message_id":last,"content":row_text(row,"LAST_MESSAGE_CONTENT"),
+        json!({"message_id":last,"content":crate::direct_extras::visible_content(&row_text(row,"LAST_MESSAGE_CONTENT")),
             "author_name":row_text(row,"LAST_MESSAGE_AUTHOR"),"created_at":date("LAST_MESSAGE_AT")})
     } else {
         Value::Null

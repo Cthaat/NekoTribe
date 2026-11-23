@@ -1,6 +1,6 @@
 {
   "id": "AI-CONVERSATION-READINESS",
-  "revision": 3,
+  "revision": 4,
   "baseline": {
     "owner": {
       "user": "NEKO_APP",
@@ -120,6 +120,16 @@
             "CHAR_LENGTH": 0,
             "NULLABLE": "N",
             "DATA_DEFAULT": "CURRENT_TIMESTAMP"
+          },
+          {
+            "COLUMN_NAME": "KNOWLEDGE_SCOPE",
+            "DATA_TYPE": "VARCHAR2",
+            "DATA_PRECISION": null,
+            "DATA_SCALE": null,
+            "CHAR_LENGTH": 8,
+            "NULLABLE": "N",
+            "DATA_DEFAULT": "'public'",
+            "CHAR_USED": "C"
           }
         ],
         "constraints": [
@@ -158,6 +168,16 @@
             "referencedColumns": [
               "USER_ID"
             ]
+          },
+          {
+            "CONSTRAINT_NAME": "CK_AI_KNOWLEDGE_SCOPE",
+            "CONSTRAINT_TYPE": "C",
+            "SEARCH_CONDITION_VC": "\n  (purpose <> 'knowledge' AND knowledge_scope = 'public')\n  OR (purpose = 'knowledge' AND (\n    (knowledge_scope IN ('public', 'personal') AND group_id IS NULL)\n    OR (knowledge_scope = 'group' AND group_id IS NOT NULL)\n  ))\n",
+            "STATUS": "ENABLED",
+            "VALIDATED": "VALIDATED",
+            "REFERENCED_OWNER": null,
+            "columns": [],
+            "referencedColumns": []
           }
         ]
       },
@@ -477,6 +497,21 @@
             "DATA_PRECISION"
           ],
           "value": 15
+        }
+      ]
+    },
+    {
+      "id": "AI-SCHEMA-11",
+      "ready": false,
+      "mutations": [
+        {
+          "op": "delete",
+          "path": [
+            "tables",
+            "N_AI_CONVERSATIONS",
+            "columns",
+            7
+          ]
         }
       ]
     }

@@ -122,6 +122,8 @@ impl OraclePool {
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
             let connection = oracle::connect(&config)?;
+            // This pool bounds per-operation connections and does not retain idle connections.
+            let _connection_count = crate::observability::metrics().oracle_connection();
             let result = operation(&connection);
             // Close errors are part of the store outcome, including after a
             // committed touch. Never authorize a later revoke on that error.

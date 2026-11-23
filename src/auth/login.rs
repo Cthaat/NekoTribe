@@ -98,6 +98,24 @@ pub struct RememberedLoginDevice {
 struct LoginSessionOptions {
     trusted_device_key: Option<String>,
     factor_completion: Option<FactorCompletion>,
+    response: LoginResponse,
+}
+
+#[derive(Default, Clone, Copy)]
+pub(crate) enum LoginResponse {
+    #[default]
+    Direct,
+    GitHub,
+}
+
+impl LoginResponse {
+    fn build(self, data: Value, message: &str) -> Response {
+        let data = match self {
+            Self::Direct => data,
+            Self::GitHub => json!({"status": "completed", "login": data}),
+        };
+        Json(V2Response::ok_with_message(data, message)).into_response()
+    }
 }
 
 async fn deliver_login_alert(state: &NativeState, session: &LoginSession) {
@@ -302,6 +320,30 @@ pub(crate) async fn login(
     if !matched {
         return Err(ApiError::unauthorized("账号或密码错误"));
     }
+    finish_primary_login(
+        &state,
+        parts,
+        account_row,
+        &account,
+        body.get("remember_me") == Some(&Value::Bool(true)),
+        "账号或密码错误",
+        LoginResponse::Direct,
+    )
+    .await
+}
+
+pub(crate) async fn finish_primary_login(
+    state: &NativeState,
+    parts: http::request::Parts,
+    account_row: LoginAccount,
+    account: &str,
+    remember: bool,
+    stale_message: &'static str,
+    response: LoginResponse,
+) -> Result<Response, ApiError> {
+    if !account_row.active || account_row.status != "active" {
+        return Err(ApiError::forbidden("账号不可用"));
+    }
     state.repository.two_factor_readiness().await.map_err(|_| {
         ApiError::new(
             http::StatusCode::SERVICE_UNAVAILABLE,
@@ -325,15 +367,16 @@ pub(crate) async fn login(
     if two_factor {
         if let Some(key) = trusted_device_key(&headers) {
             if let Some(response) = issue_session(
-                &state,
+                state,
                 account_row.user_id,
                 account_row.username.clone(),
                 device.clone(),
                 account_row.password_hash.clone(),
-                "账号或密码错误",
+                stale_message,
                 LoginSessionOptions {
                     trusted_device_key: Some(key),
                     factor_completion: None,
+                    response,
                 },
             )
             .await?
@@ -354,7 +397,7 @@ pub(crate) async fn login(
         let challenge = LoginChallenge {
             id: format!("2fa_{}", uuid::Uuid::new_v4()),
             user_id: account_row.user_id,
-            remember: body.get("remember_me") == Some(&Value::Bool(true)),
+            remember,
             device,
             expires_at: expiry.clone(),
             verified_password_hash: account_row.password_hash,
@@ -365,18 +408,21 @@ pub(crate) async fn login(
             .await
             .map_err(|_| server_error())?
         {
-            return Err(ApiError::unauthorized("账号或密码错误"));
+            return Err(ApiError::unauthorized(stale_message));
         }
-        return Ok(Json(V2Response::ok_with_message(json!({"two_factor_required":true,"challenge_id":challenge.id,"account":account,"expires_at":expiry}), "two factor required")).into_response());
+        return Ok(response.build(
+            json!({"two_factor_required":true,"challenge_id":challenge.id,"account":account,"expires_at":expiry}),
+            "two factor required",
+        ));
     }
     issue_session(
-        &state,
+        state,
         account_row.user_id,
         account_row.username,
         device,
         account_row.password_hash,
-        "账号或密码错误",
-        LoginSessionOptions::default(),
+        stale_message,
+        LoginSessionOptions { response, ..Default::default() },
     )
     .await?
     .ok_or_else(server_error)
@@ -579,6 +625,7 @@ pub(crate) async fn complete_challenge(
         "双因素验证已过期，请重新登录",
         LoginSessionOptions {
             trusted_device_key: None,
+            response: LoginResponse::Direct,
             factor_completion: Some(FactorCompletion {
                 challenge_id: id,
                 verified_secret: secret,
@@ -697,9 +744,9 @@ async fn issue_session(
         .as_object_mut()
         .ok_or_else(server_error)?
         .insert("avatar_url".into(), serde_json::Value::String(avatar));
-    let mut response = Json(V2Response::ok_with_message(json!({"two_factor_required":false,"user":profile,"tokens":{
+    let mut response = options.response.build(json!({"two_factor_required":false,"user":profile,"tokens":{
         "session_id":session_id,"access_token":access,"refresh_token":refresh,"access_token_expires_at":access_date,"refresh_token_expires_at":refresh_date
-    }}), "login success")).into_response();
+    }}), "login success");
     for (name, value, age) in [
         ("access_token", &access, state.refresh_policy.access_seconds),
         (

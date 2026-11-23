@@ -62,7 +62,7 @@ pub(crate) fn can_attach(
     {
         return Ok(true);
     }
-    let mut binds = BindMap::from([("media_id".into(), media_id)]);
+    let mut binds = BindMap::from([("media_id".into(), media_id.clone())]);
     let (prefix, sql) = match target {
         Target::Chat => ("private/chat/", &contract().chat),
         Target::RestrictedPost(post_id) => {
@@ -72,6 +72,9 @@ pub(crate) fn can_attach(
         Target::PublicPost => return Ok(false),
     };
     if !normalize_local_key(key).is_ok_and(|key| key.starts_with(prefix)) {
+        return Ok(false);
+    }
+    if crate::direct_extras::linked_asset(tx, media_id)? {
         return Ok(false);
     }
     match tx.query(sql, binds) {

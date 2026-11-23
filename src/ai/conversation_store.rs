@@ -6,7 +6,7 @@ use crate::{
         session_repository::{nullable_text, profile_date, row_number, row_text},
     },
     db::{
-        oracle::{bind_refs, bind_values, BindMap},
+        oracle::{BindMap, bind_refs, bind_values},
         row::oracle_row_to_db_row,
         tx::OracleTx,
         value::DbValue,
@@ -14,7 +14,10 @@ use crate::{
 };
 use std::collections::HashSet;
 
-use super::moderation_feedback as feedback;
+use super::{
+    knowledge_source::{self, Candidate, Scope, ScopeName},
+    moderation_feedback as feedback,
+};
 
 const MAX_SAFE_ID: i64 = 9_007_199_254_740_991;
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +33,7 @@ pub enum Error {
 pub struct Input {
     pub purpose: String,
     pub group_id: Option<i64>,
+    pub knowledge_scope: ScopeName,
     pub title: String,
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -38,9 +42,37 @@ pub struct Record {
     pub id: String,
     pub purpose: String,
     pub group_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knowledge_scope: Option<ScopeName>,
     pub title: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+impl Record {
+    fn validated_scope(&self) -> Result<Input, Error> {
+        validate(Input {
+            purpose: self.purpose.clone(),
+            group_id: self.group_id,
+            knowledge_scope: self.knowledge_scope.unwrap_or_default(),
+            title: String::new(),
+        })
+        .map_err(|_| Error::Store)
+    }
+}
+
+impl Input {
+    fn knowledge_source_scope(&self) -> Result<Scope, Error> {
+        if self.purpose != "knowledge" {
+            return Err(Error::Conflict);
+        }
+        self.knowledge_scope
+            .resolve(self.group_id)
+            .ok_or(Error::Store)
+    }
+
+    fn skill_group(&self) -> Option<i64> {
+        self.group_id.filter(|_| self.purpose == "group")
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ConversationPage {
@@ -76,6 +108,8 @@ pub struct HistoryMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citations: Option<Vec<super::knowledge_history::Citation>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    knowledge_dependencies: Option<Vec<Candidate>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub group_sources: Option<Vec<super::group_draft::GroupSource>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group_tools: Option<Vec<String>>,
@@ -100,6 +134,7 @@ pub enum AiOperation {
         limit: i64,
         purpose: String,
         group_id: Option<i64>,
+        knowledge_scope: Option<ScopeName>,
         target_title: String,
     },
     Append {
@@ -118,6 +153,7 @@ pub enum AiOperation {
     GroupDraftLoad {
         id: String,
         request: super::group_draft::Request,
+        sentiment_requested: bool,
     },
     GroupDraftSave {
         id: String,
@@ -128,6 +164,12 @@ pub enum AiOperation {
     ModerationAdviceLoad {
         id: String,
         request: super::moderation_advice::Request,
+        include_images: bool,
+    },
+    ModerationAdviceValidateImages {
+        id: String,
+        target: super::moderation_advice::Target,
+        sources: Vec<crate::media::vision::ImageSource>,
     },
     ModerationAdviceSave {
         id: String,
@@ -149,7 +191,9 @@ pub enum AiOperation {
     KnowledgeAssistant {
         id: String,
         input: AssistantInput,
-        sources: Vec<super::knowledge_source::Candidate>,
+        scope: Scope,
+        sources: Vec<Candidate>,
+        dependencies: Option<Vec<Candidate>>,
         context_snapshot: Vec<serde_json::Value>,
         skill_generation: i64,
         cancel: Option<tokio::sync::watch::Receiver<bool>>,
@@ -177,6 +221,7 @@ pub fn execute_operation(
             limit,
             purpose,
             group_id,
+            knowledge_scope,
             target_title,
         } => serde_json::to_value(list_conversations(
             connection,
@@ -185,6 +230,7 @@ pub fn execute_operation(
             limit,
             &purpose,
             group_id,
+            knowledge_scope,
             &target_title,
             policy,
         )?),
@@ -218,7 +264,11 @@ pub fn execute_operation(
                     .map_err(|_| Error::SchemaUnavailable)?;
             serde_json::to_value(selection.generation)
         }
-        AiOperation::GroupDraftLoad { id, request } => {
+        AiOperation::GroupDraftLoad {
+            id,
+            request,
+            sentiment_requested,
+        } => {
             let tx = OracleConversation(connection);
             let loaded = (|| {
                 let record = read(connection, user, &id, policy)?;
@@ -251,9 +301,27 @@ pub fn execute_operation(
                 if !super::group_draft::tool_grants_match(&selected.skill.tools) {
                     return Err(Error::SchemaUnavailable);
                 }
+                let sentiment_previous = if sentiment_requested {
+                    super::group_draft::read_previous_evidence(
+                        connection,
+                        user,
+                        group,
+                        &evidence,
+                        super::group_evidence::EvidenceQuery {
+                            lookback_days: request.lookback()?,
+                            window_end: None,
+                            search_term: request.search_term.as_deref(),
+                            match_excerpt: request.search_term.is_some(),
+                        },
+                    )
+                    .ok()
+                } else {
+                    None
+                };
                 Ok(super::group_draft::Loaded {
                     evidence,
                     generation: selected.generation,
+                    sentiment_previous,
                 })
             })();
             tx.rollback()?;
@@ -283,7 +351,11 @@ pub fn execute_operation(
                 policy,
             )?)
         }
-        AiOperation::ModerationAdviceLoad { id, request } => {
+        AiOperation::ModerationAdviceLoad {
+            id,
+            request,
+            include_images,
+        } => {
             let tx = OracleConversation(connection);
             let loaded = (|| {
                 let record = read(connection, user, &id, policy)?;
@@ -301,8 +373,12 @@ pub fn execute_operation(
                     policy,
                 )
                 .map_err(|_| Error::SchemaUnavailable)?;
-                let material =
-                    super::moderation_advice::read_material(connection, user, &request, false)?;
+                let material = super::moderation_advice::read_material(
+                    connection,
+                    user,
+                    &request,
+                    include_images,
+                )?;
                 Ok(super::moderation_advice::Loaded {
                     material,
                     generation: selected.generation,
@@ -310,6 +386,20 @@ pub fn execute_operation(
             })();
             tx.rollback()?;
             serde_json::to_value(loaded?)
+        }
+        AiOperation::ModerationAdviceValidateImages {
+            id,
+            target,
+            sources,
+        } => {
+            let record = read(connection, user, &id, policy)?;
+            if record.purpose != "moderation" {
+                return Err(Error::Invalid);
+            }
+            super::moderation_advice::ensure_current_images(
+                connection, user, &target, &sources, false,
+            )?;
+            Ok(serde_json::Value::Null)
         }
         AiOperation::ModerationAdviceSave {
             id,
@@ -360,7 +450,9 @@ pub fn execute_operation(
         AiOperation::KnowledgeAssistant {
             id,
             input,
+            scope,
             sources,
+            dependencies,
             context_snapshot,
             skill_generation,
             cancel,
@@ -369,7 +461,9 @@ pub fn execute_operation(
             user,
             &id,
             &input,
+            scope,
             &sources,
+            dependencies.as_deref(),
             &context_snapshot,
             skill_generation,
             cancel.as_ref(),
@@ -422,9 +516,14 @@ impl ModerationPolicy {
     }
 }
 pub(crate) fn validate(mut input: Input) -> Result<Input, Error> {
-    match (input.purpose.as_str(), input.group_id) {
-        ("group", Some(id)) if (1..=MAX_SAFE_ID).contains(&id) => {}
-        ("knowledge" | "writing" | "moderation", None) => {}
+    match (
+        input.purpose.as_str(),
+        input.knowledge_scope,
+        input.group_id,
+    ) {
+        ("knowledge", scope, group_id) if scope.resolve(group_id).is_some() => {}
+        ("group", ScopeName::Public, Some(id)) if (1..=MAX_SAFE_ID).contains(&id) => {}
+        ("writing" | "moderation", ScopeName::Public, None) => {}
         _ => return Err(Error::Invalid),
     }
     input.title = js_trim(&input.title).to_owned();
@@ -448,9 +547,13 @@ trait Transaction {
     fn read(&self, user: i64, id: &str) -> Result<Option<Record>, Error>;
     fn commit(&self) -> Result<(), Error>;
     fn rollback(&self) -> Result<(), Error>;
+    fn lock_knowledge_scope(&self, _user: i64, _input: &Input) -> Result<(), Error> {
+        Ok(())
+    }
     fn restore_knowledge(
         &self,
         _user: i64,
+        _scope: Scope,
         _content: &str,
     ) -> Result<Option<super::knowledge_history::Restored>, Error> {
         Err(Error::Store)
@@ -458,9 +561,11 @@ trait Transaction {
     fn restore_knowledge_for_write(
         &self,
         user: i64,
+        scope: Scope,
         content: &str,
     ) -> Result<super::knowledge_history::Restored, Error> {
-        self.restore_knowledge(user, content)?.ok_or(Error::Store)
+        self.restore_knowledge(user, scope, content)?
+            .ok_or(Error::Store)
     }
 }
 fn run_select_conversation_skill(
@@ -480,16 +585,13 @@ fn run_select_conversation_skill(
         .read(user, id)
         .map_err(|_| SkillError::Unavailable)?
         .ok_or(SkillError::Unavailable)?;
-    let input = validate(Input {
-        purpose: record.purpose,
-        group_id: record.group_id,
-        title: String::new(),
-    })
-    .map_err(|_| SkillError::Unavailable)?;
+    let input = record
+        .validated_scope()
+        .map_err(|_| SkillError::Unavailable)?;
     let scope = Scope {
         actor_id: user,
         purpose: input.purpose.clone(),
-        group_id: input.group_id,
+        group_id: input.skill_group(),
     };
     registry.select(&scope, skill_id, |_| {
         tx.authorize(user, &input, policy)
@@ -526,6 +628,7 @@ trait ListingTransaction: Transaction {
         moderation_allowed: bool,
         purpose: &str,
         group_id: Option<i64>,
+        knowledge_scope: Option<ScopeName>,
         target_title: &str,
     ) -> Result<Vec<Record>, Error>;
 }
@@ -535,6 +638,18 @@ pub(crate) fn valid_list_purpose(purpose: &str) -> bool {
         "" | "knowledge" | "writing" | "group" | "moderation"
     )
 }
+pub(crate) fn valid_list_scope(
+    purpose: &str,
+    knowledge_scope: Option<ScopeName>,
+    group_id: Option<i64>,
+) -> bool {
+    (knowledge_scope.is_none() || purpose == "knowledge")
+        && group_id.is_none_or(|id| {
+            (1..=MAX_SAFE_ID).contains(&id)
+                && (purpose == "group"
+                    || purpose == "knowledge" && knowledge_scope == Some(ScopeName::Group))
+        })
+}
 fn run_conversation_listing(
     tx: &impl ListingTransaction,
     user: i64,
@@ -542,6 +657,7 @@ fn run_conversation_listing(
     limit: i64,
     purpose: &str,
     group_id: Option<i64>,
+    knowledge_scope: Option<ScopeName>,
     target_title: &str,
     policy: &ModerationPolicy,
 ) -> Result<ConversationPage, Error> {
@@ -549,7 +665,7 @@ fn run_conversation_listing(
         || (!after.is_empty() && !valid_uuid(after))
         || !(1..=50).contains(&limit)
         || !valid_list_purpose(purpose)
-        || group_id.is_some_and(|id| purpose != "group" || !(1..=MAX_SAFE_ID).contains(&id))
+        || !valid_list_scope(purpose, knowledge_scope, group_id)
         || (!target_title.is_empty() && purpose != "moderation")
     {
         return Err(Error::Invalid);
@@ -559,6 +675,7 @@ fn run_conversation_listing(
         let moderation = Input {
             purpose: "moderation".into(),
             group_id: None,
+            knowledge_scope: ScopeName::Public,
             title: String::new(),
         };
         let moderation_allowed = match tx.authorize(user, &moderation, policy) {
@@ -579,6 +696,7 @@ fn run_conversation_listing(
                 moderation_allowed,
                 purpose,
                 group_id,
+                knowledge_scope,
                 target_title,
             )?;
             let count = rows.len();
@@ -587,6 +705,7 @@ fn run_conversation_listing(
                     || record.id <= scan_after
                     || (!purpose.is_empty() && record.purpose != purpose)
                     || (group_id.is_some() && record.group_id != group_id)
+                    || (knowledge_scope.is_some() && record.knowledge_scope != knowledge_scope)
                     || (!target_title.is_empty()
                         && (record.title.as_deref() != Some(target_title)
                             || record.group_id.is_some()))
@@ -594,12 +713,7 @@ fn run_conversation_listing(
                     return Err(Error::Store);
                 }
                 scan_after = record.id.clone();
-                let scope = validate(Input {
-                    purpose: record.purpose.clone(),
-                    group_id: record.group_id,
-                    title: String::new(),
-                })
-                .map_err(|_| Error::Store)?;
+                let scope = record.validated_scope()?;
                 match tx.authorize(user, &scope, policy) {
                     Ok(()) => (),
                     Err(Error::Forbidden) => continue,
@@ -646,7 +760,7 @@ fn verify_locked_knowledge_skill(
     let selected = super::skill_selection::Scope {
         actor_id: user,
         purpose: scope.purpose.clone(),
-        group_id: scope.group_id,
+        group_id: scope.skill_group(),
     };
     let skill = match scope.purpose.as_str() {
         "knowledge" => "knowledge-answer",
@@ -719,13 +833,9 @@ fn run_delete(
     tx.check_schema()?;
     let result = (|| {
         let record = tx.read_locked(user, id)?.ok_or(Error::NotFound)?;
-        let scope = validate(Input {
-            purpose: record.purpose,
-            group_id: record.group_id,
-            title: String::new(),
-        })
-        .map_err(|_| Error::Store)?;
+        let scope = record.validated_scope()?;
         tx.authorize(user, &scope, policy)?;
+        tx.lock_knowledge_scope(user, &scope)?;
         tx.delete(user, id)?;
         tx.authorize(user, &scope, policy)
     })();
@@ -812,36 +922,42 @@ fn run_history_ordered(
     tx.check_schema()?;
     let check_access = || {
         let record = tx.read(user, id)?.ok_or(Error::NotFound)?;
-        let scope = validate(Input {
-            purpose: record.purpose,
-            group_id: record.group_id,
-            title: String::new(),
-        })
-        .map_err(|_| Error::Store)?;
+        let scope = record.validated_scope()?;
         tx.authorize(user, &scope, policy)?;
-        Ok((scope.purpose, scope.group_id))
+        Ok((scope.purpose, scope.group_id, scope.knowledge_scope))
     };
     let result = (|| {
-        let (purpose, group) = check_access()?;
+        let (purpose, group, knowledge_scope) = check_access()?;
         let mut messages = tx.messages(user, id, after, before, limit, newest)?;
         if purpose == "knowledge" {
+            let source_scope = knowledge_scope.resolve(group).ok_or(Error::Store)?;
             let mut usable = messages.len();
             for (index, message) in messages.iter_mut().enumerate() {
                 if message.role == "tool" {
                     return Err(Error::Store);
                 }
                 if message.role == "assistant" {
-                    match tx.restore_knowledge(user, &message.content)? {
+                    match tx.restore_knowledge(user, source_scope, &message.content)? {
                         Some(restored) => {
                             message.content = restored.answer.ok_or(Error::Store)?;
                             message.citations = Some(restored.citations);
+                            if newest {
+                                message.knowledge_dependencies = restored.dependencies;
+                            }
                         }
                         None if newest => {
                             // Rows are newest first. Keep only the contiguous newer suffix.
                             usable = index;
                             break;
                         }
-                        None => message.content = "公开资料已变更，历史回答不可用。".into(),
+                        None => {
+                            message.content = if source_scope == Scope::Public {
+                                "公开资料已变更，历史回答不可用。"
+                            } else {
+                                "资料已变更，历史回答不可用。"
+                            }
+                            .into()
+                        }
                     }
                 }
             }
@@ -902,7 +1018,7 @@ fn run_history_ordered(
         if newest {
             messages.reverse();
         }
-        if check_access()? != (purpose, group) {
+        if check_access()? != (purpose, group, knowledge_scope) {
             return Err(Error::Store);
         }
         Ok(messages)
@@ -985,14 +1101,28 @@ fn run_append_knowledge(
     sources: &[super::knowledge_source::Candidate],
     policy: &ModerationPolicy,
 ) -> Result<UserMessage, Error> {
-    run_append_knowledge_guarded(tx, user, id, input, sources, None, 1, None, policy)
+    run_append_knowledge_guarded(
+        tx,
+        user,
+        id,
+        input,
+        Scope::Public,
+        sources,
+        None,
+        None,
+        1,
+        None,
+        policy,
+    )
 }
 fn run_append_knowledge_guarded(
     tx: &impl MessageTransaction,
     user: i64,
     id: &str,
     input: &AssistantInput,
-    sources: &[super::knowledge_source::Candidate],
+    scope: Scope,
+    sources: &[Candidate],
+    dependencies: Option<&[Candidate]>,
     snapshot: Option<&[serde_json::Value]>,
     skill_generation: i64,
     cancel: Cancellation<'_>,
@@ -1000,6 +1130,9 @@ fn run_append_knowledge_guarded(
 ) -> Result<UserMessage, Error> {
     validate_assistant(input)?;
     if !(1..=999_999_999_999_999).contains(&skill_generation) {
+        return Err(Error::Invalid);
+    }
+    if (scope == Scope::Public) != dependencies.is_none() {
         return Err(Error::Invalid);
     }
     if let Some(snapshot) = snapshot {
@@ -1011,13 +1144,17 @@ fn run_append_knowledge_guarded(
                 .last()
                 .and_then(|m| m["sequence_no"].as_i64())
                 != Some(input.expected_sequence)
-            || selected.sources.iter().any(|s| !sources.contains(s))
+            || selected
+                .sources
+                .iter()
+                .any(|s| !dependencies.unwrap_or(sources).contains(s))
         {
             return Err(Error::Invalid);
         }
     }
     let encoded =
-        super::knowledge_history::encode(&input.content, sources).map_err(|_| Error::Invalid)?;
+        super::knowledge_history::encode_with_dependencies(&input.content, sources, dependencies)
+            .map_err(|_| Error::Invalid)?;
     run_append_inner(
         tx,
         user,
@@ -1027,7 +1164,7 @@ fn run_append_knowledge_guarded(
         true,
         snapshot,
         Some(skill_generation),
-        Some(EvidenceGuard::Generation(cancel)),
+        Some(EvidenceGuard::Knowledge { scope, cancel }),
         policy,
     )
 }
@@ -1035,6 +1172,7 @@ fn check_context_snapshot(
     tx: &impl MessageTransaction,
     user: i64,
     id: &str,
+    scope: Scope,
     snapshot: &[serde_json::Value],
 ) -> Result<(), Error> {
     let first = snapshot
@@ -1048,10 +1186,11 @@ fn check_context_snapshot(
     for msg in &mut messages {
         if msg.role == "assistant" {
             let restored = tx
-                .restore_knowledge(user, &msg.content)?
+                .restore_knowledge(user, scope, &msg.content)?
                 .ok_or(Error::Conflict)?;
             msg.content = restored.answer.ok_or(Error::Store)?;
             msg.citations = Some(restored.citations);
+            msg.knowledge_dependencies = restored.dependencies;
         }
     }
     let values: Vec<_> = messages
@@ -1070,6 +1209,10 @@ type Cancellation<'a> = Option<&'a tokio::sync::watch::Receiver<bool>>;
 #[derive(Clone, Copy)]
 enum EvidenceGuard<'a> {
     Generation(Cancellation<'a>),
+    Knowledge {
+        scope: Scope,
+        cancel: Cancellation<'a>,
+    },
     Group(&'a super::group_draft::DraftRecord, Cancellation<'a>),
     Moderation(&'a super::moderation_advice::AdviceRecord, Cancellation<'a>),
 }
@@ -1097,13 +1240,9 @@ fn run_append_inner(
     tx.check_schema()?;
     let result = (|| {
         let record = tx.read_locked(user, id)?.ok_or(Error::NotFound)?;
-        let scope = validate(Input {
-            purpose: record.purpose,
-            group_id: record.group_id,
-            title: String::new(),
-        })
-        .map_err(|_| Error::Store)?;
+        let scope = record.validated_scope()?;
         tx.authorize(user, &scope, policy)?;
+        tx.lock_knowledge_scope(user, &scope)?;
         if assistant.is_some() && ((scope.purpose == "knowledge") != knowledge) {
             return Err(Error::Conflict);
         }
@@ -1129,9 +1268,6 @@ fn run_append_inner(
         if let Some(EvidenceGuard::Moderation(record, _)) = evidence {
             tx.guard_moderation_advice(user, record, true)?;
         }
-        if knowledge {
-            tx.restore_knowledge_for_write(user, content)?;
-        }
         let sequence = tx.next_sequence(id)?;
         if !(1..=9_999_999_999).contains(&sequence) {
             return Err(Error::Store);
@@ -1139,22 +1275,33 @@ fn run_append_inner(
         if assistant.is_some_and(|input| sequence != input.expected_sequence + 1) {
             return Err(Error::Conflict);
         }
-        if let Some(snapshot) = snapshot {
-            check_context_snapshot(tx, user, id, snapshot)?;
-        }
+        let verify_knowledge = || {
+            if let Some(EvidenceGuard::Knowledge {
+                scope: expected, ..
+            }) = evidence
+            {
+                let source_scope = scope.knowledge_source_scope()?;
+                if source_scope != expected {
+                    return Err(Error::Conflict);
+                }
+                tx.restore_knowledge_for_write(user, source_scope, content)?;
+                if let Some(snapshot) = snapshot {
+                    check_context_snapshot(tx, user, id, source_scope, snapshot)?;
+                }
+            }
+            Ok(())
+        };
+        verify_knowledge()?;
         let message_id = uuid::Uuid::new_v4().to_string();
         tx.insert_message(id, &message_id, sequence, content, assistant)?;
         tx.touch(user, id)?;
         tx.authorize(user, &scope, policy)?;
-        if knowledge {
-            tx.restore_knowledge_for_write(user, content)?;
-        }
-        if let Some(snapshot) = snapshot {
-            check_context_snapshot(tx, user, id, snapshot)?;
-        }
+        verify_knowledge()?;
         if let Some(evidence) = evidence {
             let cancel = match evidence {
-                EvidenceGuard::Generation(cancel) => cancel,
+                EvidenceGuard::Generation(cancel) | EvidenceGuard::Knowledge { cancel, .. } => {
+                    cancel
+                }
                 EvidenceGuard::Group(draft, cancel) => {
                     tx.guard_group_draft(
                         user,
@@ -1213,15 +1360,11 @@ fn run(
     let result = (|| {
         if let Some(ref input) = input {
             tx.authorize(user, input, policy)?;
+            tx.lock_knowledge_scope(user, input)?;
             tx.insert(user, id, input)?;
         }
         let record = tx.read(user, id)?.ok_or(Error::NotFound)?;
-        let scope = validate(Input {
-            purpose: record.purpose.clone(),
-            group_id: record.group_id,
-            title: String::new(),
-        })
-        .map_err(|_| Error::Store)?;
+        let scope = record.validated_scope()?;
         tx.authorize(user, &scope, policy)?;
         Ok(record)
     })();
@@ -1268,6 +1411,7 @@ fn save_moderation_feedback(
         let scope = Input {
             purpose: "moderation".into(),
             group_id: None,
+            knowledge_scope: ScopeName::Public,
             title: String::new(),
         };
         tx.authorize(actor, &scope, policy)?;
@@ -1321,6 +1465,7 @@ impl ListingTransaction for OracleConversation<'_> {
         moderation_allowed: bool,
         purpose: &str,
         group_id: Option<i64>,
+        knowledge_scope: Option<ScopeName>,
         target_title: &str,
     ) -> Result<Vec<Record>, Error> {
         let values = bind_values(BindMap::from([
@@ -1351,6 +1496,12 @@ impl ListingTransaction for OracleConversation<'_> {
                 group_id.map_or(DbValue::Null, DbValue::I64),
             ),
             (
+                "knowledge_scope".into(),
+                knowledge_scope.map_or(DbValue::Null, |scope| {
+                    DbValue::String(scope.as_str().into())
+                }),
+            ),
+            (
                 "purpose".into(),
                 if purpose.is_empty() {
                     DbValue::Null
@@ -1359,25 +1510,26 @@ impl ListingTransaction for OracleConversation<'_> {
                 },
             ),
         ]));
-        let rows = self.0.query_named("SELECT c.conversation_id,c.owner_user_id,c.purpose,c.group_id,c.title,c.created_at,c.updated_at FROM n_ai_conversations c WHERE c.owner_user_id=:owner_user_id AND (:after_id IS NULL OR c.conversation_id>:after_id) AND (:purpose IS NULL OR c.purpose=:purpose) AND (:group_id IS NULL OR c.group_id=:group_id) AND (:target_title IS NULL OR (c.title=:target_title AND c.group_id IS NULL)) AND (c.purpose IN ('knowledge','writing') OR (c.purpose='group' AND fn_has_group_permission(:owner_user_id,c.group_id,'admin')=1) OR (c.purpose='moderation' AND :moderation_allowed=1)) ORDER BY c.conversation_id ASC FETCH FIRST :row_limit ROWS ONLY", &bind_refs(&values)).map_err(|_| Error::Store)?;
+        let rows = self.0.query_named("SELECT c.conversation_id,c.owner_user_id,c.purpose,c.group_id,c.knowledge_scope,c.title,c.created_at,c.updated_at
+            FROM n_ai_conversations c WHERE c.owner_user_id=:owner_user_id
+              AND (:after_id IS NULL OR c.conversation_id>:after_id)
+              AND (:purpose IS NULL OR c.purpose=:purpose)
+              AND (:group_id IS NULL OR c.group_id=:group_id)
+              AND (:knowledge_scope IS NULL OR (c.purpose='knowledge' AND c.knowledge_scope=:knowledge_scope))
+              AND (:target_title IS NULL OR (c.title=:target_title AND c.group_id IS NULL))
+              AND (c.purpose='writing' OR (c.purpose='knowledge' AND (c.knowledge_scope<>'group' OR EXISTS (
+                SELECT 1 FROM n_group_members gm JOIN n_groups g ON g.group_id=gm.group_id AND g.is_active=1 AND g.is_deleted=0
+                WHERE gm.group_id=c.group_id AND gm.user_id=:owner_user_id AND gm.status='active')))
+                OR (c.purpose='group' AND fn_has_group_permission(:owner_user_id,c.group_id,'admin')=1)
+                OR (c.purpose='moderation' AND :moderation_allowed=1))
+            ORDER BY c.conversation_id ASC FETCH FIRST :row_limit ROWS ONLY", &bind_refs(&values)).map_err(|_| Error::Store)?;
         rows.map(|row| {
             let row =
                 oracle_row_to_db_row(&row.map_err(|_| Error::Store)?).map_err(|_| Error::Store)?;
             if row_number(&row, "OWNER_USER_ID") != user {
                 return Err(Error::Store);
             }
-            Ok(Record {
-                id: row_text(&row, "CONVERSATION_ID"),
-                purpose: row_text(&row, "PURPOSE"),
-                group_id: nullable_text(&row, "GROUP_ID").map(|_| row_number(&row, "GROUP_ID")),
-                title: nullable_text(&row, "TITLE"),
-                created_at: nullable_text(&row, "CREATED_AT")
-                    .map(|s| profile_date(&s))
-                    .unwrap_or_default(),
-                updated_at: nullable_text(&row, "UPDATED_AT")
-                    .map(|s| profile_date(&s))
-                    .unwrap_or_default(),
-            })
+            record_from_row(&row)
         })
         .collect()
     }
@@ -1391,6 +1543,10 @@ impl Transaction for OracleConversation<'_> {
     }
     fn authorize(&self, user: i64, input: &Input, policy: &ModerationPolicy) -> Result<(), Error> {
         match input.purpose.as_str() {
+            "knowledge" if input.knowledge_scope == ScopeName::Group => {
+                let group_id = input.group_id.ok_or(Error::Store)?;
+                knowledge_source::check_membership(self.0, user, group_id).map_err(source_error)?;
+            }
             "group" => {
                 let values = bind_values(BindMap::from([
                     ("user_id".into(), DbValue::I64(user)),
@@ -1424,6 +1580,10 @@ impl Transaction for OracleConversation<'_> {
                 input.group_id.map(DbValue::I64).unwrap_or(DbValue::Null),
             ),
             (
+                "knowledge_scope".into(),
+                DbValue::String(input.knowledge_scope.as_str().into()),
+            ),
+            (
                 "title".into(),
                 if input.title.is_empty() {
                     DbValue::Null
@@ -1432,7 +1592,7 @@ impl Transaction for OracleConversation<'_> {
                 },
             ),
         ]);
-        let result = OracleTx::new(self.0).execute("INSERT INTO n_ai_conversations (conversation_id,owner_user_id,purpose,group_id,title) VALUES (:conversation_id,:owner_user_id,:purpose,:group_id,:title)", binds).map_err(|_| Error::Store)?;
+        let result = OracleTx::new(self.0).execute("INSERT INTO n_ai_conversations (conversation_id,owner_user_id,purpose,group_id,knowledge_scope,title) VALUES (:conversation_id,:owner_user_id,:purpose,:group_id,:knowledge_scope,:title)", binds).map_err(|_| Error::Store)?;
         if result.rows_affected != 1 {
             return Err(Error::Store);
         }
@@ -1447,28 +1607,45 @@ impl Transaction for OracleConversation<'_> {
     fn rollback(&self) -> Result<(), Error> {
         OracleTx::new(self.0).rollback().map_err(|_| Error::Store)
     }
+    fn lock_knowledge_scope(&self, user: i64, input: &Input) -> Result<(), Error> {
+        if let ("knowledge", ScopeName::Group, Some(group_id)) = (
+            input.purpose.as_str(),
+            input.knowledge_scope,
+            input.group_id,
+        ) {
+            knowledge_source::lock_group_membership(self.0, user, group_id)
+                .map_err(source_error)?;
+        }
+        Ok(())
+    }
     fn restore_knowledge(
         &self,
         user: i64,
+        scope: Scope,
         content: &str,
     ) -> Result<Option<super::knowledge_history::Restored>, Error> {
-        use super::knowledge_history::{restore, HistoryError};
+        use super::knowledge_history::{HistoryError, restore};
         match restore(content, |refs| {
-            super::knowledge_source::hydrate_sources(self.0, user, refs)
-                .map_err(|_| HistoryError::Store)
+            knowledge_source::hydrate_scoped_sources(self.0, user, scope, refs)
+                .map_err(history_source_error)
         }) {
-            Ok(restored) => Ok(Some(restored)),
+            Ok(restored) if (scope == Scope::Public) == restored.dependencies.is_none() => {
+                Ok(Some(restored))
+            }
+            Ok(_) => Ok(None),
             Err(HistoryError::Invalid | HistoryError::SourceChanged) => Ok(None),
+            Err(HistoryError::Forbidden) => Err(Error::Forbidden),
             Err(HistoryError::Store) => Err(Error::Store),
         }
     }
     fn restore_knowledge_for_write(
         &self,
         user: i64,
+        scope: Scope,
         content: &str,
     ) -> Result<super::knowledge_history::Restored, Error> {
         super::knowledge_history::restore(content, |refs| {
-            if refs.iter().any(|r| r.kind == "terms") {
+            if scope == Scope::Public && refs.iter().any(|r| r.kind == "terms") {
                 let raw: serde_json::Value = serde_json::from_str(include_str!(
                     "../../contracts/requirements/ai-public-terms-catalog.json"
                 ))
@@ -1476,11 +1653,54 @@ impl Transaction for OracleConversation<'_> {
                 super::public_terms_authority::read_from_oracle_locked(self.0, user, &raw)
                     .map_err(|_| super::knowledge_history::HistoryError::Store)?;
             }
-            super::knowledge_source::hydrate_sources(self.0, user, refs)
-                .map_err(|_| super::knowledge_history::HistoryError::Store)
+            knowledge_source::hydrate_scoped_sources(self.0, user, scope, refs)
+                .map_err(history_source_error)
         })
-        .map_err(|_| Error::Store)
+        .map_err(|error| match error {
+            super::knowledge_history::HistoryError::Forbidden => Error::Forbidden,
+            super::knowledge_history::HistoryError::SourceChanged if scope != Scope::Public => {
+                Error::Conflict
+            }
+            _ => Error::Store,
+        })
     }
+}
+
+fn source_error(error: knowledge_source::Error) -> Error {
+    match error {
+        knowledge_source::Error::Forbidden => Error::Forbidden,
+        knowledge_source::Error::Contended => Error::Conflict,
+        _ => Error::Store,
+    }
+}
+
+fn history_source_error(error: knowledge_source::Error) -> super::knowledge_history::HistoryError {
+    use super::knowledge_history::HistoryError;
+    match error {
+        knowledge_source::Error::Forbidden => HistoryError::Forbidden,
+        _ => HistoryError::Store,
+    }
+}
+
+fn record_from_row(row: &crate::db::row::DbRow) -> Result<Record, Error> {
+    let purpose = row_text(row, "PURPOSE");
+    let stored_scope = ScopeName::parse(&row_text(row, "KNOWLEDGE_SCOPE")).ok_or(Error::Store)?;
+    if purpose != "knowledge" && stored_scope != ScopeName::Public {
+        return Err(Error::Store);
+    }
+    Ok(Record {
+        id: row_text(row, "CONVERSATION_ID"),
+        knowledge_scope: (purpose == "knowledge").then_some(stored_scope),
+        purpose,
+        group_id: nullable_text(row, "GROUP_ID").map(|_| row_number(row, "GROUP_ID")),
+        title: nullable_text(row, "TITLE"),
+        created_at: nullable_text(row, "CREATED_AT")
+            .map(|s| profile_date(&s))
+            .unwrap_or_default(),
+        updated_at: nullable_text(row, "UPDATED_AT")
+            .map(|s| profile_date(&s))
+            .unwrap_or_default(),
+    })
 }
 impl OracleConversation<'_> {
     fn read_owned(&self, user: i64, id: &str, lock: bool) -> Result<Option<Record>, Error> {
@@ -1489,9 +1709,9 @@ impl OracleConversation<'_> {
             ("owner_user_id".into(), DbValue::I64(user)),
         ]));
         let query = if lock {
-            "SELECT conversation_id,purpose,group_id,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id FOR UPDATE"
+            "SELECT conversation_id,purpose,group_id,knowledge_scope,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id FOR UPDATE"
         } else {
-            "SELECT conversation_id,purpose,group_id,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id"
+            "SELECT conversation_id,purpose,group_id,knowledge_scope,title,created_at,updated_at FROM n_ai_conversations WHERE conversation_id=:conversation_id AND owner_user_id=:owner_user_id"
         };
         let mut rows = self
             .0
@@ -1504,19 +1724,7 @@ impl OracleConversation<'_> {
         if rows.next().is_some() {
             return Err(Error::Store);
         }
-        let group_id = nullable_text(&row, "GROUP_ID").map(|_| row_number(&row, "GROUP_ID"));
-        Ok(Some(Record {
-            id: row_text(&row, "CONVERSATION_ID"),
-            purpose: row_text(&row, "PURPOSE"),
-            group_id,
-            title: nullable_text(&row, "TITLE"),
-            created_at: nullable_text(&row, "CREATED_AT")
-                .map(|s| profile_date(&s))
-                .unwrap_or_default(),
-            updated_at: nullable_text(&row, "UPDATED_AT")
-                .map(|s| profile_date(&s))
-                .unwrap_or_default(),
-        }))
+        record_from_row(&row).map(Some)
     }
 }
 impl MessageTransaction for OracleConversation<'_> {
@@ -1685,7 +1893,9 @@ impl HistoryTransaction for OracleConversation<'_> {
             ("row_limit".into(), DbValue::I64(limit)),
         ]));
         let order = if newest || before > 0 { "DESC" } else { "ASC" };
-        let query = format!("SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no{predicate} ORDER BY m.sequence_no {order} FETCH FIRST :row_limit ROWS ONLY");
+        let query = format!(
+            "SELECT m.message_id,m.conversation_id,m.sequence_no,m.role,m.content,m.model_id,m.model_version,m.config_revision,m.created_at FROM n_ai_messages m JOIN n_ai_conversations c ON c.conversation_id=m.conversation_id WHERE m.conversation_id=:conversation_id AND c.owner_user_id=:owner_user_id AND m.sequence_no{predicate} ORDER BY m.sequence_no {order} FETCH FIRST :row_limit ROWS ONLY"
+        );
         let query = if before > 0 {
             format!("SELECT * FROM ({query}) ORDER BY sequence_no ASC")
         } else {
@@ -1718,6 +1928,7 @@ impl HistoryTransaction for OracleConversation<'_> {
                     .map(|s| profile_date(&s))
                     .unwrap_or_default(),
                 citations: None,
+                knowledge_dependencies: None,
                 group_sources: None,
                 group_tools: None,
                 moderation_advice: None,
@@ -1792,6 +2003,7 @@ pub fn list_conversations(
     limit: i64,
     purpose: &str,
     group_id: Option<i64>,
+    knowledge_scope: Option<ScopeName>,
     target_title: &str,
     policy: &ModerationPolicy,
 ) -> Result<ConversationPage, Error> {
@@ -1802,6 +2014,7 @@ pub fn list_conversations(
         limit,
         purpose,
         group_id,
+        knowledge_scope,
         target_title,
         policy,
     )
@@ -1850,7 +2063,9 @@ pub fn append_knowledge_assistant_message(
     user: i64,
     id: &str,
     input: &AssistantInput,
-    sources: &[super::knowledge_source::Candidate],
+    scope: Scope,
+    sources: &[Candidate],
+    dependencies: Option<&[Candidate]>,
     context_snapshot: &[serde_json::Value],
     skill_generation: i64,
     cancel: Cancellation<'_>,
@@ -1861,7 +2076,9 @@ pub fn append_knowledge_assistant_message(
         user,
         id,
         input,
+        scope,
         sources,
+        dependencies,
         Some(context_snapshot),
         skill_generation,
         cancel,
@@ -1954,6 +2171,7 @@ mod tests {
                     id: id.into(),
                     purpose: "group".into(),
                     group_id: Some(7),
+                    knowledge_scope: None,
                     title: None,
                     created_at: String::new(),
                     updated_at: String::new(),
@@ -2029,6 +2247,7 @@ mod tests {
                     id: (*id).into(),
                     purpose: ["writing", "group", "knowledge"][i].into(),
                     group_id: if i == 1 { Some(7) } else { None },
+                    knowledge_scope: (i == 2).then_some(ScopeName::Public),
                     title: Some(["first", "hidden", "third"][i].into()),
                     created_at: String::new(),
                     updated_at: String::new(),
@@ -2074,6 +2293,7 @@ mod tests {
             moderation_allowed: bool,
             purpose: &str,
             group_id: Option<i64>,
+            knowledge_scope: Option<ScopeName>,
             _target_title: &str,
         ) -> Result<Vec<Record>, Error> {
             assert_eq!(user, 42);
@@ -2085,6 +2305,7 @@ mod tests {
                     r.id.as_str() > after
                         && (purpose.is_empty() || r.purpose == purpose)
                         && (group_id.is_none() || r.group_id == group_id)
+                        && (knowledge_scope.is_none() || r.knowledge_scope == knowledge_scope)
                 })
                 .take(limit as usize)
                 .cloned()
@@ -2096,7 +2317,7 @@ mod tests {
     fn listing_filters_revoked_items_and_uses_only_visible_cursor() {
         let tx = ListingFake::new(false);
         let policy = ModerationPolicy::new("", "");
-        let first = run_conversation_listing(&tx, 42, "", 1, "", None, "", &policy).unwrap();
+        let first = run_conversation_listing(&tx, 42, "", 1, "", None, None, "", &policy).unwrap();
         assert_eq!(first.items[0].title.as_deref(), Some("first"));
         assert_eq!(
             first.next_cursor.as_deref(),
@@ -2109,6 +2330,7 @@ mod tests {
             1,
             "",
             None,
+            None,
             "",
             &policy,
         )
@@ -2119,7 +2341,7 @@ mod tests {
             Some("2f9da41c-7296-4f51-91f4-141f5c6e3c01")
         );
         assert_eq!(
-            run_conversation_listing(&tx, 42, "invalid", 1, "", None, "", &policy),
+            run_conversation_listing(&tx, 42, "invalid", 1, "", None, None, "", &policy),
             Err(Error::Invalid)
         );
         let failed = ListingFake::new(true);
@@ -2130,6 +2352,7 @@ mod tests {
                 "1f9da41c-7296-4f51-91f4-141f5c6e3c01",
                 1,
                 "",
+                None,
                 None,
                 "",
                 &policy
@@ -2147,6 +2370,7 @@ mod tests {
                 1,
                 "",
                 None,
+                None,
                 "",
                 &policy
             ),
@@ -2159,7 +2383,7 @@ mod tests {
         let tx = ListingFake::new(true);
         let policy = ModerationPolicy::new("", "");
         let page =
-            run_conversation_listing(&tx, 42, "", 1, "knowledge", None, "", &policy).unwrap();
+            run_conversation_listing(&tx, 42, "", 1, "knowledge", None, None, "", &policy).unwrap();
         assert_eq!(page.items, vec![tx.records[2].clone()]);
         assert!(page.next_cursor.is_none());
     }
@@ -2182,7 +2406,13 @@ mod tests {
         fn check_schema(&self) -> Result<(), Error> {
             Ok(())
         }
-        fn authorize(&self, _: i64, _: &Input, _: &ModerationPolicy) -> Result<(), Error> {
+        fn authorize(&self, _: i64, input: &Input, _: &ModerationPolicy) -> Result<(), Error> {
+            if input.knowledge_scope == ScopeName::Group
+                && self.history_mode == "group-revoked"
+                && self.write_checks.get() > 0
+            {
+                return Err(Error::Forbidden);
+            }
             Ok(())
         }
         fn insert(&self, _: i64, _: &str, _: &Input) -> Result<(), Error> {
@@ -2197,7 +2427,12 @@ mod tests {
                     "knowledge"
                 }
                 .into(),
-                group_id: None,
+                group_id: self.history_mode.starts_with("group-").then_some(42),
+                knowledge_scope: match self.history_mode {
+                    mode if mode.starts_with("writing-") => None,
+                    mode if mode.starts_with("group-") => Some(ScopeName::Group),
+                    _ => Some(ScopeName::Public),
+                },
                 title: None,
                 created_at: String::new(),
                 updated_at: String::new(),
@@ -2206,13 +2441,14 @@ mod tests {
         fn restore_knowledge(
             &self,
             _: i64,
+            scope: Scope,
             content: &str,
         ) -> Result<Option<super::super::knowledge_history::Restored>, Error> {
             self.checks.set(self.checks.get() + 1);
             if self.revoke && self.checks.get() > 1 {
                 return Err(Error::Store);
             };
-            use super::super::knowledge_history::{restore, HistoryError};
+            use super::super::knowledge_history::{HistoryError, restore};
             match restore(content, |refs| {
                 Ok(refs
                     .iter()
@@ -2220,7 +2456,10 @@ mod tests {
                         kind: r.kind.clone(),
                         id: r.id,
                         post_id: r.id,
-                        group_id: 0,
+                        group_id: match scope {
+                            Scope::Group(id) => id,
+                            _ => 0,
+                        },
                         content: "public".into(),
                         version: r.version.clone(),
                     })
@@ -2228,16 +2467,26 @@ mod tests {
             }) {
                 Ok(restored) => Ok(Some(restored)),
                 Err(HistoryError::Invalid | HistoryError::SourceChanged) => Ok(None),
+                Err(HistoryError::Forbidden) => Err(Error::Forbidden),
                 Err(HistoryError::Store) => Err(Error::Store),
             }
         }
         fn restore_knowledge_for_write(
             &self,
             user: i64,
+            scope: Scope,
             content: &str,
         ) -> Result<super::super::knowledge_history::Restored, Error> {
             self.write_checks.set(self.write_checks.get() + 1);
-            self.restore_knowledge(user, content)?.ok_or(Error::Store)
+            self.restore_knowledge(user, scope, content)?
+                .ok_or(Error::Store)
+        }
+        fn lock_knowledge_scope(&self, _: i64, input: &Input) -> Result<(), Error> {
+            if input.knowledge_scope == ScopeName::Group {
+                assert_eq!(input.group_id, Some(42));
+                self.events.borrow_mut().push("group-lock");
+            }
+            Ok(())
         }
         fn commit(&self) -> Result<(), Error> {
             self.events.borrow_mut().push("commit");
@@ -2322,6 +2571,7 @@ mod tests {
                     config_revision: None,
                     created_at: String::new(),
                     citations: None,
+                    knowledge_dependencies: None,
                     group_sources: None,
                     group_tools: None,
                     moderation_advice: None,
@@ -2339,6 +2589,7 @@ mod tests {
                 config_revision: None,
                 created_at: String::new(),
                 citations: None,
+                knowledge_dependencies: None,
                 group_sources: None,
                 group_tools: None,
                 moderation_advice: None,
@@ -2459,7 +2710,9 @@ mod tests {
                 1,
                 "bf9da41c-7296-4f51-91f4-141f5c6e3c01",
                 &input,
+                Scope::Public,
                 std::slice::from_ref(&reference),
+                None,
                 Some(&snapshot),
                 1,
                 None,
@@ -2471,6 +2724,59 @@ mod tests {
             } else {
                 assert_eq!(result, Err(Error::Conflict));
                 assert_eq!(*tx.events.borrow(), vec!["skill-lock", "rollback"])
+            }
+        }
+    }
+
+    #[test]
+    fn group_knowledge_write_locks_group_and_rolls_back_on_revocation() {
+        let reference = Candidate {
+            kind: "group_post".into(),
+            id: 11,
+            version: "a".repeat(64),
+        };
+        let input = AssistantInput {
+            content: "answer".into(),
+            expected_sequence: 1,
+            model_id: "profile".into(),
+            model_version: None,
+            config_revision: 1,
+        };
+        for mode in ["group-active", "group-revoked"] {
+            let tx = KnowledgeFake {
+                events: RefCell::new(vec![]),
+                checks: Cell::new(0),
+                write_checks: Cell::new(0),
+                revoke: false,
+                encoded: String::new(),
+                history_mode: mode,
+                history_checks: Cell::new(0),
+            };
+            let refs = std::slice::from_ref(&reference);
+            let result = run_append_knowledge_guarded(
+                &tx,
+                1,
+                "bf9da41c-7296-4f51-91f4-141f5c6e3c01",
+                &input,
+                Scope::Group(42),
+                refs,
+                Some(refs),
+                None,
+                1,
+                None,
+                &ModerationPolicy::new("", ""),
+            );
+            if mode == "group-active" {
+                assert!(result.is_ok());
+                assert_eq!(*tx.events.borrow(), ["group-lock", "skill-lock", "commit"]);
+                assert_eq!(tx.write_checks.get(), 2);
+            } else {
+                assert_eq!(result, Err(Error::Forbidden));
+                assert_eq!(
+                    *tx.events.borrow(),
+                    ["group-lock", "skill-lock", "rollback"]
+                );
+                assert_eq!(tx.write_checks.get(), 1);
             }
         }
     }
@@ -2585,6 +2891,7 @@ mod tests {
                 id: id.into(),
                 purpose: "group".into(),
                 group_id: Some(12),
+                knowledge_scope: None,
                 title: None,
                 created_at: String::new(),
                 updated_at: String::new(),
@@ -2680,6 +2987,7 @@ mod tests {
                         config_revision: None,
                         created_at: String::new(),
                         citations: None,
+                        knowledge_dependencies: None,
                         group_sources: None,
                         group_tools: None,
                         moderation_advice: None,
@@ -2699,6 +3007,7 @@ mod tests {
                 config_revision: None,
                 created_at: String::new(),
                 citations: None,
+                knowledge_dependencies: None,
                 group_sources: None,
                 group_tools: None,
                 moderation_advice: None,
@@ -3015,6 +3324,7 @@ mod tests {
             tools_used: None,
             search_term: None,
             match_excerpt: false,
+            sentiment_source_digest: None,
         }
     }
     #[test]
@@ -3084,6 +3394,7 @@ mod tests {
         let input = Input {
             purpose: "group".into(),
             group_id: Some(12),
+            knowledge_scope: ScopeName::Public,
             title: "hello".into(),
         };
         assert_eq!(
@@ -3118,16 +3429,19 @@ mod tests {
         let input = Input {
             purpose: "group".into(),
             group_id: Some(12),
+            knowledge_scope: ScopeName::Public,
             title: "hello".into(),
         };
-        assert!(run(
-            &tx,
-            1,
-            "af9da41c-7296-4f51-91f4-141f5c6e3c01",
-            Some(input),
-            &ModerationPolicy::new("", "")
-        )
-        .is_ok());
+        assert!(
+            run(
+                &tx,
+                1,
+                "af9da41c-7296-4f51-91f4-141f5c6e3c01",
+                Some(input),
+                &ModerationPolicy::new("", "")
+            )
+            .is_ok()
+        );
         assert_eq!(
             *tx.events.borrow(),
             vec![
@@ -3151,6 +3465,7 @@ mod tests {
         let input = Input {
             purpose: "group".into(),
             group_id: None,
+            knowledge_scope: ScopeName::Public,
             title: "".into(),
         };
         assert_eq!(
@@ -3181,6 +3496,7 @@ mod tests {
         let mut input = Input {
             purpose: "writing".into(),
             group_id: None,
+            knowledge_scope: ScopeName::Public,
             title: format!("  {}  ", "😀".repeat(100)),
         };
         assert_eq!(

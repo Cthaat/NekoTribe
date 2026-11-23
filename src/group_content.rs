@@ -11,10 +11,12 @@ use crate::{
     db::{
         oracle::{BindMap, DbError},
         row::DbRow,
+        tx::OracleTx,
         value::DbValue,
     },
     direct_history::query,
     httpx::errors::ApiError,
+    posts::{markdown, poll_http, polls},
 };
 use axum::{
     extract::{OriginalUri, Path, State},
@@ -38,9 +40,11 @@ pub enum Outcome {
     MissingGroup,
     MissingPost,
     MissingUser,
+    PollUnavailable,
+    MarkdownUnavailable,
 }
 
-const POSTS: &str = "WITH allowed_group AS (
+pub(crate) const POSTS: &str = "WITH allowed_group AS (
   SELECT g.group_id
   FROM n_groups g
   WHERE g.group_id=:group_id AND g.is_active=1 AND g.is_deleted=0
@@ -212,28 +216,61 @@ pub(crate) fn execute(
         return Ok(Outcome::MissingPost);
     }
     let total = row_number(first, "TOTAL");
+    if !request.comments {
+        return hydrate_post_page(conn, viewer, &rows, total, request.post != 0, storage);
+    }
+    let mut items = Vec::new();
+    for row in rows
+        .iter()
+        .filter(|row| row.get("COMMENT_ID").and_then(DbValue::as_i64).is_some())
+    {
+        let Some(comment) = hydrate_comment(conn, viewer, row, storage)? else {
+            return Ok(Outcome::MissingUser);
+        };
+        items.push(comment);
+    }
+    Ok(Outcome::Found(json!(items), total))
+}
+
+pub(crate) fn execute_activity(
+    conn: &oracle::Connection,
+    viewer: u64,
+    page: SessionPage,
+    storage: &StorageUrlPolicy,
+) -> Result<Outcome, DbError> {
+    let viewer = i64::try_from(viewer).map_err(|_| DbError::SchemaNotReady)?;
+    let rows = query(
+        conn,
+        &crate::home_feed::sql().group_activity,
+        BindMap::from([
+            ("viewer_id".into(), DbValue::I64(viewer)),
+            ("start_row".into(), DbValue::F64(page.start)),
+            ("end_row".into(), DbValue::F64(page.end)),
+        ]),
+    )?;
+    let total = row_number(rows.first().ok_or(DbError::SchemaNotReady)?, "TOTAL");
+    hydrate_post_page(conn, viewer, &rows, total, false, storage)
+}
+
+fn hydrate_post_page(
+    conn: &oracle::Connection,
+    viewer: i64,
+    rows: &[DbRow],
+    total: i64,
+    detail: bool,
+    storage: &StorageUrlPolicy,
+) -> Result<Outcome, DbError> {
     let date = |row: &DbRow, key| {
         nullable_text(row, key)
             .map(|value| profile_date(&value))
             .unwrap_or_default()
     };
     let mut items = Vec::new();
-    for row in &rows {
-        let key = if request.comments {
-            "COMMENT_ID"
-        } else {
-            "POST_ID"
-        };
-        if row.get(key).and_then(DbValue::as_i64).is_none() {
-            continue;
-        }
-        if request.comments {
-            let Some(comment) = hydrate_comment(conn, viewer, row, storage)? else {
-                return Ok(Outcome::MissingUser);
-            };
-            items.push(comment);
-            continue;
-        }
+    let tx = OracleTx::new(conn);
+    for row in rows
+        .iter()
+        .filter(|row| row.get("POST_ID").and_then(DbValue::as_i64).is_some())
+    {
         let Some(author) = user(conn, viewer, row_number(row, "AUTHOR_ID"), storage)? else {
             return Ok(Outcome::MissingUser);
         };
@@ -247,16 +284,38 @@ pub(crate) fn execute(
                     .map_err(|_| DbError::SchemaNotReady)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        items.push(json!({
+        let mut item = json!({
             "post_id": row_number(row,"POST_ID"), "author":author, "content":row_text(row,"CONTENT"),
             "likes_count":row_number(row,"LIKES_COUNT"),"is_liked_by_me":row_number(row,"IS_LIKED_BY_ME")==1,
             "created_at":date(row,"CREATED_AT"),"updated_at":date(row,"UPDATED_AT"),
             "group_id":row_number(row,"GROUP_ID"),"media_urls":media,
             "is_pinned":row_number(row,"IS_PINNED")==1,"is_announcement":row_number(row,"IS_ANNOUNCEMENT")==1,
             "comments_count":row_number(row,"COMMENTS_COUNT"),"views_count":row_number(row,"VIEWS_COUNT")
-        }));
+        });
+        if row.contains_key("GROUP_NAME") {
+            item["group_name"] = row_text(row, "GROUP_NAME").into();
+        }
+        let target = polls::Target::Group {
+            group_id: row_number(row, "GROUP_ID"),
+            post_id: row_number(row, "POST_ID"),
+        };
+        match polls::read(&tx, Some(viewer as u64), target, true) {
+            Ok(Some(poll)) => {
+                item["poll"] = serde_json::to_value(poll).map_err(|_| DbError::SchemaNotReady)?;
+            }
+            Ok(None) => {}
+            Err(DbError::SchemaNotReady) => return Ok(Outcome::PollUnavailable),
+            Err(error) => return Err(error),
+        }
+        match markdown::read(&tx, markdown::Source::GroupPost(row_number(row, "POST_ID"))) {
+            Ok(Some(body)) => item["markdown"] = Value::String(body),
+            Ok(None) => {}
+            Err(DbError::SchemaNotReady) => return Ok(Outcome::MarkdownUnavailable),
+            Err(error) => return Err(error),
+        }
+        items.push(item);
     }
-    if !request.comments && request.post != 0 {
+    if detail {
         return Ok(match items.pop() {
             Some(item) => Outcome::Found(item, total),
             None => Outcome::MissingPost,
@@ -331,23 +390,43 @@ async fn route(
             }
         };
         let request = Request { group, post, comment, comments, page, order };
-        let (data, total) = match state.repository.read_group_content(viewer, request, &state.storage_urls).await
-            .map_err(|_| ApiError::server_error("服务器内部错误"))? {
-            Outcome::Found(data, total) => (data, total),
-            Outcome::MissingGroup => return Err(ApiError::not_found("群组不存在")),
-            Outcome::MissingPost => return Err(ApiError::not_found("群组帖子不存在")),
-            Outcome::MissingUser => return Err(ApiError::not_found("用户不存在")),
-        };
-        let meta = if detail { Value::Null } else {
-            json!({"page":page.page,"page_size":page.page_size,"total":total,"has_next":page.end < total as f64})
-        };
-        Ok::<_, ApiError>(Json(json!({"code":200,"message":"success","data":data,"meta":meta})))
+        let outcome = state.repository.read_group_content(viewer, request, &state.storage_urls).await
+            .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+        content_response(outcome, (!detail).then_some(page))
     }.await;
     let mut response = result.into_response();
     response
         .headers_mut()
         .insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
     response
+}
+
+fn content_response(outcome: Outcome, page: Option<SessionPage>) -> Result<Json<Value>, ApiError> {
+    let (data, total) = match outcome {
+        Outcome::Found(data, total) => (data, total),
+        Outcome::MissingGroup => return Err(ApiError::not_found("群组不存在")),
+        Outcome::MissingPost => return Err(ApiError::not_found("群组帖子不存在")),
+        Outcome::MissingUser => return Err(ApiError::not_found("用户不存在")),
+        Outcome::PollUnavailable => return Err(poll_http::unavailable()),
+        Outcome::MarkdownUnavailable => return Err(markdown::unavailable()),
+    };
+    let meta = page.map(|page| json!({"page":page.page,"page_size":page.page_size,"total":total,"has_next":page.end < total as f64}));
+    Ok(Json(json!({"code":200,"message":"success","data":data,"meta":meta})))
+}
+
+pub(crate) async fn activity(
+    State(state): State<NativeState>,
+    OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    let viewer = crate::posts::bookmark::interaction_actor(&state, &headers).await?;
+    let page = session_pagination(uri.query().unwrap_or_default());
+    let outcome = state
+        .repository
+        .read_group_activity(viewer, page, &state.storage_urls)
+        .await
+        .map_err(|_| ApiError::server_error("服务器内部错误"))?;
+    content_response(outcome, Some(page))
 }
 
 pub(crate) async fn posts(

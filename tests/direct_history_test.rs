@@ -6,11 +6,84 @@ use nekotribe_backend::{
         sessions::{build_native_router, CorsPolicy, SessionRepository, StoreFuture},
         IssuedToken, TokenClaims, TokenCodec, TokenKind,
     },
-    direct_history::DirectHistory,
+    chat_message_search::Search,
+    direct_history::{DirectHistory, HistoryPage},
+    direct_extras::{Operation as ExtrasOperation, Outcome as ExtrasOutcome},
 };
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use tower::ServiceExt;
+
+#[tokio::test]
+async fn direct_exact_and_reaction_routes_use_the_authenticated_viewer() {
+    struct ExtrasRepository(Mutex<Vec<String>>);
+    impl SessionRepository for ExtrasRepository {
+        fn touch<'a>(&'a self, _: &'a TokenClaims) -> StoreFuture<'a, u64> { Box::pin(async { Ok(1) }) }
+        fn revoke<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> { Box::pin(async { Ok(0) }) }
+        fn revoke_others<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> { Box::pin(async { Ok(0) }) }
+
+        fn direct_message_extras(&self, user: u64, conversation: u64, id: u64, operation: ExtrasOperation) -> StoreFuture<'_, ExtrasOutcome> {
+            Box::pin(async move {
+                assert_eq!(user, 42);
+                let outcome = if conversation != 7 {
+                    ExtrasOutcome::Forbidden
+                } else if id == 99 {
+                    ExtrasOutcome::Unavailable
+                } else if id != 12 {
+                    ExtrasOutcome::Missing
+                } else {
+                    let label = match operation {
+                        ExtrasOperation::Read => "GET".into(),
+                        ExtrasOperation::Reaction { add, emoji } => format!("{add} {emoji}"),
+                    };
+                    self.0.lock().unwrap().push(label);
+                    ExtrasOutcome::Found {
+                        message: json!({"message_id":id,"conversation_id":conversation,"content":"text","author":{"avatar_url":""}}),
+                        notify_peer: None,
+                    }
+                };
+                Ok(outcome)
+            })
+        }
+    }
+
+    let codec = TokenCodec::new(b"fixture-access-key", b"fixture-refresh-key").unwrap();
+    let token = codec.sign(&IssuedToken {
+        user_id: 42,
+        user_name: "fixture".into(),
+        session_id: "fixture-session".into(),
+        kind: TokenKind::Access,
+        issued_at: 100,
+        expires_at: 300,
+        jti: "fixture-jti".into(),
+    }).unwrap();
+    let repository = Arc::new(ExtrasRepository(Mutex::new(vec![])));
+    let app = build_native_router(codec, repository.clone(), CorsPolicy::default(), Arc::new(|| 150));
+    for (method, path, body, status) in [
+        ("GET", "7/messages/12", "", 200),
+        ("POST", "7/messages/12/reactions", r#"{"emoji":" 🐱 "}"#, 200),
+        ("DELETE", "7/messages/12/reactions", r#"{"emoji":"🐱"}"#, 200),
+        ("GET", "8/messages/12", "", 403),
+        ("GET", "7/messages/13", "", 404),
+        ("GET", "7/messages/99", "", 503),
+        ("GET", "7/messages/012", "", 400),
+        ("POST", "7/messages/12/reactions", r#"{"emoji":"🐱","user_id":55}"#, 400),
+    ] {
+        let response = app.clone().oneshot(Request::builder()
+            .method(method)
+            .uri(format!("/api/v2/chat/direct-conversations/{path}"))
+            .header("authorization", format!("Bearer {token}"))
+            .header("content-type", "application/json")
+            .body(Body::from(body)).unwrap()).await.unwrap();
+        assert_eq!(response.status(), status, "{method} {path}");
+        assert_eq!(response.headers()["cache-control"], "private, no-store");
+        if status == 200 {
+            let json: Value = serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+            assert_eq!(json["data"]["message_id"], 12);
+        }
+    }
+    assert_eq!(*repository.0.lock().unwrap(), ["GET", "true 🐱", "false 🐱"]);
+}
 
 #[tokio::test]
 async fn direct_send_only_publishes_a_committed_result() {
@@ -23,6 +96,7 @@ async fn direct_send_only_publishes_a_committed_result() {
             storage_urls::StorageUrlPolicy,
         },
         direct_send::DirectSend,
+        direct_read::ReadAdvance,
         notification_events::{EventError, NotificationPublisher, PublishFuture},
     };
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -58,6 +132,7 @@ async fn direct_send_only_publishes_a_committed_result() {
                     recipient: 9,
                     message: json!({"message_id":12,"conversation_id":7}),
                     push_notice: None,
+                    read_advance: Some(ReadAdvance { recipient: 9, message: 12 }),
                 })
             })
         }
@@ -65,6 +140,7 @@ async fn direct_send_only_publishes_a_committed_result() {
     struct Publisher {
         committed: Arc<AtomicBool>,
         called: AtomicBool,
+        read_called: AtomicBool,
     }
     impl NotificationPublisher for Publisher {
         fn publish<'a>(
@@ -89,6 +165,14 @@ async fn direct_send_only_publishes_a_committed_result() {
                 Err(EventError)
             })
         }
+        fn publish_direct_read(&self, reader: u64, recipient: u64, conversation: u64, message: u64) -> PublishFuture<'_> {
+            Box::pin(async move {
+                assert!(self.committed.load(Ordering::SeqCst));
+                assert_eq!((reader, recipient, conversation, message), (42, 9, 7, 12));
+                self.read_called.store(true, Ordering::SeqCst);
+                Ok(())
+            })
+        }
     }
     for (allowed, status) in [(false, 500), (true, 200)] {
         let codec = TokenCodec::new(b"fixture-access-key", b"fixture-refresh-key").unwrap();
@@ -107,6 +191,7 @@ async fn direct_send_only_publishes_a_committed_result() {
         let publisher = Arc::new(Publisher {
             committed: committed.clone(),
             called: AtomicBool::new(false),
+            read_called: AtomicBool::new(false),
         });
         let app = build_native_router_with_realtime_and_publisher(
             codec,
@@ -131,12 +216,14 @@ async fn direct_send_only_publishes_a_committed_result() {
             .unwrap();
         assert_eq!(response.status().as_u16(), status);
         assert_eq!(publisher.called.load(Ordering::SeqCst), allowed);
+        assert_eq!(publisher.read_called.load(Ordering::SeqCst), allowed);
     }
 }
 
 #[derive(Default)]
 struct Repository {
     page: Mutex<Option<SessionPage>>,
+    mark_read: Mutex<Option<bool>>,
     expected_ids: Vec<u64>,
     allowed: bool,
     muted: bool,
@@ -364,9 +451,11 @@ impl SessionRepository for Repository {
                 return Ok(Outcome::MissingPost);
             }
             Ok(Outcome::Saved(match input.action {
-                Action::Create { content, media, announcement } => {
+                Action::Create { content, media, announcement, markdown, .. } => {
                     assert_eq!(media, "/storage/a.png");
-                    json!({"group_id":7,"post_id":5,"content":content,"is_announcement":announcement})
+                    let mut post = json!({"group_id":7,"post_id":5,"content":content,"is_announcement":announcement});
+                    if let Some(markdown) = markdown { post["markdown"] = markdown.into(); }
+                    post
                 }
                 Action::Pin(pin) => json!({"post_id":5,"is_pinned":pin}),
                 Action::Delete { .. } => Value::Null,
@@ -551,7 +640,7 @@ impl SessionRepository for Repository {
         user: u64,
         channel: u64,
         page: SessionPage,
-        search: &'a str,
+        search: Search,
         _: &'a nekotribe_backend::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'a, nekotribe_backend::chat_message_history::History> {
         Box::pin(async move {
@@ -559,7 +648,11 @@ impl SessionRepository for Repository {
             if channel != 7 {
                 return Ok(None);
             }
-            assert_eq!((page.page, page.page_size, search), (2.0, 3.0, "hello"));
+            assert_eq!((page.page, page.page_size), (2.0, 3.0));
+            assert_eq!(search.keyword.as_deref(), Some("Hello%_"));
+            assert_eq!(search.sender_id, Some(42));
+            assert_eq!(search.start_at.unwrap().to_rfc3339(), "2026-01-01T00:00:00+00:00");
+            assert_eq!(search.end_at.unwrap().to_rfc3339(), "2026-01-02T00:00:00+00:00");
             Ok(Some((
                 vec![json!({"message_id":8,"channel_id":7,"media":[],"reactions":[]})],
                 10,
@@ -682,20 +775,110 @@ impl SessionRepository for Repository {
         user: u64,
         conversation: u64,
         page: SessionPage,
+        mark_read: bool,
+        search: Search,
     ) -> StoreFuture<'_, DirectHistory> {
         Box::pin(async move {
-            assert_eq!((user, conversation), (42, 7));
+            assert_eq!(user, 42);
             *self.page.lock().unwrap() = Some(page);
-            if !self.allowed {
+            *self.mark_read.lock().unwrap() = Some(mark_read);
+            if !self.allowed || conversation != 7 {
                 return Ok(None);
+            }
+            if search.keyword.is_some() || search.sender_id.is_some() || search.start_at.is_some() || search.end_at.is_some() {
+                assert!(!mark_read);
             }
             let data = self
                 .expected_ids
                 .iter()
                 .map(|id| json!({"message_id":id,"author":{"avatar_url":""}}))
                 .collect();
-            Ok(Some((data, 4)))
+            Ok(Some(HistoryPage { messages: data, total: 4, advance: None }))
         })
+    }
+    fn direct_read_status(&self, user: u64, conversation: u64, cursor: Option<u64>) -> StoreFuture<'_, nekotribe_backend::direct_read::Outcome> {
+        use nekotribe_backend::direct_read::Outcome;
+        Box::pin(async move {
+            assert_eq!(user, 42);
+            Ok(match (conversation, cursor) {
+                (7, None | Some(12)) => Outcome::Found {
+                    status: json!({"conversation_id":7,"last_read_message_id":cursor,"participant_last_read_message_id":null,"unread_count":0}),
+                    advance: None,
+                },
+                (7, Some(_)) => Outcome::InvalidCursor,
+                _ => Outcome::Forbidden,
+            })
+        })
+    }
+}
+
+#[tokio::test]
+async fn read_status_routes_validate_cursors_and_private_history_can_opt_out() {
+    let codec = TokenCodec::new(b"fixture-access-key", b"fixture-refresh-key").unwrap();
+    let token = codec.sign(&IssuedToken {
+        user_id: 42,
+        user_name: "fixture".into(),
+        session_id: "fixture-session".into(),
+        kind: TokenKind::Access,
+        issued_at: 100,
+        expires_at: 300,
+        jti: "fixture-jti".into(),
+    }).unwrap();
+    let repository = Arc::new(Repository { allowed: true, ..Repository::default() });
+    let app = build_native_router(codec, repository.clone(), CorsPolicy::default(), Arc::new(|| 150));
+    for (method, path, body, status, expected) in [
+        ("GET", "7/read-status", "", 200, None),
+        ("PUT", "7/read-status", r#"{"last_read_message_id":12}"#, 200, Some(12)),
+        ("PUT", "7/read-status", r#"{"last_read_message_id":13}"#, 400, None),
+        ("PUT", "7/read-status", r#"{"last_read_message_id":"12"}"#, 400, None),
+        ("GET", "8/read-status", "", 403, None),
+        ("GET", "7/messages?mark_read=false", "", 200, None),
+    ] {
+        let response = app.clone().oneshot(Request::builder()
+            .method(method).uri(format!("/api/v2/chat/direct-conversations/{path}"))
+            .header("authorization", format!("Bearer {token}"))
+            .header("content-type", "application/json")
+            .body(Body::from(body)).unwrap()).await.unwrap();
+        assert_eq!(response.status(), status, "{method} {path}");
+        assert_eq!(response.headers()["cache-control"], "private, no-store");
+        if status == 200 && path.ends_with("read-status") {
+            let json: Value = serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+            assert_eq!(json["data"]["last_read_message_id"], json!(expected));
+        }
+    }
+    assert_eq!(*repository.mark_read.lock().unwrap(), Some(false));
+}
+
+#[tokio::test]
+async fn history_search_respects_scope_and_never_marks_filtered_results_read() {
+    let codec = TokenCodec::new(b"fixture-access-key", b"fixture-refresh-key").unwrap();
+    let token = codec.sign(&IssuedToken {
+        user_id: 42,
+        user_name: "fixture".into(),
+        session_id: "fixture-session".into(),
+        kind: TokenKind::Access,
+        issued_at: 100,
+        expires_at: 300,
+        jti: "fixture-jti".into(),
+    }).unwrap();
+    let repository = Arc::new(Repository { allowed: true, ..Repository::default() });
+    let app = build_native_router(codec, repository.clone(), CorsPolicy::default(), Arc::new(|| 150));
+    for (path, status, mark_read) in [
+        ("direct-conversations/7/messages?sender_id=42", 200, Some(false)),
+        ("direct-conversations/7/messages?mark_read=true&start_at=2026-01-01T00:00:00Z", 200, Some(false)),
+        ("direct-conversations/7/messages?q=+%20+", 200, Some(true)),
+        ("direct-conversations/8/messages?q=private", 403, Some(false)),
+        ("channels/8/messages?q=private", 403, None),
+        ("channels/7/messages?sender_id=0", 400, None),
+        ("direct-conversations/7/messages?end_at=invalid", 400, None),
+    ] {
+        *repository.mark_read.lock().unwrap() = None;
+        let response = app.clone().oneshot(Request::get(format!("/api/v2/chat/{path}"))
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), status, "{path}");
+        assert_eq!(response.headers()["cache-control"], "private, no-store");
+        assert_eq!(*repository.mark_read.lock().unwrap(), mark_read, "{path}");
     }
 }
 
@@ -781,6 +964,7 @@ async fn native_chat_channel_write_and_status_routes() {
         codec,
         Arc::new(Repository {
             page: Mutex::new(None),
+            mark_read: Mutex::new(None),
             expected_ids: vec![],
             allowed: true,
             muted: false,
@@ -809,7 +993,7 @@ async fn native_chat_channel_write_and_status_routes() {
         ("PATCH", "/channels/9007199254740992", "{}", 400, ""),
         (
             "GET",
-            "/channels/7/messages?page=2&page_size=3&q=+Hello+",
+            "/channels/7/messages?page=2&page_size=3&q=+Hello%25_+&sender_id=42&start_at=2026-01-01T08:00:00%2B08:00&end_at=2026-01-02T00:00:00Z",
             "",
             200,
             "success",
@@ -1116,6 +1300,8 @@ async fn native_group_membership_routes_enforce_scope() {
     for (method, path, body, status, field, expected) in [
         ("POST", "7/posts", r#"{"content":" Cat ","media_urls":[" /storage/a.png "]}"#, 200, "content", json!("Cat")),
         ("POST", "7/posts", r#"{"content":" Cat ","media_urls":["/storage/a.png"],"is_announcement":true}"#, 200, "is_announcement", json!(true)),
+        ("POST", "7/posts", r##"{"content":" Cat ","media_urls":["/storage/a.png"],"markdown":" # Cat\n\n- item "}"##, 200, "markdown", json!(" # Cat\n\n- item ")),
+        ("POST", "7/posts", r#"{"content":"Cat","markdown":null}"#, 400, "", Value::Null),
         ("POST", "7/posts", r#"{"content":5}"#, 400, "", Value::Null),
         ("PUT", "7/posts/5/pin-status", r#"{"is_pinned":true}"#, 200, "is_pinned", json!(true)),
         ("PUT", "7/posts/5/pin-status", r#"{"is_pinned":1}"#, 400, "", Value::Null),

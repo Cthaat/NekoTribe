@@ -43,16 +43,26 @@ impl SessionRepository for Store {
         &'a self,
         actor: u64,
         id: u64,
-        _: &'a PostUpdateInput,
+        input: &'a PostUpdateInput,
     ) -> StoreFuture<'a, PostUpdate> {
         Box::pin(async move {
             assert_eq!((actor, id), (42, 20));
             self.step("update")?;
+            if self.mode == "markdown" {
+                assert_eq!(
+                    input.markdown.as_ref().and_then(Option::as_deref),
+                    Some(" # Edited\n\n- item ")
+                );
+            }
+            if self.mode == "markdown-clear" {
+                assert_eq!(input.markdown, Some(None));
+            }
             Ok(match self.mode {
                 "missing" => PostUpdate::Missing,
                 "other" => PostUpdate::NotOwner,
                 "media" => PostUpdate::MediaUnavailable,
                 "empty" => PostUpdate::ContentEmpty,
+                "markdown-unavailable" => PostUpdate::MarkdownUnavailable,
                 _ => PostUpdate::Updated,
             })
         })
@@ -83,6 +93,18 @@ impl SessionRepository for Store {
     }
     fn read_post_tags<'a>(&'a self, _: u64) -> StoreFuture<'a, Vec<String>> {
         Box::pin(async { Ok(vec![]) })
+    }
+    fn read_attached_post_markdown(
+        &self,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, nekotribe_backend::posts::markdown::History> {
+        Box::pin(async move {
+            assert_eq!(ids, [20]);
+            let body = (self.mode == "markdown").then(|| " # Edited\n\n- item ".into());
+            Ok(nekotribe_backend::posts::markdown::History::Ready(vec![
+                body,
+            ]))
+        })
     }
     fn read_post_mentions<'a>(&'a self, _: Option<u64>, _: u64) -> StoreFuture<'a, Vec<Value>> {
         Box::pin(async { Ok(vec![]) })
@@ -134,6 +156,30 @@ async fn patch_and_put_auth_errors_and_response_boundaries() {
                 "服务暂不可用，请稍后重试。",
             ),
             ("", r#"{"content":"new"}"#, "20", true, 200, "post updated"),
+            (
+                "markdown",
+                r##"{"markdown":" # Edited\n\n- item "}"##,
+                "20",
+                true,
+                200,
+                "post updated",
+            ),
+            (
+                "markdown-clear",
+                r#"{"markdown":null}"#,
+                "20",
+                true,
+                200,
+                "post updated",
+            ),
+            (
+                "markdown-unavailable",
+                r##"{"markdown":"# Edited"}"##,
+                "20",
+                true,
+                503,
+                "服务暂不可用，请稍后重试。",
+            ),
         ] {
             let codec = TokenCodec::new(
                 tokens["keys"]["access"].as_str().unwrap().as_bytes(),
@@ -169,6 +215,11 @@ async fn patch_and_put_auth_errors_and_response_boundaries() {
             assert_eq!(out["message"], message, "{mode}");
             let calls = store.calls.lock().unwrap();
             if status == 200 {
+                if mode == "markdown" {
+                    assert_eq!(out["data"]["markdown"], " # Edited\n\n- item ");
+                } else {
+                    assert!(out["data"].get("markdown").is_none());
+                }
                 assert_eq!(
                     calls.as_slice(),
                     ["touch", "update", "post", "author", "media-ready"]

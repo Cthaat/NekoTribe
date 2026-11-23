@@ -34,10 +34,10 @@ const SKILL_VERSION: u32 = 1;
 
 #[derive(serde::Serialize)]
 pub(crate) struct SkillAvailability {
-    id: &'static str,
-    purpose: &'static str,
-    version: u32,
-    enabled: bool,
+    pub(crate) id: &'static str,
+    pub(crate) purpose: &'static str,
+    pub(crate) version: u32,
+    pub(crate) enabled: bool,
     explicit_selection: bool,
 }
 

@@ -2,26 +2,26 @@
 mod ai_model_quota;
 
 use axum::{
-    body::{to_bytes, Body},
+    Extension, Json, Router,
+    body::{Body, to_bytes},
     http::Request,
     routing::post,
-    Extension, Json, Router,
 };
 use nekotribe_backend::{
     ai::{
         conversation_http::KnowledgeRuntime,
         conversation_store::{AiOperation, Error, ModerationPolicy},
         knowledge_service::KnowledgeStore,
-        knowledge_source::{Candidate, Source},
+        knowledge_source::{Candidate, Scope, Source},
         knowledge_turn::TurnFuture,
         writing::Settings,
     },
     auth::{
-        sessions::{build_native_router, CorsPolicy, SessionRepository, StoreFuture},
         TokenClaims, TokenCodec,
+        sessions::{CorsPolicy, SessionRepository, StoreFuture, build_native_router},
     },
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use tower::ServiceExt;
 
@@ -44,6 +44,7 @@ struct LiveStore {
     question: &'static str,
     conflict: bool,
     writes: Mutex<usize>,
+    personal: bool,
 }
 fn source() -> Source {
     Source {
@@ -74,7 +75,9 @@ impl SessionRepository for LiveStore {
         Box::pin(async move {
             assert_eq!(user, 42);
             Ok(match operation {
-                AiOperation::Read(_) => Ok(json!({"purpose":self.purpose})),
+                AiOperation::Read(_) => Ok(
+                    json!({"purpose":self.purpose,"knowledge_scope":if self.personal {"personal"} else {"public"}}),
+                ),
                 AiOperation::Recent(_) => {
                     Ok(json!([{"sequence_no":1,"role":"user","content":self.question}]))
                 }
@@ -126,6 +129,38 @@ impl KnowledgeStore for LiveStore {
             assert_eq!(viewer, 42);
             Ok(if self.empty { vec![] } else { vec![source()] })
         })
+    }
+    fn discover_scoped<'a>(
+        &'a self,
+        viewer: i64,
+        scope: Scope,
+        query: &'a str,
+    ) -> TurnFuture<'a, Vec<Source>> {
+        assert_eq!(
+            scope,
+            if self.personal {
+                Scope::Personal
+            } else {
+                Scope::Public
+            }
+        );
+        self.discover(viewer, query)
+    }
+    fn hydrate_scoped<'a>(
+        &'a self,
+        viewer: i64,
+        scope: Scope,
+        candidates: &'a [Candidate],
+    ) -> TurnFuture<'a, Vec<Source>> {
+        assert_eq!(
+            scope,
+            if self.personal {
+                Scope::Personal
+            } else {
+                Scope::Public
+            }
+        );
+        self.hydrate(viewer, candidates)
     }
 }
 
@@ -208,6 +243,7 @@ async fn knowledge_route_generates_or_rejects_without_false_writes() {
             question,
             conflict,
             writes: Mutex::new(0),
+            personal: false,
         });
         let settings =
             Settings::from_lookup(&|key| (key == "AI_MODEL_CONFIG_JSON").then(|| config.clone()));
@@ -229,6 +265,70 @@ async fn knowledge_route_generates_or_rejects_without_false_writes() {
             assert_eq!(body["data"]["status"], result);
         }
         assert_eq!(*store.writes.lock().unwrap(), writes);
+    }
+    task.abort();
+}
+
+#[tokio::test]
+async fn restricted_knowledge_sse_never_requests_or_returns_provisional_text() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let provider = Router::new().route("/chat/completions", post(|Json(request): Json<Value>| async move {
+        assert_eq!(request["stream"], false);
+        let content = json!({"answer":"answer","citations":[1]}).to_string();
+        Json(json!({"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":content}}]}))
+    }));
+    let task = tokio::spawn(async move { axum::serve(listener, provider).await.unwrap() });
+    let config = json!({"schemaVersion":1,"revision":7,"providers":[{"id":"local","adapter":"openai-compatible","baseUrl":url}],"models":[{"id":"writer","providerId":"local","model":"test-model","capabilities":["tools","structured-output"],"contextWindowTokens":8192,"maxOutputTokens":512}],"bindings":{"knowledge":"writer","writing":"writer","agent":"writer","moderation":"writer"}}).to_string();
+    let fixture: Value =
+        serde_json::from_str(include_str!("../contracts/scenarios/auth-tokens.json")).unwrap();
+    let token = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["id"] == "access-hs256")
+        .unwrap()["token"]
+        .as_str()
+        .unwrap();
+    for conflict in [false, true] {
+        let codec = TokenCodec::new(
+            fixture["keys"]["access"].as_str().unwrap().as_bytes(),
+            fixture["keys"]["refresh"].as_str().unwrap().as_bytes(),
+        )
+        .unwrap();
+        let store = Arc::new(LiveStore {
+            empty: false,
+            purpose: "knowledge",
+            question: "猫",
+            conflict,
+            personal: true,
+            writes: Mutex::new(0),
+        });
+        let settings =
+            Settings::from_lookup(&|key| (key == "AI_MODEL_CONFIG_JSON").then(|| config.clone()));
+        let app = build_native_router(
+            codec,
+            store.clone(),
+            CorsPolicy::default(),
+            Arc::new(|| 1_700_000_000),
+        )
+        .layer(Extension(KnowledgeRuntime(store.clone())))
+        .layer(Extension(settings))
+        .layer(Extension(ai_model_quota::single_call_quota()));
+        let response = app.oneshot(Request::post("/api/v2/ai/conversations/f1b5c80f-a1f4-44d6-898d-a5df6bc18bbb/knowledge-generate")
+            .header("authorization", format!("Bearer {token}"))
+            .header("accept", "text/event-stream")
+            .body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), if conflict { 409 } else { 200 });
+        let body = std::str::from_utf8(&to_bytes(response.into_body(), 4096).await.unwrap())
+            .unwrap()
+            .to_owned();
+        assert!(!body.contains("event: delta"));
+        assert!(!body.contains("answer"));
+        if !conflict {
+            assert!(body.starts_with("event: done"));
+        }
+        assert_eq!(*store.writes.lock().unwrap(), usize::from(!conflict));
     }
     task.abort();
 }

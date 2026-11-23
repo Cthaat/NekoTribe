@@ -71,17 +71,20 @@ macro_rules! visible_comment_scope_sql {
 
 fn post_list_sql(
     query: &crate::posts::list::PostListQuery,
+    authenticated: bool,
     personalize: bool,
 ) -> (&'static str, &'static str) {
+    if query.mode == "all" && query.timeline == "recommended" && query.search.is_empty() {
+        return recommended_post_list_sql(authenticated, personalize);
+    }
     static QUERIES: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
     let sql = QUERIES.get_or_init(|| {
-        let columns = POST_DETAIL_SQL.split(" FROM v_post_feed_item v WHERE ").next().expect("fixed SQL");
         let mut variants = Vec::new();
         for mode in 0..8 {
           for timeline in 0..3 {
             for search in 0..2 {
                 for sort in 0..3 {
-                    let mut filter = " WHERE fn_can_view_post(:viewer_id,v.post_id)=1".to_owned();
+                    let mut filter = POST_LIST_VISIBILITY.to_owned();
                     if mode == 1 { filter.push_str(" AND v.author_id=:viewer_id"); }
                     if mode == 2 { filter.push_str(" AND EXISTS (SELECT 1 FROM n_post_bookmarks b WHERE b.post_id=v.post_id AND b.user_id=:viewer_id)"); }
                     if mode == 3 { filter.push_str(" AND EXISTS (SELECT 1 FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id)"); }
@@ -96,12 +99,11 @@ fn post_list_sql(
                         if sort == 1 { "(SELECT MAX(l.created_at) FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id) ASC" }
                         else { "(SELECT MAX(l.created_at) FROM n_post_likes l WHERE l.post_id=v.post_id AND l.user_id=:viewer_id) DESC" }
                     } else { match sort { 1 => "v.created_at ASC", 2 => "v.engagement_score DESC,v.created_at DESC", _ => "v.created_at DESC" } };
-                    variants.push((format!("SELECT COUNT(*) AS total FROM v_post_feed_item v{filter}"), format!("SELECT * FROM ({columns},ROW_NUMBER() OVER (ORDER BY {order}) AS rn FROM v_post_feed_item v{filter}) WHERE rn BETWEEN :start_row AND :end_row")));
+                    variants.push(post_list_queries(&filter, order));
                     let feedback = crate::recommendation_feedback::feedback_sql();
                     let personalized = format!("{filter} {}", feedback.feed_filter);
                     let ranked = format!("{}, {order}", feedback.feed_order);
-                    variants.push((format!("SELECT COUNT(*) AS total FROM v_post_feed_item v{personalized}"),
-                        format!("SELECT * FROM ({columns},ROW_NUMBER() OVER (ORDER BY {ranked}) AS rn FROM v_post_feed_item v{personalized}) WHERE rn BETWEEN :start_row AND :end_row")));
+                    variants.push(post_list_queries(&personalized, &ranked));
                 }
             }
           }
@@ -133,7 +135,65 @@ fn post_list_sql(
     let (count, page) = &sql[index];
     (count, page)
 }
+
+const POST_LIST_VISIBILITY: &str = " WHERE fn_can_view_post(:viewer_id,v.post_id)=1";
+
+fn post_list_queries(filter: &str, order: &str) -> (String, String) {
+    let columns = POST_DETAIL_SQL
+        .split_once(" FROM v_post_feed_item v WHERE ")
+        .expect("fixed SQL")
+        .0;
+    (
+        format!("SELECT COUNT(*) AS total FROM v_post_feed_item v{filter}"),
+        format!("SELECT * FROM ({columns},ROW_NUMBER() OVER (ORDER BY {order}) AS rn FROM v_post_feed_item v{filter}) WHERE rn BETWEEN :start_row AND :end_row"),
+    )
+}
+
+fn recommended_post_list_sql(authenticated: bool, personalize: bool) -> (&'static str, &'static str) {
+    static QUERIES: std::sync::OnceLock<[(String, String); 3]> = std::sync::OnceLock::new();
+    let variants = QUERIES.get_or_init(|| {
+        let feed = crate::home_feed::sql();
+        let feedback = crate::recommendation_feedback::feedback_sql();
+        let recency = &feed.recommendation_recency;
+        let ranked = format!("({}) DESC, {recency}", feed.recommendation_score);
+        [
+            post_list_queries(POST_LIST_VISIBILITY, recency),
+            post_list_queries(POST_LIST_VISIBILITY, &ranked),
+            post_list_queries(
+                &format!("{POST_LIST_VISIBILITY} {}", feedback.feed_filter),
+                &format!("{}, {ranked}", feedback.feed_order),
+            ),
+        ]
+    });
+    let index = if authenticated {
+        1 + usize::from(personalize)
+    } else {
+        0
+    };
+    let (count, page) = &variants[index];
+    (count, page)
+}
 pub trait SessionExecutor: Send + Sync {
+    fn github_oauth(
+        &self,
+        _operation: crate::auth::github_oauth::Operation,
+    ) -> StoreFuture<'_, crate::auth::github_oauth::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+
+    fn passkey(
+        &self,
+        _operation: crate::auth::passkey::Operation,
+    ) -> StoreFuture<'_, crate::auth::passkey::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn personal_ai_provider(
+        &self,
+        _user: u64,
+        _operation: crate::ai::user_provider::Operation,
+    ) -> StoreFuture<'_, Result<Option<crate::ai::user_provider::Record>, crate::ai::user_provider::Error>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn write_recommendation_feedback(
         &self,
         _actor: u64,
@@ -166,6 +226,13 @@ pub trait SessionExecutor: Send + Sync {
         _input: crate::moderation::post_actions::Input,
         _storage: crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'_, crate::moderation::post_actions::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn moderation_sentiment_samples(
+        &self,
+        _viewer: u64,
+        _ids: Vec<i64>,
+    ) -> StoreFuture<'_, Vec<crate::moderation::content_queue::SentimentSample>> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn moderation_content(
@@ -303,6 +370,14 @@ pub trait SessionExecutor: Send + Sync {
     ) -> StoreFuture<'a, crate::group_content::Outcome> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn read_group_activity<'a>(
+        &'a self,
+        _viewer: u64,
+        _page: crate::auth::session_list::SessionPage,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_content::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn create_group<'a>(
         &'a self,
         _actor: u64,
@@ -408,7 +483,7 @@ pub trait SessionExecutor: Send + Sync {
         _user: u64,
         _channel: u64,
         _page: crate::auth::session_list::SessionPage,
-        _search: &'a str,
+        _search: crate::chat_message_search::Search,
         _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'a, crate::chat_message_history::History> {
         Box::pin(async { Err(SessionStoreError) })
@@ -460,13 +535,22 @@ pub trait SessionExecutor: Send + Sync {
     ) -> StoreFuture<'a, crate::direct_conversations::ConversationCreation> {
         Box::pin(async { Err(SessionStoreError) })
     }
-    fn send_direct_message<'a>(
+    fn send_direct_message_with_extras<'a>(
         &'a self,
         _sender: u64,
         _conversation: u64,
-        _content: &'a str,
+        _input: crate::direct_send::Input,
         _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'a, crate::direct_send::DirectSend> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn direct_message_extras(
+        &self,
+        _viewer: u64,
+        _conversation: u64,
+        _message: u64,
+        _operation: crate::direct_extras::Operation,
+    ) -> StoreFuture<'_, crate::direct_extras::Outcome> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn delete_direct_message(
@@ -482,7 +566,12 @@ pub trait SessionExecutor: Send + Sync {
         _viewer: u64,
         _conversation: u64,
         _page: crate::auth::session_list::SessionPage,
+        _mark_read: bool,
+        _search: crate::chat_message_search::Search,
     ) -> StoreFuture<'_, crate::direct_history::DirectHistory> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn direct_read_status(&self, _user: u64, _conversation: u64, _cursor: Option<u64>) -> StoreFuture<'_, crate::direct_read::Outcome> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn apply_factor_mutation<'a>(
@@ -559,6 +648,46 @@ pub trait SessionExecutor: Send + Sync {
     ) -> StoreFuture<'a, crate::posts::create_transaction::PostCreation> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn read_attached_post_polls(
+        &self,
+        _viewer: Option<u64>,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, crate::posts::polls::History> {
+        Box::pin(async move {
+            Ok(crate::posts::polls::History::Ready(ids.into_iter().map(|_| None).collect()))
+        })
+    }
+    fn read_attached_post_markdown(
+        &self,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, crate::posts::markdown::History> {
+        Box::pin(async move {
+            Ok(crate::posts::markdown::History::Ready(ids.into_iter().map(|_| None).collect()))
+        })
+    }
+    fn post_poll(
+        &self,
+        _viewer: Option<u64>,
+        _target: crate::posts::polls::Target,
+        _operation: crate::posts::polls::Operation,
+    ) -> StoreFuture<'_, crate::posts::polls::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn post_draft<'a>(
+        &'a self,
+        _owner: u64,
+        _operation: crate::posts::draft_store::Operation,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::posts::draft_store::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn profile_pin(
+        &self,
+        _actor: u64,
+        _operation: crate::users::profile_pin::Operation,
+    ) -> StoreFuture<'_, crate::users::profile_pin::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn reset_password_atomic<'a>(
         &'a self,
         _email: &'a str,
@@ -581,6 +710,12 @@ pub trait SessionExecutor: Send + Sync {
         _viewer_id: i64,
         _media_id: i64,
     ) -> StoreFuture<'_, crate::media::private_read::Lookup> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn owned_vision_image(&self, _viewer: i64, _media_id: i64) -> StoreFuture<'_, Option<crate::media::vision::Asset>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn update_media_alt_text(&self, _viewer: i64, _media_id: i64, _alt: Option<String>) -> StoreFuture<'_, crate::media::vision::AltTextUpdate> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn preflight(&self, sql: &'static str) -> StoreFuture<'_, ()>;
@@ -646,6 +781,31 @@ fn map_notification_row(row: &DbRow) -> serde_json::Value {
 impl<E: SessionExecutor> OracleSessions<E> {
     pub async fn preflight(&self) -> Result<(), SessionStoreError> {
         self.executor.preflight(PREFLIGHT_SQL).await
+    }
+
+    async fn read_login_account(
+        &self,
+        statement: &'static str,
+        binds: BindMap,
+    ) -> Result<Option<crate::auth::login::LoginAccount>, SessionStoreError> {
+        let mut rows = self.executor.query(statement, binds.clone()).await?;
+        if let Some(row) = rows.first().filter(|row| {
+            row_text(row, "STATUS") == "suspended" && row_number(row, "IS_ACTIVE") == 0
+        }) {
+            self.executor.restore_expired_ban(row_id(row, "USER_ID")?).await?;
+            rows = self.executor.query(statement, binds).await?;
+        }
+        rows.first()
+            .map(|r| {
+                Ok(crate::auth::login::LoginAccount {
+                    user_id: row_id(r, "USER_ID")?,
+                    username: row_text(r, "USERNAME"),
+                    password_hash: row_text(r, "PASSWORD_HASH"),
+                    status: row_text(r, "STATUS"),
+                    active: row_number(r, "IS_ACTIVE") == 1,
+                })
+            })
+            .transpose()
     }
 
     async fn comment_notification_excerpt(&self, id: i64) -> Result<String, SessionStoreError> {
@@ -744,6 +904,24 @@ impl<E: SessionExecutor> OracleSessions<E> {
     }
 }
 impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
+    fn github_oauth(
+        &self,
+        operation: crate::auth::github_oauth::Operation,
+    ) -> StoreFuture<'_, crate::auth::github_oauth::Outcome> {
+        self.executor.github_oauth(operation)
+    }
+
+    fn passkey(
+        &self,
+        operation: crate::auth::passkey::Operation,
+    ) -> StoreFuture<'_, crate::auth::passkey::Outcome> {
+        self.executor.passkey(operation)
+    }
+
+    fn login_account_by_id(&self, user: u64) -> StoreFuture<'_, Option<crate::auth::login::LoginAccount>> {
+        const SQL: &str = "SELECT user_id, username, password_hash, status, is_active FROM n_users WHERE user_id=:user_id";
+        Box::pin(self.read_login_account(SQL, user_bind(user)))
+    }
     fn moderate_user(
         &self,
         viewer: u64,
@@ -766,6 +944,20 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
         filters: crate::moderation::content_queue::Filters,
     ) -> StoreFuture<'_, (Vec<serde_json::Value>, i64)> {
         self.executor.moderation_content(viewer, filters)
+    }
+    fn moderation_sentiment_samples(
+        &self,
+        viewer: u64,
+        ids: Vec<i64>,
+    ) -> StoreFuture<'_, Vec<crate::moderation::content_queue::SentimentSample>> {
+        self.executor.moderation_sentiment_samples(viewer, ids)
+    }
+    fn personal_ai_provider(
+        &self,
+        user: u64,
+        operation: crate::ai::user_provider::Operation,
+    ) -> StoreFuture<'_, Result<Option<crate::ai::user_provider::Record>, crate::ai::user_provider::Error>> {
+        self.executor.personal_ai_provider(user, operation)
     }
     fn moderation_users(
         &self,
@@ -803,6 +995,24 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             let (sql, binds) = query.bind(actor);
             let rows = self.executor.query(sql, binds).await?;
             Ok(crate::users::statements::map_rows(&rows))
+        })
+    }
+    fn account_resources(
+        &self,
+        actor: u64,
+        query: crate::users::account_resources::ResourceQuery,
+    ) -> StoreFuture<'_, Vec<DbRow>> {
+        let binds = BindMap::from([("user_id".into(), DbValue::I64(actor as i64))]);
+        self.executor.query(query.sql(), binds)
+    }
+    fn ai_operations_data(&self) -> StoreFuture<'_, (Vec<DbRow>, Vec<DbRow>)> {
+        Box::pin(async {
+            let feedback = self.executor.query(crate::ai::operations::feedback_sql(), BindMap::new()).await?;
+            let skills = self.executor.query(
+                "SELECT generation, enabled_ids FROM n_ai_skill_config WHERE singleton_id = 1",
+                BindMap::new(),
+            ).await.unwrap_or_default();
+            Ok((feedback, skills))
         })
     }
     fn write_account_statement(
@@ -1069,6 +1279,14 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
     ) -> StoreFuture<'a, crate::group_content::Outcome> {
         self.executor.read_group_content(viewer, request, storage)
     }
+    fn read_group_activity<'a>(
+        &'a self,
+        viewer: u64,
+        page: crate::auth::session_list::SessionPage,
+        storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_content::Outcome> {
+        self.executor.read_group_activity(viewer, page, storage)
+    }
     fn create_group<'a>(
         &'a self,
         actor: u64,
@@ -1178,7 +1396,7 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
         user: u64,
         channel: u64,
         page: crate::auth::session_list::SessionPage,
-        search: &'a str,
+        search: crate::chat_message_search::Search,
         storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'a, crate::chat_message_history::History> {
         self.executor
@@ -1242,7 +1460,25 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
         storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'a, crate::direct_send::DirectSend> {
         self.executor
-            .send_direct_message(sender, conversation, content, storage)
+            .send_direct_message_with_extras(sender, conversation, crate::direct_send::Input::text(content), storage)
+    }
+    fn send_direct_message_with_extras<'a>(
+        &'a self,
+        sender: u64,
+        conversation: u64,
+        input: crate::direct_send::Input,
+        storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::direct_send::DirectSend> {
+        self.executor.send_direct_message_with_extras(sender, conversation, input, storage)
+    }
+    fn direct_message_extras(
+        &self,
+        viewer: u64,
+        conversation: u64,
+        message: u64,
+        operation: crate::direct_extras::Operation,
+    ) -> StoreFuture<'_, crate::direct_extras::Outcome> {
+        self.executor.direct_message_extras(viewer, conversation, message, operation)
     }
     fn direct_notification(
         &self,
@@ -1256,9 +1492,37 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
         viewer: u64,
         conversation: u64,
         page: crate::auth::session_list::SessionPage,
+        mark_read: bool,
+        search: crate::chat_message_search::Search,
     ) -> StoreFuture<'_, crate::direct_history::DirectHistory> {
         self.executor
-            .list_direct_history(viewer, conversation, page)
+            .list_direct_history(viewer, conversation, page, mark_read, search)
+    }
+    fn direct_read_status(&self, user: u64, conversation: u64, cursor: Option<u64>) -> StoreFuture<'_, crate::direct_read::Outcome> {
+        self.executor.direct_read_status(user, conversation, cursor)
+    }
+    fn direct_typing_peer(&self, user: u64, conversation: u64) -> StoreFuture<'_, Option<u64>> {
+        Box::pin(async move {
+            use crate::direct_read::{actor_binds, contract, signed_id};
+            let binds = actor_binds(signed_id(user).map_err(|_| SessionStoreError)?, signed_id(conversation).map_err(|_| SessionStoreError)?);
+            let rows = self.executor.query(&contract().sql.direct_typing_peer, binds).await?;
+            let Some(row) = rows.first() else { return Ok(None) };
+            let peer = u64::try_from(row_number(row, "OTHER_USER_ID")).map_err(|_| SessionStoreError)?;
+            signed_id(peer).map_err(|_| SessionStoreError)?;
+            if peer == user { return Err(SessionStoreError); }
+            Ok(Some(peer))
+        })
+    }
+    fn can_deliver_direct_read(&self, user: u64, conversation: u64, reader: u64, cursor: u64) -> StoreFuture<'_, bool> {
+        Box::pin(async move {
+            use crate::direct_read::{contract, signed_id};
+            let mut binds = BindMap::new();
+            for (name, id) in [("user_id", user), ("conversation_id", conversation), ("reader_id", reader), ("last_read_message_id", cursor)] {
+                binds.insert(name.into(), DbValue::I64(signed_id(id).map_err(|_| SessionStoreError)?));
+            }
+            let rows = self.executor.query(&contract().sql.direct_read_delivery, binds).await?;
+            Ok(!rows.is_empty())
+        })
     }
     fn can_deliver_direct_message(
         &self,
@@ -1451,6 +1715,12 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
     ) -> StoreFuture<'_, crate::media::private_read::Lookup> {
         self.executor.lookup_private_media(viewer_id, media_id)
     }
+    fn owned_vision_image(&self, viewer: i64, media_id: i64) -> StoreFuture<'_, Option<crate::media::vision::Asset>> {
+        self.executor.owned_vision_image(viewer, media_id)
+    }
+    fn update_media_alt_text(&self, viewer: i64, media_id: i64, alt: Option<String>) -> StoreFuture<'_, crate::media::vision::AltTextUpdate> {
+        self.executor.update_media_alt_text(viewer, media_id, alt)
+    }
     fn update_post_atomic<'a>(
         &'a self,
         actor: u64,
@@ -1476,6 +1746,42 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
         input: &'a crate::posts::create_request::PostCreateInput,
     ) -> StoreFuture<'a, crate::posts::create_transaction::PostCreation> {
         self.executor.create_post_atomic(actor, input)
+    }
+    fn read_attached_post_polls(
+        &self,
+        viewer: Option<u64>,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, crate::posts::polls::History> {
+        self.executor.read_attached_post_polls(viewer, ids)
+    }
+    fn read_attached_post_markdown(
+        &self,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, crate::posts::markdown::History> {
+        self.executor.read_attached_post_markdown(ids)
+    }
+    fn post_poll(
+        &self,
+        viewer: Option<u64>,
+        target: crate::posts::polls::Target,
+        operation: crate::posts::polls::Operation,
+    ) -> StoreFuture<'_, crate::posts::polls::Outcome> {
+        self.executor.post_poll(viewer, target, operation)
+    }
+    fn post_draft<'a>(
+        &'a self,
+        owner: u64,
+        operation: crate::posts::draft_store::Operation,
+        storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::posts::draft_store::Outcome> {
+        self.executor.post_draft(owner, operation, storage)
+    }
+    fn profile_pin(
+        &self,
+        actor: u64,
+        operation: crate::users::profile_pin::Operation,
+    ) -> StoreFuture<'_, crate::users::profile_pin::Outcome> {
+        self.executor.profile_pin(actor, operation)
     }
     fn post_create_actor_name(&self, actor: u64) -> StoreFuture<'_, String> {
         Box::pin(crate::posts::create_notification::actor_name(
@@ -2336,7 +2642,7 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             } else {
                 false
             };
-            let (count_sql, rows_sql) = post_list_sql(query, personalize);
+            let (count_sql, rows_sql) = post_list_sql(query, viewer.is_some(), personalize);
             let mut binds = BindMap::from([(
                 "viewer_id".into(),
                 viewer
@@ -2600,30 +2906,9 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
         &'a self,
         account: &'a str,
     ) -> StoreFuture<'a, Option<crate::auth::login::LoginAccount>> {
-        Box::pin(async move {
-            const LOOKUP: &str = "SELECT user_id, username, password_hash, status, is_active FROM n_users WHERE email = :account OR username = :account FETCH FIRST 1 ROWS ONLY";
-            let bind = || BindMap::from([("account".into(), DbValue::String(account.into()))]);
-            let mut rows = self.executor.query(LOOKUP, bind()).await?;
-            if let Some(row) = rows.first().filter(|row| {
-                row_text(row, "STATUS") == "suspended" && row_number(row, "IS_ACTIVE") == 0
-            }) {
-                self.executor
-                    .restore_expired_ban(row_id(row, "USER_ID")?)
-                    .await?;
-                rows = self.executor.query(LOOKUP, bind()).await?;
-            }
-            rows.first()
-                .map(|r| {
-                    Ok(crate::auth::login::LoginAccount {
-                        user_id: row_id(r, "USER_ID")?,
-                        username: row_text(r, "USERNAME"),
-                        password_hash: row_text(r, "PASSWORD_HASH"),
-                        status: row_text(r, "STATUS"),
-                        active: row_number(r, "IS_ACTIVE") == 1,
-                    })
-                })
-                .transpose()
-        })
+        const LOOKUP: &str = "SELECT user_id, username, password_hash, status, is_active FROM n_users WHERE email = :account OR username = :account FETCH FIRST 1 ROWS ONLY";
+        let binds = BindMap::from([("account".into(), DbValue::String(account.into()))]);
+        Box::pin(self.read_login_account(LOOKUP, binds))
     }
     fn login_two_factor<'a>(&'a self, user: u64) -> StoreFuture<'a, bool> {
         Box::pin(async move {
@@ -3029,12 +3314,57 @@ fn required_login_write(result: Option<u64>) -> Result<bool, SessionStoreError> 
 }
 
 impl SessionExecutor for OraclePool {
+    fn github_oauth(
+        &self,
+        operation: crate::auth::github_oauth::Operation,
+    ) -> StoreFuture<'_, crate::auth::github_oauth::Outcome> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| crate::auth::github_oauth::execute(connection, operation))
+                .await
+                .map_err(|_| SessionStoreError)
+        })
+    }
+
+    fn passkey(
+        &self,
+        operation: crate::auth::passkey::Operation,
+    ) -> StoreFuture<'_, crate::auth::passkey::Outcome> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| crate::auth::passkey::execute(connection, operation))
+                .await
+                .map_err(|_| SessionStoreError)
+        })
+    }
+    fn personal_ai_provider(
+        &self,
+        user: u64,
+        operation: crate::ai::user_provider::Operation,
+    ) -> StoreFuture<'_, Result<Option<crate::ai::user_provider::Record>, crate::ai::user_provider::Error>> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| Ok(crate::ai::user_provider::execute(connection, user, operation)))
+                .await.map_err(|_| SessionStoreError)
+        })
+    }
     fn lookup_private_media(
         &self,
         viewer_id: i64,
         media_id: i64,
     ) -> StoreFuture<'_, crate::media::private_read::Lookup> {
         Box::pin(crate::media::private_read::lookup(self, viewer_id, media_id))
+    }
+    fn owned_vision_image(&self, viewer: i64, media_id: i64) -> StoreFuture<'_, Option<crate::media::vision::Asset>> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::media::vision::owned_image(&crate::db::tx::OracleTx::new(connection), viewer, media_id)
+            }).await.map_err(|_| SessionStoreError)
+        })
+    }
+    fn update_media_alt_text(&self, viewer: i64, media_id: i64, alt: Option<String>) -> StoreFuture<'_, crate::media::vision::AltTextUpdate> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::media::vision::update_alt_text(&crate::db::tx::OracleTx::new(connection), viewer, media_id, alt)
+            }).await.map_err(|_| SessionStoreError)
+        })
     }
 
     fn delete_media_atomic(
@@ -3141,6 +3471,17 @@ impl SessionExecutor for OraclePool {
             })
             .await
             .map_err(|_| SessionStoreError)
+        })
+    }
+    fn moderation_sentiment_samples(
+        &self,
+        viewer: u64,
+        ids: Vec<i64>,
+    ) -> StoreFuture<'_, Vec<crate::moderation::content_queue::SentimentSample>> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::moderation::content_queue::sentiment_samples(connection, viewer, &ids)
+            }).await.map_err(|_| SessionStoreError)
         })
     }
     fn moderation_users(
@@ -3384,6 +3725,21 @@ impl SessionExecutor for OraclePool {
             .map_err(|_| SessionStoreError)
         })
     }
+    fn read_group_activity<'a>(
+        &'a self,
+        viewer: u64,
+        page: crate::auth::session_list::SessionPage,
+        storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_content::Outcome> {
+        let storage = storage.clone();
+        Box::pin(async move {
+            self.run_blocking(move |conn| {
+                crate::group_content::execute_activity(conn, viewer, page, &storage)
+            })
+            .await
+            .map_err(|_| SessionStoreError)
+        })
+    }
     fn create_group<'a>(
         &'a self,
         actor: u64,
@@ -3567,10 +3923,10 @@ impl SessionExecutor for OraclePool {
         user: u64,
         channel: u64,
         page: crate::auth::session_list::SessionPage,
-        search: &'a str,
+        search: crate::chat_message_search::Search,
         storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'a, crate::chat_message_history::History> {
-        let (search, storage) = (search.to_owned(), storage.clone());
+        let storage = storage.clone();
         Box::pin(async move {
             self.run_blocking(move |connection| {
                 crate::chat_message_history::execute(
@@ -3666,17 +4022,32 @@ impl SessionExecutor for OraclePool {
             .map_err(|_| SessionStoreError)
         })
     }
-    fn send_direct_message<'a>(
+    fn send_direct_message_with_extras<'a>(
         &'a self,
         sender: u64,
         conversation: u64,
-        content: &'a str,
+        input: crate::direct_send::Input,
         storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'a, crate::direct_send::DirectSend> {
-        let (content, storage) = (content.to_owned(), storage.clone());
+        let storage = storage.clone();
         Box::pin(async move {
             self.run_blocking(move |connection| {
-                crate::direct_send::execute(connection, sender, conversation, &content, &storage)
+                crate::direct_send::execute(connection, sender, conversation, &input, &storage)
+            })
+            .await
+            .map_err(|_| SessionStoreError)
+        })
+    }
+    fn direct_message_extras(
+        &self,
+        viewer: u64,
+        conversation: u64,
+        message: u64,
+        operation: crate::direct_extras::Operation,
+    ) -> StoreFuture<'_, crate::direct_extras::Outcome> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::direct_extras::execute(connection, viewer, conversation, message, operation)
             })
             .await
             .map_err(|_| SessionStoreError)
@@ -3701,13 +4072,20 @@ impl SessionExecutor for OraclePool {
         viewer: u64,
         conversation: u64,
         page: crate::auth::session_list::SessionPage,
+        mark_read: bool,
+        search: crate::chat_message_search::Search,
     ) -> StoreFuture<'_, crate::direct_history::DirectHistory> {
         Box::pin(async move {
             self.run_blocking(move |connection| {
-                crate::direct_history::execute(connection, viewer, conversation, page)
+                crate::direct_history::execute(connection, viewer, conversation, page, mark_read, &search)
             })
             .await
             .map_err(|_| SessionStoreError)
+        })
+    }
+    fn direct_read_status(&self, user: u64, conversation: u64, cursor: Option<u64>) -> StoreFuture<'_, crate::direct_read::Outcome> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| crate::direct_read::execute(connection, user, conversation, cursor)).await.map_err(|_| SessionStoreError)
         })
     }
     fn apply_factor_mutation<'a>(
@@ -3859,6 +4237,71 @@ impl SessionExecutor for OraclePool {
         Box::pin(async move {
             self.run_blocking(move |connection| {
                 crate::posts::create_transaction::execute(connection, actor, &input)
+            })
+            .await
+            .map_err(|_| SessionStoreError)
+        })
+    }
+    fn read_attached_post_polls(
+        &self,
+        viewer: Option<u64>,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, crate::posts::polls::History> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::posts::polls::read_regular_history(connection, viewer, ids)
+            })
+            .await
+            .map_err(|_| SessionStoreError)
+        })
+    }
+    fn read_attached_post_markdown(
+        &self,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, crate::posts::markdown::History> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| crate::posts::markdown::read_post_history(connection, ids))
+                .await
+                .map_err(|_| SessionStoreError)
+        })
+    }
+    fn post_poll(
+        &self,
+        viewer: Option<u64>,
+        target: crate::posts::polls::Target,
+        operation: crate::posts::polls::Operation,
+    ) -> StoreFuture<'_, crate::posts::polls::Outcome> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::posts::polls::execute(connection, viewer, target, operation)
+            })
+            .await
+            .map_err(|_| SessionStoreError)
+        })
+    }
+    fn post_draft<'a>(
+        &'a self,
+        owner: u64,
+        operation: crate::posts::draft_store::Operation,
+        storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::posts::draft_store::Outcome> {
+        let storage = storage.clone();
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::posts::draft_store::execute(connection, owner, operation, &storage)
+            })
+            .await
+            .map_err(|_| SessionStoreError)
+        })
+    }
+    fn profile_pin(
+        &self,
+        actor: u64,
+        operation: crate::users::profile_pin::Operation,
+    ) -> StoreFuture<'_, crate::users::profile_pin::Outcome> {
+        Box::pin(async move {
+            self.run_blocking(move |connection| {
+                crate::users::profile_pin::execute(connection, actor, operation)
             })
             .await
             .map_err(|_| SessionStoreError)

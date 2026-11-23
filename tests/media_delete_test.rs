@@ -1,10 +1,10 @@
-use axum::{body::Body, http::Request, Extension};
+use axum::{Extension, body::Body, http::Request};
 use nekotribe_backend::{
     auth::{
-        sessions::{
-            build_native_router, CorsPolicy, SessionRepository, SessionStoreError, StoreFuture,
-        },
         TokenClaims, TokenCodec,
+        sessions::{
+            CorsPolicy, SessionRepository, SessionStoreError, StoreFuture, build_native_router,
+        },
     },
     db::{
         oracle::{BindMap, DbError},
@@ -109,6 +109,7 @@ async fn native_route_cleans_only_after_confirmed_delete() {
 struct Executor {
     rows: Vec<DbRow>,
     referenced: bool,
+    direct_linked: bool,
     affected: u64,
     fail: bool,
     calls: Mutex<Vec<(String, BindMap)>>,
@@ -118,6 +119,12 @@ impl Transaction for Executor {
         self.calls.lock().unwrap().push((sql.to_owned(), binds));
         if sql.starts_with("SELECT 1 AS in_use") {
             Ok(if self.referenced {
+                vec![DbRow::new()]
+            } else {
+                vec![]
+            })
+        } else if sql.starts_with("SELECT 1 FROM n_direct_message_media WHERE") {
+            Ok(if self.direct_linked {
                 vec![DbRow::new()]
             } else {
                 vec![]
@@ -151,13 +158,14 @@ impl Transaction for Executor {
 }
 #[tokio::test]
 async fn repository_scopes_owner_and_returns_only_confirmed_row() {
-    for (exists, referenced, affected, fail) in [
-        (false, false, 0, false),
-        (true, true, 0, false),
-        (true, false, 0, false),
-        (true, false, 1, false),
-        (true, false, 2, false),
-        (true, false, 1, true),
+    for (exists, referenced, direct_linked, affected, fail) in [
+        (false, false, false, 0, false),
+        (true, true, false, 0, false),
+        (true, false, true, 0, false),
+        (true, false, false, 0, false),
+        (true, false, false, 1, false),
+        (true, false, false, 2, false),
+        (true, false, false, 1, true),
     ] {
         let row = DbRow::from([
             ("STORAGE_KEY".into(), DbValue::String("owned/a.txt".into())),
@@ -167,6 +175,7 @@ async fn repository_scopes_owner_and_returns_only_confirmed_row() {
         let executor = Executor {
             rows: if exists { vec![row] } else { vec![] },
             referenced,
+            direct_linked,
             affected,
             fail,
             calls: Mutex::new(vec![]),
@@ -178,7 +187,10 @@ async fn repository_scopes_owner_and_returns_only_confirmed_row() {
                 matches!(value, MediaDeleteOutcome::Deleted(_)),
                 exists && affected == 1
             );
-            assert_eq!(value == MediaDeleteOutcome::InUse, referenced);
+            assert_eq!(
+                value == MediaDeleteOutcome::InUse,
+                referenced || direct_linked
+            );
         }
         let calls = executor.calls.lock().unwrap();
         assert!(calls[0].0.contains("owner_user_id=:user_id FOR UPDATE"));
@@ -195,7 +207,10 @@ async fn repository_scopes_owner_and_returns_only_confirmed_row() {
             }
             assert_eq!(calls[1].1["media_id"], DbValue::F64(20.0));
             if !referenced {
-                assert!(calls[2].0.contains("owner_user_id=:user_id"));
+                assert!(calls[2].0.contains("n_direct_message_media"));
+                if !direct_linked {
+                    assert!(calls[3].0.contains("owner_user_id=:user_id"));
+                }
             }
         }
         assert_eq!(

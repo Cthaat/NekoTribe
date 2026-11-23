@@ -11,6 +11,7 @@ use crate::{
             lock_post_media, nullable_string, unique_ids, unique_tags, PostCreateTransaction,
             ATTACH_MENTION_SQL, ATTACH_TAG_SQL, INSERT_MEDIA_SQL, MERGE_TAG_SQL,
         },
+        markdown,
         update_request::PostUpdateInput,
     },
 };
@@ -23,6 +24,8 @@ pub enum PostUpdate {
     ContentEmpty,
     Invalid,
     PublishForbidden,
+    MarkdownUnavailable,
+    MarkdownNotAllowed,
 }
 pub fn run<T: PostCreateTransaction>(
     tx: &T,
@@ -76,16 +79,24 @@ fn write<T: PostCreateTransaction>(
     if number("AUTHOR_ID")? != actor as i64 {
         return Ok(PostUpdate::NotOwner);
     }
+    let kind = row
+        .get("POST_TYPE")
+        .and_then(DbValue::as_str)
+        .unwrap_or_default();
+    if input.markdown.is_some() {
+        if kind != "post" {
+            return Ok(PostUpdate::MarkdownNotAllowed);
+        }
+        if markdown::require_schema(tx).is_err() {
+            return Ok(PostUpdate::MarkdownUnavailable);
+        }
+    }
     if input.visibility.as_deref() == Some("public")
         && input.media_ids.is_none()
         && private_bind::retains_private(tx, id as i64)?
     {
         return Ok(PostUpdate::MediaUnavailable);
     }
-    let kind = row
-        .get("POST_TYPE")
-        .and_then(DbValue::as_str)
-        .unwrap_or_default();
     let content = input.content.as_deref().unwrap_or_else(|| {
         row.get("CONTENT")
             .and_then(DbValue::as_str)
@@ -126,6 +137,7 @@ fn write<T: PostCreateTransaction>(
         || input.media_ids.is_some()
         || input.tag_names.is_some()
         || input.mention_user_ids.is_some()
+        || input.markdown.is_some()
     {
         fields.push("updated_at=CURRENT_TIMESTAMP".into());
         let changed=tx.execute(&format!("UPDATE n_posts SET {} WHERE post_id=:post_id AND author_id=:user_id AND is_deleted=0",fields.join(",")),binds)?;
@@ -196,6 +208,9 @@ fn write<T: PostCreateTransaction>(
                 ]),
             )?;
         }
+    }
+    if let Some(body) = &input.markdown {
+        markdown::update(tx, id as i64, body.as_deref())?;
     }
     Ok(PostUpdate::Updated)
 }

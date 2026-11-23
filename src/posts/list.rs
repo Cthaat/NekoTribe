@@ -5,7 +5,7 @@ use crate::{
         TokenKind,
     },
     httpx::errors::ApiError,
-    posts::detail::hydrate_post,
+    posts::detail::{attached_content, hydrate_post_details},
 };
 use axum::{
     extract::{OriginalUri, Path, State},
@@ -137,8 +137,9 @@ async fn list_with_target(
         .await
         .map_err(|_| ApiError::server_error("服务器内部错误"))?;
     let mut posts = Vec::with_capacity(rows.len());
-    for row in rows {
-        posts.push(hydrate_post(&state, viewer, row).await?);
+    let attachments = attached_content(&state, viewer, &rows).await?;
+    for (row, attached) in rows.into_iter().zip(attachments) {
+        posts.push(hydrate_post_details(&state, viewer, row, attached).await?);
     }
     let mut response = Json(json!({"code":200,"message":"success","data":posts,"meta":{"page":query.page.page,"page_size":query.page.page_size,"total":total,"has_next":query.page.end < total as f64}})).into_response();
     response.headers_mut().insert(

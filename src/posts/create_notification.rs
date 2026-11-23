@@ -3,10 +3,12 @@ use crate::{
         session_repository::{
             NotificationInput, OracleSessions, SessionExecutor, StoredNotification,
         },
-        sessions::{NativeState, SessionStoreError},
+        sessions::{NativeState, SessionRepository, SessionStoreError},
+        storage_urls::StorageUrlPolicy,
     },
     db::{oracle::BindMap, row::DbRow, value::DbValue},
     httpx::errors::ApiError,
+    notification_events::NotificationPublisher,
     posts::create_request::PostCreateInput,
 };
 use serde_json::Map;
@@ -21,6 +23,22 @@ pub struct PostNoticeInput {
     pub title: String,
     pub message: String,
     pub metadata_json: String,
+}
+
+pub(crate) struct NotificationContext<'a> {
+    pub(crate) repository: &'a dyn SessionRepository,
+    pub(crate) storage: &'a StorageUrlPolicy,
+    pub(crate) publisher: Option<&'a dyn NotificationPublisher>,
+}
+
+impl<'a> From<&'a NativeState> for NotificationContext<'a> {
+    fn from(state: &'a NativeState) -> Self {
+        Self {
+            repository: state.repository.as_ref(),
+            storage: &state.storage_urls,
+            publisher: state.notification_publisher.as_deref(),
+        }
+    }
 }
 
 pub(crate) async fn actor_name<E: SessionExecutor>(
@@ -119,7 +137,16 @@ pub(crate) async fn notify_created(
     post: u64,
     input: &PostCreateInput,
 ) -> Result<(), ApiError> {
-    let actor_name = state
+    notify_created_with(&NotificationContext::from(state), actor, post, input).await
+}
+
+pub(crate) async fn notify_created_with(
+    context: &NotificationContext<'_>,
+    actor: u64,
+    post: u64,
+    input: &PostCreateInput,
+) -> Result<(), ApiError> {
+    let actor_name = context
         .repository
         .post_create_actor_name(actor)
         .await
@@ -158,13 +185,13 @@ pub(crate) async fn notify_created(
         _ => None,
     };
     if let Some((source, kind, title, message, excerpt_key, event)) = action {
-        if let Some(recipient) = state
+        if let Some(recipient) = context
             .repository
             .post_create_source_author(source)
             .await
             .map_err(store_error)?
         {
-            let post_excerpt = state
+            let post_excerpt = context
                 .repository
                 .post_create_excerpt(source)
                 .await
@@ -173,8 +200,8 @@ pub(crate) async fn notify_created(
             // Keep excerpts as JSON fragments so a UTF-16 slice ending in a lone
             // surrogate is preserved through storage and notification serialization.
             let metadata_json = format!("{{\"source_post_id\":{source},\"target_post_id\":{source},\"action_post_id\":{post},\"post_excerpt\":{post_excerpt},\"{excerpt_key}\":{action_excerpt},\"event\":\"{event}\"}}");
-            deliver(
-                state,
+            deliver_with(
+                context,
                 &PostNoticeInput {
                     recipient,
                     actor,
@@ -197,7 +224,7 @@ pub(crate) async fn notify_created(
         }
         // Metadata is built before checking eligibility, even for skipped users.
         // This intentionally traverses all original mentions, beyond the 50 links.
-        let post_excerpt = state
+        let post_excerpt = context
             .repository
             .post_create_excerpt(post)
             .await
@@ -205,7 +232,7 @@ pub(crate) async fn notify_created(
         if user <= 0.0 || user == actor as f64 {
             continue;
         }
-        let Some(recipient) = state
+        let Some(recipient) = context
             .repository
             .resolve_post_mention_recipient(user)
             .await
@@ -214,8 +241,8 @@ pub(crate) async fn notify_created(
             continue;
         };
         let metadata_json = format!("{{\"target_post_id\":{post},\"post_excerpt\":{post_excerpt},\"event\":\"post_mention\"}}");
-        deliver(
-            state,
+        deliver_with(
+            context,
             &PostNoticeInput {
                 recipient,
                 actor,
@@ -236,7 +263,11 @@ fn store_error(_: SessionStoreError) -> ApiError {
 }
 
 pub(crate) async fn deliver(state: &NativeState, input: &PostNoticeInput) -> Result<(), ApiError> {
-    let Some(stored) = state
+    deliver_with(&NotificationContext::from(state), input).await
+}
+
+pub(crate) async fn deliver_with(context: &NotificationContext<'_>, input: &PostNoticeInput) -> Result<(), ApiError> {
+    let Some(stored) = context
         .repository
         .store_post_create_notification(input)
         .await
@@ -244,7 +275,7 @@ pub(crate) async fn deliver(state: &NativeState, input: &PostNoticeInput) -> Res
     else {
         return Ok(());
     };
-    let Some(mut notification) = state
+    let Some(mut notification) = context
         .repository
         .read_notification(input.recipient, stored.id)
         .await
@@ -252,13 +283,13 @@ pub(crate) async fn deliver(state: &NativeState, input: &PostNoticeInput) -> Res
     else {
         return Ok(());
     };
-    crate::notifications::hydrate_notification(state, input.recipient, &mut notification).await?;
+    crate::notifications::hydrate_notification_with(context.repository, context.storage, input.recipient, &mut notification).await?;
     if stored.push_enabled {
         let data = Map::from_iter([
             ("notification".into(), notification),
             ("notification_type".into(), input.kind.into()),
         ]);
-        let sent = match &state.notification_publisher {
+        let sent = match context.publisher {
             Some(publisher) => publisher
                 .publish(input.recipient, "notification_created", &data)
                 .await
@@ -433,6 +464,7 @@ mod tests {
             cors: CorsPolicy::default(),
             notification_source: None,
             notification_publisher: publisher.map(|p| p as Arc<dyn NotificationPublisher>),
+            calls: crate::webrtc::Runtime::new(None),
         }
     }
     fn input() -> PostCreateInput {
@@ -445,6 +477,8 @@ mod tests {
             reply_to_post_id: None,
             repost_of_post_id: None,
             quoted_post_id: None,
+            poll: None,
+            markdown: None,
             location: String::new(),
         }
     }

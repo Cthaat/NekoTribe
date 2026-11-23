@@ -1,0 +1,31 @@
+{
+  "id": "AI-USER-PROVIDER",
+  "revision": 1,
+  "default_base_url": "https://api.openai.com/v1",
+  "profile_id": "personal-writing",
+  "aad_version": "nekotribe.ai-provider.v1",
+  "max_key_bytes": 512,
+  "max_model_length": 128,
+  "max_base_url_length": 500,
+  "key_bytes": 32,
+  "nonce_bytes": 12,
+  "tag_bytes": 16,
+  "test_timeout_ms": 4000,
+  "test_max_response_bytes": 1048576,
+  "context_window_tokens": 8192,
+  "max_output_tokens": 1024,
+  "sql": {
+    "read": "SELECT preset_id,base_url,model_name,secret_box,enabled,revision FROM n_ai_user_providers WHERE user_id=:user_id",
+    "lock_user": "SELECT user_id FROM n_users WHERE user_id=:user_id AND is_active=1 AND status='active' FOR UPDATE",
+    "save": "MERGE INTO n_ai_user_providers p USING (SELECT :user_id AS user_id,:preset_id AS preset_id,:base_url AS base_url,:model_name AS model_name,:secret_box AS secret_box,:enabled AS enabled,:revision AS revision FROM dual) s ON (p.user_id=s.user_id) WHEN MATCHED THEN UPDATE SET p.preset_id=s.preset_id,p.base_url=s.base_url,p.model_name=s.model_name,p.secret_box=s.secret_box,p.enabled=s.enabled,p.revision=s.revision,p.updated_at=CURRENT_TIMESTAMP WHEN NOT MATCHED THEN INSERT (user_id,preset_id,base_url,model_name,secret_box,enabled,revision) VALUES(s.user_id,s.preset_id,s.base_url,s.model_name,s.secret_box,s.enabled,s.revision)",
+    "delete": "DELETE FROM n_ai_user_providers WHERE user_id=:user_id"
+  },
+  "crypto_vector": {
+    "owner_id": 42,
+    "preset": "provided",
+    "base_url": "https://Gateway.example.test:443/v1",
+    "fixture_master_b64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "fixture_key": "synthetic-fixture-key",
+    "fixture_box": "AAECAwQFBgcICQoLNHu4b62AtnLubPHiyZ0NH-b77FGJhmbLdxhRthRK_sfwT5XmUA"
+  }
+}

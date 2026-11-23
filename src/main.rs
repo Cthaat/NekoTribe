@@ -1,5 +1,13 @@
-use nekotribe_backend::{app, config::env::AppConfig};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use nekotribe_backend::{
+    app,
+    auth::{github_oauth::GithubOAuth, passkey::PasskeyEngine},
+    config::env::{AppConfig, BackendMode},
+    link_preview::PreviewCache,
+    posts::draft_worker,
+};
+use tracing_subscriber::{
+    filter::filter_fn, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -37,8 +45,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let config = AppConfig::from_env()?;
     let bind_addr = config.server.bind_addr();
-    let (router, ban_expiry) = app::routes::prepare_router(config).await?;
+    let (router, ban_expiry) = app::routes::prepare_router(config.clone()).await?;
+    let router = if config.backend_mode == BackendMode::Native {
+        let router = match PreviewCache::from_config(&config.redis) {
+            Some(cache) => router.layer(axum::Extension(cache)),
+            None => router,
+        };
+        let router = match PasskeyEngine::from_lookup(|key| std::env::var(key).ok()) {
+            Some(engine) => router.layer(axum::Extension(engine)),
+            None => router,
+        };
+        match GithubOAuth::from_lookup(|key| std::env::var(key).ok()) {
+            Some(engine) => router.layer(axum::Extension(engine)),
+            None => router,
+        }
+    } else {
+        router
+    };
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
+    let drafts = draft_worker::start(&config);
 
     tracing::info!(%bind_addr, "nekotribe rust backend listening");
     axum::serve(
@@ -48,6 +73,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     .with_graceful_shutdown(async move {
         app::shutdown::shutdown_signal().await;
         if let Some(sweep) = ban_expiry {
+            sweep.abort();
+        }
+        if let Some(sweep) = drafts {
             sweep.abort();
         }
     })
@@ -61,6 +89,10 @@ fn init_tracing() {
         .unwrap_or_else(|_| EnvFilter::new("nekotribe_backend=info,tower_http=info"));
     tracing_subscriber::registry()
         .with(env_filter)
-        .with(tracing_subscriber::fmt::layer())
+        // The upstream engine includes raw assertion and challenge state in trace events.
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_filter(filter_fn(|meta| !meta.target().starts_with("webauthn_rs"))),
+        )
         .init();
 }

@@ -278,6 +278,15 @@ pub(crate) async fn hydrate_notification(
     viewer: u64,
     item: &mut Value,
 ) -> Result<(), ApiError> {
+    hydrate_notification_with(state.repository.as_ref(), &state.storage_urls, viewer, item).await
+}
+
+pub(crate) async fn hydrate_notification_with(
+    repository: &dyn crate::auth::sessions::SessionRepository,
+    storage: &crate::auth::storage_urls::StorageUrlPolicy,
+    viewer: u64,
+    item: &mut Value,
+) -> Result<(), ApiError> {
     let object = item
         .as_object_mut()
         .ok_or_else(|| ApiError::server_error("服务器内部错误"))?;
@@ -286,8 +295,7 @@ pub(crate) async fn hydrate_notification(
         .and_then(|v| v.as_u64())
         .filter(|v| *v > 0);
     let actor = if let Some(id) = actor_id {
-        match state
-            .repository
+        match repository
             .public_profile(viewer, id)
             .await
             .map_err(|_| ApiError::server_error("服务器内部错误"))?
@@ -297,8 +305,7 @@ pub(crate) async fn hydrate_notification(
                     .get("avatar_url")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
-                let normalized = state
-                    .storage_urls
+                let normalized = storage
                     .normalize_avatar(avatar)
                     .map_err(|_| ApiError::server_error("服务器内部错误"))?;
                 profile

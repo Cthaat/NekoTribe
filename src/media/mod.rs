@@ -8,6 +8,7 @@ mod rich_metadata;
 pub mod storage_key;
 pub(crate) mod upload;
 pub mod upload_transaction;
+pub mod vision;
 mod wav_duration;
 mod zip_detection;
 pub(crate) mod publish;

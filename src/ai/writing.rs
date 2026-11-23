@@ -4,6 +4,7 @@ use super::{
     model_config::ModelRouter,
     model_source::ModelFile,
     transport::{CredentialResolver, Transport, TransportError},
+    user_provider,
 };
 use crate::auth::sessions::SessionRepository;
 use serde_json::{Value, json};
@@ -105,14 +106,24 @@ pub async fn generate(
     cancel: Option<watch::Receiver<bool>>,
     quota: Option<&super::model_quota::AiModelQuota>,
     input: WritingRequest,
+    personal: &user_provider::Settings,
 ) -> Result<Value, Error> {
-    let raw = settings.configuration().await.ok_or(Error::Unavailable)?;
-    if raw.is_empty() || raw.len() > 65536 {
-        return Err(Error::Unavailable);
-    }
-    let selection = ModelRouter::from_json(&raw)
-        .and_then(|r| r.select("writing", &[]))
-        .map_err(|_| Error::Unavailable)?;
+    let (selection, resolver) = match user_provider::writing_connection(repository, personal, user)
+        .await
+        .map_err(|_| Error::Unavailable)?
+    {
+        Some(connection) => connection,
+        None => {
+            let raw = settings.configuration().await.ok_or(Error::Unavailable)?;
+            let selection = ModelRouter::from_json(&raw)
+                .and_then(|router| router.select("writing", &[]))
+                .map_err(|_| Error::Unavailable)?;
+            let resolver: CredentialResolver = Arc::new(|reference| {
+                std::env::var(reference).map_err(|_| TransportError("MISSING_CREDENTIAL"))
+            });
+            (selection, resolver)
+        }
+    };
     if selection.configuration_revision > 999_999_999_999_999 {
         return Err(Error::Context);
     }
@@ -197,9 +208,6 @@ pub async fn generate(
         }
         selected.reverse();
         selected.insert(0, json!({"role":"system","content":SYSTEM}));
-        let resolver: CredentialResolver = Arc::new(|reference| {
-            std::env::var(reference).map_err(|_| TransportError("MISSING_CREDENTIAL"))
-        });
         let transport = Transport::new(Some(resolver), None).map_err(|_| Error::Unavailable)?;
         audit.stage = "quota";
         super::model_quota::require(quota, user, 1)

@@ -1,0 +1,9 @@
+{
+  "id": "ACCOUNT-RESOURCES",
+  "revision": 1,
+  "sql": {
+    "usage": "SELECT (SELECT COUNT(*) FROM n_media_assets WHERE owner_user_id = :user_id AND status = 'ready') AS files, (SELECT COALESCE(SUM(file_size), 0) FROM n_media_assets WHERE owner_user_id = :user_id AND status = 'ready') AS bytes, (SELECT COUNT(*) FROM n_ai_conversations WHERE owner_user_id = :user_id) AS conversations FROM dual",
+    "posts": "SELECT p.post_id, p.content, TO_CHAR(FROM_TZ(p.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at FROM n_posts p WHERE p.author_id = :user_id AND p.is_deleted = 0 AND fn_can_view_post(:user_id, p.post_id) = 1 ORDER BY p.post_id",
+    "bookmarks": "SELECT b.post_id, TO_CHAR(FROM_TZ(b.created_at, SESSIONTIMEZONE) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS created_at FROM n_post_bookmarks b JOIN n_posts p ON p.post_id = b.post_id WHERE b.user_id = :user_id AND p.is_deleted = 0 AND fn_can_view_post(:user_id, p.post_id) = 1 ORDER BY b.post_id"
+  }
+}

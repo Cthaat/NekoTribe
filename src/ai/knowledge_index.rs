@@ -3,7 +3,7 @@ use std::{sync::OnceLock, time::Duration};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    knowledge_source::{self, Candidate},
+    knowledge_source::{self, Candidate, Scope},
     knowledge_turn::{Hit, TurnError},
 };
 
@@ -11,12 +11,16 @@ use super::{
 struct SearchRequest<'a> {
     query: &'a str,
     limit: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    group_id: Option<i64>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SearchResponse {
     version: u8,
+    #[serde(default, deserialize_with = "present_group_id")]
+    group_id: Option<i64>,
     candidates: Vec<SearchHit>,
 }
 
@@ -36,6 +40,12 @@ fn present_chunk<'de, D: serde::Deserializer<'de>>(
     usize::deserialize(deserializer).map(Some)
 }
 
+fn present_group_id<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<i64>, D::Error> {
+    i64::deserialize(deserializer).map(Some)
+}
+
 fn client() -> Result<&'static reqwest::Client, TurnError> {
     static HTTP: OnceLock<Option<reqwest::Client>> = OnceLock::new();
     HTTP.get_or_init(|| {
@@ -49,19 +59,36 @@ fn client() -> Result<&'static reqwest::Client, TurnError> {
     .ok_or(TurnError::Dependency)
 }
 
+#[cfg(test)]
 fn index_endpoint(address: &str) -> Result<String, TurnError> {
+    search_endpoint(address, Scope::Public)
+}
+
+fn search_endpoint(address: &str, scope: Scope) -> Result<String, TurnError> {
     if address.len() > 2048 || !super::model_config::valid_url(address) {
         return Err(TurnError::Dependency);
     }
-    Ok(format!(
-        "{}/internal/v1/knowledge/search",
-        address.trim_end_matches('/')
-    ))
+    let path = match scope {
+        Scope::Public => "/internal/v1/knowledge/search",
+        Scope::Group(_) => "/internal/v1/knowledge/group-search",
+        Scope::Personal => return Err(TurnError::InvalidSource),
+    };
+    Ok(format!("{}{path}", address.trim_end_matches('/')))
 }
 
 pub(super) async fn discover(
     address: &str,
     viewer: i64,
+    query: &str,
+    limit: usize,
+) -> Result<Option<Vec<Hit>>, TurnError> {
+    discover_scoped(address, viewer, Scope::Public, query, limit).await
+}
+
+pub(super) async fn discover_scoped(
+    address: &str,
+    viewer: i64,
+    scope: Scope,
     query: &str,
     limit: usize,
 ) -> Result<Option<Vec<Hit>>, TurnError> {
@@ -73,19 +100,28 @@ pub(super) async fn discover(
     {
         return Err(TurnError::InvalidSource);
     }
-    let endpoint = index_endpoint(address)?;
+    let endpoint = search_endpoint(address, scope)?;
+    let group_id = match scope {
+        Scope::Group(id) if (1..=9_007_199_254_740_991).contains(&id) => Some(id),
+        Scope::Group(_) => return Err(TurnError::InvalidSource),
+        _ => None,
+    };
     let token = std::env::var("AI_INDEX_SERVICE_TOKEN").map_err(|_| TurnError::Dependency)?;
     if !(32..=512).contains(&token.len()) || !token.bytes().all(|b| (b'!'..=b'~').contains(&b)) {
         return Err(TurnError::Dependency);
     }
-    let lexical_fallback =
-        std::env::var("AI_KNOWLEDGE_INDEX_FALLBACK").is_ok_and(|value| value == "lexical");
+    let lexical_fallback = group_id.is_some()
+        || std::env::var("AI_KNOWLEDGE_INDEX_FALLBACK").is_ok_and(|value| value == "lexical");
     let response = client()?
         .post(endpoint)
         .bearer_auth(token)
         .header("x-neko-knowledge-chunks", "1")
         .header("x-neko-knowledge-group-sources", "1")
-        .json(&SearchRequest { query, limit })
+        .json(&SearchRequest {
+            query,
+            limit,
+            group_id,
+        })
         .send()
         .await;
     let mut response = match response {
@@ -94,7 +130,7 @@ pub(super) async fn discover(
             if lexical_fallback
                 && (error.is_timeout() || error.is_connect() || error.is_request()) =>
         {
-            return Ok(None)
+            return Ok(None);
         }
         Err(_) => return Err(TurnError::Dependency),
     };
@@ -111,14 +147,24 @@ pub(super) async fn discover(
         }
         body.extend_from_slice(&chunk);
     }
-    let result: SearchResponse =
-        serde_json::from_slice(&body).map_err(|_| TurnError::Dependency)?;
+    parse_response(&body, viewer, scope, group_id, limit).map(Some)
+}
+
+fn parse_response(
+    body: &[u8],
+    viewer: i64,
+    scope: Scope,
+    group_id: Option<i64>,
+    limit: usize,
+) -> Result<Vec<Hit>, TurnError> {
+    let result: SearchResponse = serde_json::from_slice(body).map_err(|_| TurnError::Dependency)?;
     if result.version != 1
+        || result.group_id != group_id
         || result.candidates.len() > limit
         || result
             .candidates
             .iter()
-            .any(|hit| hit.chunk.is_some_and(|chunk| chunk > 102))
+            .any(|hit| !scope.allows_kind(&hit.kind) || hit.chunk.is_some_and(|chunk| chunk > 102))
     {
         return Err(TurnError::Dependency);
     }
@@ -137,12 +183,52 @@ pub(super) async fn discover(
         .collect();
     let refs: Vec<_> = hits.iter().map(|hit| hit.source.clone()).collect();
     knowledge_source::validate(viewer, &refs).map_err(|_| TurnError::Dependency)?;
-    Ok(Some(hits))
+    Ok(hits)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{discover, index_endpoint, knowledge_source, Candidate, SearchResponse, TurnError};
+    use super::{Candidate, SearchResponse, TurnError, discover, index_endpoint, knowledge_source};
+
+    #[test]
+    fn group_index_requires_matching_echo_and_only_group_sources() {
+        use super::{Scope, SearchRequest, parse_response, search_endpoint};
+        use serde_json::json;
+
+        let group_id = 9_007_199_254_740_991;
+        let scope = Scope::Group(group_id);
+        assert_eq!(
+            search_endpoint("http://localhost/", scope).unwrap(),
+            "http://localhost/internal/v1/knowledge/group-search"
+        );
+        let request = SearchRequest {
+            query: "term",
+            limit: 2,
+            group_id: Some(group_id),
+        };
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            json!({"query":"term","limit":2,"group_id":group_id})
+        );
+        for (echo, kind, accepted) in [
+            (group_id, "group_post", true),
+            (7, "group_post", false),
+            (group_id, "post", false),
+        ] {
+            let response = json!({"version":1,"group_id":echo,"candidates":[{"kind":kind,"id":4,"version":"a".repeat(64)}]});
+            assert_eq!(
+                parse_response(
+                    response.to_string().as_bytes(),
+                    42,
+                    scope,
+                    Some(group_id),
+                    2
+                )
+                .is_ok(),
+                accepted
+            );
+        }
+    }
 
     #[test]
     fn shared_group_response_keeps_version_and_chunk_for_revalidation() {

@@ -24,10 +24,9 @@ pub async fn security_headers(
         HeaderName::from_static("x-frame-options"),
         HeaderValue::from_static("DENY"),
     );
-    headers.insert(
-        HeaderName::from_static("referrer-policy"),
-        HeaderValue::from_static("same-origin"),
-    );
+    headers
+        .entry(HeaderName::from_static("referrer-policy"))
+        .or_insert(HeaderValue::from_static("same-origin"));
     headers.insert(
         HeaderName::from_static("permissions-policy"),
         HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),

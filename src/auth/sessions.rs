@@ -25,6 +25,30 @@ pub struct SessionStoreError;
 pub type StoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SessionStoreError>> + Send + 'a>>;
 pub trait SessionRepository: Send + Sync {
+    fn github_oauth(
+        &self,
+        _operation: crate::auth::github_oauth::Operation,
+    ) -> StoreFuture<'_, crate::auth::github_oauth::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+
+    fn passkey(
+        &self,
+        _operation: crate::auth::passkey::Operation,
+    ) -> StoreFuture<'_, crate::auth::passkey::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+
+    fn login_account_by_id(&self, _user: u64) -> StoreFuture<'_, Option<crate::auth::login::LoginAccount>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn personal_ai_provider(
+        &self,
+        _user: u64,
+        _operation: crate::ai::user_provider::Operation,
+    ) -> StoreFuture<'_, Result<Option<crate::ai::user_provider::Record>, crate::ai::user_provider::Error>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn moderate_user(
         &self,
         _viewer: u64,
@@ -39,6 +63,13 @@ pub trait SessionRepository: Send + Sync {
         _input: crate::moderation::post_actions::Input,
         _storage: crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'_, crate::moderation::post_actions::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn moderation_sentiment_samples(
+        &self,
+        _viewer: u64,
+        _ids: Vec<i64>,
+    ) -> StoreFuture<'_, Vec<crate::moderation::content_queue::SentimentSample>> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn moderation_content(
@@ -80,6 +111,23 @@ pub trait SessionRepository: Send + Sync {
         _actor: u64,
         _query: crate::users::statements::StatementQuery,
     ) -> StoreFuture<'_, (Vec<serde_json::Value>, i64)> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn account_resources(
+        &self,
+        _actor: u64,
+        _query: crate::users::account_resources::ResourceQuery,
+    ) -> StoreFuture<'_, Vec<crate::db::row::DbRow>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn profile_pin(
+        &self,
+        _actor: u64,
+        _operation: crate::users::profile_pin::Operation,
+    ) -> StoreFuture<'_, crate::users::profile_pin::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn ai_operations_data(&self) -> StoreFuture<'_, (Vec<crate::db::row::DbRow>, Vec<crate::db::row::DbRow>)> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn write_account_statement(
@@ -236,6 +284,14 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, crate::group_content::Outcome> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn read_group_activity<'a>(
+        &'a self,
+        _viewer: u64,
+        _page: crate::auth::session_list::SessionPage,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::group_content::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn create_group<'a>(
         &'a self,
         _actor: u64,
@@ -341,7 +397,7 @@ pub trait SessionRepository: Send + Sync {
         _user: u64,
         _channel: u64,
         _page: crate::auth::session_list::SessionPage,
-        _search: &'a str,
+        _search: crate::chat_message_search::Search,
         _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
     ) -> StoreFuture<'a, crate::chat_message_history::History> {
         Box::pin(async { Err(SessionStoreError) })
@@ -402,6 +458,27 @@ pub trait SessionRepository: Send + Sync {
     ) -> StoreFuture<'a, crate::direct_send::DirectSend> {
         Box::pin(async { Err(SessionStoreError) })
     }
+    fn send_direct_message_with_extras<'a>(
+        &'a self,
+        sender: u64,
+        conversation: u64,
+        input: crate::direct_send::Input,
+        storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::direct_send::DirectSend> {
+        Box::pin(async move {
+            let content = input.plain_content().ok_or(SessionStoreError)?;
+            self.send_direct_message(sender, conversation, content, storage).await
+        })
+    }
+    fn direct_message_extras(
+        &self,
+        _viewer: u64,
+        _conversation: u64,
+        _message: u64,
+        _operation: crate::direct_extras::Operation,
+    ) -> StoreFuture<'_, crate::direct_extras::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
     fn direct_notification(
         &self,
         _user: u64,
@@ -414,7 +491,18 @@ pub trait SessionRepository: Send + Sync {
         _viewer: u64,
         _conversation: u64,
         _page: crate::auth::session_list::SessionPage,
+        _mark_read: bool,
+        _search: crate::chat_message_search::Search,
     ) -> StoreFuture<'_, crate::direct_history::DirectHistory> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn direct_read_status(&self, _user: u64, _conversation: u64, _cursor: Option<u64>) -> StoreFuture<'_, crate::direct_read::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn direct_typing_peer(&self, _user: u64, _conversation: u64) -> StoreFuture<'_, Option<u64>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn can_deliver_direct_read(&self, _user: u64, _conversation: u64, _reader: u64, _cursor: u64) -> StoreFuture<'_, bool> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn can_read_chat_channel(&self, _user_id: u64, _channel_id: u64) -> StoreFuture<'_, bool> {
@@ -512,6 +600,12 @@ pub trait SessionRepository: Send + Sync {
         _viewer_id: i64,
         _media_id: i64,
     ) -> StoreFuture<'_, crate::media::private_read::Lookup> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn owned_vision_image(&self, _viewer: i64, _media_id: i64) -> StoreFuture<'_, Option<crate::media::vision::Asset>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn update_media_alt_text(&self, _viewer: i64, _media_id: i64, _alt: Option<String>) -> StoreFuture<'_, crate::media::vision::AltTextUpdate> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn update_post_atomic<'a>(
@@ -698,6 +792,39 @@ pub trait SessionRepository: Send + Sync {
         _viewer: Option<u64>,
         _id: u64,
     ) -> StoreFuture<'a, Option<serde_json::Value>> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn read_attached_post_polls(
+        &self,
+        _viewer: Option<u64>,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, crate::posts::polls::History> {
+        Box::pin(async move {
+            Ok(crate::posts::polls::History::Ready(ids.into_iter().map(|_| None).collect()))
+        })
+    }
+    fn read_attached_post_markdown(
+        &self,
+        ids: Vec<u64>,
+    ) -> StoreFuture<'_, crate::posts::markdown::History> {
+        Box::pin(async move {
+            Ok(crate::posts::markdown::History::Ready(ids.into_iter().map(|_| None).collect()))
+        })
+    }
+    fn post_poll(
+        &self,
+        _viewer: Option<u64>,
+        _target: crate::posts::polls::Target,
+        _operation: crate::posts::polls::Operation,
+    ) -> StoreFuture<'_, crate::posts::polls::Outcome> {
+        Box::pin(async { Err(SessionStoreError) })
+    }
+    fn post_draft<'a>(
+        &'a self,
+        _owner: u64,
+        _operation: crate::posts::draft_store::Operation,
+        _storage: &'a crate::auth::storage_urls::StorageUrlPolicy,
+    ) -> StoreFuture<'a, crate::posts::draft_store::Outcome> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn set_post_bookmark<'a>(
@@ -936,6 +1063,7 @@ pub(crate) struct NativeState {
     pub(crate) notification_source: Option<Arc<dyn crate::notification_source::NotificationSource>>,
     pub(crate) notification_publisher:
         Option<Arc<dyn crate::notification_events::NotificationPublisher>>,
+    pub(crate) calls: crate::webrtc::Runtime,
 }
 pub fn build_native_router(
     codec: TokenCodec,
@@ -1032,7 +1160,16 @@ pub fn build_native_router_with_realtime_and_publisher(
     notification_source: Option<Arc<dyn crate::notification_source::NotificationSource>>,
     notification_publisher: Option<Arc<dyn crate::notification_events::NotificationPublisher>>,
 ) -> Router {
+    let calls = crate::webrtc::Runtime::new(notification_publisher.as_deref());
     Router::new()
+        .merge(crate::auth::github_oauth::router())
+        .merge(crate::auth::passkey::router())
+        .merge(crate::posts::poll_http::router())
+        .merge(crate::posts::draft_http::router())
+        .merge(crate::users::profile_pin::router())
+        .route("/api/v2/links/preview", get(crate::link_preview::route))
+        .route("/api/v2/feed/groups", get(crate::group_content::activity))
+        .route("/api/v2/calls/ice-servers", get(crate::webrtc::ice::get))
         .route(
             "/api/v2/ai/availability",
             get(crate::ai::conversation_http::availability),
@@ -1052,19 +1189,23 @@ pub fn build_native_router_with_realtime_and_publisher(
         )
         .route(
             "/api/v2/ai/conversations/{id}/generate",
-            post(crate::ai::conversation_http::generate),
+            post(crate::ai::conversation_http::generate)
+                .layer(middleware::from_fn(crate::ai::stream_response::stream_response)),
         )
         .route(
             "/api/v2/ai/conversations/{id}/knowledge-generate",
-            post(crate::ai::conversation_http::generate_knowledge),
+            post(crate::ai::conversation_http::generate_knowledge)
+                .layer(middleware::from_fn(crate::ai::stream_response::stream_response)),
         )
         .route(
             "/api/v2/ai/conversations/{id}/group-generate",
-            post(crate::ai::conversation_http::generate_group),
+            post(crate::ai::conversation_http::generate_group)
+                .layer(middleware::from_fn(crate::ai::stream_response::stream_response)),
         )
         .route(
             "/api/v2/ai/conversations/{id}/moderation-generate",
-            post(crate::ai::conversation_http::generate_moderation),
+            post(crate::ai::conversation_http::generate_moderation)
+                .layer(middleware::from_fn(crate::ai::stream_response::stream_response)),
         )
         .route(
             "/api/v2/ai/conversations/{id}/messages/{message_id}/moderation-feedback",
@@ -1075,7 +1216,8 @@ pub fn build_native_router_with_realtime_and_publisher(
             get(|| async { Json(json!({"status":"ok","service":"nekotribe"})) }),
         )
         .route("/api/v2/auth/sessions/others", delete(revoke))
-        .route("/api/v2/media/{id}", delete(crate::media::delete::remove))
+        .route("/api/v2/ai/media/describe", post(crate::ai::media_description::describe))
+        .route("/api/v2/media/{id}", delete(crate::media::delete::remove).patch(crate::media::vision::patch_alt_text))
         .route(
             crate::media::private_read::CONTENT_ROUTE,
             get(crate::media::private_read::read).head(crate::media::private_read::read),
@@ -1092,6 +1234,14 @@ pub fn build_native_router_with_realtime_and_publisher(
         .route(
             "/api/v2/users/me/account-statements",
             get(crate::users::statements::list),
+        )
+        .route(
+            "/api/v2/users/me/usage",
+            get(crate::users::account_resources::usage),
+        )
+        .route(
+            "/api/v2/users/me/export",
+            get(crate::users::account_resources::export),
         )
         .route(
             "/api/v2/users/me/account-statements/{id}",
@@ -1117,6 +1267,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             "/api/v2/moderation/stats",
             get(crate::moderation::dashboard::stats),
         )
+        .route("/api/v2/moderation/ai/operations", get(crate::ai::operations::read))
         .route(
             "/api/v2/moderation/users",
             get(crate::moderation::user_queue::list),
@@ -1241,8 +1392,16 @@ pub fn build_native_router_with_realtime_and_publisher(
             get(crate::direct_history::list).post(crate::direct_send::send),
         )
         .route(
+            "/api/v2/chat/direct-conversations/{conversation_id}/read-status",
+            get(crate::direct_read::get).put(crate::direct_read::put),
+        )
+        .route(
             "/api/v2/chat/direct-conversations/{conversation_id}/messages/{message_id}",
-            delete(crate::direct_delete::remove),
+            get(crate::direct_extras::get).delete(crate::direct_delete::remove),
+        )
+        .route(
+            "/api/v2/chat/direct-conversations/{conversation_id}/messages/{message_id}/reactions",
+            post(crate::direct_extras::react).delete(crate::direct_extras::react),
         )
         .route(
             "/api/v2/chat/direct-conversations",
@@ -1455,6 +1614,16 @@ pub fn build_native_router_with_realtime_and_publisher(
                 .delete(crate::users::account_deletion::delete),
         )
         .route(
+            "/api/v2/users/me/ai-provider",
+            get(crate::ai::user_provider::connection)
+                .put(crate::ai::user_provider::connection)
+                .delete(crate::ai::user_provider::connection),
+        )
+        .route(
+            "/api/v2/users/me/ai-provider/test",
+            post(crate::ai::user_provider::test_connection),
+        )
+        .route(
             "/api/v2/users/me/settings",
             get(crate::users::settings_read::get).patch(crate::users::settings_patch::patch),
         )
@@ -1520,6 +1689,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             cors,
             notification_source,
             notification_publisher,
+            calls,
         })
 }
 
@@ -1963,11 +2133,11 @@ pub(crate) async fn cors_middleware(
             (
                 "access-control-expose-headers",
                 if private_media {
-                    "content-length,content-type,Retry-After,content-range,accept-ranges,content-disposition"
+                    "content-length,content-type,Retry-After,content-range,accept-ranges,content-disposition,x-request-id"
                 } else if public_storage {
-                    "content-length,content-type,Retry-After,content-range,accept-ranges"
+                    "content-length,content-type,Retry-After,content-range,accept-ranges,x-request-id"
                 } else {
-                    "content-length,content-type,Retry-After"
+                    "content-length,content-type,Retry-After,x-request-id"
                 }
                 .into(),
             ),

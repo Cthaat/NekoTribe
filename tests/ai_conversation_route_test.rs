@@ -66,12 +66,14 @@ impl SessionRepository for Store {
                         limit,
                         purpose,
                         group_id,
+                        knowledge_scope,
                         target_title,
                     } => {
                         assert!(after.is_empty());
                         assert_eq!(limit, 10);
                         assert_eq!(purpose, "knowledge");
                         assert_eq!(group_id, None);
+                        assert_eq!(knowledge_scope, None);
                         assert!(target_title.is_empty());
                         serde_json::json!({"items":[],"next_cursor":null})
                     }

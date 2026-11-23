@@ -51,6 +51,8 @@ pub(crate) async fn edit(
             PostUpdate::ContentEmpty => return Err(ApiError::bad_request("content 不能为空")),
             PostUpdate::Invalid => return Err(ApiError::server_error("服务器内部错误")),
             PostUpdate::PublishForbidden => return Err(ApiError::forbidden(crate::moderation::publish_policy::message())),
+            PostUpdate::MarkdownUnavailable => return Err(crate::posts::markdown::unavailable()),
+            PostUpdate::MarkdownNotAllowed => return Err(crate::posts::markdown::not_allowed()),
         }
         let post = state
             .repository

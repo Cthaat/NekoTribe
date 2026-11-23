@@ -50,6 +50,7 @@ pub struct NativeOptions {
     pub smtp: crate::auth::otp::SmtpConfig,
     pub ai_moderation: crate::ai::conversation_http::ModerationSettings,
     pub ai_writing: crate::ai::writing::Settings,
+    pub(crate) metrics_access: crate::observability::ScrapeAccess,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -205,6 +206,7 @@ impl AppConfig {
                 smtp: crate::auth::otp::SmtpConfig::from_lookup(&get),
                 ai_moderation: crate::ai::conversation_http::ModerationSettings::from_lookup(&get),
                 ai_writing: crate::ai::writing::Settings::from_lookup(&get),
+                metrics_access: crate::observability::ScrapeAccess::from_lookup(&get),
             }),
             server: ServerConfig {
                 host,

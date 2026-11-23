@@ -8,7 +8,7 @@ use crate::{
     chat_message_history::{append_details, message_json, BY_ID},
     db::{
         oracle::{BindMap, DbError},
-        tx::OracleTx,
+        tx::{OracleTx, Transaction},
         value::DbValue,
     },
     direct_history::{normalize_author, query},
@@ -184,8 +184,8 @@ pub(crate) fn execute(
     }
 }
 
-pub(crate) fn write_one(tx: &OracleTx<'_>, sql: &str, binds: BindMap) -> Result<(), DbError> {
-    if tx.execute(sql, binds)?.rows_affected != 1 {
+pub(crate) fn write_one(tx: &impl Transaction, sql: &str, binds: BindMap) -> Result<(), DbError> {
+    if tx.execute(sql, binds)? != 1 {
         return Err(DbError::SchemaNotReady);
     }
     Ok(())

@@ -5,6 +5,10 @@ use crate::{
     },
     httpx::{errors::ApiError, response::V2Response},
     media::normalize_attachment_urls,
+    posts::{
+        markdown, poll_http,
+        polls::{History, Poll},
+    },
 };
 use axum::{
     extract::{OriginalUri, Path, State},
@@ -85,11 +89,64 @@ pub(crate) async fn get_post(
     Ok(response)
 }
 
-// Shared with list reads; the caller controls whether to increment views.
 pub(crate) async fn hydrate_post(
     state: &NativeState,
     viewer: Option<u64>,
+    post: Value,
+) -> Result<Value, ApiError> {
+    let mut attached = attached_content(state, viewer, std::slice::from_ref(&post)).await?;
+    hydrate_post_details(state, viewer, post, attached.pop().ok_or_else(failure)?).await
+}
+
+pub(super) struct AttachedContent {
+    poll: Option<Poll>,
+    markdown: Option<String>,
+}
+
+pub(super) async fn attached_content(
+    state: &NativeState,
+    viewer: Option<u64>,
+    posts: &[Value],
+) -> Result<Vec<AttachedContent>, ApiError> {
+    if posts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ids: Vec<_> = posts
+        .iter()
+        .map(|post| post["post_id"].as_u64().ok_or_else(failure))
+        .collect::<Result<_, _>>()?;
+    let polls = match state
+        .repository
+        .read_attached_post_polls(viewer, ids.clone())
+        .await
+        .map_err(|_| failure())?
+    {
+        History::Ready(polls) if polls.len() == posts.len() => polls,
+        History::Ready(_) => return Err(failure()),
+        History::Unavailable => return Err(poll_http::unavailable()),
+    };
+    let markdown = match state
+        .repository
+        .read_attached_post_markdown(ids)
+        .await
+        .map_err(|_| failure())?
+    {
+        markdown::History::Ready(rows) if rows.len() == posts.len() => rows,
+        markdown::History::Ready(_) => return Err(failure()),
+        markdown::History::Unavailable => return Err(markdown::unavailable()),
+    };
+    Ok(polls
+        .into_iter()
+        .zip(markdown)
+        .map(|(poll, markdown)| AttachedContent { poll, markdown })
+        .collect())
+}
+
+pub(super) async fn hydrate_post_details(
+    state: &NativeState,
+    viewer: Option<u64>,
     mut post: Value,
+    attached: AttachedContent,
 ) -> Result<Value, ApiError> {
     let id = post
         .get("post_id")
@@ -143,5 +200,14 @@ pub(crate) async fn hydrate_post(
         serde_json::to_value(tags).map_err(|_| failure())?,
     );
     object.insert("mentions".into(), mentions.into());
+    if let Some(poll) = attached.poll {
+        object.insert(
+            "poll".into(),
+            serde_json::to_value(poll).map_err(|_| failure())?,
+        );
+    }
+    if let Some(body) = attached.markdown {
+        object.insert("markdown".into(), Value::String(body));
+    }
     Ok(post)
 }

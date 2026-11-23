@@ -1,8 +1,11 @@
-//! Internal non-streaming provider transport. Tools are proposals only; decoded
+//! Internal provider transport. Tools are proposals only; decoded
 //! structured objects still require business validation and authorization.
 use super::model_config::SelectionSnapshot;
+use super::stream_response;
+use crate::media::vision::{Image, MAX_IMAGES, MAX_TOTAL_IMAGE_BYTES};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::Serialize;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
@@ -22,6 +25,8 @@ impl std::error::Error for TransportError {}
 const INVALID: TransportError = TransportError("INVALID_PROVIDER_RESPONSE");
 const INVALID_REQUEST: TransportError = TransportError("INVALID_REQUEST");
 const LIMIT: usize = 1048576;
+const STREAM_FRAME_LIMIT: usize = 65536;
+const TOO_LARGE: TransportError = TransportError("RESPONSE_TOO_LARGE");
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,6 +55,161 @@ pub struct Transport {
     resolver: Option<CredentialResolver>,
     timeout: Duration,
     client: reqwest::Client,
+}
+
+struct ProviderStream {
+    openai: bool,
+    terminal: bool,
+    frame: Vec<u8>,
+    text: String,
+    reason: Value,
+    usage: Value,
+    last: Value,
+}
+
+impl ProviderStream {
+    fn record(&mut self, payload: &[u8]) -> Result<Option<String>, TransportError> {
+        if self.openai && payload == b"[DONE]" {
+            self.terminal = true;
+            return Ok(None);
+        }
+        let response: Value = serde_json::from_slice(payload).map_err(|_| INVALID)?;
+        let fragment = if self.openai {
+            if !response["usage"].is_null() {
+                self.usage = response["usage"].clone();
+            }
+            let choices = response["choices"].as_array().ok_or(INVALID)?;
+            let Some(choice) = choices.first() else {
+                return Ok(None);
+            };
+            if choice["index"].as_u64() != Some(0) {
+                return Err(INVALID);
+            }
+            if !choice["finish_reason"].is_null() {
+                self.reason = choice["finish_reason"].clone();
+            }
+            &choice["delta"]
+        } else {
+            self.terminal = response["done"] == true;
+            if self.terminal {
+                self.last = response.clone();
+            }
+            &response["message"]
+        };
+        if !fragment.is_object() || !fragment["tool_calls"].is_null() {
+            return Err(INVALID);
+        }
+        let Some(text) = fragment["content"].as_str().filter(|text| !text.is_empty()) else {
+            return Ok(None);
+        };
+        self.text.push_str(text);
+        Ok(Some(text.to_owned()))
+    }
+
+    fn line(&mut self, line: &[u8]) -> Result<Option<String>, TransportError> {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        if line.len() > STREAM_FRAME_LIMIT {
+            return Err(TOO_LARGE);
+        }
+        if !self.openai {
+            return if line.is_empty() {
+                Ok(None)
+            } else {
+                self.record(line)
+            };
+        }
+        if line.is_empty() && !self.frame.is_empty() {
+            let mut frame = std::mem::take(&mut self.frame);
+            frame.pop();
+            return self.record(&frame);
+        }
+        if let Some(data) = line.strip_prefix(b"data:") {
+            if self.frame.len() + data.len() + 1 > STREAM_FRAME_LIMIT {
+                return Err(TOO_LARGE);
+            }
+            self.frame
+                .extend_from_slice(data.strip_prefix(b" ").unwrap_or(data));
+            self.frame.push(b'\n');
+        }
+        Ok(None)
+    }
+}
+
+async fn read_provider_stream(
+    response: &mut reqwest::Response,
+    selection: &SelectionSnapshot,
+    structured: bool,
+    sender: tokio::sync::mpsc::Sender<axum::body::Bytes>,
+) -> Result<InferenceResult, TransportError> {
+    let mut state = ProviderStream {
+        openai: selection.adapter == "openai-compatible",
+        terminal: false,
+        frame: Vec::new(),
+        text: String::new(),
+        reason: Value::Null,
+        usage: Value::Null,
+        last: Value::Null,
+    };
+    let mut bytes = 0;
+    let mut line = Vec::new();
+    let sender = &sender;
+    let emit = move |delta: String| async move {
+        sender
+            .send(stream_response::delta(&delta))
+            .await
+            .map_err(|_| TransportError("CANCELLED"))
+    };
+    while !state.terminal {
+        let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|_| TransportError("PROVIDER_UNAVAILABLE"))?
+        else {
+            if let Some(delta) = state.line(&line)? {
+                emit(delta).await?;
+            }
+            if state.openai {
+                if let Some(delta) = state.line(b"")? {
+                    emit(delta).await?;
+                }
+            }
+            break;
+        };
+        bytes += chunk.len();
+        if bytes > LIMIT {
+            return Err(TOO_LARGE);
+        }
+        for part in chunk.split_inclusive(|byte| *byte == b'\n') {
+            let part_without_newline = part.strip_suffix(b"\n").unwrap_or(part);
+            line.extend_from_slice(part_without_newline);
+            if line.len() > STREAM_FRAME_LIMIT + 1 {
+                return Err(TOO_LARGE);
+            }
+            if part.ends_with(b"\n") {
+                if let Some(delta) = state.line(&line)? {
+                    emit(delta).await?;
+                }
+                line.clear();
+                if state.terminal {
+                    break;
+                }
+            }
+        }
+    }
+    if !state.terminal {
+        return Err(INVALID);
+    }
+    let message = json!({"role":"assistant","content":state.text});
+    let formatted = if state.openai {
+        json!({
+            "choices":[{"index":0,"finish_reason":state.reason,"message":message}],
+            "usage":state.usage
+        })
+    } else {
+        state.last["message"] = message;
+        state.last
+    };
+    normalize(selection, formatted, &HashSet::new(), structured)
 }
 fn object(v: &Value) -> Result<&Map<String, Value>, TransportError> {
     v.as_object().ok_or(INVALID)
@@ -211,7 +371,12 @@ fn encode_history_messages(
     }
     Ok((output, has_history))
 }
-fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportError> {
+fn encode(
+    s: &SelectionSnapshot,
+    input: &Value,
+    stream: bool,
+    images: &[Image],
+) -> Result<Encoded, TransportError> {
     if !depth(input, 64) {
         return Err(INVALID_REQUEST);
     }
@@ -223,7 +388,10 @@ fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportErro
     if messages.is_empty() || messages.len() > 128 {
         return Err(INVALID_REQUEST);
     }
-    let (encoded_messages, has_history) = encode_history_messages(s, messages)?;
+    let (mut encoded_messages, has_history) = encode_history_messages(s, messages)?;
+    if !images.is_empty() {
+        add_images(s, &mut encoded_messages, images)?;
+    }
     let empty = Vec::new();
     let tools = match request.get("tools") {
         None => &empty,
@@ -261,7 +429,8 @@ fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportErro
     {
         return Err(TransportError("UNSUPPORTED_CAPABILITY"));
     }
-    let mut body = json!({"model":s.model,"messages":encoded_messages,"stream":false});
+    let mut body =
+        json!({"model":s.model,"messages":encoded_messages,"stream":stream && names.is_empty()});
     match s.adapter.as_str() {
         "openai-compatible" => {
             body["n"] = json!(1);
@@ -288,7 +457,11 @@ fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportErro
         return Err(INVALID_REQUEST);
     }
     let body = serde_json::to_vec(&body).map_err(|_| INVALID_REQUEST)?;
-    if body.len() > LIMIT {
+    let image_allowance = images
+        .iter()
+        .map(|image| image.bytes().len().div_ceil(3) * 4 + 128)
+        .sum::<usize>();
+    if body.len() > LIMIT + image_allowance {
         return Err(INVALID_REQUEST);
     }
     Ok(Encoded {
@@ -296,6 +469,53 @@ fn encode(s: &SelectionSnapshot, input: &Value) -> Result<Encoded, TransportErro
         names,
         structured: schema.is_some(),
     })
+}
+
+fn add_images(
+    selection: &SelectionSnapshot,
+    messages: &mut [Value],
+    images: &[Image],
+) -> Result<(), TransportError> {
+    if !selection
+        .capabilities
+        .iter()
+        .any(|capability| capability == "vision")
+    {
+        return Err(TransportError("UNSUPPORTED_CAPABILITY"));
+    }
+    if images.len() > MAX_IMAGES
+        || images
+            .iter()
+            .map(|image| image.bytes().len())
+            .sum::<usize>()
+            > MAX_TOTAL_IMAGE_BYTES
+    {
+        return Err(INVALID_REQUEST);
+    }
+    let last = messages
+        .last_mut()
+        .filter(|message| message["role"] == "user")
+        .ok_or(INVALID_REQUEST)?;
+    if selection.adapter == "ollama" {
+        last["images"] = json!(
+            images
+                .iter()
+                .map(|image| STANDARD.encode(image.bytes()))
+                .collect::<Vec<_>>()
+        );
+    } else {
+        let mut content = vec![json!({"type":"text","text":last["content"]})];
+        content.extend(images.iter().map(|image| {
+            let url = format!(
+                "data:{};base64,{}",
+                image.mime(),
+                STANDARD.encode(image.bytes())
+            );
+            json!({"type":"image_url","image_url":{"url":url}})
+        }));
+        last["content"] = Value::Array(content);
+    }
+    Ok(())
 }
 fn tokens(m: &Map<String, Value>, key: &str) -> Result<Option<u64>, TransportError> {
     let Some(v) = m.get(key) else { return Ok(None) };
@@ -305,6 +525,51 @@ fn tokens(m: &Map<String, Value>, key: &str) -> Result<Option<u64>, TransportErr
         return Err(INVALID);
     }
     Ok(Some(number as u64))
+}
+
+#[cfg(test)]
+mod vision_tests {
+    use super::*;
+    use crate::media::vision::Image;
+
+    #[test]
+    fn adapters_place_trusted_images_in_the_final_user_message_only() {
+        let image = Image::validated("image/png", b"\x89PNG\r\n\x1a\nfixture".to_vec()).unwrap();
+        let input = json!({"messages":[{"role":"system","content":"rules"},{"role":"user","content":"review"}]});
+        for adapter in ["openai-compatible", "ollama"] {
+            let mut model = SelectionSnapshot {
+                configuration_revision: 1,
+                role: "writing".into(),
+                profile_id: "profile".into(),
+                provider_id: "provider".into(),
+                adapter: adapter.into(),
+                base_url: "http://localhost".into(),
+                model: "fixture".into(),
+                model_version: None,
+                api_key_env: None,
+                capabilities: vec!["vision".into()],
+                context_window_tokens: 8192,
+                max_output_tokens: 512,
+            };
+            let encoded = encode(&model, &input, false, std::slice::from_ref(&image)).unwrap();
+            let body: Value = serde_json::from_slice(&encoded.body).unwrap();
+            assert_eq!(body["messages"][0], input["messages"][0]);
+            let user = &body["messages"][1];
+            if adapter == "ollama" {
+                assert_eq!(user["content"], "review");
+                assert_eq!(user["images"], json!(["iVBORw0KGgpmaXh0dXJl"]));
+            } else {
+                assert_eq!(user["content"][0], json!({"type":"text","text":"review"}));
+                assert_eq!(
+                    user["content"][1]["image_url"]["url"],
+                    "data:image/png;base64,iVBORw0KGgpmaXh0dXJl"
+                );
+                assert!(user.get("images").is_none());
+            }
+            model.capabilities.clear();
+            assert!(encode(&model, &input, false, std::slice::from_ref(&image)).is_err());
+        }
+    }
 }
 fn normalize(
     s: &SelectionSnapshot,
@@ -482,11 +747,22 @@ impl Transport {
         input: &Value,
         cancel: Option<watch::Receiver<bool>>,
     ) -> Result<InferenceResult, TransportError> {
+        self.infer_with_images(snapshot, input, &[], cancel).await
+    }
+
+    pub(crate) async fn infer_with_images(
+        &self,
+        snapshot: &SelectionSnapshot,
+        input: &Value,
+        images: &[Image],
+        cancel: Option<watch::Receiver<bool>>,
+    ) -> Result<InferenceResult, TransportError> {
         if cancel.as_ref().is_some_and(|signal| *signal.borrow()) {
             return Err(TransportError("CANCELLED"));
         }
         let selection = snapshot.clone();
-        let encoded = encode(&selection, input)?;
+        let stream = stream_response::sender();
+        let encoded = encode(&selection, input, stream.is_some(), images)?;
         let path = if selection.adapter == "ollama" {
             "/api/chat"
         } else {
@@ -523,8 +799,10 @@ impl Transport {
             if key.is_empty() || !key.bytes().all(|v| (0x21..=0x7e).contains(&v)) {
                 return Err(TransportError("MISSING_CREDENTIAL"));
             }
-            let authorization = reqwest::header::HeaderValue::from_str(&format!("Bearer {key}"))
-                .map_err(|_| TransportError("MISSING_CREDENTIAL"))?;
+            let mut authorization =
+                reqwest::header::HeaderValue::from_str(&format!("Bearer {key}"))
+                    .map_err(|_| TransportError("MISSING_CREDENTIAL"))?;
+            authorization.set_sensitive(true);
             headers.insert(reqwest::header::AUTHORIZATION, authorization);
         }
         let operation = async {
@@ -556,6 +834,10 @@ impl Transport {
                         .unwrap_or(true))
             {
                 return Err(INVALID);
+            }
+            if let Some(sender) = stream.filter(|_| encoded.names.is_empty()) {
+                return read_provider_stream(&mut response, &selection, encoded.structured, sender)
+                    .await;
             }
             let mut bytes = Vec::new();
             while let Some(chunk) = response

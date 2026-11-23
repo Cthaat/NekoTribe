@@ -1,0 +1,10 @@
+{
+  "id": "CHAT-REALTIME-DETAILS",
+  "revision": 1,
+  "cases": [
+    {"id":"typing-visible-and-temporary","assertion":"A direct peer or another subscribed authorized channel member sees typing until stop or expiration. Repeated events are limited and no event is persisted."},
+    {"id":"typing-membership","assertion":"Unrelated users, blocked direct pairs and channel users whose access is revoked cannot send or receive the typing event."},
+    {"id":"read-and-badges","assertion":"An explicit displayed cursor advances the viewer's position, updates unread counts across the viewer's devices and displays the receipt to the message sender."},
+    {"id":"direct-read-denials","assertion":"A foreign or deleted cursor returns 400, a nonparticipant receives 403 and a read-only history fetch does not change the cursor."}
+  ]
+}

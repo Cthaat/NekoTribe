@@ -54,7 +54,7 @@ pub fn load(reader: &impl Reader, actor: i64) -> Result<Config, Error> {
     decode_config(&reader.load()?)?.ok_or(Error::Unavailable)
 }
 
-fn decode_config(rows: &[DbRow]) -> Result<Option<Config>, Error> {
+pub(crate) fn decode_config(rows: &[DbRow]) -> Result<Option<Config>, Error> {
     if rows.is_empty() {
         return Ok(None);
     }

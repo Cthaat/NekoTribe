@@ -3,14 +3,14 @@ use nekotribe_backend::{
     auth::{
         otp::SmtpConfig,
         sessions::{
-            build_native_router_with_realtime, CorsPolicy, RefreshPolicy, SessionRepository,
+            build_native_router_with_realtime_and_publisher, CorsPolicy, RefreshPolicy, SessionRepository,
             StoreFuture,
         },
         storage_urls::StorageUrlPolicy,
         IssuedToken, TokenClaims, TokenCodec, TokenKind,
     },
     local_presence::LocalPresenceEvents,
-    notification_events::{EventError, NotificationPublisher},
+    notification_events::{EventError, NotificationPublisher, TypingScope},
     notification_source::{NotificationSource, SubscriptionFuture},
 };
 use serde_json::{json, Value};
@@ -36,6 +36,9 @@ impl SessionRepository for Repository {
     }
     fn can_deliver_direct_message(&self, user: u64, conversation: u64, message: u64, deleted: bool) -> StoreFuture<'_, bool> {
         Box::pin(async move { Ok(user == 42 && conversation == 11 && message == if deleted { 13 } else { 12 }) })
+    }
+    fn can_deliver_direct_read(&self, user: u64, conversation: u64, reader: u64, cursor: u64) -> StoreFuture<'_, bool> {
+        Box::pin(async move { Ok((user, conversation, reader, cursor) == (42, 11, 9, 12)) })
     }
     fn touch<'a>(&'a self, _claims: &'a TokenClaims) -> StoreFuture<'a, u64> {
         Box::pin(async move { Ok(u64::from(!self.0.load(Ordering::SeqCst))) })
@@ -130,6 +133,22 @@ async fn chat_channel_rechecks_permission_and_delivers_only_matching_events() {
     let deletion = receive(&mut socket).await;
     assert_eq!(deletion["type"], "direct_message_deleted");
     assert_eq!(deletion["data"]["message_id"], 13);
+    for data in [
+        json!({"conversation_id":44,"message_id":12}),
+        json!({"conversation_id":11,"message_id":13}),
+        json!({"conversation_id":11,"message_id":12,"content":"forged"}),
+        json!({"conversation_id":11,"message_id":12,"server_id":""}),
+        json!({"conversation_id":11,"message_id":12,"server_id":"remote"}),
+    ] {
+        source.publish(42, json!({"type":"direct_message_updated","data":data,"timestamp":1})).await;
+    }
+    let update = receive(&mut socket).await;
+    assert_eq!(update["type"], "direct_message_updated");
+    assert_eq!(update["data"], json!({"conversation_id":11,"message_id":12,"server_id":"remote"}));
+    for (reader, cursor) in [(91, 12), (9, 13), (9, 12)] {
+        source.publish(42, json!({"type":"direct_read_updated","data":{"conversation_id":11,"reader_id":reader,"last_read_message_id":cursor},"timestamp":1})).await;
+    }
+    assert_eq!(receive(&mut socket).await["data"], json!({"conversation_id":11,"reader_id":9,"last_read_message_id":12}));
     repo.1.store(false, Ordering::SeqCst);
     room.send(
         json!({"type":"chat_message","data":{"channel_id":7},"timestamp":1})
@@ -173,20 +192,27 @@ fn token(codec: &TokenCodec, user: u64) -> String {
         .unwrap()
 }
 async fn server(
-    repo: Arc<Repository>,
+    repo: Arc<dyn SessionRepository>,
     source: Arc<dyn NotificationSource>,
     clock: Arc<AtomicU64>,
-) -> (
-    String,
-    String,
-    String,
-    oneshot::Sender<()>,
-    tokio::task::JoinHandle<()>,
-) {
+) -> Harness {
+    server_with_publisher(repo, source, clock, None).await
+}
+
+type Harness = (
+    String, String, String, oneshot::Sender<()>, tokio::task::JoinHandle<()>,
+);
+
+async fn server_with_publisher(
+    repo: Arc<dyn SessionRepository>,
+    source: Arc<dyn NotificationSource>,
+    clock: Arc<AtomicU64>,
+    publisher: Option<Arc<dyn NotificationPublisher>>,
+) -> Harness {
     let codec = TokenCodec::new(b"test-access-key", b"test-refresh-key").unwrap();
     let first = token(&codec, 42);
     let second = token(&codec, 9);
-    let router = build_native_router_with_realtime(
+    let router = build_native_router_with_realtime_and_publisher(
         codec,
         repo,
         CorsPolicy::default(),
@@ -195,6 +221,7 @@ async fn server(
         StorageUrlPolicy::default(),
         Arc::new(SmtpConfig::default()),
         Some(source),
+        publisher,
     );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -208,6 +235,68 @@ async fn server(
             .unwrap();
     });
     (format!("ws://{address}/_ws"), first, second, stop, task)
+}
+
+#[tokio::test]
+async fn typing_delivers_locally_to_current_peers_and_joined_members_only() {
+    struct ChatRepository { direct: AtomicBool, channel: AtomicBool }
+    impl SessionRepository for ChatRepository {
+        fn touch<'a>(&'a self, _: &'a TokenClaims) -> StoreFuture<'a, u64> { Box::pin(async { Ok(1) }) }
+        fn revoke<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> { Box::pin(async { Ok(0) }) }
+        fn revoke_others<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, u64> { Box::pin(async { Ok(0) }) }
+        fn can_read_chat_channel(&self, user: u64, channel: u64) -> StoreFuture<'_, bool> {
+            Box::pin(async move { Ok(channel == 7 && (user == 42 || user == 9 && self.channel.load(Ordering::SeqCst))) })
+        }
+        fn direct_typing_peer(&self, user: u64, conversation: u64) -> StoreFuture<'_, Option<u64>> {
+            Box::pin(async move {
+                if conversation == 11 && self.direct.load(Ordering::SeqCst) {
+                    Ok(match user { 42 => Some(9), 9 => Some(42), _ => None })
+                } else {
+                    Ok(None)
+                }
+            })
+        }
+    }
+    let repo = Arc::new(ChatRepository { direct: AtomicBool::new(true), channel: AtomicBool::new(true) });
+    let hub = Arc::new(LocalPresenceEvents::new(None, None).unwrap());
+    let (url, first, second, stop, task) = server_with_publisher(repo.clone(), hub.clone(), Arc::new(AtomicU64::new(150)), Some(hub.clone())).await;
+    let (mut left, _) = connect_async(format!("{url}?token={first}")).await.unwrap();
+    let (mut right, _) = connect_async(format!("{url}?token={second}")).await.unwrap();
+    let command = |kind, data| Message::Text(json!({"type":kind,"data":data}).to_string().into());
+    for socket in [&mut left, &mut right] {
+        assert_eq!(receive(socket).await["data"]["message"], "WebSocket connected");
+        assert_eq!(receive(socket).await["data"]["code"], "realtime_status");
+    }
+    left.send(command("typing_start", json!({"conversation_id":11,"user_id":9}))).await.unwrap();
+    left.send(command("typing_start", json!({"conversation_id":11}))).await.unwrap();
+    let started = receive(&mut right).await;
+    assert_eq!(started["type"], "typing_start");
+    assert_eq!(started["data"]["user_id"], 42);
+    left.send(command("typing_start", json!({"conversation_id":11}))).await.unwrap();
+    left.send(command("typing_stop", json!({"conversation_id":11}))).await.unwrap();
+    assert_eq!(receive(&mut right).await["type"], "typing_stop");
+    assert!(tokio::time::timeout(Duration::from_millis(100), left.next()).await.is_err());
+
+    for socket in [&mut left, &mut right] {
+        socket.send(command("chat_join_channel", json!({"channel_id":7}))).await.unwrap();
+        assert_eq!(receive(socket).await["data"]["message"], "chat channel joined");
+        assert_eq!(receive(socket).await["data"]["code"], "chat_channel_ready");
+    }
+    right.send(command("typing_start", json!({"channel_id":7}))).await.unwrap();
+    let room = receive(&mut left).await;
+    assert_eq!(room["type"], "typing_start");
+    assert_eq!(room["data"]["user_id"], 9);
+    assert_eq!(room["data"]["channel_id"], 7);
+
+    repo.direct.store(false, Ordering::SeqCst);
+    repo.channel.store(false, Ordering::SeqCst);
+    hub.publish_typing(TypingScope::Direct { conversation: 11, recipient: 9 }, 42, "typing_stop").await.unwrap();
+    hub.publish_typing(TypingScope::Channel(7), 42, "typing_stop").await.unwrap();
+    assert!(tokio::time::timeout(Duration::from_millis(100), right.next()).await.is_err());
+    drop(left);
+    drop(right);
+    let _ = stop.send(());
+    tokio::time::timeout(Duration::from_secs(3), task).await.unwrap().unwrap();
 }
 async fn receive<S>(socket: &mut tokio_tungstenite::WebSocketStream<S>) -> Value
 where

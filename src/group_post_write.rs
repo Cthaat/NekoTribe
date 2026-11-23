@@ -8,14 +8,16 @@ use crate::{
     chat_message_send::write_one,
     db::{
         oracle::{BindMap, DbError},
-        tx::OracleTx,
+        tx::{OracleTx, Transaction},
         value::DbValue,
     },
     direct_history::query,
-    direct_send::next_id,
     group_content,
     httpx::{errors::ApiError, response::V2Response},
-    posts::create_notification::{self, PostNoticeInput},
+    posts::{
+        create_notification::{self, NotificationContext, PostNoticeInput},
+        markdown, poll_http, polls,
+    },
 };
 use axum::{
     body::{to_bytes, Body},
@@ -31,6 +33,8 @@ pub enum Action {
         content: String,
         media: String,
         announcement: bool,
+        poll: Option<polls::Draft>,
+        markdown: Option<String>,
     },
     Delete {
         reason: String,
@@ -51,13 +55,30 @@ pub enum Outcome {
     MissingMedia,
     InvalidMedia,
     PublishForbidden,
+    PollUnavailable,
+    PollCutoff,
+    MarkdownUnavailable,
     MissingPost,
     Forbidden(&'static str),
 }
 
+#[derive(Clone)]
+pub(crate) struct PostInput {
+    pub(crate) content: String,
+    pub(crate) media: String,
+    pub(crate) announcement: bool,
+    pub(crate) poll: Option<polls::Draft>,
+    pub(crate) markdown: Option<String>,
+}
+
+pub(crate) enum Creation {
+    Created(i64),
+    Rejected(Outcome),
+}
+
 pub(crate) const LOCK: &str = "SELECT group_id FROM n_groups WHERE group_id=:group_id AND is_active=1 AND is_deleted=0 FOR UPDATE";
 const VIEW: &str = "SELECT fn_can_view_group(:user_id,:group_id) AS allowed FROM dual";
-const POST: &str = "SELECT fn_can_post_in_group(:user_id,:group_id) AS allowed FROM dual";
+pub(crate) const POST: &str = "SELECT fn_can_post_in_group(:user_id,:group_id) AS allowed FROM dual";
 pub(crate) const MODERATE: &str =
     "SELECT fn_has_group_permission(:user_id,:group_id,'moderator') AS allowed FROM dual";
 const AUTHOR_VISIBLE: &str = "SELECT 1 AS visible FROM n_users u
@@ -101,8 +122,11 @@ pub(crate) fn permission(
     group: i64,
     actor: i64,
 ) -> Result<bool, DbError> {
-    let rows = query(
-        conn,
+    permission_in_transaction(&OracleTx::new(conn), sql, group, actor)
+}
+
+fn permission_in_transaction(tx: &impl Transaction, sql: &str, group: i64, actor: i64) -> Result<bool, DbError> {
+    let rows = tx.query(
         sql,
         BindMap::from([number("group_id", group), number("user_id", actor)]),
     )?;
@@ -124,8 +148,77 @@ pub(crate) fn lock_group(
     group: i64,
     actor: i64,
 ) -> Result<bool, DbError> {
-    let rows = query(conn, LOCK, BindMap::from([number("group_id", group)]))?;
-    Ok(!rows.is_empty() && permission(conn, VIEW, group, actor)?)
+    lock_group_in_transaction(&OracleTx::new(conn), group, actor)
+}
+
+fn lock_group_in_transaction(tx: &impl Transaction, group: i64, actor: i64) -> Result<bool, DbError> {
+    let rows = tx.query(LOCK, BindMap::from([number("group_id", group)]))?;
+    Ok(!rows.is_empty() && permission_in_transaction(tx, VIEW, group, actor)?)
+}
+
+pub(crate) fn check_create_permissions(
+    tx: &impl Transaction,
+    actor: i64,
+    group: i64,
+    announcement: bool,
+) -> Result<Option<Outcome>, DbError> {
+    if !lock_group_in_transaction(tx, group, actor)? {
+        return Ok(Some(Outcome::MissingGroup));
+    }
+    if !permission_in_transaction(tx, POST, group, actor)? {
+        return Ok(Some(Outcome::Forbidden("无权发帖")));
+    }
+    if announcement && !permission_in_transaction(tx, MODERATE, group, actor)? {
+        return Ok(Some(Outcome::Forbidden("无权发布公告")));
+    }
+    if !crate::moderation::publish_policy::allowed(actor, |sql, binds| tx.query(sql, binds))? {
+        return Ok(Some(Outcome::PublishForbidden));
+    }
+    Ok(None)
+}
+
+pub(crate) fn create_in_transaction(
+    tx: &impl Transaction,
+    actor: i64,
+    group: i64,
+    input: PostInput,
+    storage: &StorageUrlPolicy,
+) -> Result<Creation, DbError> {
+    if let Some(outcome) = check_create_permissions(tx, actor, group, input.announcement)? {
+        return Ok(Creation::Rejected(outcome));
+    }
+    if input.poll.is_some() && polls::require_schema(tx).is_err() {
+        return Ok(Creation::Rejected(Outcome::PollUnavailable));
+    }
+    if input.markdown.is_some() && markdown::require_schema(tx).is_err() {
+        return Ok(Creation::Rejected(Outcome::MarkdownUnavailable));
+    }
+    let mut urls: Vec<_> = input.media.split(',').map(str::to_owned).collect();
+    if !crate::group_settings::lock_group_media_urls(tx, &mut urls, storage)? {
+        return Ok(Creation::Rejected(Outcome::MissingMedia));
+    }
+    let media = urls.join(",");
+    if media.len() > 2000 || urls.iter().any(|url| url.contains(',')) {
+        return Ok(Creation::Rejected(Outcome::InvalidMedia));
+    }
+    let rows = tx.query("SELECT seq_group_post_id.NEXTVAL AS id FROM dual", BindMap::new())?;
+    let post = rows.first().and_then(|row| row.get("ID")).and_then(DbValue::as_i64)
+        .filter(|id| (1..=9_007_199_254_740_991).contains(id))
+        .ok_or(DbError::SchemaNotReady)?;
+    write_one(tx, INSERT, BindMap::from([
+        number("post_id", post), number("group_id", group), number("user_id", actor),
+        text("content", input.content), text("media_urls", media),
+        number("is_announcement", i64::from(input.announcement)),
+    ]))?;
+    if let Some(poll) = input.poll {
+        if !polls::attach(tx, polls::Target::Group { group_id: group, post_id: post }, &poll)? {
+            return Ok(Creation::Rejected(Outcome::PollCutoff));
+        }
+    }
+    if let Some(body) = &input.markdown {
+        markdown::attach(tx, markdown::Source::GroupPost(post), body)?;
+    }
+    Ok(Creation::Created(post))
 }
 
 pub(crate) fn execute(
@@ -138,50 +231,19 @@ pub(crate) fn execute(
     let (actor, group, post) = (id(viewer)?, id(request.group)?, id(request.post)?);
     let tx = OracleTx::new(conn);
     let result = (|| {
-        if !lock_group(conn, group, actor)? {
-            return Ok(Outcome::MissingGroup);
-        }
         if let Action::Create {
             content,
             media,
             announcement,
+            poll,
+            markdown,
         } = request.action
         {
-            if !permission(conn, POST, group, actor)? {
-                return Ok(Outcome::Forbidden("无权发帖"));
-            }
-            if announcement && !permission(conn, MODERATE, group, actor)? {
-                return Ok(Outcome::Forbidden("无权发布公告"));
-            }
-            if !crate::moderation::publish_policy::allowed(actor, |sql, binds| {
-                query(conn, sql, binds)
-            })? {
-                return Ok(Outcome::PublishForbidden);
-            }
-            let mut urls: Vec<_> = media.split(',').map(str::to_owned).collect();
-            if !crate::group_settings::lock_group_media_urls(&tx, &mut urls, storage)? {
-                return Ok(Outcome::MissingMedia);
-            }
-            let media = urls.join(",");
-            if media.len() > 2000 || urls.iter().any(|url| url.contains(',')) {
-                return Ok(Outcome::InvalidMedia);
-            }
-            let post = next_id(conn, "SELECT seq_group_post_id.NEXTVAL AS id FROM dual")?;
-            if !(1..=9_007_199_254_740_991).contains(&post) {
-                return Err(DbError::SchemaNotReady);
-            }
-            write_one(
-                &tx,
-                INSERT,
-                BindMap::from([
-                    number("post_id", post),
-                    number("group_id", group),
-                    number("user_id", actor),
-                    text("content", content),
-                    text("media_urls", media),
-                    number("is_announcement", i64::from(announcement)),
-                ]),
-            )?;
+            let input = PostInput { content, media, announcement, poll, markdown };
+            let post = match create_in_transaction(&tx, actor, group, input, storage)? {
+                Creation::Created(post) => post,
+                Creation::Rejected(outcome) => return Ok(outcome),
+            };
             let detail = group_content::execute(
                 conn,
                 viewer,
@@ -200,12 +262,17 @@ pub(crate) fn execute(
                 },
                 storage,
             )?;
-            let group_content::Outcome::Found(detail, _) = detail else {
-                return Err(DbError::SchemaNotReady);
+            return match detail {
+                group_content::Outcome::Found(detail, _) => Ok(Outcome::Saved(detail)),
+                group_content::Outcome::PollUnavailable => Ok(Outcome::PollUnavailable),
+                group_content::Outcome::MarkdownUnavailable => Ok(Outcome::MarkdownUnavailable),
+                _ => Err(DbError::SchemaNotReady),
             };
-            return Ok(Outcome::Saved(detail));
         }
 
+        if !lock_group(conn, group, actor)? {
+            return Ok(Outcome::MissingGroup);
+        }
         let scoped = BindMap::from([number("group_id", group), number("post_id", post)]);
         let authors = query(conn, AUTHOR, scoped.clone())?;
         let Some(row) = authors.first() else {
@@ -328,6 +395,11 @@ fn parse(operation: Operation, raw: &[u8]) -> Result<Action, ApiError> {
                 content: content.into(),
                 media,
                 announcement,
+                poll: body
+                    .get("poll")
+                    .map(|value| polls::parse_draft(&value.to_string()))
+                    .transpose()?,
+                markdown: body.get("markdown").map(markdown::parse_value).transpose()?,
             })
         }
         Operation::Delete => {
@@ -394,6 +466,9 @@ async fn route(
             Outcome::MissingMedia => return Err(ApiError::bad_request("群组附件不存在或已删除")),
             Outcome::InvalidMedia => return Err(ApiError::bad_request("media_urls 参数错误")),
             Outcome::MissingPost => return Err(ApiError::not_found("群组帖子不存在")),
+            Outcome::PollUnavailable => return Err(poll_http::unavailable()),
+            Outcome::PollCutoff => return Err(ApiError::bad_request("投票截止时间必须晚于当前时间")),
+            Outcome::MarkdownUnavailable => return Err(markdown::unavailable()),
             Outcome::PublishForbidden => {
                 return Err(ApiError::forbidden(
                     crate::moderation::publish_policy::message(),
@@ -517,8 +592,19 @@ async fn notify(
     data: &Value,
 ) -> Result<(), SessionStoreError> {
     let post = data["post_id"].as_u64().ok_or(SessionStoreError)?;
-    let message = notice_excerpt(data["content"].as_str().unwrap_or_default());
-    for recipient in state
+    let content = data["content"].as_str().unwrap_or_default();
+    notify_with(&NotificationContext::from(state), actor, group, post, content).await
+}
+
+pub(crate) async fn notify_with(
+    context: &NotificationContext<'_>,
+    actor: u64,
+    group: u64,
+    post: u64,
+    content: &str,
+) -> Result<(), SessionStoreError> {
+    let message = notice_excerpt(content);
+    for recipient in context
         .repository
         .group_post_recipients(actor, group, post)
         .await?
@@ -537,7 +623,7 @@ async fn notify(
             metadata_json: json!({"group_id":group,"post_id":post,"event":"group_post_created"})
                 .to_string(),
         };
-        if create_notification::deliver(state, &input).await.is_err() {
+        if create_notification::deliver_with(context, &input).await.is_err() {
             eprintln!("group post notification unavailable for recipient");
         }
     }

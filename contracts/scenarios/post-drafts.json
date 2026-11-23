@@ -1,0 +1,10 @@
+{
+  "id": "POST-DRAFTS",
+  "revision": 1,
+  "cases": [
+    {"id":"owner-resume-and-delete","assertion":"A user can save an incomplete post or group draft, resume it on another client, update or delete it, while another account receives 404."},
+    {"id":"single-scheduled-publication","assertion":"Concurrent native workers and a manual publication produce at most one post and return the stored publication receipt. Editing or cancelling first prevents a pending job from publishing."},
+    {"id":"current-publication-permissions","assertion":"If group rights, account access or media availability changes before scheduled publication, no post is created and the draft remains available with a controlled failure state."},
+    {"id":"explicit-schema","assertion":"Absent schema prevents draft use and scheduled scanning without issuing DDL. Previously recorded migration checksums are preserved."}
+  ]
+}

@@ -1,12 +1,25 @@
 use crate::db::{
     oracle::{bind_refs, bind_values, BindMap, DbError, ExecuteResult},
     row::{oracle_row_to_db_row, DbRow},
+    value::DbValue,
 };
+use oracle::sql_type::Clob;
+use std::io::Write;
 
 /// All queries and writes use one connection without auto-committing.
 pub trait Transaction {
     fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError>;
     fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError>;
+    fn execute_clob(
+        &self,
+        sql: &str,
+        mut binds: BindMap,
+        name: &str,
+        body: &str,
+    ) -> Result<u64, DbError> {
+        binds.insert(name.into(), DbValue::String(body.to_owned()));
+        self.execute(sql, binds)
+    }
     fn commit(&self) -> Result<(), DbError>;
     fn rollback(&self) -> Result<(), DbError>;
 }
@@ -27,6 +40,22 @@ impl Transaction for OracleTx<'_> {
 
     fn execute(&self, sql: &str, binds: BindMap) -> Result<u64, DbError> {
         Ok(OracleTx::execute(self, sql, binds)?.rows_affected)
+    }
+
+    fn execute_clob(
+        &self,
+        sql: &str,
+        binds: BindMap,
+        name: &str,
+        body: &str,
+    ) -> Result<u64, DbError> {
+        let mut clob = Clob::new(self.connection)?;
+        clob.write_all(body.as_bytes())
+            .map_err(|_| DbError::SchemaNotReady)?;
+        let values = bind_values(binds);
+        let mut refs = bind_refs(&values);
+        refs.push((name, &clob));
+        Ok(self.connection.execute_named(sql, &refs)?.row_count()?)
     }
 
     fn commit(&self) -> Result<(), DbError> {

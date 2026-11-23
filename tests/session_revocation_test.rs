@@ -399,7 +399,11 @@ async fn native_mode_router_has_zero_calls_to_counted_nuxt() {
     config.legacy_backend.base_url = upstream_url;
     let (base, stop, task) = serve(build_router(config)).await;
     let client = reqwest::Client::new();
-    for path in ["/api/v2/auth/login", "/storage/file", "/uploads/file"] {
+    for (path, expected) in [
+        ("/api/v2/auth/login", 404),
+        ("/storage/file", 404),
+        ("/uploads/file", 410),
+    ] {
         assert_eq!(
             client
                 .get(format!("{base}{path}"))
@@ -407,7 +411,8 @@ async fn native_mode_router_has_zero_calls_to_counted_nuxt() {
                 .await
                 .unwrap()
                 .status(),
-            404
+            expected,
+            "{path}"
         )
     }
     assert_eq!(

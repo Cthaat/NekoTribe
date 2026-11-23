@@ -1,0 +1,10 @@
+{
+  "id": "CHAT-MESSAGE-SEARCH",
+  "revision": 1,
+  "cases": [
+    {"id":"channel-filters-combine","status":200,"assertion":"A current channel member combines a case-insensitive keyword, exact sender and inclusive/exclusive timestamp bounds. Total and results use the same predicates."},
+    {"id":"direct-filters-are-read-only","status":200,"assertion":"A current direct participant can search scoped live messages without a read cursor update, even with default mark_read."},
+    {"id":"invalid-range-or-sender","status":400,"assertion":"Malformed timestamps, reversed endpoints or an invalid sender are rejected."},
+    {"id":"outside-scope","status":403,"assertion":"A nonparticipant or a viewer without channel access cannot use search to read messages."}
+  ]
+}

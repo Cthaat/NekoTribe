@@ -1,6 +1,6 @@
 //! Bounded, untrusted conversation context for knowledge generation.
 use super::knowledge_source::{self, Candidate};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,7 +113,16 @@ pub fn select(
             }
             knowledge_source::validate(1, &refs).map_err(|_| ContextError::Invalid)?;
             item["citations"] = Value::Array(clean);
-        } else if message.get("citations").is_some() {
+            if let Some(value) = message.get("knowledge_dependencies") {
+                let dependencies: Vec<Candidate> =
+                    serde_json::from_value(value.clone()).map_err(|_| ContextError::Invalid)?;
+                super::knowledge_history::validate_dependencies(&dependencies, &refs)
+                    .map_err(|_| ContextError::Invalid)?;
+                item["knowledge_dependencies"] = value.clone();
+            }
+        } else if message.get("citations").is_some()
+            || message.get("knowledge_dependencies").is_some()
+        {
             return Err(ContextError::Invalid);
         }
         normalized.push(item);
@@ -146,7 +155,11 @@ pub fn select(
             break;
         }
         let mut new = Vec::new();
-        if let Some(citations) = msg.get("citations").and_then(Value::as_array) {
+        if let Some(citations) = msg
+            .get("knowledge_dependencies")
+            .or_else(|| msg.get("citations"))
+            .and_then(Value::as_array)
+        {
             for c in citations {
                 let r = Candidate {
                     kind: c["kind"].as_str().unwrap_or_default().to_owned(),

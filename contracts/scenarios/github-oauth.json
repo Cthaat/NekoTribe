@@ -1,0 +1,9 @@
+{
+  "id": "GITHUB-OAUTH",
+  "revision": 1,
+  "cases": [
+    {"id":"native-github-authorization","assertion":"A fresh flow creates independent state, finish key and S256 PKCE. Callback claims state once, exchanges at fixed GitHub URLs, and the original client finishes into the existing session or 2FA response using its finish key."},
+    {"id":"github-owner-binding","assertion":"Only the original account and active session can finish a link. GitHub numeric ID uniquely identifies the identity, unrelated GitHub profile fields never link an existing account, and owner may list and remove the link while keeping another method."},
+    {"id":"denied-and-replayed-flow","assertion":"Wrong state, expiry, wrong finish key, cancelled provider authorization, replay of a result, and suspended or unlinked accounts cannot produce a session. Responses and logs never expose provider tokens or callback credentials."}
+  ]
+}

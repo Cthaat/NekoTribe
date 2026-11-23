@@ -1,22 +1,24 @@
 use crate::{
-    auth::sessions::{percent_decode, NativeState, SessionStoreError},
+    auth::sessions::{NativeState, SessionStoreError, percent_decode},
     db::{
         oracle::{BindMap, DbError},
         pool::OraclePool,
+        row::DbRow,
+        tx::{OracleTx, Transaction},
         value::DbValue,
     },
     httpx::errors::ApiError,
     posts::bookmark::interaction_actor,
     storage::{
-        local_http::{read_private, LocalStorageConfig},
+        local_http::{LocalStorageConfig, read_private},
         local_policy::normalize_local_key,
     },
 };
 use axum::{
-    extract::{OriginalUri, State},
-    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
-    response::{IntoResponse, Response},
     Extension,
+    extract::{OriginalUri, State},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
+    response::{IntoResponse, Response},
 };
 use serde::Deserialize;
 use std::sync::OnceLock;
@@ -36,7 +38,7 @@ pub enum Lookup {
 pub(crate) struct PrivateKey(String);
 
 impl PrivateKey {
-    fn new(raw: &str, scope: &str) -> Option<Self> {
+    pub(crate) fn new(raw: &str, scope: &str) -> Option<Self> {
         let prefix = match scope {
             "chat" => "private/chat/",
             "post" => "private/post/",
@@ -77,13 +79,16 @@ pub(crate) async fn lookup(
         return Ok(Lookup::Missing);
     }
     let result = pool
-        .query_one(
-            query(),
-            BindMap::from([
-                ("viewer_id".into(), DbValue::I64(viewer_id)),
-                ("media_id".into(), DbValue::I64(media_id)),
-            ]),
-        )
+        .run_blocking(move |connection| {
+            let tx = OracleTx::new(connection);
+            read_asset(
+                &tx,
+                BindMap::from([
+                    ("viewer_id".into(), DbValue::I64(viewer_id)),
+                    ("media_id".into(), DbValue::I64(media_id)),
+                ]),
+            )
+        })
         .await;
     match result {
         Ok(Some(row)) => {
@@ -101,6 +106,17 @@ pub(crate) async fn lookup(
         Err(error) if missing_schema(&error) => Ok(Lookup::SchemaUnavailable),
         Err(_) => Err(SessionStoreError),
     }
+}
+
+fn read_asset(tx: &impl Transaction, binds: BindMap) -> Result<Option<DbRow>, DbError> {
+    let sql = &crate::direct_extras::contract().sql.private_media_read;
+    let rows = match tx.query(sql, binds.clone()) {
+        Err(error) if crate::direct_extras::attachment_table_absent(tx, &error)? => {
+            tx.query(query(), binds)
+        }
+        result => result,
+    }?;
+    Ok(rows.into_iter().next())
 }
 
 pub(super) fn missing_schema(error: &DbError) -> bool {
@@ -172,7 +188,7 @@ pub(crate) async fn read(
             StatusCode::NOT_FOUND => return Err(missing()),
             StatusCode::SERVICE_UNAVAILABLE => return Err(unavailable()),
             StatusCode::INTERNAL_SERVER_ERROR => {
-                return Err(ApiError::server_error("服务器内部错误"))
+                return Err(ApiError::server_error("服务器内部错误"));
             }
             StatusCode::RANGE_NOT_SATISFIABLE => {
                 let mut error =
@@ -214,4 +230,86 @@ pub(crate) async fn read(
         HeaderValue::from_static("nosniff"),
     );
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    struct Reader {
+        oracle_error: Option<i32>,
+        table_present: bool,
+        owner_schema: bool,
+        legacy_reads: Cell<u32>,
+    }
+
+    impl Transaction for Reader {
+        fn query(&self, sql: &str, binds: BindMap) -> Result<Vec<DbRow>, DbError> {
+            if sql == crate::direct_extras::contract().sql.private_media_read {
+                assert_eq!(binds["viewer_id"], DbValue::I64(42));
+                assert_eq!(binds["media_id"], DbValue::I64(3));
+                if let Some(code) = self.oracle_error {
+                    #[allow(deprecated)]
+                    return Err(DbError::Oracle(oracle::Error::OciError(
+                        oracle::DbError::new(code, 0, "synthetic", "", ""),
+                    )));
+                }
+                return Ok(vec![]);
+            }
+            if sql == query() {
+                self.legacy_reads.set(self.legacy_reads.get() + 1);
+                return Ok(vec![DbRow::new()]);
+            }
+            let present = if sql.contains("user_tables") {
+                self.table_present
+            } else {
+                assert!(sql.contains("CURRENT_SCHEMA"));
+                self.owner_schema
+            };
+            Ok(present.then(DbRow::new).into_iter().collect())
+        }
+        fn execute(&self, _: &str, _: BindMap) -> Result<u64, DbError> {
+            unreachable!()
+        }
+        fn commit(&self) -> Result<(), DbError> {
+            unreachable!()
+        }
+        fn rollback(&self) -> Result<(), DbError> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn fallback_requires_ora_00942_and_an_absent_attachment_table_in_the_owner_schema() {
+        for (code, present, owner_schema, legacy) in [
+            (None, false, true, false),
+            (Some(904), false, true, false),
+            (Some(942), true, true, false),
+            (Some(942), false, false, false),
+            (Some(942), false, true, true),
+        ] {
+            let reader = Reader {
+                oracle_error: code,
+                table_present: present,
+                owner_schema,
+                legacy_reads: Cell::new(0),
+            };
+            let result = read_asset(
+                &reader,
+                BindMap::from([
+                    ("viewer_id".into(), DbValue::I64(42)),
+                    ("media_id".into(), DbValue::I64(3)),
+                ]),
+            );
+            assert_eq!(reader.legacy_reads.get(), u32::from(legacy));
+            if legacy {
+                assert!(result.unwrap().is_some());
+            } else if code.is_none() {
+                assert!(result.unwrap().is_none());
+            } else {
+                assert!(result.is_err());
+            }
+        }
+    }
 }

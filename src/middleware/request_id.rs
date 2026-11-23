@@ -4,22 +4,46 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use std::{future::Future, sync::OnceLock};
 use uuid::Uuid;
 
 const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 
-pub async fn request_id(request: Request<Body>, next: Next) -> Response {
-    let request_id = request
-        .headers()
-        .get(&REQUEST_ID_HEADER)
-        .and_then(|value| value.to_str().ok())
-        .filter(|value| !value.trim().is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| Uuid::new_v4().to_string());
+#[derive(Clone)]
+pub(crate) struct RequestId(pub String);
 
-    let mut response = next.run(request).await;
-    if let Ok(value) = HeaderValue::from_str(&request_id) {
-        response.headers_mut().insert(REQUEST_ID_HEADER, value);
-    }
+tokio::task_local! { static CURRENT: Option<RequestId>; }
+
+pub(crate) fn current() -> Option<RequestId> {
+    CURRENT.try_with(Clone::clone).ok().flatten()
+}
+
+pub(crate) async fn scope<T>(id: Option<RequestId>, future: impl Future<Output = T>) -> T {
+    CURRENT.scope(id, future).await
+}
+
+pub async fn request_id(mut request: Request<Body>, next: Next) -> Response {
+    static PATTERN: OnceLock<regex::Regex> = OnceLock::new();
+    let pattern = PATTERN.get_or_init(|| {
+        regex::Regex::new(&crate::observability::contract().request_id_pattern)
+            .expect("synchronized request ID pattern")
+    });
+    let all = request.headers().get_all(&REQUEST_ID_HEADER);
+    let mut values = all.iter();
+    let request_id = match (
+        values.next().and_then(|header| header.to_str().ok()),
+        values.next(),
+    ) {
+        (Some(value), None) if pattern.is_match(value) => value.to_owned(),
+        _ => Uuid::new_v4().to_string(),
+    };
+    let header = HeaderValue::from_str(&request_id).expect("validated request ID");
+    let id = RequestId(request_id);
+    request
+        .headers_mut()
+        .insert(REQUEST_ID_HEADER, header.clone());
+    request.extensions_mut().insert(id.clone());
+    let mut response = scope(Some(id), next.run(request)).await;
+    response.headers_mut().insert(REQUEST_ID_HEADER, header);
     response
 }

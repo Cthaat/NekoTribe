@@ -9,6 +9,7 @@ use tokio::sync::watch;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TurnError {
+    Forbidden,
     InvalidSource,
     SourceChanged,
     InvalidAnswer,

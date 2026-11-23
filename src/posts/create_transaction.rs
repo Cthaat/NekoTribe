@@ -6,7 +6,7 @@ use crate::{
         value::DbValue,
     },
     media::private_bind::{self, Target},
-    posts::create_request::PostCreateInput,
+    posts::{create_request::PostCreateInput, markdown, polls},
 };
 
 const MAX_SAFE_ID: u64 = 9_007_199_254_740_991;
@@ -52,6 +52,9 @@ pub enum PostCreation {
     ContentEmpty,
     Invalid,
     PublishForbidden,
+    PollUnavailable,
+    PollCutoff,
+    MarkdownUnavailable,
 }
 
 #[doc(hidden)]
@@ -62,6 +65,23 @@ pub fn run<T: PostCreateTransaction>(
     tx: &T,
     actor: u64,
     input: &PostCreateInput,
+) -> Result<PostCreation, DbError> {
+    create(tx, actor, input, true)
+}
+
+pub(super) fn create_in_transaction<T: PostCreateTransaction>(
+    tx: &T,
+    actor: u64,
+    input: &PostCreateInput,
+) -> Result<PostCreation, DbError> {
+    create(tx, actor, input, false)
+}
+
+fn create<T: PostCreateTransaction>(
+    tx: &T,
+    actor: u64,
+    input: &PostCreateInput,
+    finalize: bool,
 ) -> Result<PostCreation, DbError> {
     let references = [
         input.reply_to_post_id,
@@ -74,6 +94,8 @@ pub fn run<T: PostCreateTransaction>(
             "public" | "followers" | "mentioned" | "private"
         )
         || references.iter().flatten().count() > 1
+        || (input.poll.is_some() && input.post_type() != "post")
+        || (input.markdown.is_some() && input.post_type() != "post")
         || references
             .iter()
             .flatten()
@@ -89,6 +111,12 @@ pub fn run<T: PostCreateTransaction>(
     let media = unique_ids(&input.media_ids, 4);
     if input.post_type() != "repost" && js_trim(&input.content).is_empty() && media.is_empty() {
         return Ok(PostCreation::ContentEmpty);
+    }
+    if input.poll.is_some() && polls::require_schema(tx).is_err() {
+        return Ok(PostCreation::PollUnavailable);
+    }
+    if input.markdown.is_some() && markdown::require_schema(tx).is_err() {
+        return Ok(PostCreation::MarkdownUnavailable);
     }
     let source = references.into_iter().flatten().next();
     if let Some(source) = source {
@@ -118,6 +146,9 @@ pub fn run<T: PostCreateTransaction>(
         }
         write_post(tx, actor, id, source, input, &media)
     })();
+    if !finalize {
+        return result;
+    }
     match result {
         Ok(PostCreation::Created(id)) => {
             if let Err(error) = tx.commit() {
@@ -219,6 +250,14 @@ fn write_post<T: PostCreateTransaction>(
                 ("user_id".into(), DbValue::F64(mentioned)),
             ]),
         )?;
+    }
+    if let Some(draft) = &input.poll {
+        if !polls::attach(tx, polls::Target::Regular(id as i64), draft)? {
+            return Ok(PostCreation::PollCutoff);
+        }
+    }
+    if let Some(body) = &input.markdown {
+        markdown::attach(tx, markdown::Source::Post(id as i64), body)?;
     }
     Ok(PostCreation::Created(id))
 }

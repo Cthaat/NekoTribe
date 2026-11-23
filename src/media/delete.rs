@@ -149,7 +149,7 @@ fn remove_row<T: Transaction>(tx: &T, user: i64, id: f64) -> Result<MediaDeleteO
         &reference_contract().check_references,
         BindMap::from([("media_id".into(), DbValue::F64(id))]),
     )?;
-    if !references.is_empty() {
+    if !references.is_empty() || crate::direct_extras::linked_asset(tx, DbValue::F64(id))? {
         return Ok(MediaDeleteOutcome::InUse);
     }
     let value = |key: &str| -> Result<Option<String>, DbError> {

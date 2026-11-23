@@ -8,6 +8,7 @@ use crate::{
         storage_urls::StorageUrlPolicy,
     },
     chat_channel_status::{lock_channel_access, MERGE_READ},
+    chat_message_search::{Scope, Search},
     db::{
         oracle::{BindMap, DbError},
         row::DbRow,
@@ -30,8 +31,7 @@ pub type History = Option<(Vec<Value>, u64)>;
 
 const COUNT: &str = "SELECT COUNT(*) AS total FROM n_chat_messages m
 JOIN v_user_profile_public u ON u.user_id=m.author_id
-WHERE m.channel_id=:channel_id AND m.is_deleted=0
-AND (:search_disabled=1 OR LOWER(m.content) LIKE :search_pattern)";
+WHERE m.channel_id=:channel_id AND m.is_deleted=0{search}";
 const PAGE: &str = "SELECT * FROM (
   SELECT m.message_id,m.channel_id,m.group_id,m.author_id AS user_id,m.message_type,m.content,
 m.is_pinned,m.is_deleted,m.created_at,m.updated_at,m.edited_at,m.deleted_at,
@@ -44,8 +44,7 @@ rm.message_id AS reply_id,rm.content AS reply_content,COALESCE(ru.display_name,r
   JOIN v_user_profile_public u ON u.user_id=m.author_id
   LEFT JOIN n_chat_messages rm ON rm.message_id=m.reply_to_message_id AND rm.channel_id=m.channel_id AND rm.is_deleted=0
   LEFT JOIN n_users ru ON ru.user_id=rm.author_id
-  WHERE m.channel_id=:channel_id AND m.is_deleted=0
-  AND (:search_disabled=1 OR LOWER(m.content) LIKE :search_pattern)
+  WHERE m.channel_id=:channel_id AND m.is_deleted=0{search}
 ) WHERE rn BETWEEN :start_row AND :end_row
 ORDER BY created_at ASC,message_id ASC";
 pub(crate) const BY_ID: &str = "SELECT m.message_id,m.channel_id,m.group_id,m.author_id AS user_id,m.message_type,m.content,
@@ -144,7 +143,7 @@ pub(crate) fn execute(
     viewer: u64,
     channel: u64,
     page: SessionPage,
-    search: &str,
+    search: &Search,
     storage: &StorageUrlPolicy,
 ) -> Result<History, DbError> {
     let viewer = i64::try_from(viewer).map_err(|_| DbError::SchemaNotReady)?;
@@ -165,18 +164,9 @@ pub(crate) fn execute(
             return Ok(None);
         };
         let manage = row_number(access, "CAN_MANAGE") == 1;
-        let mut binds = BindMap::from([
-            ("channel_id".into(), DbValue::I64(channel)),
-            (
-                "search_disabled".into(),
-                DbValue::I64(i64::from(search.is_empty())),
-            ),
-            (
-                "search_pattern".into(),
-                DbValue::String(format!("%{search}%")),
-            ),
-        ]);
-        let count = query(conn, COUNT, binds.clone())?;
+        let mut binds = BindMap::from([("channel_id".into(), DbValue::I64(channel))]);
+        let predicates = search.predicates(Scope::Channel, &mut binds);
+        let count = query(conn, &COUNT.replace("{search}", &predicates), binds.clone())?;
         let total = count
             .first()
             .and_then(|row| row.get("TOTAL"))
@@ -188,7 +178,7 @@ pub(crate) fn execute(
             ("start_row".into(), DbValue::F64(page.start)),
             ("end_row".into(), DbValue::F64(page.end)),
         ]);
-        let rows = query(conn, PAGE, binds)?;
+        let rows = query(conn, &PAGE.replace("{search}", &predicates), binds)?;
         let mut messages = rows
             .iter()
             .map(|row| {
@@ -235,13 +225,8 @@ pub(crate) async fn list(
         let (viewer, channel) = crate::posts::bookmark::interaction_identity(&state, &raw, &headers).await?;
         let raw_query = uri.query().unwrap_or_default();
         let page = session_pagination(raw_query);
-        let url = reqwest::Url::parse(&format!("http://localhost/?{raw_query}")).expect("fixed URL");
-        let mut terms = url.query_pairs().filter(|(key, _)| key == "q");
-        let search = match (terms.next(),terms.next()) {
-            (Some((_,term)),None) => term.trim().to_lowercase(),
-            _ => String::new(),
-        };
-        let (messages,total) = state.repository.list_chat_messages(viewer,channel,page,&search,&state.storage_urls).await
+        let search = Search::parse(raw_query)?;
+        let (messages,total) = state.repository.list_chat_messages(viewer,channel,page,search,&state.storage_urls).await
             .map_err(|_| ApiError::server_error("服务器内部错误"))?
             .ok_or_else(|| ApiError::forbidden("无权访问该聊天频道"))?;
         Ok::<_,ApiError>(Json(json!({

@@ -1,0 +1,9 @@
+{
+  "id": "OBSERVABILITY",
+  "revision": 1,
+  "cases": [
+    { "id": "request-correlation", "assertion": "A valid request ID is returned and correlated in completion and AI audit logs. Invalid or duplicate IDs are replaced with an independent UUID. A permitted browser origin can read the ID." },
+    { "id": "metrics-scrape-auth", "assertion": "GET /metrics returns 404 with no configured token, 401 without a matching bearer token and 200 with Prometheus text and no-store for the correct token." },
+    { "id": "bounded-measurements", "assertion": "HTTP responses, Redis cache reads, Oracle pool state, WebSocket joins and leaves, and AI outcomes publish the contracted families. Histogram buckets are cumulative. Credential, payload, path and user values do not become metric labels." }
+  ]
+}

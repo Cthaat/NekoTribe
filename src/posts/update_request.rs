@@ -16,6 +16,8 @@ pub struct PostUpdateInput {
     pub tag_names: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mention_user_ids: Option<Vec<f64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<Option<String>>,
 }
 pub fn parse_update_body(bytes: &[u8], content_type: &str) -> Result<PostUpdateInput, ApiError> {
     use crate::{
@@ -76,6 +78,13 @@ pub fn parse_update_body(bytes: &[u8], content_type: &str) -> Result<PostUpdateI
     }
     if let Some(value) = field(&body, "mention_user_ids", "mentionUserIds") {
         input.mention_user_ids = Some(number_array(Some(value)))
+    }
+    if let Some(raw) = body.get("markdown") {
+        input.markdown = Some(if raw.get() == "null" {
+            None
+        } else {
+            Some(super::markdown::parse_raw(raw.get())?)
+        });
     }
     Ok(input)
 }
