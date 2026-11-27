@@ -1036,7 +1036,18 @@
       "activeMembers": "活跃成员",
       "newMembers": "新增成员"
     },
-    "joinedBadge": "已加入 ✓"
+    "joinedBadge": "已加入 ✓",
+    "detailPage": {
+      "backToGroups": "返回群组列表",
+      "openDetailPage": "打开群组主页",
+      "openPostDetail": "打开帖文详情页",
+      "notFound": "未找到该群组或无权查看",
+      "postNotFound": "未找到该群组帖文",
+      "backToGroup": "返回群组主页",
+      "shareLink": "复制分享链接",
+      "copyLinkSuccess": "已复制分享链接",
+      "commentsTitle": "评论互动"
+    }
   },
   "time": {
     "minutesAgo": "{count}分钟前",
@@ -2960,5 +2971,51 @@
       "group-brief": "群运营草稿",
       "moderation-advice": "审核建议"
     }
+  },
+  "discover": {
+    "title": "发现广场",
+    "subtitle": "探索当下热门话题、活跃社群、优质创作者与热议动态",
+    "searchPlaceholder": "搜索帖子、用户、话题或群组…",
+    "trendingTags": "热门话题",
+    "trendingPosts": "趋势热帖",
+    "popularGroups": "热门群组",
+    "recommendedUsers": "推荐创作者",
+    "viewAllGroups": "浏览全部群组",
+    "viewAllTrending": "在主页查看趋势流",
+    "emptyTags": "暂无热门话题",
+    "emptyGroups": "暂无推荐群组",
+    "emptyUsers": "暂无推荐用户",
+    "emptyPosts": "暂无热门动态",
+    "postsCount": "{count} 条动态",
+    "membersCount": "{count} 位成员",
+    "follow": "关注",
+    "following": "已关注",
+    "requested": "已申请"
+  },
+  "tags": {
+    "title": "话题广场",
+    "subtitle": "围绕 #{tag} 的精选动态与讨论热度",
+    "composeWithTag": "带话题发帖",
+    "backToDiscover": "返回发现",
+    "emptyPosts": "该话题下暂无动态",
+    "metrics": {
+      "posts": "相关动态",
+      "authors": "参与作者",
+      "views": "总阅读",
+      "likes": "总获赞",
+      "engagement": "热度指数"
+    }
+  },
+  "motion": {
+    "newPostsAvailable": "↑ 有新动态 · 点击刷新",
+    "newPostsCount": "↑ 有 {count} 条新动态",
+    "backToTop": "↑ 回到顶部",
+    "readingProgress": "阅读进度"
+  },
+  "lightbox": {
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "resetZoom": "还原尺寸",
+    "openOriginal": "在新窗口查看原图"
   }
 }

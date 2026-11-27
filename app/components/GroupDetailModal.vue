@@ -11,7 +11,8 @@ import {
   Lock,
   Shield,
   Calendar,
-  MessageSquare
+  MessageSquare,
+  ArrowUpRight
 } from 'lucide-vue-next';
 import {
   Dialog,
@@ -413,6 +414,20 @@ const handleTabChange = (value: string | number) => {
           <div
             class="mobile-action-row mt-4 sm:flex-nowrap"
           >
+            <Button
+              v-if="group.slug"
+              variant="secondary"
+              as-child
+              class="h-9 w-full rounded-full sm:w-auto"
+            >
+              <NuxtLink
+                :to="localePath(`/groups/${encodeURIComponent(group.slug)}`)"
+                @click="closeDialog"
+              >
+                <ArrowUpRight class="h-3.5 w-3.5" />
+                {{ t('groups.detailPage.openDetailPage') }}
+              </NuxtLink>
+            </Button>
             <Button
               v-if="membershipAction"
               :variant="

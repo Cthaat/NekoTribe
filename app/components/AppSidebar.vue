@@ -65,11 +65,13 @@ const primaryNav = computed(() => [
   {
     key: 'discover',
     title: t('nav.main.discover'),
-    to: localePath('/?feed=trending'),
+    to: localePath('/discover'),
     icon: Compass,
     active:
-      (route.path === localePath('/') && route.query.feed === 'trending') ||
-      route.path.includes('/tweet/search/')
+      route.path.includes('/discover') ||
+      route.path.includes('/tags/') ||
+      route.path.includes('/tweet/search/') ||
+      (route.path === localePath('/') && route.query.feed === 'trending')
   },
   {
     key: 'notifications',

@@ -54,8 +54,10 @@ function handleBookmarkTweet(
 <template>
   <TransitionGroup name="feed" tag="div" class="space-y-3 px-3 py-2 sm:px-0">
     <TweetCard
-      v-for="tweet in props.tweets"
+      v-for="(tweet, index) in props.tweets"
       :key="tweet.id"
+      :class="index < 8 ? 'stagger-item' : undefined"
+      :style="index < 8 ? { '--stagger-index': String(index) } : undefined"
       @delete-tweet="handleDeleteTweet"
       @reply-tweet="handleReplyTweet"
       @retweet-tweet="handleRetweetTweet"

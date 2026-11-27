@@ -1036,7 +1036,18 @@
       "activeMembers": "Active Members",
       "newMembers": "New Members"
     },
-    "joinedBadge": "Joined ✓"
+    "joinedBadge": "Joined ✓",
+    "detailPage": {
+      "backToGroups": "Back to groups",
+      "openDetailPage": "Open group page",
+      "openPostDetail": "Open post detail page",
+      "notFound": "Group not found or unavailable",
+      "postNotFound": "Group post not found",
+      "backToGroup": "Back to group page",
+      "shareLink": "Copy share link",
+      "copyLinkSuccess": "Share link copied",
+      "commentsTitle": "Comments"
+    }
   },
   "time": {
     "minutesAgo": "{count} minutes ago",
@@ -2960,5 +2971,51 @@
       "group-brief": "Group management drafts",
       "moderation-advice": "Moderation advice"
     }
+  },
+  "discover": {
+    "title": "Discover",
+    "subtitle": "Explore trending topics, active groups, creators, and rising posts",
+    "searchPlaceholder": "Search posts, people, tags, or groups…",
+    "trendingTags": "Trending topics",
+    "trendingPosts": "Trending posts",
+    "popularGroups": "Popular groups",
+    "recommendedUsers": "Suggested creators",
+    "viewAllGroups": "Explore all groups",
+    "viewAllTrending": "Open trending feed on home",
+    "emptyTags": "No trending topics yet",
+    "emptyGroups": "No popular groups yet",
+    "emptyUsers": "No suggested creators right now",
+    "emptyPosts": "No trending posts yet",
+    "postsCount": "{count} posts",
+    "membersCount": "{count} members",
+    "follow": "Follow",
+    "following": "Following",
+    "requested": "Requested"
+  },
+  "tags": {
+    "title": "Topic",
+    "subtitle": "Posts and engagement overview for #{tag}",
+    "composeWithTag": "Post with tag",
+    "backToDiscover": "Back to Discover",
+    "emptyPosts": "No posts under this topic yet",
+    "metrics": {
+      "posts": "Posts",
+      "authors": "Authors",
+      "views": "Views",
+      "likes": "Likes",
+      "engagement": "Engagement"
+    }
+  },
+  "motion": {
+    "newPostsAvailable": "↑ New posts · Refresh",
+    "newPostsCount": "↑ {count} new posts",
+    "backToTop": "↑ Back to top",
+    "readingProgress": "Reading progress"
+  },
+  "lightbox": {
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "resetZoom": "Reset zoom",
+    "openOriginal": "Open original in new tab"
   }
 }

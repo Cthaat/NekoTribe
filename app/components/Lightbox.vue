@@ -1,19 +1,30 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
-  DialogRoot,
   DialogContent,
+  DialogDescription,
   DialogOverlay,
   DialogPortal,
-  VisuallyHidden,
+  DialogRoot,
   DialogTitle,
-  DialogDescription
-} from 'radix-vue';
+  VisuallyHidden
+} from 'reka-ui';
 import {
   ChevronLeft,
   ChevronRight,
-  X
+  ExternalLink,
+  RotateCcw,
+  X,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-vue-next';
+
+export interface LightboxOriginRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
 
 interface MediaItem {
   type: 'image' | 'video';
@@ -27,40 +38,254 @@ const props = defineProps<{
   items: MediaItem[];
   startIndex?: number;
   open: boolean;
+  originRect?: LightboxOriginRect | null;
 }>();
 
 const emit = defineEmits(['update:open']);
 const { t } = useAppLocale();
 
 const currentIndex = ref(props.startIndex || 0);
+const stageRef = ref<HTMLElement | null>(null);
+const flipTransform = ref('');
+const flipActive = ref(false);
+const isClosing = ref(false);
+
+const zoomScale = ref(1);
+const panX = ref(0);
+const panY = ref(0);
+const dragY = ref(0);
+const isDragging = ref(false);
+const isPanning = ref(false);
+let dragStartY = 0;
+let dragStartX = 0;
+let panStartX = 0;
+let panStartY = 0;
+let activePointerId: number | null = null;
+let flipRaf: number | null = null;
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function resetTransformState(): void {
+  zoomScale.value = 1;
+  panX.value = 0;
+  panY.value = 0;
+  dragY.value = 0;
+  isDragging.value = false;
+  isPanning.value = false;
+  activePointerId = null;
+}
+
+function computeFlipDelta(rect: LightboxOriginRect | null | undefined, el: HTMLElement | null): string {
+  if (!rect || !el || rect.width <= 0 || rect.height <= 0) return '';
+  const target = el.getBoundingClientRect();
+  if (target.width <= 0 || target.height <= 0) return '';
+  const originCenterX = rect.left + rect.width / 2;
+  const originCenterY = rect.top + rect.height / 2;
+  const targetCenterX = target.left + target.width / 2;
+  const targetCenterY = target.top + target.height / 2;
+  const dx = originCenterX - targetCenterX;
+  const dy = originCenterY - targetCenterY;
+  const scale = Math.max(0.18, Math.min(0.95, Math.min(rect.width / target.width, rect.height / target.height)));
+  return `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+}
+
+async function runOpenFlip(): Promise<void> {
+  if (prefersReducedMotion() || !props.originRect) {
+    flipActive.value = false;
+    flipTransform.value = '';
+    return;
+  }
+  await nextTick();
+  const initial = computeFlipDelta(props.originRect, stageRef.value);
+  if (!initial) {
+    flipActive.value = false;
+    flipTransform.value = '';
+    return;
+  }
+  flipActive.value = false;
+  flipTransform.value = initial;
+  flipRaf = requestAnimationFrame(() => {
+    flipRaf = requestAnimationFrame(() => {
+      flipActive.value = true;
+      flipTransform.value = 'translate3d(0px, 0px, 0) scale(1)';
+    });
+  });
+}
+
+function cancelFlipAnimation(): void {
+  if (flipRaf !== null) {
+    cancelAnimationFrame(flipRaf);
+    flipRaf = null;
+  }
+}
 
 watch(
   () => props.open,
   isOpen => {
+    cancelFlipAnimation();
+    resetTransformState();
+    isClosing.value = false;
     if (isOpen) {
-      currentIndex.value = props.startIndex || 0;
+      currentIndex.value = Math.max(0, Math.min(props.startIndex || 0, Math.max(0, props.items.length - 1)));
+      void runOpenFlip();
+    } else {
+      flipActive.value = false;
+      flipTransform.value = '';
     }
   }
 );
 
-const currentItem = computed(
-  () => props.items[currentIndex.value]
-);
+watch(currentIndex, () => {
+  resetTransformState();
+  flipActive.value = false;
+  flipTransform.value = '';
+});
 
+onBeforeUnmount(() => {
+  cancelFlipAnimation();
+});
+
+const currentItem = computed(() => props.items[currentIndex.value]);
 const hasMultiple = computed(() => props.items.length > 1);
+const isImage = computed(() => currentItem.value?.type === 'image');
 
-function next() {
-  currentIndex.value =
-    (currentIndex.value + 1) % props.items.length;
+const backdropOpacity = computed(() => {
+  if (isClosing.value) return 0;
+  const dragRatio = Math.min(Math.abs(dragY.value) / 360, 1);
+  return Math.max(0.24, 0.92 * (1 - dragRatio * 0.72));
+});
+
+const mediaSurfaceStyle = computed(() => {
+  if (flipTransform.value && !isDragging.value && zoomScale.value === 1) {
+    return {
+      transform: flipTransform.value,
+      transition: flipActive.value && !prefersReducedMotion()
+        ? 'transform 260ms var(--ease-spring)'
+        : 'none'
+    };
+  }
+  const dragScale = zoomScale.value === 1 && dragY.value !== 0
+    ? Math.max(0.84, 1 - Math.abs(dragY.value) / 900)
+    : 1;
+  const translateX = zoomScale.value > 1 ? panX.value : 0;
+  const translateY = zoomScale.value > 1 ? panY.value : dragY.value;
+  const combinedScale = zoomScale.value * dragScale;
+  return {
+    transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${combinedScale})`,
+    transition: isDragging.value || isPanning.value || prefersReducedMotion()
+      ? 'none'
+      : 'transform 240ms var(--ease-spring)'
+  };
+});
+
+function closeLightbox(): void {
+  if (isClosing.value) return;
+  if (!prefersReducedMotion() && props.originRect && zoomScale.value === 1) {
+    const targetDelta = computeFlipDelta(props.originRect, stageRef.value);
+    if (targetDelta) {
+      isClosing.value = true;
+      flipActive.value = true;
+      flipTransform.value = targetDelta;
+      setTimeout(() => {
+        isClosing.value = false;
+        emit('update:open', false);
+      }, 170);
+      return;
+    }
+  }
+  emit('update:open', false);
 }
 
-function prev() {
-  currentIndex.value =
-    (currentIndex.value - 1 + props.items.length) %
-    props.items.length;
+function next(): void {
+  if (!hasMultiple.value) return;
+  currentIndex.value = (currentIndex.value + 1) % props.items.length;
 }
 
-function onKeydown(e: KeyboardEvent) {
+function prev(): void {
+  if (!hasMultiple.value) return;
+  currentIndex.value = (currentIndex.value - 1 + props.items.length) % props.items.length;
+}
+
+function setZoom(nextScale: number): void {
+  if (!isImage.value) return;
+  const clamped = Math.max(1, Math.min(2.5, Number(nextScale.toFixed(2))));
+  zoomScale.value = clamped;
+  dragY.value = 0;
+  if (clamped === 1) {
+    panX.value = 0;
+    panY.value = 0;
+  }
+}
+
+function toggleDoubleZoom(): void {
+  if (!isImage.value) return;
+  setZoom(zoomScale.value > 1.05 ? 1 : 2);
+}
+
+function onWheel(event: WheelEvent): void {
+  if (!props.open || !isImage.value) return;
+  if (!event.ctrlKey && !event.metaKey && zoomScale.value === 1) return;
+  event.preventDefault();
+  const step = event.deltaY < 0 ? 0.25 : -0.25;
+  setZoom(zoomScale.value + step);
+}
+
+function onPointerDown(event: PointerEvent): void {
+  if (!isImage.value || event.button !== 0) return;
+  flipTransform.value = '';
+  flipActive.value = false;
+  activePointerId = event.pointerId;
+  dragStartX = event.clientX;
+  dragStartY = event.clientY;
+  panStartX = panX.value;
+  panStartY = panY.value;
+  (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+  if (zoomScale.value > 1.02) {
+    isPanning.value = true;
+  } else {
+    isDragging.value = true;
+  }
+}
+
+function onPointerMove(event: PointerEvent): void {
+  if (activePointerId !== event.pointerId) return;
+  if (isPanning.value) {
+    panX.value = panStartX + (event.clientX - dragStartX);
+    panY.value = panStartY + (event.clientY - dragStartY);
+    return;
+  }
+  if (isDragging.value) {
+    const dy = event.clientY - dragStartY;
+    const dx = event.clientX - dragStartX;
+    if (Math.abs(dy) >= Math.abs(dx) * 0.8 || Math.abs(dragY.value) > 4) {
+      dragY.value = dy;
+    }
+  }
+}
+
+function onPointerUp(event: PointerEvent): void {
+  if (activePointerId !== event.pointerId) return;
+  (event.currentTarget as HTMLElement | null)?.releasePointerCapture?.(event.pointerId);
+  activePointerId = null;
+  if (isPanning.value) {
+    isPanning.value = false;
+    return;
+  }
+  if (isDragging.value) {
+    const dy = dragY.value;
+    isDragging.value = false;
+    if (Math.abs(dy) > 110) {
+      closeLightbox();
+      return;
+    }
+    dragY.value = 0;
+  }
+}
+
+function onKeydown(e: KeyboardEvent): void {
   if (!props.open) return;
   if (e.key === 'ArrowRight') {
     e.preventDefault();
@@ -68,8 +293,18 @@ function onKeydown(e: KeyboardEvent) {
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault();
     prev();
+  } else if (e.key === '+' || e.key === '=') {
+    e.preventDefault();
+    setZoom(zoomScale.value + 0.5);
+  } else if (e.key === '-') {
+    e.preventDefault();
+    setZoom(zoomScale.value - 0.5);
+  } else if (e.key === '0') {
+    e.preventDefault();
+    setZoom(1);
   } else if (e.key === 'Escape') {
-    emit('update:open', false);
+    e.preventDefault();
+    closeLightbox();
   }
 }
 </script>
@@ -77,59 +312,126 @@ function onKeydown(e: KeyboardEvent) {
 <template>
   <DialogRoot
     :open="props.open"
-    @update:open="value => emit('update:open', value)"
+    @update:open="value => { if (!value) closeLightbox(); else emit('update:open', true); }"
   >
     <DialogPortal>
       <DialogOverlay
-        class="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+        class="fixed inset-0 z-50 backdrop-blur-md transition-opacity duration-200"
+        :style="{ backgroundColor: `rgba(6, 9, 14, ${backdropOpacity})` }"
       />
       <DialogContent
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
         @keydown="onKeydown"
+        @click.self="closeLightbox"
       >
         <VisuallyHidden>
           <DialogTitle>{{ t('media.lightboxAlt') }}</DialogTitle>
           <DialogDescription>{{ currentItem?.description || currentItem?.altText || t('media.lightboxAlt') }}</DialogDescription>
         </VisuallyHidden>
 
-        <!-- Top bar: counter + close -->
+        <!-- Liquid Glass top chrome bar -->
         <div
-          class="absolute inset-x-0 top-0 z-10 flex h-14 items-center justify-between px-4"
+          class="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-16 items-center justify-between px-4 sm:px-6"
         >
-          <div
-            v-if="hasMultiple"
-            class="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur-md"
-          >
-            {{ currentIndex + 1 }} / {{ items.length }}
+          <div class="pointer-events-auto flex items-center gap-2">
+            <div
+              v-if="hasMultiple"
+              class="rounded-full bg-black/45 px-3.5 py-1.5 text-xs font-medium tabular-nums text-white ring-1 ring-white/20 backdrop-blur-xl"
+            >
+              {{ currentIndex + 1 }} / {{ items.length }}
+            </div>
           </div>
-          <div v-else />
-          <button
-            type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-            @click="emit('update:open', false)"
-            :aria-label="t('common.close')"
-          >
-            <X class="h-4 w-4" />
-          </button>
+
+          <div class="pointer-events-auto flex items-center gap-1.5">
+            <template v-if="isImage">
+              <button
+                type="button"
+                class="pressable inline-flex size-9 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur-xl transition-colors hover:bg-white/20"
+                :aria-label="t('lightbox.zoomOut')"
+                :title="t('lightbox.zoomOut')"
+                :disabled="zoomScale <= 1"
+                @click="setZoom(zoomScale - 0.5)"
+              >
+                <ZoomOut class="size-4" />
+              </button>
+              <button
+                type="button"
+                class="pressable inline-flex size-9 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur-xl transition-colors hover:bg-white/20"
+                :aria-label="t('lightbox.zoomIn')"
+                :title="t('lightbox.zoomIn')"
+                :disabled="zoomScale >= 2.5"
+                @click="setZoom(zoomScale + 0.5)"
+              >
+                <ZoomIn class="size-4" />
+              </button>
+              <button
+                v-if="zoomScale > 1.05"
+                type="button"
+                class="pressable inline-flex size-9 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur-xl transition-colors hover:bg-white/20"
+                :aria-label="t('lightbox.resetZoom')"
+                :title="t('lightbox.resetZoom')"
+                @click="setZoom(1)"
+              >
+                <RotateCcw class="size-4" />
+              </button>
+            </template>
+
+            <a
+              v-if="currentItem?.originalUrl"
+              :href="currentItem.originalUrl"
+              target="_blank"
+              rel="noreferrer noopener"
+              class="pressable inline-flex size-9 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur-xl transition-colors hover:bg-white/20"
+              :aria-label="t('lightbox.openOriginal')"
+              :title="t('lightbox.openOriginal')"
+            >
+              <ExternalLink class="size-4" />
+            </a>
+
+            <button
+              type="button"
+              class="pressable inline-flex size-9 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur-xl transition-colors hover:bg-white/20"
+              :aria-label="t('common.close')"
+              :title="t('common.close')"
+              @click="closeLightbox"
+            >
+              <X class="size-4" />
+            </button>
+          </div>
         </div>
 
-        <!-- Media area -->
-        <div class="relative flex h-full w-full items-center justify-center">
-          <div class="relative max-h-[88vh] max-w-[92vw]">
+        <!-- Media canvas -->
+        <div
+          class="relative flex h-full w-full items-center justify-center select-none"
+          @click.self="closeLightbox"
+        >
+          <div
+            ref="stageRef"
+            class="relative flex max-h-[86vh] max-w-[92vw] touch-none items-center justify-center will-change-transform"
+            :class="zoomScale > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'"
+            :style="mediaSurfaceStyle"
+            @dblclick.stop="toggleDoubleZoom"
+            @wheel="onWheel"
+            @pointerdown="onPointerDown"
+            @pointermove="onPointerMove"
+            @pointerup="onPointerUp"
+            @pointercancel="onPointerUp"
+          >
             <Transition name="lightbox-fade" mode="out-in">
               <template v-if="currentItem">
                 <img
                   v-if="currentItem.type === 'image'"
                   :key="`image-${currentItem.originalUrl}`"
                   :src="currentItem.originalUrl"
-                  class="block max-h-[88vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+                  draggable="false"
+                  class="block max-h-[86vh] max-w-[92vw] rounded-[18px] object-contain shadow-2xl select-none"
                   :alt="currentItem.altText || t('media.lightboxAlt')"
                 />
                 <video
                   v-else-if="currentItem.type === 'video'"
                   :key="`video-${currentItem.originalUrl}`"
                   :src="currentItem.originalUrl"
-                  class="block max-h-[88vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+                  class="block max-h-[86vh] max-w-[92vw] rounded-[18px] object-contain shadow-2xl"
                   controls
                   autoplay
                   loop
@@ -141,58 +443,55 @@ function onKeydown(e: KeyboardEvent) {
           <!-- Caption -->
           <Transition name="lightbox-fade">
             <div
-              v-if="currentItem?.description"
-              class="pointer-events-none absolute inset-x-4 bottom-6 mx-auto max-w-2xl rounded-lg bg-black/70 px-4 py-2.5 text-center text-sm text-white backdrop-blur-md"
+              v-if="currentItem?.description || currentItem?.altText"
+              class="pointer-events-none absolute inset-x-4 mx-auto max-w-2xl rounded-2xl bg-black/55 px-4 py-2.5 text-center text-sm text-white/95 ring-1 ring-white/15 backdrop-blur-xl"
+              :class="hasMultiple ? 'bottom-16' : 'bottom-6'"
             >
-              {{ currentItem.description }}
+              {{ currentItem.description || currentItem.altText }}
             </div>
           </Transition>
 
-          <!-- Prev/Next buttons -->
+          <!-- Prev/Next glass buttons -->
           <template v-if="hasMultiple">
             <button
               type="button"
-              class="absolute left-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 md:left-6"
-              @click="prev"
+              class="pressable absolute left-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 shadow-lg backdrop-blur-xl transition-colors hover:bg-white/20 md:left-6"
               :aria-label="t('common.previousMedia')"
+              @click.stop="prev"
             >
               <ChevronLeft class="h-5 w-5" />
             </button>
             <button
               type="button"
-              class="absolute right-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 md:right-6"
-              @click="next"
+              class="pressable absolute right-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 shadow-lg backdrop-blur-xl transition-colors hover:bg-white/20 md:right-6"
               :aria-label="t('common.nextMedia')"
+              @click.stop="next"
             >
               <ChevronRight class="h-5 w-5" />
             </button>
           </template>
 
-          <!-- Thumbnail strip at bottom -->
+          <!-- Liquid Glass thumbnail strip -->
           <div
             v-if="hasMultiple"
-            class="absolute inset-x-0 bottom-3 z-10 flex justify-center"
+            class="absolute inset-x-0 bottom-3 z-20 flex justify-center"
           >
             <div
-              class="flex gap-1.5 rounded-full bg-white/10 px-2 py-2 backdrop-blur-md"
+              class="flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-2 ring-1 ring-white/20 backdrop-blur-xl"
             >
               <button
                 v-for="(item, idx) in items.slice(0, 8)"
                 :key="`thumb-${idx}`"
                 type="button"
-                class="h-2 rounded-full bg-white/40 transition-all hover:bg-white/70"
-                :class="
-                  idx === currentIndex
-                    ? 'w-6 bg-white'
-                    : 'w-2'
-                "
-                @click="currentIndex = idx"
+                class="h-2 rounded-full bg-white/40 transition-all hover:bg-white/75"
+                :class="idx === currentIndex ? 'w-6 bg-white' : 'w-2'"
                 :aria-label="t('common.viewMedia', { index: idx + 1 })"
                 :aria-pressed="currentIndex === idx"
+                @click.stop="currentIndex = idx"
               />
               <span
                 v-if="items.length > 8"
-                class="self-center px-1 text-[10px] text-white/70"
+                class="self-center px-1 text-[10px] font-medium text-white/75"
               >
                 +{{ items.length - 8 }}
               </span>
@@ -207,7 +506,7 @@ function onKeydown(e: KeyboardEvent) {
 <style scoped>
 .lightbox-fade-enter-active,
 .lightbox-fade-leave-active {
-  transition: opacity 0.18s ease;
+  transition: opacity 0.16s ease;
 }
 .lightbox-fade-enter-from,
 .lightbox-fade-leave-to {

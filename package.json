@@ -92,7 +92,6 @@
     "nuxt": "^4.4.2",
     "oracledb": "^6.8.0",
     "pinia": "^3.0.3",
-    "radix-vue": "^1.9.17",
     "reka-ui": "^2.3.2",
     "sanitize-html": "2.18.2",
     "shadcn-nuxt": "2.6.2",

@@ -1,12 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { Bell, Home, MessageCircle, User, Users } from 'lucide-vue-next';
+import { useScrollDirection } from '@/composables/useScrollDirection';
 import { usePreferenceStore } from '@/stores/user';
 
 const { t } = useAppLocale();
 const localePath = useLocalePath();
 const route = useRoute();
 const preferences = usePreferenceStore();
+const { isHidden, prefersReducedMotion, reset } = useScrollDirection({
+  threshold: 48,
+  hysteresis: 16
+});
+
+watch(
+  () => route.path,
+  () => {
+    reset();
+  }
+);
 
 const userId = computed(() => preferences.preferences.user.id);
 const signedIn = computed(() => preferences.isLoggedIn);
@@ -56,7 +68,9 @@ const activeIndex = computed(() =>
 
 <template>
   <nav
-    class="fixed inset-x-4 bottom-3 z-40 mx-auto flex h-[64px] max-w-[400px] items-center rounded-full p-1.5 liquid-glass-dock md:hidden"
+    class="fixed inset-x-4 bottom-3 z-40 mx-auto flex h-[64px] max-w-[400px] items-center rounded-full p-1.5 liquid-glass-dock transition-[transform,opacity] duration-220 ease-[var(--ease-spring)] md:hidden"
+    :class="isHidden && !prefersReducedMotion ? 'translate-y-[calc(100%+24px)] opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'"
+    :aria-hidden="isHidden && !prefersReducedMotion ? 'true' : undefined"
     :aria-label="t('nav.main.home')"
   >
     <div

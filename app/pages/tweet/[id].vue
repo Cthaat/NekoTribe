@@ -26,6 +26,7 @@ import {
   v2UnbookmarkPost,
 } from '@/services';
 import TweetCard from '@/components/TweetCard.vue';
+import ReadingProgressBar from '@/components/motion/ReadingProgressBar.vue';
 import PostLikersDialog from '@/components/PostLikersDialog.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import TweetList from '@/components/TweetList.vue';
@@ -687,6 +688,7 @@ async function handleSubmitPostReply(
 
 <template>
   <div class="min-w-0">
+    <ReadingProgressBar v-if="tweet" />
     <header
       class="sticky top-0 z-20 flex h-14 items-center gap-3 bg-background/90 px-3 backdrop-blur-xl sm:px-0"
     >

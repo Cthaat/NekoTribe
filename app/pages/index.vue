@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import LiquidGlassIconButton from '@/components/glass/LiquidGlassIconButton.vue';
 import LiquidGlassSegmented from '@/components/glass/LiquidGlassSegmented.vue';
+import NewPostsPill from '@/components/motion/NewPostsPill.vue';
+import { useScrollDirection } from '@/composables/useScrollDirection';
 import { usePostFeed } from '@/composables/usePostFeed';
 import { useTimelinePostActions } from '@/composables/useTimelinePostActions';
 import { v2ListPosts, v2ListTrendingPosts } from '@/services/posts';
@@ -37,6 +39,8 @@ const homeSegmentOptions = computed(() =>
 const mounted = ref(false);
 const generation = ref(0);
 const pendingGroupLikes = shallowRef(new Set<number>());
+const newPostsCount = ref(0);
+const { scrollY, prefersReducedMotion } = useScrollDirection();
 
 const posts = usePostFeed({ debugName: 'home-posts', loadPage: (page, pageSize) => app.runWithContext(() => {
   const view = tab.value;
@@ -110,18 +114,81 @@ async function likeGroupPost(post: HomeGroupPost) {
   }
 }
 
+const showNewPostsPill = computed(() =>
+  mounted.value &&
+  !active.value.loading &&
+  active.value.posts.length > 0 &&
+  (newPostsCount.value > 0 || scrollY.value > 360)
+);
+
+function handlePillAction() {
+  newPostsCount.value = 0;
+  if (typeof window !== 'undefined') {
+    window.scrollTo({
+      top: 0,
+      behavior: prefersReducedMotion.value ? 'auto' : 'smooth'
+    });
+  }
+  refresh();
+}
+
+async function checkForNewPosts() {
+  if (!mounted.value || !account.isLoggedIn || auth.isIdentityChanging || tab.value === 'groups') return;
+  if (posts.page !== 1 || posts.loading || !posts.posts.length) return;
+  const knownTopId = posts.posts[0]?.id;
+  if (!knownTopId) return;
+  try {
+    const view = tab.value;
+    const head = await app.runWithContext(() =>
+      view === 'trending'
+        ? v2ListTrendingPosts({ page: 1, pageSize: 5 })
+        : v2ListPosts({ page: 1, pageSize: 5, timeline: view === 'following' ? 'following' : 'recommended' })
+    );
+    const newer = head.items.findIndex(item => item.id === knownTopId);
+    if (newer > 0) {
+      newPostsCount.value = newer;
+    } else if (newer === -1 && head.items.length > 0 && head.items[0]!.id !== knownTopId) {
+      newPostsCount.value = head.items.length;
+    }
+  } catch {
+    // Non-blocking background check
+  }
+}
+
 let unsubscribe: (() => void) | undefined;
-watch([tab, () => account.isLoggedIn], updateFeed, { flush: 'sync' });
+function onVisibilityChange() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+    void checkForNewPosts();
+  }
+}
+watch([tab, () => account.isLoggedIn], () => {
+  newPostsCount.value = 0;
+  updateFeed();
+}, { flush: 'sync' });
 onMounted(() => {
   unsubscribe = auth.subscribe(updateFeed);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
   mounted.value = true;
   refresh();
 });
-onBeforeUnmount(() => { unsubscribe?.(); reset(); });
+onBeforeUnmount(() => {
+  unsubscribe?.();
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  }
+  reset();
+});
 </script>
 
 <template>
   <div class="min-w-0">
+    <NewPostsPill
+      :visible="showNewPostsPill"
+      :count="newPostsCount"
+      @click="handlePillAction"
+    />
     <!-- Desktop quiet page header -->
     <div class="hidden items-center justify-between px-1 pt-4 pb-1 md:flex">
       <h1 class="text-[18px] font-semibold tracking-tight text-foreground">
@@ -156,37 +223,40 @@ onBeforeUnmount(() => { unsubscribe?.(); reset(); });
     </div>
 
     <div class="min-w-0">
-      <div v-if="!mounted || active.loading" class="space-y-3 px-3 py-2 sm:px-0" :aria-busy="true">
-        <TweetCardSkeleton v-for="index in 5" :key="index" />
-      </div>
-      <div
-        v-else-if="active.error"
-        role="status"
-        class="bento-card mx-3 my-2 flex items-center justify-between gap-3 px-4 py-4 sm:mx-0"
-      >
-        <p class="text-sm">{{ t('post.feed.loadProblem') }}</p>
-        <Button variant="outline" size="sm" class="rounded-full" @click="refresh">{{ t('common.retry') }}</Button>
-      </div>
-      <div v-else-if="active.posts.length === 0" class="px-4 py-12 text-center text-sm text-muted-foreground">
-        {{ t(tab === 'groups' ? 'post.feed.emptyGroupActivity' : 'post.feed.emptyTitle') }}
-      </div>
-      <div v-else-if="tab === 'groups'" class="space-y-3 px-3 py-2 sm:px-0">
-        <article
-          v-for="post in groups.posts"
-          :key="post.id"
-          class="bento-card space-y-2 px-4 pt-4 pb-3"
+      <Transition name="skeleton-crossfade" mode="out-in">
+        <div v-if="!mounted || active.loading" key="loading" class="space-y-3 px-3 py-2 sm:px-0" :aria-busy="true">
+          <TweetCardSkeleton v-for="index in 5" :key="index" />
+        </div>
+        <div
+          v-else-if="active.error"
+          key="error"
+          role="status"
+          class="bento-card mx-3 my-2 flex items-center justify-between gap-3 px-4 py-4 sm:mx-0"
         >
-          <NuxtLink :to="groupPostPath(post)" class="inline-block text-xs font-semibold text-primary hover:underline">
-            {{ post.groupName }}
-          </NuxtLink>
-          <GroupPostCard
-            :post="post" hide-menu :mutation-pending="pendingGroupLikes.has(post.id)"
-            @comment="navigateTo(groupPostPath(post))" @share="shareGroupPost(post)" @like="likeGroupPost(post)" />
-        </article>
-      </div>
-      <TweetList
-        v-else :tweets="posts.posts" @delete-tweet="actions.handleDeleteTweet" @reply-tweet="actions.handleReplyTweet"
-        @retweet-tweet="actions.handleRetweetTweet" @like-tweet="actions.handleLikeTweet" @bookmark-tweet="actions.handleBookmarkTweet" />
+          <p class="text-sm">{{ t('post.feed.loadProblem') }}</p>
+          <Button variant="outline" size="sm" class="rounded-full" @click="refresh">{{ t('common.retry') }}</Button>
+        </div>
+        <div v-else-if="active.posts.length === 0" key="empty" class="px-4 py-12 text-center text-sm text-muted-foreground">
+          {{ t(tab === 'groups' ? 'post.feed.emptyGroupActivity' : 'post.feed.emptyTitle') }}
+        </div>
+        <div v-else-if="tab === 'groups'" key="groups" class="space-y-3 px-3 py-2 sm:px-0">
+          <article
+            v-for="post in groups.posts"
+            :key="post.id"
+            class="bento-card space-y-2 px-4 pt-4 pb-3"
+          >
+            <NuxtLink :to="groupPostPath(post)" class="inline-block text-xs font-semibold text-primary hover:underline">
+              {{ post.groupName }}
+            </NuxtLink>
+            <GroupPostCard
+              :post="post" hide-menu :mutation-pending="pendingGroupLikes.has(post.id)"
+              @comment="navigateTo(groupPostPath(post))" @share="shareGroupPost(post)" @like="likeGroupPost(post)" />
+          </article>
+        </div>
+        <TweetList
+          v-else key="posts" :tweets="posts.posts" @delete-tweet="actions.handleDeleteTweet" @reply-tweet="actions.handleReplyTweet"
+          @retweet-tweet="actions.handleRetweetTweet" @like-tweet="actions.handleLikeTweet" @bookmark-tweet="actions.handleBookmarkTweet" />
+      </Transition>
 
       <div v-if="!active.loading && !active.error && active.totalPages > 1" class="flex items-center justify-center gap-3 py-5">
         <Button variant="outline" size="sm" class="rounded-full" :disabled="active.page === 1" @click="goToPage(active.page - 1)">{{ t('common.prev') }}</Button>

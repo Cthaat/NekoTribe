@@ -18,7 +18,7 @@ const normalizedPath = computed(() =>
 );
 
 const isWideToolRoute = computed(() =>
-  ['/groups', '/account', '/moderation', '/ai/', '/about', '/meow'].some(prefix =>
+  ['/discover', '/groups', '/account', '/moderation', '/ai/', '/about', '/meow'].some(prefix =>
     normalizedPath.value.startsWith(prefix)
   )
 );

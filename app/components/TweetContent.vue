@@ -49,12 +49,13 @@ const parsedContent = computed<ContentSegment[]>(() => {
         link: localePath(`/user/${username}`)
       });
     } else if (match[5]) {
+      const tag = match[5].slice(1).trim();
       segments.push({
         type: 'hashtag',
         content: match[5],
-        link: localePath(
-          `/tweet/search/${encodeURIComponent(match[5])}`
-        )
+        link: tag
+          ? localePath(`/tags/${encodeURIComponent(tag)}`)
+          : localePath(`/tweet/search/${encodeURIComponent(match[5])}`)
       });
     } else if (match[6]) {
       segments.push({

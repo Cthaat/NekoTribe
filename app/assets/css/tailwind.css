@@ -685,6 +685,45 @@ html.dark[data-glass-intensity='subtle'] {
   animation: typing-dot 1.2s ease-in-out infinite;
 }
 
+@keyframes stagger-fade-up {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.stagger-item {
+  animation: stagger-fade-up var(--dur-base) var(--ease-emphasized) both;
+  animation-delay: calc(var(--stagger-index, 0) * 24ms);
+}
+
+.skeleton-crossfade-enter-active,
+.skeleton-crossfade-leave-active {
+  transition: opacity 160ms var(--ease-standard);
+}
+
+.skeleton-crossfade-enter-from,
+.skeleton-crossfade-leave-to {
+  opacity: 0;
+}
+
+.pill-spring-enter-active,
+.pill-spring-leave-active {
+  transition:
+    opacity var(--dur-base) var(--ease-spring),
+    transform var(--dur-base) var(--ease-spring);
+}
+
+.pill-spring-enter-from,
+.pill-spring-leave-to {
+  opacity: 0;
+  transform: translate3d(0, -12px, 0) scale(0.95);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -64,70 +64,74 @@ const handleTabChange = (value: string | number) => {
 // 根据当前路由设置活动标签
 const route = useRoute();
 const currentPath = computed(() => route.path);
+const isGroupDetailRoute = computed(() => {
+  const slug = route.params.slug;
+  return typeof slug === 'string' && slug.trim().length > 0;
+});
 
-// 初始化时根据路由设置标签
-onMounted(() => {
-  const currentTab = tabs.find(t =>
-    currentPath.value.includes(t.value)
-  );
+function syncActiveTab(path: string): void {
+  const normalized = path.replace(/^\/(zh|en)(?=\/|$)/, '');
+  const currentTab = tabs.find(t => normalized === t.path || normalized.startsWith(`${t.path}/`));
   if (currentTab) {
     activeTab.value = currentTab.value;
   }
+}
+
+// 初始化时根据路由设置标签
+onMounted(() => {
+  syncActiveTab(currentPath.value);
 });
 
 // 监听路由变化
 watch(currentPath, newPath => {
-  const currentTab = tabs.find(t =>
-    newPath.includes(t.value)
-  );
-  if (currentTab) {
-    activeTab.value = currentTab.value;
-  }
+  syncActiveTab(newPath);
 });
 </script>
 
 <template>
   <div class="mx-auto max-w-[920px] overflow-x-clip px-3 py-4 sm:px-5 sm:py-6">
-    <!-- 页面标题 -->
-    <div class="mb-5 flex min-w-0 items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="flex size-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)]">
-          <Users class="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 class="text-xl font-semibold tracking-tight text-foreground">{{ t('groups.title') }}</h1>
-          <p class="text-sm text-muted-foreground">
-            {{ t('groups.description') }}
-          </p>
+    <!-- 页面标题与分段导航仅在群组目录/列表页显示 -->
+    <template v-if="!isGroupDetailRoute">
+      <div class="mb-5 flex min-w-0 items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="flex size-10 items-center justify-center rounded-2xl bg-[var(--primary-soft)]">
+            <Users class="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 class="text-xl font-semibold tracking-tight text-foreground">{{ t('groups.title') }}</h1>
+            <p class="text-sm text-muted-foreground">
+              {{ t('groups.description') }}
+            </p>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- 胶囊分段导航 -->
-    <Tabs
-      :model-value="activeTab"
-      class="mb-6"
-      @update:model-value="handleTabChange"
-    >
-      <TabsList
-        class="grid h-auto w-full grid-cols-4 rounded-full bg-secondary p-1 sm:inline-flex sm:w-auto sm:gap-1"
+      <!-- 胶囊分段导航 -->
+      <Tabs
+        :model-value="activeTab"
+        class="mb-6"
+        @update:model-value="handleTabChange"
       >
-        <TabsTrigger
-          v-for="tab in tabs"
-          :key="tab.value"
-          :value="tab.value"
-          class="gap-1.5 rounded-full border-0 px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:font-semibold data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_2px_8px_rgba(0,122,255,0.28)] dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:shadow-none"
+        <TabsList
+          class="grid h-auto w-full grid-cols-4 rounded-full bg-secondary p-1 sm:inline-flex sm:w-auto sm:gap-1"
         >
-          <component
-            :is="tab.icon"
-            class="h-4 w-4 shrink-0"
-          />
-          <span class="hidden sm:inline">{{
-            t(tab.labelKey)
-          }}</span>
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+          <TabsTrigger
+            v-for="tab in tabs"
+            :key="tab.value"
+            :value="tab.value"
+            class="gap-1.5 rounded-full border-0 px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:font-semibold data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_2px_8px_rgba(0,122,255,0.28)] dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:shadow-none"
+          >
+            <component
+              :is="tab.icon"
+              class="h-4 w-4 shrink-0"
+            />
+            <span class="hidden sm:inline">{{
+              t(tab.labelKey)
+            }}</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </template>
 
     <!-- 子页面内容 -->
     <NuxtPage />

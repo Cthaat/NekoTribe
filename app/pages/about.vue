@@ -57,7 +57,7 @@ const localePath = useLocalePath();
 
 const repositoryUrl = 'https://github.com/Cthaat/NekoTribe';
 const issuesUrl = `${repositoryUrl}/issues`;
-const docsUrl = `${repositoryUrl}/tree/main/doc`;
+const docsUrl = `${repositoryUrl}/tree/master/docs`;
 
 const toneIconClassMap: Record<Tone, string> = {
   primary: 'bg-primary/10 text-primary',
@@ -180,11 +180,11 @@ function handleRelatedLinkClick(
     <div
       class="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 lg:px-8"
     >
-      <section class="grid gap-5">
+      <section class="bento-card grid gap-5 p-6 sm:p-8">
         <span
-          class="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary"
+          class="inline-flex w-fit items-center gap-1.5 rounded-full bg-[var(--primary-soft)] px-3 py-1 text-[11px] font-semibold text-primary"
         >
-          <Bot class="h-3 w-3" />
+          <Bot class="h-3.5 w-3.5" />
           {{ t('about.badge') }}
         </span>
 
@@ -203,20 +203,20 @@ function handleRelatedLinkClick(
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <Button as-child class="h-9 rounded-md shadow-xs">
+            <Button as-child class="pressable h-10 rounded-full px-5 shadow-none">
               <a
                 :href="repositoryUrl"
                 target="_blank"
                 rel="noreferrer noopener"
               >
-                <Github class="h-3.5 w-3.5" />
+                <Github class="h-4 w-4" />
                 {{ t('about.actions.repository') }}
               </a>
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               as-child
-              class="h-9 rounded-md shadow-xs"
+              class="pressable h-10 rounded-full px-5 shadow-none"
             >
               <NuxtLink :to="localePath('/')">
                 {{ t('about.actions.backHome') }}
@@ -226,18 +226,16 @@ function handleRelatedLinkClick(
         </div>
       </section>
 
-      <div class="border-t border-border/60" />
-
-      <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section class="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <div
           v-for="feature in features"
           :key="feature.title"
-          class="grid gap-3 rounded-xl border border-border/60 bg-card p-5 shadow-none transition-shadow hover:shadow-md"
+          class="bento-card grid gap-3 p-5 transition-colors hover:bg-card/90"
           :class="{ 'sm:col-span-2 xl:col-span-4': feature.links }"
         >
           <div class="flex items-center gap-3">
             <span
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
               :class="toneIconClassMap[feature.tone]"
             >
               <component :is="feature.icon" class="h-4 w-4" />
@@ -250,7 +248,14 @@ function handleRelatedLinkClick(
             {{ feature.description }}
           </p>
           <div v-if="feature.links" class="flex flex-wrap items-center gap-2">
-            <Button v-for="link in feature.links" :key="link.to" as-child size="sm" variant="outline">
+            <Button
+              v-for="link in feature.links"
+              :key="link.to"
+              as-child
+              size="sm"
+              variant="secondary"
+              class="pressable rounded-full px-4 shadow-none"
+            >
               <NuxtLink :to="link.to">{{ link.label }}</NuxtLink>
             </Button>
           </div>
@@ -260,8 +265,8 @@ function handleRelatedLinkClick(
       <section
         class="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]"
       >
-        <div class="grid gap-3">
-          <div class="grid gap-1">
+        <div class="grid gap-3.5">
+          <div class="grid gap-1 px-1">
             <h2 class="text-base font-semibold tracking-tight">
               {{ t('about.links.title') }}
             </h2>
@@ -270,7 +275,7 @@ function handleRelatedLinkClick(
             </p>
           </div>
 
-          <div class="grid gap-3 sm:grid-cols-2">
+          <div class="grid gap-3.5 sm:grid-cols-2">
             <a
               v-for="link in relatedLinks"
               :key="link.title"
@@ -279,18 +284,18 @@ function handleRelatedLinkClick(
               :rel="
                 link.external ? 'noreferrer noopener' : undefined
               "
-              class="group grid gap-3 rounded-xl border border-border/60 bg-card p-4 text-card-foreground transition-all hover:border-border hover:shadow-md"
+              class="bento-card pressable group grid gap-3 p-5 text-card-foreground transition-colors hover:bg-secondary/60"
               @click="handleRelatedLinkClick(link, $event)"
             >
               <div class="flex items-start justify-between gap-3">
                 <span
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
                   :class="toneIconClassMap[link.tone]"
                 >
                   <component :is="link.icon" class="h-4 w-4" />
                 </span>
                 <ArrowUpRight
-                  class="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                  class="h-4 w-4 text-muted-foreground transition-transform duration-200 ease-[var(--ease-spring)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
                 />
               </div>
               <div class="grid gap-1">
@@ -306,7 +311,7 @@ function handleRelatedLinkClick(
         </div>
 
         <div
-          class="grid h-fit gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none"
+          class="bento-card grid h-fit gap-4 p-5"
         >
           <div class="grid gap-1">
             <h2 class="text-base font-semibold tracking-tight">
@@ -320,7 +325,7 @@ function handleRelatedLinkClick(
             <div
               v-for="item in versions"
               :key="item.label"
-              class="grid gap-3 rounded-lg border border-border/60 bg-background p-3"
+              class="bento-tile grid gap-3 p-3.5"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="grid gap-0.5">
@@ -332,7 +337,7 @@ function handleRelatedLinkClick(
                   </p>
                 </div>
                 <span
-                  class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground"
+                  class="inline-flex items-center gap-1 rounded-full bg-[var(--primary-soft)] px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary"
                 >
                   v{{ item.config.version }}
                 </span>

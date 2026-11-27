@@ -303,13 +303,37 @@ async function sendRecommendationFeedback(action: RecommendationAction) {
   }
 }
 
+export interface LightboxOriginRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
 const isLightboxOpen = ref(false);
 const lightboxStartIndex = ref(0);
+const lightboxOriginRect = ref<LightboxOriginRect | null>(null);
 
-// 3. 【核心修改】创建一个方法来打开灯箱
-function openLightbox(index: number) {
-  lightboxStartIndex.value = index; // 设置从哪张图片开始显示
-  isLightboxOpen.value = true; // 打开灯箱
+// Capture origin thumbnail rect for FLIP open/close transition
+function openLightbox(index: number, event?: Event) {
+  const target = event?.currentTarget as HTMLElement | null;
+  if (target && typeof target.getBoundingClientRect === 'function') {
+    const rect = target.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      lightboxOriginRect.value = {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height
+      };
+    } else {
+      lightboxOriginRect.value = null;
+    }
+  } else {
+    lightboxOriginRect.value = null;
+  }
+  lightboxStartIndex.value = index;
+  isLightboxOpen.value = true;
 }
 
 function toTweetDetail(
@@ -324,6 +348,12 @@ function toTweetDetail(
 function searchPosts(query: string) {
   const normalized = query.trim();
   if (!normalized) return;
+  if (normalized.startsWith('#')) {
+    const tag = normalized.slice(1).trim();
+    if (!tag) return;
+    void navigateTo(localePath(`/tags/${encodeURIComponent(tag)}`));
+    return;
+  }
   void navigateTo(
     localePath(
       `/tweet/search/${encodeURIComponent(normalized)}`
@@ -772,7 +802,7 @@ const relatedExcerpt = computed(() => {
                 'max-h-[420px]': mediaItems.length === 1,
                 'row-span-2': mediaItems.length === 3 && index === 0
               }"
-              @click.stop="openLightbox(index)"
+              @click.stop="openLightbox(index, $event)"
             >
               <img
                 :src="item.thumbnailUrl"
@@ -962,6 +992,7 @@ const relatedExcerpt = computed(() => {
     v-model:open="isLightboxOpen"
     :items="mediaItems"
     :start-index="lightboxStartIndex"
+    :origin-rect="lightboxOriginRect"
   />
 
   <Dialog v-model:open="isDeleteDialogOpen">
