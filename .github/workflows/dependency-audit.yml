@@ -1,0 +1,389 @@
+name: Dependency Audit
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - package.json
+      - yarn.lock
+      - .github/dependabot.yml
+      - .github/workflows/dependency-audit.yml
+
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  audit-nuxt:
+    name: Audit Nuxt (master)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: yarn
+      - name: Enable Yarn Classic via Corepack
+        run: corepack enable
+      - name: Verify Yarn lockfile integrity
+        run: yarn install --frozen-lockfile
+      - name: Run Yarn production audit and summarize
+        continue-on-error: true
+        run: |
+          set +e
+          yarn audit --level high --groups dependencies
+          audit_rc=$?
+          yarn audit --json --level high --groups dependencies > "$RUNNER_TEMP/yarn-audit.jsonl" 2>&1
+          set -e
+
+          NUXT_SHA="$(git rev-parse --short HEAD)" \
+          AUDIT_RC="$audit_rc" \
+          YARN_AUDIT_JSONL="$RUNNER_TEMP/yarn-audit.jsonl" \
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          sha = os.environ["NUXT_SHA"]
+          rc = int(os.environ["AUDIT_RC"])
+          path = Path(os.environ["YARN_AUDIT_JSONL"])
+
+          advisories = {}
+          summary = {}
+          if path.is_file():
+              for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                  line = raw.strip()
+                  if not line.startswith("{"):
+                      continue
+                  try:
+                      event = json.loads(line)
+                  except json.JSONDecodeError:
+                      continue
+                  kind = event.get("type")
+                  data = event.get("data") or {}
+                  if kind == "auditAdvisory":
+                      adv = data.get("advisory") or {}
+                      sev = str(adv.get("severity", "unknown")).lower()
+                      if sev in {"high", "critical"}:
+                          key = (
+                              str(adv.get("id", "")),
+                              str(adv.get("module_name", "")),
+                              str(adv.get("vulnerable_versions", "")),
+                          )
+                          advisories[key] = {
+                              "id": adv.get("id", "-"),
+                              "severity": sev,
+                              "module": adv.get("module_name", "-"),
+                              "title": str(adv.get("title", "-")).replace("|", "\\|"),
+                              "vulnerable": str(adv.get("vulnerable_versions", "-")).replace("|", "\\|"),
+                              "patched": str(adv.get("patched_versions", "-")).replace("|", "\\|"),
+                          }
+                  elif kind == "auditSummary":
+                      summary = data.get("vulnerabilities") or {}
+
+          lines = [
+              "### Nuxt (`master`) Dependency Audit",
+              "",
+              f"- Audited commit: `{sha}`",
+              "- Scope: `dependencies` (`--level high`)",
+              f"- Lockfile check: `yarn install --frozen-lockfile` passed",
+          ]
+          if summary:
+              lines.append(
+                  "- Advisory counts (dependencies): "
+                  f"critical={summary.get('critical', 0)}, "
+                  f"high={summary.get('high', 0)}, "
+                  f"moderate={summary.get('moderate', 0)}, "
+                  f"low={summary.get('low', 0)}, "
+                  f"info={summary.get('info', 0)}"
+              )
+          lines.append("")
+
+          if advisories:
+              lines.extend([
+                  "| Advisory | Severity | Package | Vulnerable | Patched | Title |",
+                  "| --- | --- | --- | --- | --- | --- |",
+              ])
+              for row in sorted(advisories.values(), key=lambda r: (r["severity"] != "critical", r["module"], str(r["id"]))):
+                  lines.append(
+                      f"| `{row['id']}` | {row['severity']} | `{row['module']}` | "
+                      f"`{row['vulnerable']}` | `{row['patched']}` | {row['title']} |"
+                  )
+              print(f"::warning::Nuxt yarn audit found {len(advisories)} high/critical production advisories (non-blocking until remediation merges).")
+          elif rc != 0:
+              lines.append(f"> `yarn audit` exited with code `{rc}` without structured advisories; inspect job logs.")
+              print(f"::warning::Nuxt yarn audit exited with code {rc} (non-blocking).")
+          else:
+              lines.append("No high or critical production advisories found.")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines) + "\n")
+          PY
+          exit 0
+
+  audit-rust:
+    name: Audit Rust (Rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/heads/Rust
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: 1.95.0
+      - uses: taiki-e/install-action@073e1fd0bc889c9aee68dbaaa927cde1b5653a83 # v2.90.11
+        with:
+          tool: cargo-audit
+      - name: Verify Cargo.lock exists
+        run: test -f Cargo.lock
+      - name: Run cargo audit and summarize
+        continue-on-error: true
+        run: |
+          set +e
+          cargo audit --color never
+          audit_rc=$?
+          cargo audit --json > "$RUNNER_TEMP/cargo-audit.json"
+          set -e
+
+          RUST_SHA="$(git rev-parse --short HEAD)" \
+          AUDIT_RC="$audit_rc" \
+          CARGO_AUDIT_JSON="$RUNNER_TEMP/cargo-audit.json" \
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          sha = os.environ["RUST_SHA"]
+          rc = int(os.environ["AUDIT_RC"])
+          path = Path(os.environ["CARGO_AUDIT_JSON"])
+
+          data = {}
+          if path.is_file():
+              raw = path.read_text(encoding="utf-8", errors="replace").strip()
+              if raw:
+                  try:
+                      data = json.loads(raw)
+                  except json.JSONDecodeError:
+                      data = {}
+
+          vuln_list = (data.get("vulnerabilities") or {}).get("list") or []
+          raw_warnings = data.get("warnings") or {}
+          warning_count = 0
+          if isinstance(raw_warnings, dict):
+              for items in raw_warnings.values():
+                  if isinstance(items, list):
+                      warning_count += len(items)
+          elif isinstance(raw_warnings, list):
+              warning_count = len(raw_warnings)
+
+          lines = [
+              "### Rust (`Rust`) Dependency Audit",
+              "",
+              f"- Audited commit: `{sha}`",
+              "- Lockfile check: `Cargo.lock` present",
+              f"- Vulnerabilities found: `{len(vuln_list)}`",
+              f"- RustSec informational warnings (unmaintained/yanked/unsound): `{warning_count}`",
+              "",
+          ]
+
+          if vuln_list:
+              lines.extend([
+                  "| Advisory | Crate | Version | Patched | Title |",
+                  "| --- | --- | --- | --- | --- |",
+              ])
+              for item in vuln_list:
+                  adv = item.get("advisory") or {}
+                  pkg = item.get("package") or {}
+                  versions = item.get("versions") or {}
+                  patched = ", ".join(versions.get("patched") or []) or "-"
+                  title = str(adv.get("title", "-")).replace("|", "\\|")
+                  lines.append(
+                      f"| `{adv.get('id', '-')}` | `{pkg.get('name', '-')}` | "
+                      f"`{pkg.get('version', '-')}` | `{patched}` | {title} |"
+                  )
+              print(f"::warning::cargo audit found {len(vuln_list)} vulnerability advisory/advisories on Rust branch (non-blocking until remediation merges).")
+          elif rc != 0:
+              lines.append(f"> `cargo audit` exited with code `{rc}` without structured vulnerability entries; inspect job logs.")
+              print(f"::warning::cargo audit exited with code {rc} (non-blocking).")
+          else:
+              lines.append("No RustSec vulnerability advisories found.")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines) + "\n")
+          PY
+          exit 0
+
+  audit-go:
+    name: Audit Go (codex/go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/heads/codex/go
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run govulncheck and summarize
+        continue-on-error: true
+        run: |
+          set +e
+          "$(go env GOPATH)/bin/govulncheck" ./... > "$RUNNER_TEMP/govulncheck.txt" 2>&1
+          vuln_rc=$?
+          set -e
+          cat "$RUNNER_TEMP/govulncheck.txt"
+
+          GO_SHA="$(git rev-parse --short HEAD)" \
+          GO_VERSION="$(go version)" \
+          VULN_RC="$vuln_rc" \
+          GOVULN_OUT="$RUNNER_TEMP/govulncheck.txt" \
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          sha = os.environ["GO_SHA"]
+          go_version = os.environ["GO_VERSION"]
+          rc = int(os.environ["VULN_RC"])
+          raw = Path(os.environ["GOVULN_OUT"]).read_text(encoding="utf-8", errors="replace").strip()
+
+          max_chars = 6000
+          if len(raw) > max_chars:
+              raw = raw[:max_chars] + "\n... (truncated; see job logs for full output)"
+          safe_raw = raw.replace("~~~~", "----")
+
+          status = "No vulnerabilities detected" if rc == 0 else f"Findings or check error reported (exit code `{rc}`, non-blocking)"
+          lines = [
+              "### Go (`codex/go`) Dependency Audit",
+              "",
+              f"- Audited commit: `{sha}`",
+              f"- Toolchain: `{go_version}`",
+              f"- Status: {status}",
+              "",
+              "~~~~text",
+              safe_raw or "(no output)",
+              "~~~~",
+          ]
+          if rc != 0:
+              print(f"::warning::govulncheck exited with code {rc} on codex/go (non-blocking until remediation merges).")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines) + "\n")
+          PY
+          exit 0
+
+  audit-flutter:
+    name: Audit Flutter (Flutter)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/heads/Flutter
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.41.9
+          cache: true
+      - name: Enforce pubspec.lock integrity
+        run: flutter pub get --enforce-lockfile
+      - name: Summarize outdated Flutter dependencies
+        run: |
+          flutter pub outdated --no-color || true
+          flutter pub outdated --json > "$RUNNER_TEMP/pub-outdated.json" || true
+
+          FLUTTER_SHA="$(git rev-parse --short HEAD)" \
+          PUB_OUTDATED_JSON="$RUNNER_TEMP/pub-outdated.json" \
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          sha = os.environ["FLUTTER_SHA"]
+          path = Path(os.environ["PUB_OUTDATED_JSON"])
+
+          data = {}
+          if path.is_file():
+              raw = path.read_text(encoding="utf-8", errors="replace").strip()
+              idx = raw.find("{")
+              if idx != -1:
+                  try:
+                      data = json.loads(raw[idx:])
+                  except json.JSONDecodeError:
+                      data = {}
+
+          packages = data.get("packages") or []
+          counts = {"direct": 0, "dev": 0, "transitive": 0}
+          direct_dev_rows = []
+          for pkg in packages:
+              kind = str(pkg.get("kind", "transitive"))
+              current = ((pkg.get("current") or {}).get("version")) or "-"
+              upgradable = ((pkg.get("upgradable") or {}).get("version")) or "-"
+              resolvable = ((pkg.get("resolvable") or {}).get("version")) or "-"
+              latest = ((pkg.get("latest") or {}).get("version")) or "-"
+              discontinued = bool(pkg.get("isDiscontinued"))
+              outdated = (current != latest and latest != "-") or discontinued
+              if outdated and kind in counts:
+                  counts[kind] += 1
+              if kind in {"direct", "dev"} and outdated:
+                  direct_dev_rows.append({
+                      "name": str(pkg.get("package", "-")),
+                      "kind": kind,
+                      "current": current,
+                      "upgradable": upgradable,
+                      "resolvable": resolvable,
+                      "latest": latest,
+                      "discontinued": "yes" if discontinued else "no",
+                  })
+
+          lines = [
+              "### Flutter (`Flutter`) Dependency Audit",
+              "",
+              f"- Audited commit: `{sha}`",
+              "- Lockfile integrity: `flutter pub get --enforce-lockfile` passed",
+              f"- Outdated counts: direct=`{counts['direct']}`, dev=`{counts['dev']}`, transitive=`{counts['transitive']}`",
+              "",
+          ]
+          if direct_dev_rows:
+              lines.extend([
+                  "| Package | Kind | Current | Upgradable | Resolvable | Latest | Discontinued |",
+                  "| --- | --- | --- | --- | --- | --- | --- |",
+              ])
+              for row in sorted(direct_dev_rows, key=lambda r: (r["kind"], r["name"])):
+                  lines.append(
+                      f"| `{row['name']}` | {row['kind']} | `{row['current']}` | "
+                      f"`{row['upgradable']}` | `{row['resolvable']}` | `{row['latest']}` | {row['discontinued']} |"
+                  )
+          else:
+              lines.append("All direct and dev dependencies are up to date (or report unavailable).")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines) + "\n")
+          PY
