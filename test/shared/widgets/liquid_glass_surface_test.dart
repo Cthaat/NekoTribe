@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
@@ -326,17 +327,61 @@ void main() {
       expect(pillRect.height, greaterThanOrEqualTo(50));
       expect(find.text('5'), findsOneWidget);
 
+      final haptics = <Object?>[];
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          haptics.add(call.arguments);
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await tester.tap(find.text('首页'));
+      expect(haptics, isEmpty);
+      await tester.tap(find.text('群组'));
+      expect(haptics, ['HapticFeedbackType.selectionClick']);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(tester.getCenter(pill).dx, greaterThan(pillRect.center.dx));
+      expect(
+        tester.getCenter(pill).dx,
+        lessThan(tester.getCenter(find.text('群组')).dx),
+      );
+      await tester.tap(find.text('消息'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
       await tester.tap(find.text('群组'));
       await tester.pumpAndSettle();
       expect(selected, 1);
       final updatedPillRect = tester.getRect(pill);
+      expect(
+        updatedPillRect.center.dx,
+        closeTo(tester.getCenter(find.text('群组')).dx, 0.01),
+      );
       expect(
         updatedPillRect.contains(
           tester.getRect(find.byIcon(Icons.groups_rounded)).center,
         ),
         isTrue,
       );
-      expect(updatedPillRect.contains(tester.getRect(find.text('群组')).center), isTrue);
+      expect(
+        updatedPillRect.contains(tester.getRect(find.text('群组')).center),
+        isTrue,
+      );
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pump();
+      await tester.tap(find.text('我的'));
+      await tester.pump();
+      expect(
+        tester.getCenter(pill).dx,
+        closeTo(tester.getCenter(find.text('我的')).dx, 0.01),
+      );
     },
   );
 

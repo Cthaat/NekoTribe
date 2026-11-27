@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/tokens.dart';
 import '../safe_back_button.dart';
@@ -130,7 +133,7 @@ class LiquidGlassNavItem {
   final int badgeCount;
 }
 
-class LiquidGlassNavDock extends StatelessWidget {
+class LiquidGlassNavDock extends StatefulWidget {
   const LiquidGlassNavDock({
     super.key,
     required this.items,
@@ -143,13 +146,73 @@ class LiquidGlassNavDock extends StatelessWidget {
   final ValueChanged<int> onSelected;
 
   @override
+  State<LiquidGlassNavDock> createState() => _LiquidGlassNavDockState();
+}
+
+class _LiquidGlassNavDockState extends State<LiquidGlassNavDock>
+    with SingleTickerProviderStateMixin {
+  int get selectedIndex =>
+      widget.selectedIndex.clamp(0, math.max(0, widget.items.length - 1));
+  late final _position = AnimationController.unbounded(
+    vsync: this,
+    value: selectedIndex.toDouble(),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (AppMotion.reduced(context)) _position.value = selectedIndex.toDouble();
+  }
+
+  @override
+  void didUpdateWidget(LiquidGlassNavDock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex == widget.selectedIndex &&
+        oldWidget.items.length == widget.items.length) {
+      return;
+    }
+    final target = selectedIndex.toDouble();
+    if (AppMotion.reduced(context) ||
+        oldWidget.items.isEmpty ||
+        widget.items.isEmpty) {
+      _position.value = target;
+    } else {
+      _position.animateWith(
+        SpringSimulation(
+          AppMotion.springSnappy,
+          _position.value,
+          target,
+          _position.velocity,
+          snapToEnd: true,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _position.dispose();
+    super.dispose();
+  }
+
+  void _select(int index) {
+    if (index != selectedIndex &&
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      HapticFeedback.selectionClick();
+    }
+    widget.onSelected(index);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final items = widget.items;
     if (items.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final safeIndex = selectedIndex.clamp(0, items.length - 1);
+    final safeIndex = selectedIndex;
     final pillRadius = BorderRadius.circular(AppRadius.pill);
-    final duration = AppMotion.resolve(context, AppMotion.glide);
 
     return LiquidGlassSurface(
       preset: LiquidGlassPreset.navDock,
@@ -162,18 +225,17 @@ class LiquidGlassNavDock extends StatelessWidget {
             final itemWidth = constraints.maxWidth / items.length;
             return Stack(
               children: [
-                TweenAnimationBuilder<double>(
-                  duration: duration,
-                  curve: AppMotion.glideCurve,
-                  tween: Tween(end: safeIndex.toDouble()),
+                AnimatedBuilder(
+                  animation: _position,
                   child: LiquidGlassSurface(
                     preset: LiquidGlassPreset.pillIndicator,
                     borderRadius: pillRadius,
                     blurEnabled: false,
                     child: const SizedBox.expand(),
                   ),
-                  builder: (context, position, child) => PositionedDirectional(
-                    start: position * itemWidth,
+                  builder: (context, child) => PositionedDirectional(
+                    start:
+                        _position.value.clamp(0, items.length - 1) * itemWidth,
                     top: 0,
                     bottom: 0,
                     width: itemWidth,
@@ -192,7 +254,7 @@ class LiquidGlassNavDock extends StatelessWidget {
                             borderRadius: pillRadius,
                             theme: theme,
                             scheme: scheme,
-                            onTap: () => onSelected(i),
+                            onTap: () => _select(i),
                           ),
                         ),
                     ],
