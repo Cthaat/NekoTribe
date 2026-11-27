@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -73,6 +74,8 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   var _didStartRealtime = false;
+  bool _dockVisible = true;
+  String _lastMobileLocation = '';
   RealtimeService? _realtime;
   RealtimeListener? _onRealtimeEvent;
   StreamSubscription<int>? _recovery;
@@ -289,8 +292,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     final currentIndex = _indexFor(location, mobileTabs);
     final hideBottomNav = !_isMobilePrimaryLocation(location);
     final reduced = AppMotion.reduced(context);
+    if (_lastMobileLocation != location) {
+      _lastMobileLocation = location;
+      _dockVisible = true;
+    }
 
-    final bodyContent = reduced
+    final innerBody = reduced
         ? widget.child
         : TweenAnimationBuilder<double>(
             key: ValueKey(
@@ -306,28 +313,64 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: widget.child,
           );
 
+    final bodyContent = NotificationListener<UserScrollNotification>(
+      onNotification: (notification) {
+        if (hideBottomNav || reduced || notification.metrics.axis != Axis.vertical) {
+          return false;
+        }
+        if (notification.metrics.maxScrollExtent <= 48 ||
+            notification.metrics.pixels <= 24) {
+          if (!_dockVisible) setState(() => _dockVisible = true);
+          return false;
+        }
+        if (notification.direction == ScrollDirection.reverse &&
+            notification.metrics.pixels > 48) {
+          if (_dockVisible) setState(() => _dockVisible = false);
+        } else if (notification.direction == ScrollDirection.forward) {
+          if (!_dockVisible) setState(() => _dockVisible = true);
+        }
+        return false;
+      },
+      child: innerBody,
+    );
+
+    final showDock = reduced || _dockVisible;
+
     return Scaffold(
       backgroundColor: social.surfaceBase,
       extendBody: true,
       body: bodyContent,
       bottomNavigationBar: hideBottomNav
           ? null
-          : SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: LiquidGlassNavDock(
-                  selectedIndex: currentIndex,
-                  onSelected: (i) => context.go(mobileTabs[i].$1),
-                  items: [
-                    for (final t in mobileTabs)
-                      LiquidGlassNavItem(
-                        icon: t.$2,
-                        selectedIcon: t.$3,
-                        label: l10n.t(t.$4),
-                        badgeCount: t.$1 == '/notifications' ? unread : 0,
+          : IgnorePointer(
+              ignoring: !showDock,
+              child: AnimatedSlide(
+                offset: showDock ? Offset.zero : const Offset(0, 1.35),
+                duration: AppMotion.resolve(context, AppMotion.glide),
+                curve: AppMotion.glideCurve,
+                child: AnimatedOpacity(
+                  opacity: showDock ? 1.0 : 0.0,
+                  duration: AppMotion.resolve(context, AppMotion.fast),
+                  curve: AppMotion.standardCurve,
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: LiquidGlassNavDock(
+                        selectedIndex: currentIndex,
+                        onSelected: (i) => context.go(mobileTabs[i].$1),
+                        items: [
+                          for (final t in mobileTabs)
+                            LiquidGlassNavItem(
+                              icon: t.$2,
+                              selectedIcon: t.$3,
+                              label: l10n.t(t.$4),
+                              badgeCount: t.$1 == '/notifications' ? unread : 0,
+                            ),
+                        ],
                       ),
-                  ],
+                    ),
+                  ),
                 ),
               ),
             ),

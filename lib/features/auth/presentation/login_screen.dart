@@ -336,15 +336,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 if (supportsPasskeys) ...[
                   const SizedBox(height: AppGap.sm),
-                  OutlinedButton.icon(
+                  FilledButton.tonalIcon(
                     onPressed: _busy ? null : _loginWithPasskey,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                      shape: const StadiumBorder(),
+                    ),
                     icon: const Icon(Icons.key_outlined),
                     label: Text(l10n.t('passkeys.sign_in')),
                   ),
                 ],
                 const SizedBox(height: AppGap.sm),
-                OutlinedButton.icon(
+                FilledButton.tonalIcon(
                   onPressed: _busy ? null : _loginWithGitHub,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                    shape: const StadiumBorder(),
+                  ),
                   icon: const Icon(Icons.open_in_new_outlined),
                   label: Text(l10n.t('github_oauth.sign_in')),
                 ),

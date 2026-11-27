@@ -65,6 +65,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   bool _sendingComment = false;
   double _composerHeight = 108;
   final _replyController = TextEditingController();
+  final _readProgress = ValueNotifier<double>(0);
   bool get _active => mounted && !_expired;
 
   @override
@@ -101,6 +102,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   void dispose() {
     _stopSession?.call();
     _replyController.dispose();
+    _readProgress.dispose();
     super.dispose();
   }
 
@@ -546,6 +548,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     children: [
                       NotificationListener<ScrollNotification>(
                         onNotification: (n) {
+                          if (n.depth == 0 && n.metrics.axis == Axis.vertical) {
+                            final maxExtent = n.metrics.maxScrollExtent;
+                            final next = maxExtent > 160
+                                ? (n.metrics.pixels / maxExtent).clamp(0.0, 1.0)
+                                : 0.0;
+                            if ((next - _readProgress.value).abs() > 0.004) {
+                              _readProgress.value = next;
+                            }
+                          }
                           if (n.metrics.pixels >=
                               n.metrics.maxScrollExtent - 200) {
                             _loadMore();
@@ -895,6 +906,33 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                      Positioned(
+                        top: topInset,
+                        left: 0,
+                        right: 0,
+                        child: IgnorePointer(
+                          child: ValueListenableBuilder<double>(
+                            valueListenable: _readProgress,
+                            builder: (context, value, _) {
+                              if (value <= 0.01) {
+                                return const SizedBox.shrink();
+                              }
+                              return SizedBox(
+                                height: 2,
+                                child: FractionallySizedBox(
+                                  alignment: Alignment.centerLeft,
+                                  widthFactor: value,
+                                  child: ColoredBox(
+                                    color: scheme.primary.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                       if (showComposer)

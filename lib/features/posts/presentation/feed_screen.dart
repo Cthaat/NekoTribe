@@ -56,7 +56,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   };
   _FeedTabState<V2GroupPost> _groups = _FeedTabState();
   final _pendingGroupLikes = <(int, int)>{};
+  final _tabControllers = <_HomeFeedTab, ScrollController>{
+    for (final tab in _HomeFeedTab.values) tab: ScrollController(),
+  };
   bool _fabVisible = true;
+  bool _showTopPill = false;
 
   _HomeFeedTab get _selected => _HomeFeedTab.values[_tab.index];
 
@@ -66,7 +70,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     _tab = TabController(length: _HomeFeedTab.values.length, vsync: this);
     _tab.addListener(() {
       if (_tab.indexIsChanging) return;
-      if (mounted) setState(() {});
+      if (mounted) {
+        final ctrl = _tabControllers[_selected];
+        final offset = ctrl != null && ctrl.hasClients ? ctrl.offset : 0.0;
+        setState(() => _showTopPill = offset > 360);
+      }
       _load(_selected);
     });
     _stopSessionListener = ref
@@ -84,6 +92,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   void dispose() {
     _stopSessionListener();
     _tab.dispose();
+    for (final controller in _tabControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -170,6 +181,28 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     } finally {
       state.loading = false;
       if (_isCurrent(tab, state)) setState(() {});
+    }
+  }
+
+  Future<void> _scrollToTopAndRefresh() async {
+    final controller = _tabControllers[_selected];
+    if (_showTopPill) {
+      setState(() => _showTopPill = false);
+    }
+    if (controller != null && controller.hasClients && controller.offset > 0) {
+      final dur = AppMotion.resolve(context, AppMotion.base);
+      if (dur == Duration.zero) {
+        controller.jumpTo(0);
+      } else {
+        await controller.animateTo(
+          0,
+          duration: dur,
+          curve: AppMotion.glideCurve,
+        );
+      }
+    }
+    if (mounted) {
+      await _refresh(_selected);
     }
   }
 
@@ -539,11 +572,70 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
               ),
             ),
           ],
-          body: TabBarView(
-            controller: _tab,
+          body: Stack(
             children: [
-              for (final tab in _HomeFeedTab.values)
-                _buildFeedTab(tab, session),
+              TabBarView(
+                controller: _tab,
+                children: [
+                  for (final tab in _HomeFeedTab.values)
+                    _buildFeedTab(tab, session),
+                ],
+              ),
+              Positioned(
+                top: 10,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  ignoring: !_showTopPill,
+                  child: Center(
+                    child: AnimatedSlide(
+                      offset: _showTopPill
+                          ? Offset.zero
+                          : const Offset(0, -0.8),
+                      duration: AppMotion.resolve(context, AppMotion.base),
+                      curve: AppMotion.glideCurve,
+                      child: AnimatedOpacity(
+                        opacity: _showTopPill ? 1.0 : 0.0,
+                        duration: AppMotion.resolve(context, AppMotion.fast),
+                        child: LiquidGlassSurface(
+                          preset: LiquidGlassPreset.floatingIsland,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          interactive: true,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(AppRadius.pill),
+                            onTap: _scrollToTopAndRefresh,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.arrow_upward_rounded,
+                                    size: 15,
+                                    color: scheme.primary,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    l10n.t('feed.back_to_top'),
+                                    style: theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                          color: scheme.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -686,14 +778,24 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
             onNotification: (n) {
               if (n.depth == 0 &&
                   n.metrics.axis == Axis.vertical &&
-                  _selected == tab &&
-                  !state.nextPageFailed &&
-                  n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
-                _load(tab, more: true);
+                  _selected == tab) {
+                final wantPill = n.metrics.pixels > 360;
+                if (wantPill && !_showTopPill) {
+                  setState(() => _showTopPill = true);
+                } else if (!wantPill &&
+                    n.metrics.pixels <= 240 &&
+                    _showTopPill) {
+                  setState(() => _showTopPill = false);
+                }
+                if (!state.nextPageFailed &&
+                    n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                  _load(tab, more: true);
+                }
               }
               return false;
             },
             child: ListView.builder(
+              controller: _tabControllers[tab],
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 108),
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount:
