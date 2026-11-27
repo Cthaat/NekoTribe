@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档**：本文档为 2025 年编写的早期 PRD（v1.0、基于 Nuxt 3 规划），不代表现行 Nuxt 4 全栈及多后端产品范围。请改阅 [项目主 README](../README.md)、[文档总索引](../docs/README.md) 与 [共同需求基线](../specifications/README.md)。
+
 # NekoTribe克隆项目产品需求文档 (PRD)
 
 ## 文档信息

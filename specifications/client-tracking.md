@@ -44,4 +44,4 @@ node scripts/parity.mjs check --workspace-root ..
 node scripts/contracts.mjs check --workspace-root ..
 ```
 
-check 输出新增 clientTracking（范围统计/sourceScope）与 clientPending（功能:客户端/范围）。开发检查 exit 0 只表示登记一致；release 会拒绝任何待审查或未验收的功能。当前阶段仍静态开发，不启动 Docker 或真实数据库。
+check 输出包含 `clientTracking`（范围统计/`sourceScope`）与 `clientPending`（功能:客户端/范围）。开发检查 exit 0 只表示登记一致；`release` 会拒绝任何待审查或未验收的功能。`check` 与 `release` 本身均为只读离线校验命令，不启动 Docker 或连接真实数据库；实际运行时验收结果另行记录于部署与验收审计文档。

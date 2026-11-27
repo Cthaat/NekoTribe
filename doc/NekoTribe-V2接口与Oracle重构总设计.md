@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档**：本文档为早期从 `v1` 重构到 `v2` 与 Oracle 模型的总设计蓝图，其中包含 `/upload/` 路径草案与早期 `doc/neko_tribe-oracle-v2.sql` 引用。现行数据库基线与迁移规范请见 [`../data/neko_tribe-oracle-v2.sql`](../data/neko_tribe-oracle-v2.sql)、[显式结构迁移规范](../docs/architecture/schema-migrations.md) 与 [文档总索引](../docs/README.md)。
+
 # NekoTribe V2 接口与 Oracle 重构总设计
 
 ## 1. 文档目标

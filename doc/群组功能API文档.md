@@ -1,3 +1,6 @@
+> [!WARNING]
+> **历史归档文档**：本文档为 2025-11-30 的 `/api/v1/groups` 旧版群组 API 文档（现行 v1 接口默认关闭，群组功能已全面迁移至 `/api/v2/groups/*`）。请改阅 [`v2.openapi.json`](v2.openapi.json) 与 [文档总索引](../docs/README.md)。
+
 # NekoTribe 群组功能 API 文档
 
 > 版本: 1.0.0  

@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史恢复套件模板（2026-10-26）**：本文件是 `scripts/restore-workspace.mjs` 随四目录源码恢复套件使用的父工作区 `README.md` 模板快照，其中的链接（如 `nuxt/docs/deployment.md`）相对于恢复后的父目录根路径解析，且文中关于“Rust 兼容入口 / Go 尚无运行服务”的描述已由后续原生后端交付更新。现行工作区入口请见父目录 `../../README.md` 与 [部署手册](../deployment.md)。
+
 # NekoTribe 多框架工作区
 
 | 目录 | 分支 | 用途 |

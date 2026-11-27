@@ -1,3 +1,14 @@
+> [!WARNING]
+> **历史归档文档（已过时，请勿直接按本文档执行）**：本文档为仓库重组前的旧版中文 README 归档，其中包含已与现行 v2 实现冲突的过时信息：
+> - **API 接口**：现行权威入口为 [`v2.openapi.json`](v2.openapi.json)（`/api/v1/*` 默认由 `ENABLE_V1_API=false` 关闭，`https://3kjlg46jpj.apifox.cn` 亦非现行权威契约）。
+> - **媒体存储路径**：现行公开存储目录与 URL 前缀已统一为 `storage/` 与 `/storage/`（而非文中的 `upload/` 与 `/upload/`）。
+> - **Oracle 基线与启动初始化**：实际挂载与运行的数据库基线位于 [`../data/neko_tribe-oracle-v2.sql`](../data/neko_tribe-oracle-v2.sql) 与 [`../data/nekotribe-schema-only.sql`](../data/nekotribe-schema-only.sql)（而非 `doc/neko_tribe-oracle-v2.sql`），且 Compose 普通 `up` 不会自动初始化空库。
+> - **SentimentFlow**：旧版平台内嵌情感分析接口已退役，请见 [`../specifications/requirements/sentiment-retirement.json`](../specifications/requirements/sentiment-retirement.json)。
+> - **页面/目录与语言链接**：第 3 行的 `English` 链接指向的 [`../README.md`](../README.md) 实为**现行中文主入口**；部分页面路径（如 `app/pages/user/[id]/profile.vue` 仍存在，但通知/AI/审核等模块已大幅演进）。
+>
+> 👉 **请改阅现行文档**：[项目主 README](../README.md) · [文档总索引与职责边界](../docs/README.md) · [部署手册](../docs/deployment.md)  
+> 📌 **`doc/` 目录内现行受保护文件**：仅 [`v2.openapi.json`](v2.openapi.json)、[`runtime-addresses.md`](runtime-addresses.md)、[`contracts.manifest.json`](contracts.manifest.json) 为活跃 v2 契约源，[`contract-patches/`](contract-patches/README.md) 为字段审核来源留档；本目录下的其余 `.md`、旧 SQL、Apifox/旧 JSON 及图表文件均为历史遗留。
+
 # NekoTribe
 
 中文 | [English](../README.md)

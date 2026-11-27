@@ -1,10 +1,10 @@
 # Nuxt 启动与初始化安全基线（T06）
 
-此入口默认连接已配置的 Oracle、Redis，不重启依赖、不重置数据库。完整启动/停止/日志管理属于 T14，Compose 项目名、卷和外部部署整理属于 T15。
+此入口默认连接已配置的 Oracle、Redis，不重启依赖、不重置数据库。T14/T15 的完整启动/停止/日志管理（`scripts/deploy.mjs`）以及 Compose 实例名、数据卷与外部依赖部署均已合入并整理至 [部署手册](deployment.md)。
 
 ## 配置与启动
 
-使用 Node 22.12 或更新的 Node 22，以及项目锁文件对应的 Yarn。首次入口会以排他复制创建 `.env`，已有文件保持不变；权威样例为 `.env.example`，`.env.nuxt.example`、`env.example` 为内容一致的兼容副本。样例默认关闭 SentimentFlow，真实凭据需自行填写。
+使用 Node 22.12 或更新的 Node 22，以及项目锁文件对应的 Yarn。首次入口（`scripts/startup.mjs`）仅排他复制 `.env.example` 创建 `.env`，已有文件保持不变；根目录 `.env.example` 为唯一权威配置模板（同目录历史遗留的 `.env.nuxt.example` 与 `env.example` 为早期快照，缺少后续新增的 AI、S3、Passkey、GitHub OAuth 与观测变量，新部署请统一复制 `.env.example`）。模板默认关闭旧版 `/api/v1` 与平台情感分析面板，真实凭据需自行填写。
 
 | 操作 | Windows PowerShell | Linux Shell |
 | --- | --- | --- |
@@ -27,7 +27,7 @@
 
 `yarn start` 固定生产模式，`yarn dev` 固定开发模式；HTTPS 部署另外设置 `COOKIE_SECURE=true`。Docker 镜像也调用相同 Node 启动入口，容器默认 `HOST=0.0.0.0`。构建阶段不要提供真实私密配置；构建命令预留 4 GiB V8 堆，机器还需容纳工具链、系统与数据服务。
 
-这种映射依据 Nuxt 的[运行时配置约定](https://nuxt.com/docs/4.x/guide/going-further/runtime-config)：构建后的服务不会自动把任意旧环境变量转换为运行时配置，也不会自动读取 `.env`。完整远程部署脚本及多平台镜像仍在 T14/T15 验收。
+这种映射依据 Nuxt 的[运行时配置约定](https://nuxt.com/docs/4.x/guide/going-further/runtime-config)：构建后的服务不会自动把任意旧环境变量转换为运行时配置，也不会自动读取 `.env`。独立打包、容器与多后端部署流程见 [部署手册](deployment.md) 及 `.github/workflows/`。
 
 ## 数据库初始化
 

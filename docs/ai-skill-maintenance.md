@@ -35,4 +35,4 @@ cargo run --bin nekotribe-backend -- skills --publish --expected 0 --enabled-jso
 
 如果返回 `SKILL_CONFIG_COMMIT_UNCERTAIN` 或连接关闭失败，先重新执行 `--status` 检查实际状态，再决定是否操作；不要直接重试。Nuxt Dockerfile 构建时会打包该工具，镜像内连接操作同样需要显式提供配置文件和容器可达的数据库地址。实际镜像与 Oracle 测试留待最终验收。
 
-三套后端的知识问答和写作生成现在分别要求已发布并启用 `knowledge-answer` 与 `writing-draft`。未初始化、禁用或配置不可读取时会拒绝生成；启动程序不会自动迁移或创建启用配置。该守卫的真实 Oracle 和跨实例行为尚未验收。
+三套后端当前受控 Skill 目录（`server/services/ai/skill-selection.ts`）共包含 4 项技能，各 AI 生成与创建接口（`server/services/ai/conversation-store.ts` 等）分别要求对应技能已发布并启用：`knowledge-answer`（知识问答）、`writing-draft`（AI 写作）、`group-brief`（群运营草稿）与 `moderation-advice`（审核建议）。未初始化、禁用或配置不可读取时会拒绝生成；启动程序不会自动迁移或创建启用配置。该守卫的真实 Oracle 和跨实例行为仍须在目标环境验收。

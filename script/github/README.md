@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史遗留脚本说明**：本文档对应的 `script/github/github-action.js`（以及 `package.json` 中保留的 `yarn tag` / `yarn release` 脚本入口）沿用早期 `service-name/v1.0.0` 微服务标签规范与 `NEKO_TOKEN` 工作流假设，现行 `.github/workflows/` 已改为基于 `master` / `codex/go` / `Rust` / `Flutter` 与 `vX.Y.Z` 标签的四栈联合发布流（使用 `GITHUB_TOKEN`）。使用前请勿直接按旧 `main` 分支示例向远端推标签。
+
 # 标签自动化脚本使用说明
 
 ## 功能描述

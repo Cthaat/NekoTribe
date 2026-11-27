@@ -1,3 +1,6 @@
+> [!WARNING]
+> **历史归档文档**：本文档为 2026-04-26 的早期 Apifox 导出接口文档（包含旧 `/upload/` 头像路径及未包含后续 M1–M4 新增接口），已不再同步维护。现行唯一权威接口规范为 [`v2.openapi.json`](v2.openapi.json) 与 [`runtime-addresses.md`](runtime-addresses.md)，入口导航见 [文档总索引](../docs/README.md)。
+
 # NekoTribe API v2 Apifox 接口详细文档
 
 版本：2.0.0

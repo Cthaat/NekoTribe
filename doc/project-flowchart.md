@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档图表**：本流程图为早期系统模块与缓存架构示意（其中 Redis 缓存策略在当前默认 `NEKO_CACHE_MODE=shared` 多后端模式下已调整为默认绕过响应/查询缓存）。现行架构与规范入口请见 [文档总索引](../docs/README.md) 与 [部署手册](../docs/deployment.md)。
+
 ```mermaid
 flowchart TD
     %% 样式定义

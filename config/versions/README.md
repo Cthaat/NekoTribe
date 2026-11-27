@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史与局部引用说明**：本说明及文中 `service-name/v1.0.0` 标签触发自动更新 `config/versions/` 与 `README.md` 徽章的工作流已不再启用（现行 CI/发版流为 `.github/workflows/ci-nuxt.yml`、`publish-rolling.yml`、`release.yml`，使用 `master` 分支与 `vX.Y.Z` 标签）。目前仅 `Neko.json`、`oracle-server.json` 与 `shadcn-web.json` 仍被前端关于页面 `app/pages/about.vue` 静态导入；其余 JSON（含空文件 `nekotribe-service.json`）为历史遗留。
+
 # 服务版本管理
 
 此目录用于管理各个微服务的版本信息。

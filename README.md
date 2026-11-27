@@ -152,4 +152,4 @@ node scripts/contracts.mjs check --workspace-root ..
 node scripts/parity.mjs check --workspace-root ..
 ```
 
-单独克隆时，两条检查命令可省略工作区参数。参阅 [部署手册](docs/deployment.md)、[启动与初始化](docs/startup-safety.md)、[共享 API 架构](docs/architecture/shared-api.md) 和 [OpenAPI](doc/v2.openapi.json)。
+单独克隆时，两条检查命令可省略工作区参数。参阅 [文档总索引](docs/README.md)、[部署手册](docs/deployment.md)、[启动与初始化](docs/startup-safety.md)、[共享 API 架构](docs/architecture/shared-api.md) 和 [OpenAPI](doc/v2.openapi.json)。

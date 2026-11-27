@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档**：本文档为 2026-05-23 的早期 Flutter 迁移方案草案（含对 Spring Boot 与 SentimentFlow 代理的早期假设），现行 Flutter 客户端与三后端已按统一契约演进。请改阅 [项目主 README](../README.md)、[文档总索引](../docs/README.md)、[地址与实时连接约定](runtime-addresses.md) 与 [共同需求基线](../specifications/README.md)。
+
 # NekoTribe 前端迁移到 Flutter 执行文档
 
 > 适用日期：2026-05-23  

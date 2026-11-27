@@ -1,3 +1,6 @@
+> [!WARNING]
+> **历史归档文档（已退役集成参考）**：本文档记录独立项目 **SentimentFlow API v1** 的旧版接口规范。NekoTribe 平台内嵌的旧版情感分析代理接口现已退役（见 [`../specifications/requirements/sentiment-retirement.md`](../specifications/requirements/sentiment-retirement.md)），现行平台 API 请查阅 [`v2.openapi.json`](v2.openapi.json) 与 [文档总索引](../docs/README.md)。
+
 # SentimentFlow API 文档（v1）
 
 ## 1. 基本信息

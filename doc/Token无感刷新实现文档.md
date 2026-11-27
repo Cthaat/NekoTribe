@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档**：本文档为早期 v1 前端（`composables/useApi.ts`、`stores/user.ts`、`/api/v1/*`）无感刷新实现说明，不反映现行 v2 认证与 SSR/客户端刷新保护机制。请改阅 [地址与实时连接约定](runtime-addresses.md) 与 [文档总索引](../docs/README.md)。
+
 # Token 无感刷新实现文档
 
 ## 概述

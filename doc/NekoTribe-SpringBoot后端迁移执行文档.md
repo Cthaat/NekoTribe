@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档（未采用技术路线）**：本文档为 2026-05-19 的 Spring Boot 迁移设想方案。NekoTribe 最终采用 **Nuxt / Go / Rust** 三后端与 **Flutter** 客户端架构，未推进 Spring Boot 后端。请改阅 [项目主 README](../README.md)、[文档总索引](../docs/README.md) 与 [多框架接口边界](../docs/architecture/shared-api.md)。
+
 # NekoTribe 后端迁移到 Spring Boot 执行文档
 
 > 适用日期：2026-05-19  

@@ -6,8 +6,8 @@
 
 - `requirements/authentication.md`：16 项兼容需求、35 个待执行完整业务场景、7 项需统一修订的缺口。另有三端相同的25个token样例和29个会话撤销HTTP/JWT隔离场景；后者需求见 `auth-session-revocation.md`，不能代替真实Oracle或完整认证验收。
 - `requirements/ai-product-scope.md`：三个已确认 AI 方向与角色权限；`ai-model-switching.md` 是完整切换要求；`ai-model-configuration.md` 和 `ai-inference-transport.md` 是已实现的配置/非流式传输组件。52 个配置样例和 55 个传输样例和 24 个工具历史样例已在三端隔离测试通过，后者使用合成 loopback 提供方；实际模型调用、产品权限接线及完整场景仍未验收。
-- `parity.json`：当前155个登记项覆盖171个规范操作及AI和公共存储地址工作；部分关联操作合为工作项，旧登记ID保存在 `supersedes`，不删除HTTP接口。server源码文件固定LF SHA-256，131个入口待分类/关联。13个旧情感分析操作标记退役；所有功能均未获得完整业务验收。
-- `clientTrackingVersion:1`：每个功能必须登记客户端范围。三个已确认 AI 产品、登录、刷新与退出已建立 Nuxt Web/Flutter 两份任务，其余149项明确待审查；待审查和缺少适用客户端验收均阻断最终发布，规则见 [双客户端同步登记](client-tracking.md)。
+- `parity.json`：当前 **147** 个登记项覆盖 **225** 个规范操作、**180** 份场景与 **399** 份共享文件（含 AI、WebRTC、投票/草稿/Markdown/链接预览与公共存储等扩展工作）；部分关联操作合为工作项，旧登记 ID 保存在 `supersedes`，不删除 HTTP 接口。`server/` 基线源码固定 LF SHA-256，`sourceAudits` 共 **136** 项（其中 **126** 项待审查 `unreviewed`）。13 个旧情感分析操作标记退役；所有功能均未获得完整业务验收。
+- `clientTrackingVersion:1`：每个功能必须登记客户端范围。当前 `clientTracking` 中 **139** 项为 `required`（均已登记 `nuxtWeb` / `flutter` 任务与目标版本，双端验收均仍待完成）、**8** 项为 `notRequired`、**0** 项为 `unreviewed`；缺少适用客户端验收仍阻断最终发布，规则见 [双客户端同步登记](client-tracking.md)。
 - `requirements/auth-session-list.md`：三端会话列表行为及 16 条分页样例；隔离测试不代替真实 Oracle、时区与跨实例验收。
 - `requirements/auth-otp-verification.md` 与 `auth-otp-creation.md`：验证码校验和邮件创建的共同规则与隔离场景；短信提供方、真实邮件及数据库联测仍需完成。
 - `requirements/auth-registration.md`：三端注册、验证码门槛与 29 条隔离场景；真实 Oracle 触发器、并发注册和跨后端登录尚待验收。
@@ -31,7 +31,7 @@
 - `requirements/user-self-profile-update.md`：三端当前用户资料部分更新和 18 条隔离场景；真实 Oracle 日期、约束、事务和跨实例缓存待验收。
 - `requirements/user-public-profile.md`：三端公开资料和 21 条隔离场景，真实 Oracle 在线状态、时区及双端联调待验收。
 - `requirements/user-self-profile.md`：三端当前用户资料与 10 条隔离鉴权场景；真实共享数据和两客户端联调待验收。
-- 2026-10-28 审计时，检查器核对 97 份公共需求/样例在 Rust/Go 的固定副本，并登记 50 份场景文件。当前数量以检查器实时输出为准，业务通过数见验收记录。
+- 2026-10-28 初期审计时登记了 97 份公共文件与 50 份场景文件；目前已扩展至 **399** 份 `sharedFiles` 与 **180** 份登记场景，当前数量以检查器实时输出为准，业务通过数见验收记录。
 
 ## 两种检查
 
@@ -42,9 +42,9 @@ node scripts/parity.mjs check
 node scripts/parity.mjs release --workspace-root C:/Code/NekoTribe
 ```
 
-`check` 验证登记结构。运行后读取 `ready`、`accepted` 和 `pending` 获取签收状态。RC7 已登记服务就绪功能，当前为 `ready:false`、`accepted:1`。`release` 要求验证全部功能及来源审查，因此当前退出 1。两个命令均只读工作区文件。
+`check` 验证登记结构。运行后读取 `ready`、`accepted` 和 `pending` 获取签收状态。RC7 曾提交 `revision: 2` 的三端服务就绪回执（保留于 `specifications/evidence/`），后续 vNext 将 `SERVICE-READINESS` 升至 `revision: 3`（当前状态 `implemented`、`evidence: []`），因此实时运行结果为 `ready: false`、`accepted: 0`。`release` 要求验证全部功能及来源审查，因此当前退出 1。两个命令均只读工作区文件。
 
-`--workspace-root` 用于核对 Rust/Go/Flutter 实际文件，必须是包含此 Nuxt 项目的管理目录。未验收状态下独立 Nuxt 克隆可以运行普通 `check`，其 clientTracking.sourceScope 为 Nuxt-only；有 Rust/Go/Flutter `accepted` 记录时，缺少实际工程目录就拒绝核对，不跳过来源验证。将来发行仍需专用多分支测试检出流程。
+`--workspace-root` 用于核对 Rust/Go/Flutter 实际文件，且检查器要求当前工作目录与 `resolve(workspaceRoot, 'nuxt')` 严格一致（若在独立分支克隆或派生子 worktree 中运行，请省略 `--workspace-root` 以执行 `Nuxt-only` 离线检查）。未验收状态下独立检出可运行普通 `check`，其 `clientTracking.sourceScope` 为 `Nuxt-only`；有 Rust/Go/Flutter `accepted` 记录时，缺少实际工程目录就拒绝核对，不跳过来源验证。将来发行仍需专用多分支测试检出流程。
 
 该参数还核对 `sharedFiles` 登记的 Rust、Go 和 Flutter 副本，返回 `sharedScope:workspace`。不传参数时只核对 Nuxt 的公开源文件。公共源位于 `specifications/requirements` 或 `specifications/scenarios`，副本位于各独立工作树的 `contracts`。检查命令只读取文件。
 

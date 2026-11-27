@@ -1,8 +1,8 @@
 # Explicit schema migrations (T13)
 
-本轮将五类功能结构的定义、检查与增量升级统一到数据库层。默认只打印离线计划；只有显式 `--check` / `--apply` 才连接目标，`--dotenv` 用于选择私有环境文件。业务请求不再执行结构变更，缺少结构时返回通用 503。下面记录具体不变量、权限与恢复边界，真实 Oracle 验证仍待最终阶段。
+自 T13 起，功能数据库结构的定义、检查与增量升级统一收拢到数据库层（最初覆盖 5 组特性结构，现已随后续版本在 `server/database/schema-definition.mjs` 中扩展至 **19 组共 64 个迁移步骤**，完整清单以 `node scripts/migrate-db.mjs --plan` 实测为准）。默认只打印离线计划；只有显式 `--check` / `--apply` 才连接目标，`--dotenv` 用于选择私有环境文件。业务请求不再执行结构变更，缺少结构时返回通用 503。下面记录核心不变量、权限与恢复边界。
 
-The schema definitions in `server/database/schema-definition.mjs` are the authority for the five formerly request-created feature schemas. The database engine and HTTP readiness adapter consume those same definitions. The full SQL baseline remains a new-environment bootstrap, never an upgrade script; a static test keeps its feature objects aligned with this authority.
+The schema definitions in `server/database/schema-definition.mjs` are the authority for the incremental feature schemas (originally the five formerly request-created schemas in T13, now expanded to 19 feature groups / 64 steps). The database engine and HTTP readiness adapter consume those same definitions. The full SQL baseline remains a new-environment bootstrap, never an upgrade script; a static test keeps its feature objects aligned with this authority.
 
 `node scripts/migrate-db.mjs` prints an offline plan and never loads credentials or a database driver. `--check` explicitly connects for read-only inspection. `--apply` explicitly connects and applies missing feature objects and missing global settings under an Oracle session lock. Credentials are read from environment or `.env`, never command-line arguments or diagnostic output.
 

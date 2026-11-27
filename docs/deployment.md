@@ -2,13 +2,13 @@
 
 本说明对应整理后的独立 Nuxt 项目。静态阶段已结束，2026-10-26 按用户授权安装 Docker 并执行集中测试；当前通过和未通过的项目见 [运行验收记录](audits/2026-10-26-runtime-verification.md)。下面命令用于实际启动与部署；不可将本机 Linux 容器结果冒称另一台服务器已验收。
 
-2026-11-22 vNext 交付四栈源码版本、六套后端平台包、Flutter Web 和两套独立 AI 包。用户已取消本轮服务器部署。源码提交和归档 SHA-256 随包登记，真实迁移与公共入口联调的步骤保留在隔离验收清单。[vNext 交付说明](../../docs/deployment/README.md#vnext-2026-11-22-交付) · [vNext 隔离验收清单](../../docs/deployment/ACCEPTANCE-VNEXT-20261122.md)
+2026-11-22 vNext 交付四栈源码版本、六套后端平台包、Flutter Web 和两套独立 AI 包。用户已取消本轮服务器部署。源码提交和归档 SHA-256 随包登记，真实迁移与公共入口联调的步骤保留在隔离验收清单。[vNext 交付说明](../../docs/deployment/README.md#vnext-2026-11-22-交付) · [vNext 隔离验收清单](../../docs/deployment/ACCEPTANCE-VNEXT-20261122.md)（注：文中指向 `../../docs/...` 与 `../../flutter/...` 的相对链接仅在四工作树并排父目录布局下解析，独立单分支克隆时不可访问。）
 
 ## 取得本轮代码
 
 若取得源码恢复套件，先阅读套件 README，再运行 `node restore-workspace.mjs 新目录`（Windows 也可 `restore.cmd 新目录`，Linux `sh restore.sh 新目录`）。它按 manifest 校验哈希与四个分支，并建立正确 worktree 和管理文件；不覆盖已有目标，不自动安装框架或启动数据库。设计与边界见 [恢复入口](architecture/workspace-restore.md)。
 
-四个工程分别位于 `master`、`Rust`、`Flutter`、`codex/go`。本地提交尚未发布，不能把远程旧版本视为本轮交付。已提交后可以在 Nuxt 目录导出给另一台机器：
+四个工程分别位于 `master`、`Rust`、`Flutter`、`codex/go`（远端 `https://github.com/Cthaat/NekoTribe`）。如存在尚未推送的本地提交，不能仅以远端旧版本替代当前构建；需在离线环境分发已提交分支时，可以在 Nuxt 目录导出 bundle 给另一台机器：
 
 ```text
 git bundle create NekoTribe.bundle master Rust Flutter codex/go

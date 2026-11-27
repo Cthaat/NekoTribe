@@ -17,3 +17,5 @@ Flutter 已有写作页面，从首页按钮进入；使用当前配置的后端
 Nuxt Web 新增侧边栏「写作助手」入口，支持相同的写作对话、分页历史、恢复和删除确认，使用现有后端地址配置和登录会话。客户端使用隔离契约与状态测试；浏览器、真实模型、Oracle 和多后端端到端验证仍待完成。
 
 Nuxt Web 和 Flutter 的写作页面提供起草、润色、标签建议和讨论总结。起草按原样提交用户输入。其他模式在用户点击发送后，将该模式的指令与用户输入一起保存为同一条写作消息。消息上限包括指令，失败重试沿用已保存的消息。讨论总结使用用户粘贴的讨论文本，客户端不会主动读取帖子或群聊。
+
+> **vNext 增量补充（已合入源码）**：当前写作生成已支持 SSE 流式增量返回、个人 OpenAI-compatible 提供方配置（`/account/ai-provider`，需配置 `AI_USER_PROVIDER_SECRET_B64` 等，见 [个人 AI 服务连接](deployment.md#个人-ai-服务连接)）、以及声明 `vision` 能力时的图片描述接口 `POST /api/v2/ai/media/describe`；同时服务端生成前会校验受控 Skill `writing-draft` 已发布并启用（见 [Skill 启用配置维护](ai-skill-maintenance.md)）。

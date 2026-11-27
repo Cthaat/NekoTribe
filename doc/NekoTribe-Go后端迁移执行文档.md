@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档**：本文档为 2026-05-23 的 Go 后端迁移早期设计草案（其中 `godror`、`chi`、SentimentFlow 代理与 `doc/neko_tribe-oracle-v2.sql` 等描述已过时；当前 Go 原生后端位于独立分支 `codex/go`，采用纯 Go 零 CGO 实现并已接入 `v2.openapi.json`）。请改阅 [项目主 README](../README.md)、[文档总索引](../docs/README.md)、[部署手册](../docs/deployment.md) 与 [共同需求基线](../specifications/README.md)。
+
 # NekoTribe Go Backend Migration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Implement this document task-by-task. Do not skip stages. After each stage, run that stage's verification commands and update the checklist before continuing.

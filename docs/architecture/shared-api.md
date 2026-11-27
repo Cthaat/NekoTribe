@@ -1,8 +1,8 @@
 # 多框架接口边界与兼容规则
 
-目标是让 Nuxt Web、Flutter 对接同一套接口，同时保留 Nuxt、Rust、Go 的独立工程与固定分支。Nuxt/Nitro 是当前业务实现基准；Rust 通过配置上游代理业务，Go 尚未实现。新增路由或文档不能代替原生业务完成度。
+目标是让 Nuxt Web、Flutter 对接同一套接口，同时保留 Nuxt（`master`）、Rust（`Rust`）、Go（`codex/go`）的独立工程与固定分支。早期的兼容起点曾以 Nuxt/Nitro 为唯一业务实现、Rust 代理上游且 Go 尚未实现；现行三后端均已提供原生 `/api/v2/**`、`/_ws`、`/storage/**`、`/api/ready` 与 `/metrics` 实现（Rust 的 Nuxt 代理模式仅在显式设置 `RUST_BACKEND_MODE=compat` 或 `compose.compat.yaml` 时启用）。
 
-用户现已确认最终要求三套后端完整独立且功能一致，Rust 代理/Go 预留仅描述现状。后续开发从共同需求出发，建立三实现任务和共同验收场景；Nuxt 是首次业务还原的最新来源，不是让其他语言永远追随猜测的唯一规格。新增目标、现有差距和阶段计划见 [三后端一致性计划](../plans/2026-10-26-native-backend-parity.md)。
+后续开发继续从共同需求出发，以版本化需求、三实现任务与共同验收场景推进三后端完全独立与跨端一致；进度台账见 [共同需求与进度基线](../../specifications/README.md)，原始规划背景见 [三后端一致性计划](../plans/2026-10-26-native-backend-parity.md)。
 
 ## 单一规范入口
 
@@ -18,7 +18,7 @@ node scripts/contracts.mjs check --workspace-root ..
 
 ## 成功与错误
 
-Nuxt v2 正常成功体为 `{ code, message, data, meta }`，通常 HTTP 200 且业务 code=200。分页信息在 meta，不能把当前页长度当总数。SentimentFlow 代理保留上游原始 JSON/状态，不自动套此封套；相关 schema 明确标注 pinned upstream 及 stub。
+Nuxt v2 正常成功体为 `{ code, message, data, meta }`，通常 HTTP 200 且业务 code=200。分页信息在 meta，不能把当前页长度当总数。旧版 SentimentFlow 上游代理已退役（现行 `doc/v2.openapi.json` 中 `proxyOperations: 0`）：`server/utils/sentiment-retirement.ts` 对 `/api/v2/integrations/sentiment-flow/config` 返回停用配置（HTTP 200），对 12 个已退役操作返回 HTTP 410（`code: 41001`），其余未知子路径返回 HTTP 404（`code: 40404`）。
 
 请求默认应发送 `Accept: application/json`。现有 Nitro 生产错误响应有外壳 `{ error, url, statusCode, statusMessage, message, data? }`，业务错误封套放在该 data 内；未处理/敏感异常可省略 data。不能把 v2Throw 的 data 对象误当完整 HTTP 错误体。两个前端的请求工具提供 JSON 默认协商，但保留调用方显式 Accept。修改错误序列化属于公开契约变化，需同时迁移前端和回归，不能只改文档猜测。
 
@@ -40,10 +40,10 @@ Nuxt v2 正常成功体为 `{ code, message, data, meta }`，通常 HTTP 200 且
 
 ## 外部集成的可验证边界
 
-SentimentFlow schema 依据明确提交和源码文件哈希生成，不声称任意 latest 镜像都兼容。本地上游的 login、admin/users、stats/overview 当前是占位返回，契约如实保留，不伪造 token、用户列表或真实统计。预测、训练与模型接口仍须在最终阶段用隔离模型、文件和服务验证，不能在静态审核时触发训练或删除模型。
+原 SentimentFlow 上游代理契约与 `doc/contract-patches/build-sentiment.py`、`doc/contract-patches/sentiment-flow.json` 保留为历史字段审核快照；现行平台内嵌情感分析代理接口已整体退役（详见 [情感分析退役契约](../../specifications/requirements/sentiment-retirement.md)）。若需启用可选的只读 SentimentFlow 协同服务，须在部署中显式配置 `AI_SENTIMENTFLOW_ENABLED` 与 `AI_SENTIMENTFLOW_URL`（见 [只读协同契约](../../specifications/requirements/ai-sentiment.md) 与 [部署手册](../deployment.md#可选图文模型和-sentimentflow)）。
 
 ## 本轮允许变更与最终测试
 
 用户已允许按需要增补、拆分、合并和重构接口，要求可扩展、易理解和易接手。本轮选择兼容增量：完善实际字段、纠正错误外壳、增加 PATCH 别名、统一请求头和显式迁移。它们保持已有成功业务语义，并明确保留兼容入口。
 
-本设计写于静态阶段。2026-10-26 已进入真实容器、Oracle 和两前端联调；实际通过和未测范围见 [运行验收记录](../audits/2026-10-26-runtime-verification.md)。另一台 Windows/Linux 机器、Oracle 19c 和深层业务仍须按对应环境验证。
+本设计最初写于静态阶段，后续演进与三后端一致性台账见 [共同需求与进度基线](../../specifications/README.md) 及 [部署手册](../deployment.md)；2026-10-26 初期容器与两前端联调记录见 [运行验收记录](../audits/2026-10-26-runtime-verification.md)。

@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档**：本文档记录早期 v1（`/api/v1/auth/refresh`、`stores/user.ts` 等）Token 刷新实现总结，已与现行 v2 认证及会话轮换实现不一致。现行鉴权与刷新约定请见 [地址与实时连接约定](runtime-addresses.md) 与 [`../specifications/requirements/auth-refresh.md`](../specifications/requirements/auth-refresh.md)。
+
 # Token 无感刷新功能实现总结
 
 ## 🎯 实现目标

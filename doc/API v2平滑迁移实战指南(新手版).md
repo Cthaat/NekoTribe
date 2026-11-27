@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档**：本文档记录早期的 v1 到 v2 平滑迁移背景（如 `/api/v1`、旧 `/upload/` 路径与早期 `doc/neko_tribe-oracle-v2.sql`），仅供参考。现行部署、接口规范与数据库迁移请查阅 [项目主 README](../README.md)、[文档总索引](../docs/README.md)、[OpenAPI v2 规范](v2.openapi.json) 与 [显式结构迁移规范](../docs/architecture/schema-migrations.md)。
+
 # API v2 平滑迁移实战指南（新手版）
 
 ## 1. 这份文档解决什么问题

@@ -19,7 +19,7 @@ node scripts/benchmark/run.mjs benchmark --config path/to/backend-comparison.jso
 ```
 
 - `parity` 连接已启动的三套后端和对应的 Oracle 读取账号。它按共享用例顺序比较 HTTP 状态、归一化 JSON 和 Oracle 断言，也逐一比较三套后端的实际回执。`parity.json` 和 `parity.md` 记录差异位置、步骤状态、断言与清理结果。
-- `benchmark` 从 `launch` 逐个启动并停止后端，Oracle 连接由后端进程负责。为每个目标配置空闲监听端点，使地址与启动环境的端口一致。使用构建好的 Nuxt `.output/server/index.mjs` 和 Go / Rust 可执行文件，`launch.cwd` 相对于命令执行目录。Windows 样例使用 Go / Rust 发布包的 `.exe`，Linux 使用相应的无扩展名可执行文件。在其他位置部署时调整 `command` 和 `cwd`。Rust 保持原生运行所需的 Oracle Instant Client 配置。`launch.env` 定义普通进程设置，`launch.envFrom` 将当前进程中的环境变量映射到后端。Nuxt 直启时保留样例的 `NUXT_` 配置名称。直接运行应用进程可采集其驻留内存。[Nuxt 部署](../../README.md) · [Go 部署](../../../go/README.md) · [Rust 部署](../../../rust/README.md)
+- `benchmark` 从 `launch` 逐个启动并停止后端，Oracle 连接由后端进程负责。为每个目标配置空闲监听端点，使地址与启动环境的端口一致。使用构建好的 Nuxt `.output/server/index.mjs` 和 Go / Rust 可执行文件，`launch.cwd` 相对于命令执行目录。Windows 样例使用 Go / Rust 发布包的 `.exe`，Linux 使用相应的无扩展名可执行文件。在其他位置部署时调整 `command` 和 `cwd`。Rust 保持原生运行所需的 Oracle Instant Client 配置。`launch.env` 定义普通进程设置，`launch.envFrom` 将当前进程中的环境变量映射到后端。Nuxt 直启时保留样例的 `NUXT_` 配置名称。直接运行应用进程可采集其驻留内存。[Nuxt 部署](../../README.md) · [Go 部署](../../../go/README.md) · [Rust 部署](../../../rust/README.md)（后两项相对链接仅在四工作树并排父目录下有效）
 
 ## 读取结果
 

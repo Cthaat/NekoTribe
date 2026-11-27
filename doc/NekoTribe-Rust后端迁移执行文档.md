@@ -1,3 +1,6 @@
+> [!NOTE]
+> **历史归档文档**：本文档为 2026-05-23 的 Rust 后端迁移早期设计草案（其中 SentimentFlow 代理、`/uploads/**` 与 `doc/neko_tribe-oracle-v2.sql` 等描述已过时；当前 Rust 原生后端位于独立分支 `Rust`，并已接入 `v2.openapi.json`）。请改阅 [项目主 README](../README.md)、[文档总索引](../docs/README.md)、[部署手册](../docs/deployment.md) 与 [共同需求基线](../specifications/README.md)。
+
 # NekoTribe Rust 后端迁移执行文档
 
 > **给 AI 执行者的硬性要求：** 必须按阶段执行本文档。一次只做一个阶段；每个阶段完成后运行该阶段的验证命令，并把验收结果写回阶段记录。不要跳阶段，不要一次性重写整个后端。
