@@ -557,10 +557,12 @@ html.dark[data-glass-intensity='subtle'] {
     mask-composite: exclude;
   }
 
-  html[data-glass-engine='blink']:not([data-glass-intensity='subtle']) .liquid-glass-dock,
-  html[data-glass-engine='blink']:not([data-glass-intensity='subtle']) .liquid-glass-button {
-    -webkit-backdrop-filter: url(#nekotribe-liquid-refract) blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    backdrop-filter: url(#nekotribe-liquid-refract) blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  @media (prefers-reduced-motion: no-preference) {
+    html[data-glass-engine='blink']:not([data-glass-intensity='subtle'], [data-glass-scrolling])
+      :is(.liquid-glass-dock, .liquid-glass-button) {
+      -webkit-backdrop-filter: url(#nekotribe-liquid-refract) blur(var(--glass-blur)) saturate(var(--glass-saturate));
+      backdrop-filter: url(#nekotribe-liquid-refract) blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    }
   }
 
   @media (prefers-reduced-transparency: reduce) {
