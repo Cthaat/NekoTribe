@@ -3,6 +3,12 @@
 
 # 服务版本管理
 
+## 发布 NekoTribe 版本
+
+[Version release PR](https://github.com/Cthaat/NekoTribe/actions/workflows/release-pr.yml) 在四栈主分支 CI 成功后比较最近正式版与当前源码，维护一条 `release/next → master` PR。含 `BREAKING CHANGE:` 或 `feat!:` 等破坏性变更时递增主版本，含 `feat:` 时递增次版本，其余变更递增补丁版本。提议列出变更范围并固定四个提交。合并后自动运行 [Release All Stacks](https://github.com/Cthaat/NekoTribe/actions/workflows/release.yml)，打包、校验并标记新的 Latest。仅更新发版清单不会产生后续提议。
+
+每个 `vX.Y.Z` 有独立的 Release 页面、四个平台合集、独立 APK、Windows 安装器和校验清单。四条主分支继续更新 [滚动版](https://github.com/Cthaat/NekoTribe/releases/tag/rolling-latest)。维护者也可以推送版本标签或手动运行打包工作流；带 `-rc.1` 等后缀的版本标记为预发布。
+
 此目录用于管理各个微服务的版本信息。
 
 ## 文件结构

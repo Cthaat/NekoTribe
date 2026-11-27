@@ -1,0 +1,36 @@
+name: Repository overview
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_run:
+    workflows: [Nuxt CI, Go CI, Rust CI, Flutter CI, Dependency Audit, Version release PR, Release All Stacks]
+    types: [completed]
+
+concurrency:
+  group: repository-overview
+  cancel-in-progress: false
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  statuses: read
+  actions: read
+  issues: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: scripts/repository-overview.py
+          sparse-checkout-cone-mode: false
+      - name: Refresh branch, PR and release status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ vars.CI_OVERVIEW_ISSUE }}
+        run: python scripts/repository-overview.py --issue "$ISSUE"

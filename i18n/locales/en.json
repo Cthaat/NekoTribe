@@ -93,6 +93,35 @@
     "processing": "Processing...",
     "pagination": "Page {page} / {totalPages} · Total {total}"
   },
+  "commandPalette": {
+    "title": "Search and commands",
+    "placeholder": "Search or run a command",
+    "instructions": "Use the arrow keys to select an option, Enter to run it, or Escape to close.",
+    "posts": "Search posts",
+    "people": "Search people",
+    "findGroups": "Search groups",
+    "messages": "Search messages in a conversation",
+    "selectConversation": "Select a conversation or channel to search its messages.",
+    "compose": "Write a post",
+    "discover": "Open Discover",
+    "groups": "Browse groups",
+    "openChat": "Open chat",
+    "writing": "Open AI writing",
+    "knowledge": "Open the AI knowledge base",
+    "theme": "Switch light or dark theme",
+    "glass": "Switch glass intensity"
+  },
+  "timelineShortcuts": {
+    "title": "Timeline shortcuts",
+    "enabled": "Enable single-key timeline shortcuts",
+    "description": "Focus a post before liking, bookmarking, or replying to it.",
+    "next": "Focus the next post",
+    "previous": "Focus the previous post",
+    "like": "Like or unlike",
+    "bookmark": "Toggle bookmark",
+    "reply": "Reply",
+    "compose": "Write a post"
+  },
   "globalSearch": {
     "recommended": "Recommended",
     "noRecommendations": "No recommended users right now.",

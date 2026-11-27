@@ -1,0 +1,69 @@
+name: Version release PR
+on:
+  workflow_run:
+    workflows: [Nuxt CI, Go CI, Rust CI, Flutter CI, Release All Stacks]
+    types: [completed]
+    branches: [master, codex/go, Rust, Flutter]
+  workflow_dispatch:
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  propose:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.name == 'Release All Stacks'))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: version-release-proposal
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: master
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/propose-release.py
+      - name: Open or refresh the version PR
+        if: steps.plan.outputs.version != ''
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ secrets.NEKO_TOKEN }}
+          base: master
+          branch: release/next
+          add-paths: .github/release-plan.json
+          title: 'release: NekoTribe ${{ steps.plan.outputs.version }}'
+          commit-message: 'chore(release): propose ${{ steps.plan.outputs.version }}'
+          body-path: ${{ runner.temp }}/release-pr.md
+
+  publish:
+    if: >-
+      github.event_name == 'pull_request' && github.event.pull_request.merged &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'release/next'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/release-plan.json
+            scripts/propose-release.py
+          sparse-checkout-cone-mode: false
+      - name: Release the approved source commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/propose-release.py --publish

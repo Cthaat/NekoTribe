@@ -64,7 +64,9 @@ jobs:
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target master \
               --title 'NekoTribe rolling-latest' --prerelease --latest=false \
-              --notes '四个分支各发布一个平台合集 ZIP。Flutter 的 APK 和 Windows 安装器可直接下载，SHA256SUMS.txt 提供文件校验。'
+              --notes "[最新正式版]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/latest) · [历史版本]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases)
+
+          四个分支各发布一个平台合集 ZIP。Flutter 的 APK 和 Windows 安装器可直接下载，SHA256SUMS.txt 提供文件校验。"
           fi
           uploads=("release-output/NekoTribe-latest-$STACK.zip")
           if [[ "$STACK" == flutter ]]; then
@@ -90,3 +92,7 @@ jobs:
             grep -Fx "$digest  ${asset##*/}" release-output/SHA256SUMS.txt
           done
           gh release upload "$tag" release-output/SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" | jq -j '.body // ""' |
+            python scripts/rolling-release-notes.py "$STACK" "$GITHUB_SHA" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              > "$RUNNER_TEMP/rolling-notes.md"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/rolling-notes.md"

@@ -34,6 +34,8 @@ async function compileComponent(path) {
             error: message => ${fixture}.errors.push(message), success: () => {}
           };`,
           '@/stores/user': `export const usePreferenceStore = () => ${fixture}.store;`,
+          '@/composables/useCommandChatSearch': `export const useCommandChatSearch = () => ${fixture}.commandSearch;`,
+          '@/services/auth-request-queue': `export const authQueueFor = () => ({ revision: 0, isIdentityChanging: false });`,
           '@/composables/useRealtimeSocket': `export const useRealtimeSocket = () => ${fixture}.realtime;`,
           '@/composables/useChatTyping': `export const useChatTyping = () => ({ stop() {}, edit() {}, receive() {}, reset() {} });`,
           '@/composables/useDirectMessageViewport': `export const useDirectMessageViewport = () => {};`,
@@ -104,9 +106,10 @@ test('message search combines keyword, sender and both local dates, and can clea
   const scope = effectScope();
   t.after(() => scope.stop());
   const events = [];
-  const form = scope.run(() => proxyRefs(ChatSearchFilters.setup({senders:[{id:43,label:'Peer'}]}, {
+  const form = scope.run(() => proxyRefs(ChatSearchFilters.setup({initialKeyword:'team',senders:[{id:43,label:'Peer'}]}, {
     ...setupContext, emit: (name, value) => events.push([name,value]),
   })));
+  assert.equal(form.keyword, 'team');
   form.keyword = '  team  ';
   form.sender = 43;
   form.start = form.end = '2026-09-21';
@@ -151,6 +154,7 @@ test('a private composer sends attachment-only replies and cancels uploads after
 function channelFixture(t) {
   const preferences = reactive({ user: { id: 42 }, authSession: { sessionId: 'session' } });
   const fixture = {
+    commandSearch: ref(null),
     errors: [],
     store: { preferences, authRevision: () => 0, isAuthCurrent: revision => revision === 0 },
     realtime: { serverReady: ref(false), ownerRevision: ref(0), recoveryRevision: ref(0) }

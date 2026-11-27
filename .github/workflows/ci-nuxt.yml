@@ -14,8 +14,11 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  automation:
+    if: github.event_name != 'schedule'
+    uses: ./.github/workflows/automation-checks.yml
   check:
-    needs: contracts
+    needs: [contracts, automation]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:

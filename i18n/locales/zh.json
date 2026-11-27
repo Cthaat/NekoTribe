@@ -93,6 +93,35 @@
     "processing": "正在处理中...",
     "pagination": "第 {page} / {totalPages} 页 · 共 {total} 条"
   },
+  "commandPalette": {
+    "title": "搜索与命令",
+    "placeholder": "输入关键词或查找命令",
+    "instructions": "用方向键选择，按回车执行，按 Esc 关闭。",
+    "posts": "搜索帖子",
+    "people": "搜索用户",
+    "findGroups": "搜索群组",
+    "messages": "搜索会话内消息",
+    "selectConversation": "请选择要搜索的会话或频道。",
+    "compose": "撰写帖子",
+    "discover": "打开发现页",
+    "groups": "浏览群组",
+    "openChat": "打开聊天",
+    "writing": "打开 AI 写作",
+    "knowledge": "打开 AI 知识库",
+    "theme": "切换深浅色",
+    "glass": "切换玻璃强度"
+  },
+  "timelineShortcuts": {
+    "title": "时间线快捷键",
+    "enabled": "启用时间线单键快捷键",
+    "description": "先聚焦一条帖子，再点赞、收藏或回复。",
+    "next": "聚焦下一条帖子",
+    "previous": "聚焦上一条帖子",
+    "like": "点赞或取消点赞",
+    "bookmark": "收藏或取消收藏",
+    "reply": "回复",
+    "compose": "撰写帖子"
+  },
   "globalSearch": {
     "recommended": "推荐用户",
     "noRecommendations": "暂无推荐用户。",

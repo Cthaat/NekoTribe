@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { Button } from '@/components/ui/button';
+import AnimatedNumber from '@/components/motion/AnimatedNumber.vue';
 import { usePreferenceStore } from '@/stores/user';
 import { v2GetPostPoll, v2VotePostPoll } from '@/api/v2/post-polls';
 import type { V2PostPoll } from '@/types/v2';
@@ -116,13 +117,22 @@ onBeforeUnmount(() => {
         <button v-if="canChoose" type="button" :aria-pressed="selected.includes(option.option_id)" :disabled="busy"
           class="flex w-full items-center justify-between gap-2 rounded-[12px] border border-transparent bg-card px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
           :class="{ 'border-primary text-primary':selected.includes(option.option_id) }" @click="select(option.option_id)">
-          <span class="break-words">{{ option.text }}</span><span class="shrink-0 text-xs tabular-nums">{{ option.percent }}%</span>
+          <span class="break-words">{{ option.text }}</span>
+          <span class="shrink-0 text-xs tabular-nums"><AnimatedNumber :value="option.percent" />%</span>
         </button>
         <div v-else class="flex items-center justify-between gap-2 text-sm" :class="{ 'font-medium text-primary':poll.my_option_ids.includes(option.option_id) }">
-          <span class="break-words">{{ option.text }}</span><span class="shrink-0 text-xs tabular-nums">{{ option.percent }}%</span>
+          <span class="break-words">{{ option.text }}</span>
+          <span class="shrink-0 text-xs tabular-nums"><AnimatedNumber :value="option.percent" />%</span>
         </div>
         <div class="flex items-center gap-2">
-          <progress :value="option.percent" max="100" :aria-label="option.text" class="h-1.5 min-w-0 flex-1 overflow-hidden rounded bg-muted accent-primary" />
+          <div class="relative h-1.5 min-w-0 flex-1">
+            <progress :value="option.percent" max="100" :aria-label="option.text"
+              class="absolute inset-0 size-full opacity-0 forced-colors:opacity-100" />
+            <div aria-hidden="true" class="h-full overflow-hidden rounded-full bg-muted forced-colors:hidden">
+              <div class="h-full origin-left rounded-full bg-primary rtl:origin-right motion-safe:transition-transform motion-safe:duration-200"
+                :style="{ transform: `scaleX(${option.percent / 100})` }" />
+            </div>
+          </div>
           <span class="text-xs tabular-nums text-muted-foreground">{{ t('post.poll.votes', {count:option.votes_count}) }}</span>
         </div>
       </div>

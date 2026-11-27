@@ -1,0 +1,5 @@
+paths:
+  .github/workflows/publish-rolling.yml:
+    # GitHub supports concurrency.queue; actionlint 1.7.12 predates that field.
+    ignore:
+      - '^unexpected key "queue" for "concurrency" section'

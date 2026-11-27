@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { PawPrint, Search, X } from 'lucide-vue-next';
+import { PawPrint, Search } from 'lucide-vue-next';
 import AppSidebar from '@/components/AppSidebar.vue';
-import AppGlobalSearch from '@/components/AppGlobalSearch.vue';
+import AppCommandPalette from '@/components/AppCommandPalette.vue';
 import MobileTabBar from '@/components/MobileTabBar.vue';
 import LanguageTriggerIcon from '@/components/LanguageTriggerIcon.vue';
 import ColorModeIcon from '@/components/ColorModeIcon.vue';
@@ -11,7 +11,7 @@ import LiquidGlassIconButton from '@/components/glass/LiquidGlassIconButton.vue'
 const { t } = useAppLocale();
 const route = useRoute();
 const localePath = useLocalePath();
-const mobileSearchOpen = ref(false);
+const paletteOpen = ref(false);
 
 const normalizedPath = computed(() =>
   route.path.replace(/^\/(zh|en)(?=\/|$)/, '') || '/'
@@ -48,26 +48,39 @@ const isChatRoute = computed(() => normalizedPath.value.startsWith('/chat'));
 
         <div class="flex shrink-0 items-center gap-1.5">
           <LiquidGlassIconButton
-            :aria-label="t('common.search')"
-            :aria-expanded="mobileSearchOpen"
-            @click="mobileSearchOpen = !mobileSearchOpen"
+            :aria-label="t('commandPalette.title')"
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Control+K Meta+K"
+            :aria-expanded="paletteOpen"
+            @click="paletteOpen = true"
           >
-            <X v-if="mobileSearchOpen" class="size-[18px]" />
-            <Search v-else class="size-[18px]" />
+            <Search class="size-[18px]" />
           </LiquidGlassIconButton>
           <LanguageTriggerIcon />
           <ColorModeIcon />
         </div>
       </div>
 
-      <div v-if="mobileSearchOpen" class="pb-2.5">
-        <AppGlobalSearch class="max-w-none" />
-      </div>
     </header>
 
     <!-- Desktop dual-zone minimal inset shell -->
     <div class="flex min-h-dvh w-full">
-      <AppSidebar class="sticky top-0 hidden h-dvh shrink-0 md:flex" />
+      <AppSidebar class="sticky top-0 hidden h-dvh shrink-0 md:flex">
+        <template #search>
+          <button
+            type="button"
+            :aria-label="t('commandPalette.title')"
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Control+K Meta+K"
+            :aria-expanded="paletteOpen"
+            class="pressable flex h-[42px] items-center justify-center gap-3 rounded-full px-2.5 text-sm font-medium text-muted-foreground hover:bg-accent/65 hover:text-foreground lg:justify-start lg:px-3.5"
+            @click="paletteOpen = true"
+          >
+            <Search aria-hidden="true" class="size-5 shrink-0" />
+            <span class="hidden truncate lg:inline">{{ t('common.search') }}</span>
+          </button>
+        </template>
+      </AppSidebar>
 
       <main
         class="min-w-0 flex-1 bg-background pb-24 md:my-2 md:mr-2 md:min-h-[calc(100dvh-16px)] md:rounded-[28px] md:pb-8 md:overflow-x-clip"
@@ -88,5 +101,6 @@ const isChatRoute = computed(() => normalizedPath.value.startsWith('/chat'));
     </div>
 
     <MobileTabBar />
+    <AppCommandPalette v-model:open="paletteOpen" />
   </div>
 </template>
