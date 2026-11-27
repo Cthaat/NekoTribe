@@ -159,7 +159,7 @@ pub fn inspect(mut file: std::fs::File) -> io::Result<DetectedType> {
         }
         items.push(Entry {
             header: entry.header_start(),
-            data: entry.data_start(),
+            data: entry.data_start().ok_or_else(invalid)?,
             compressed: entry.compressed_size(),
             size: entry.size(),
             crc: entry.crc32(),
