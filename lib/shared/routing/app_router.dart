@@ -50,6 +50,7 @@ import '../../features/users/presentation/statements_screen.dart';
 import '../../features/users/presentation/user_posts_screen.dart';
 import '../providers/providers.dart';
 import 'app_shell.dart';
+import 'tab_transition.dart';
 
 const productionRoutePaths = <String>{
   '/feed',
@@ -167,7 +168,17 @@ Widget _postDetail(BuildContext _, GoRouterState state) {
 final routerProvider = Provider<GoRouter>((ref) {
   final authRefresh = AuthRefreshNotifier(ref);
   ref.onDispose(authRefresh.dispose);
-  return GoRouter(
+  final tabTracker = TabTransitionTracker();
+  GoRoute tabRoute(String path, GoRouterWidgetBuilder builder) => GoRoute(
+    path: path,
+    pageBuilder: (context, state) => buildDirectionalTabPage(
+      context,
+      state,
+      tabTracker,
+      builder(context, state),
+    ),
+  );
+  final router = GoRouter(
     initialLocation: '/feed',
     debugLogDiagnostics: false,
     refreshListenable: authRefresh,
@@ -238,17 +249,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       ShellRoute(
-        builder: (context, state, child) => AppShell(child: child),
+        builder: (context, state, child) =>
+            AppShell(tabTracker: tabTracker, child: child),
         routes: [
-          GoRoute(path: '/feed', builder: (_, __) => const FeedScreen()),
+          tabRoute('/feed', (_, __) => const FeedScreen()),
           // Keep discover in the shell so desktop side rail stays visible.
           // Mobile hides bottom NavigationBar for /discover (see AppShell).
           GoRoute(path: '/discover', builder: (_, __) => const SearchScreen()),
-          GoRoute(
-            path: '/notifications',
-            builder: (_, __) => const NotificationsScreen(),
-          ),
-          GoRoute(path: '/chat', builder: (_, __) => const ChatHomeScreen()),
+          tabRoute('/notifications', (_, __) => const NotificationsScreen()),
+          tabRoute('/chat', (_, __) => const ChatHomeScreen()),
           GoRoute(
             path: '/ai/writing',
             builder: (_, state) {
@@ -263,30 +272,24 @@ final routerProvider = Provider<GoRouter>((ref) {
               return AiWritingRouteScreen(knowledge: true, conversationId: id);
             },
           ),
-          GoRoute(path: '/me', builder: (_, __) => const AccountScreen()),
-          GoRoute(path: '/groups', builder: (_, __) => const GroupsScreen()),
+          tabRoute('/me', (_, __) => const AccountScreen()),
+          tabRoute('/groups', (_, __) => const GroupsScreen()),
           // Keep static group sub-tabs inside the shell so bottom/side nav
           // stays on Groups (must be registered before `/groups/:slug`).
-          GoRoute(
-            path: '/groups/discover',
-            builder: (_, __) => const GroupsScreen(initialTab: 0),
+          tabRoute(
+            '/groups/discover',
+            (_, __) => const GroupsScreen(initialTab: 0),
           ),
-          GoRoute(
-            path: '/groups/my',
-            builder: (_, __) => const GroupsScreen(initialTab: 1),
-          ),
-          GoRoute(
-            path: '/groups/invites',
-            builder: (_, state) {
-              final ids = state.uri.queryParametersAll['invite'];
-              return GroupsScreen(
-                initialTab: 2,
-                inviteId: ids != null && ids.length == 1
-                    ? notificationTargetId(ids.single)
-                    : null,
-              );
-            },
-          ),
+          tabRoute('/groups/my', (_, __) => const GroupsScreen(initialTab: 1)),
+          tabRoute('/groups/invites', (_, state) {
+            final ids = state.uri.queryParametersAll['invite'];
+            return GroupsScreen(
+              initialTab: 2,
+              inviteId: ids != null && ids.length == 1
+                  ? notificationTargetId(ids.single)
+                  : null,
+            );
+          }),
           GoRoute(
             path: '/moderation',
             builder: (_, __) => const ModerationScreen(),
@@ -580,6 +583,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ),
   );
+  ref.onDispose(tabTracker.observe(router));
+  return router;
 });
 
 class AuthRefreshNotifier extends ChangeNotifier {
