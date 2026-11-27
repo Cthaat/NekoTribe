@@ -61,7 +61,7 @@
 
 ### 7. 子目录说明
 - [三后端对照评测与压测指南](../scripts/benchmark/README.md) — `scripts/benchmark/run.mjs` 的 `parity` 与 `benchmark` 模式用法。
-- [服务版本配置说明（历史遗留）](../config/versions/README.md) — 旧微服务版本 JSON 说明（`app/pages/about.vue` 仍静态读取其中 3 个 JSON）。
+- [服务版本配置说明（历史遗留）](../config/versions/README.md) — 旧微服务版本 JSON 说明（`app/pages/about.vue` 仍静态读取其中已对齐至 `v2.0.0` 基线的 3 个 JSON）。
 - [标签自动化脚本说明（历史遗留）](../script/github/README.md) — 旧 `service-name/v1.0.0` 标签交互脚本说明（已被现行 `.github/workflows/` 替代）。
 
 ---
@@ -81,7 +81,7 @@
 | `docs/audits/2026-09-10-t11-null-schema-repair.json` | `tests/contracts/null-schemas.test.mjs:11` | OpenAPI 空 schema 修复测试直接读取。 |
 | `docs/ai-writing-development.md`<br>`docs/deployment.md`<br>`docs/startup-safety.md`<br>`docs/architecture/shared-api.md`<br>`docs/architecture/schema-migrations.md` | `.env.example:56`、`../README.md` 及跨工作区文档链接 | 公开引用路径，保持路径稳定。 |
 | `data/neko_tribe-oracle-v2.sql`<br>`data/nekotribe-schema-only.sql` | `docker-compose.yml`、`docker-compose.local.yml`、`scripts/docker-init-db.sh`、`scripts/init-db.mjs`、`scripts/package-nuxt.mjs`、`tests/helpers/schema-fixture.mjs`、`tests/schema-migrations.test.mjs`、`tests/startup-safety.test.mjs` | **实际 Oracle 数据库基线位于 `data/`**（而非 `doc/neko_tribe-oracle-v2.sql`）。 |
-| `config/versions/{Neko,oracle-server,shadcn-web}.json` | `app/pages/about.vue:15-17` | 前端「关于」页面静态导入。 |
+| `config/versions/{Neko,oracle-server,shadcn-web}.json` | `app/pages/about.vue:15-17`、`server/api/v1/system/config.get.ts:11` | 前端「关于」页面静态导入（已同步至 `v2.0.0` 发布基线，保留原路径与字段结构）。 |
 
 ---
 
