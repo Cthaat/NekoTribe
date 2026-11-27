@@ -16,7 +16,7 @@ import 'package:nekotribe/shared/routing/app_shell.dart';
 import 'package:nekotribe/shared/widgets/glass/liquid_glass_bars.dart';
 
 void main() {
-  GoRouter buildRouter({String initialLocation = '/feed'}) {
+  GoRouter buildRouter({String initialLocation = '/feed', Widget? feed}) {
     return GoRouter(
       initialLocation: initialLocation,
       routes: [
@@ -25,7 +25,7 @@ void main() {
           routes: [
             GoRoute(
               path: '/feed',
-              builder: (_, __) => const Text('feed route'),
+              builder: (_, __) => feed ?? const Text('feed route'),
             ),
             GoRoute(
               path: '/discover',
@@ -102,6 +102,66 @@ void main() {
     expect(find.text('discover route'), findsOneWidget);
     expect(find.byType(LiquidGlassNavDock), findsNothing);
   });
+
+  for (final reducedMotion in [false, true]) {
+    testWidgets(
+      'mobile feed dock stays tappable with reduced motion $reducedMotion',
+      (tester) async {
+        tester.view
+          ..physicalSize = const Size(390, 844)
+          ..devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final router = buildRouter(
+          feed: ListView.builder(
+            key: const Key('long-feed'),
+            itemCount: 40,
+            itemExtent: 80,
+            itemBuilder: (_, index) => Text('post $index'),
+          ),
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp.router(
+              routerConfig: router,
+              localizationsDelegates: const [AppLocalizationsDelegate()],
+              supportedLocales: AppLocalizations.supported,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(disableAnimations: reducedMotion),
+                child: child!,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final dock = find.byType(LiquidGlassNavDock);
+        final feed = find.byKey(const Key('long-feed'));
+        final expanded = tester.getRect(dock);
+        await tester.drag(feed, const Offset(0, -220));
+        await tester.pumpAndSettle();
+
+        final scrolled = tester.getRect(dock);
+        expect(dock.hitTestable(), findsOneWidget);
+        if (reducedMotion) {
+          expect(scrolled, expanded);
+        } else {
+          expect(scrolled.top, greaterThan(expanded.top));
+          expect(scrolled.bottom, lessThanOrEqualTo(844));
+          expect(
+            scrolled.width,
+            inInclusiveRange(expanded.width * .9, expanded.width),
+          );
+        }
+
+        await tester.drag(feed, const Offset(0, 100));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(dock), expanded);
+      },
+    );
+  }
 
   testWidgets('desktop publish button opens the post composer route', (
     tester,
