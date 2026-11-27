@@ -645,10 +645,6 @@
         "sha256": "ebfc85229366b7d90569813a7379f39f602d6c692a5b0f1b6728395dd7d4eeb0"
       },
       {
-        "path": "server/api/v1/test/test-oracle.get.ts",
-        "sha256": "4111031a514f683c53f13a9e5d396c91a17fb0723e3f4d7feca0fd2ce66b0bdb"
-      },
-      {
         "path": "server/api/v1/tweets/[tweetId].delete.ts",
         "sha256": "632e7c24872561e7554c93e4391a6d79ca318270cab6f54aa5c7e792d9342254"
       },
@@ -20996,13 +20992,6 @@
     {
       "id": "SOURCE-server-api-v1-system-config.get.ts",
       "source": "server/api/v1/system/config.get.ts",
-      "disposition": "unreviewed",
-      "featureIds": [],
-      "reason": ""
-    },
-    {
-      "id": "SOURCE-server-api-v1-test-test-oracle.get.ts",
-      "source": "server/api/v1/test/test-oracle.get.ts",
       "disposition": "unreviewed",
       "featureIds": [],
       "reason": ""
