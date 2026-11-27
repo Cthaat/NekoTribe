@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nekotribe/core/auth/token_store.dart';
@@ -89,6 +90,43 @@ Future<void> _pump(WidgetTester tester, Widget screen) async {
         locale: const Locale('en'),
         localizationsDelegates: const [AppLocalizationsDelegate()],
         home: screen,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpDock(WidgetTester tester, List<int> changes, {bool reduced = false}) async {
+  var selected = 0;
+  await tester.pumpWidget(
+    MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(disableAnimations: reduced),
+        child: Scaffold(
+          bottomNavigationBar: Center(
+            heightFactor: 1,
+            child: SizedBox(
+              width: 358,
+              child: StatefulBuilder(
+                builder: (context, setState) => LiquidGlassNavDock(
+                  items: List.generate(
+                    5,
+                    (i) => LiquidGlassNavItem(
+                      label: 'Tab $i',
+                      icon: Icons.circle_outlined,
+                      selectedIcon: Icons.circle,
+                    ),
+                  ),
+                  selectedIndex: selected,
+                  onSelected: (i) {
+                    changes.add(i);
+                    setState(() => selected = i);
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
   );
@@ -339,6 +377,76 @@ void main() {
       expect(updatedPillRect.contains(tester.getRect(find.text('群组')).center), isTrue);
     },
   );
+
+  testWidgets('dock follows a scrub and recenters after either edge or cancellation', (
+    tester,
+  ) async {
+    final selected = <int>[];
+    await _pumpDock(tester, selected);
+    final pill = find.byWidgetPredicate(
+      (w) => w is LiquidGlassSurface && w.preset == LiquidGlassPreset.pillIndicator,
+    );
+    Offset center(int i) => tester.getCenter(find.text('Tab $i'));
+    final width = center(1).dx - center(0).dx;
+    double position() => (tester.getCenter(pill).dx - center(0).dx) / width;
+    expect(tester.getSize(find.byType(LiquidGlassNavDock)).height, 62);
+    expect(tester.getSize(pill).height, 54);
+
+    for (final (start, end, sign) in [(0, 4, 1), (4, 0, -1)]) {
+      final gesture = await tester.startGesture(center(start));
+      await gesture.moveTo(center(2));
+      await tester.pump();
+      expect(position(), closeTo(2, 0.005));
+      expect(selected.length, start == 0 ? 0 : 1);
+      await gesture.moveTo(center(end) + Offset(sign * width * 2, 0));
+      await tester.pump();
+      expect((position() - end) * sign, inInclusiveRange(0.20, 0.22001));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(selected.last, end);
+      expect((tester.getCenter(pill).dx - center(end).dx).abs(), lessThan(0.5));
+    }
+    final cancelled = await tester.startGesture(center(0));
+    await tester.pump(const Duration(milliseconds: 600));
+    await cancelled.moveTo(center(2));
+    await cancelled.cancel();
+    await tester.pumpAndSettle();
+    expect(selected, [4, 0]);
+    expect(position(), closeTo(0, 0.005));
+    await tester.flingFrom(center(0), Offset(width, 0), width * 12);
+    await tester.pumpAndSettle();
+    expect(selected.last, 2);
+    expect(position(), closeTo(2, 0.005));
+  });
+
+  testWidgets('long press scrubs and reduced motion aligns immediately', (tester) async {
+    final selected = <int>[];
+    for (final reduced in [false, true]) {
+      await _pumpDock(tester, selected, reduced: reduced);
+      final pill = find.byWidgetPredicate(
+        (w) => w is LiquidGlassSurface && w.preset == LiquidGlassPreset.pillIndicator,
+      );
+      final dest = tester.getCenter(find.text('Tab 3'));
+      final hold = await tester.startGesture(tester.getCenter(find.text('Tab 1')));
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+      expect(tester.widget<LiquidGlassSurface>(pill).lensProgress, reduced ? 0 : 1);
+      await hold.moveTo(dest + const Offset(10, 0));
+      await tester.pump();
+      expect(tester.getCenter(pill).dx, closeTo(dest.dx + 10, 0.5));
+      await hold.up();
+      await tester.pump();
+      expect(selected.last, 3);
+      if (reduced) expect(tester.getCenter(pill).dx, closeTo(dest.dx, 0.5));
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(pill).dx, closeTo(dest.dx, 0.5));
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(selected.last, 0);
+  });
 
   testWidgets('LiquidGlassIconButton uses iconButton preset and handles taps', (
     tester,
