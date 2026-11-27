@@ -90,3 +90,7 @@ jobs:
             grep -Fx "$digest  ${asset##*/}" release-output/SHA256SUMS.txt
           done
           gh release upload "$tag" release-output/SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" | jq -j '.body // ""' |
+            python scripts/rolling-release-notes.py "$STACK" "$GITHUB_SHA" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              > "$RUNNER_TEMP/rolling-notes.md"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/rolling-notes.md"
