@@ -16,9 +16,9 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # Networking
-  dio: ^5.7.0
+  dio: ^5.11.1
   http_parser: ^4.0.2
-  web: ^1.1.1
+  web: ^1.1.2
   flutter_webrtc: 1.6.3
 
   # State management
@@ -29,7 +29,7 @@ dependencies:
 
   # Storage
   flutter_secure_storage: ^9.2.2
-  shared_preferences: ^2.3.3
+  shared_preferences: ^2.5.6
   passkeys: 2.24.2
 
   # Realtime
@@ -38,20 +38,20 @@ dependencies:
   # Media
   cached_network_image: ^3.4.1
   file_picker: ^8.1.4
-  image_picker: ^1.1.2
+  image_picker: ^1.2.4
   mime: ^1.0.6
-  url_launcher: ^6.3.2
+  url_launcher: ^6.3.3
 
   # Post Markdown
   markdown: ^7.3.1
   highlight: ^0.7.0
 
   # Utils
-  crypto: ^3.0.7
+  crypto: ^3.0.8
   intl: ^0.20.2
-  uuid: ^4.5.1
+  uuid: ^4.6.0
   collection: ^1.18.0
-  window_manager: ^0.5.1
+  window_manager: ^0.7.1
 
   # Typography
   google_fonts: ^6.2.1
