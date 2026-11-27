@@ -9,6 +9,8 @@ NekoTribe 是可自托管的社区平台，提供社交动态、群组、实时�
 
 [下载最新正式版](https://github.com/Cthaat/NekoTribe/releases/latest) · [下载滚动版](https://github.com/Cthaat/NekoTribe/releases/tag/rolling-latest) · [查看历史版本](https://github.com/Cthaat/NekoTribe/releases)
 
+[分支、PR 和构建总览](https://github.com/Cthaat/NekoTribe/issues/101) 会在 CI 和发版任务结束后刷新，并每小时同步一次。可以在这里查看四条主分支的构建、逐个 PR 的失败检查，以及尚未创建 PR 的远端分支。
+
 | 分支 | 组件 | 适用场景 | Release 主包 |
 | --- | --- | --- | --- |
 | [`master`](https://github.com/Cthaat/NekoTribe/tree/master)（当前分支） | Nuxt 4 全栈 | 一次部署社区 Web、API 和实时服务，或单独作为 Web 界面 | `NekoTribe-<version>-nuxt.zip` |

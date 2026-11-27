@@ -39,7 +39,10 @@ defaults:
   run:
     shell: bash
 jobs:
+  automation:
+    uses: ./.github/workflows/automation-checks.yml
   version:
+    needs: automation
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
