@@ -46,6 +46,16 @@ test('computeScrollMetrics clamps progress between 0 and 1 cleanly', () => {
   });
 });
 
+test('mobile dock scroll condensation keeps all links available', () => {
+  const dock = readText('app/components/MobileTabBar.vue');
+  const nav = dock.match(/<nav\s[\s\S]*?\n\s*>/)?.[0];
+  assert.ok(nav);
+  assert.match(nav, /data-condensed/);
+  assert.match(nav, /focus-within:scale-100/);
+  assert.doesNotMatch(nav, /opacity-0|pointer-events-none|aria-hidden/);
+  assert.match(dock, /isHidden\.value && !prefersReducedMotion\.value/);
+});
+
 test('updateScrollDirection applies threshold, hysteresis, and reveals near top or bottom', () => {
   let state = { lastY: 0, direction: 'idle', hidden: false };
 
