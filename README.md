@@ -125,4 +125,4 @@ node scripts/contracts.mjs check --workspace-root ..
 node scripts/parity.mjs check --workspace-root ..
 ```
 
-更多说明见 [部署手册](https://github.com/Cthaat/NekoTribe/blob/master/docs/deployment.md)、[OpenAPI](contracts/v2.openapi.json) 和 [运行约定](contracts/runtime-addresses.md)。
+更多说明见 [全项目文档总索引 (master)](https://github.com/Cthaat/NekoTribe/blob/master/docs/README.md)、[Rust 分支文档说明](docs/README.md)、[部署手册](https://github.com/Cthaat/NekoTribe/blob/master/docs/deployment.md)、[OpenAPI](contracts/v2.openapi.json) 和 [运行约定](contracts/runtime-addresses.md)。
