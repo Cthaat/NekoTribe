@@ -8,6 +8,11 @@ import '../../features/notifications/domain/notification_models.dart';
 import '../../features/realtime/data/realtime_service.dart';
 import '../i18n/app_localizations.dart';
 import '../providers/providers.dart';
+import '../theme/tokens.dart';
+import '../widgets/glass/liquid_glass_bars.dart';
+import '../widgets/glass/liquid_glass_surface.dart';
+import '../widgets/glass/liquid_glass_tokens.dart';
+import '../widgets/app_avatar.dart';
 import '../widgets/responsive.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -15,43 +20,51 @@ class AppShell extends ConsumerStatefulWidget {
   final Widget child;
 
   static const _primaryTabs = [
-    ('/feed', Icons.home_outlined, Icons.home, 'tab.home'),
-    ('/groups', Icons.groups_outlined, Icons.groups, 'group.title'),
+    ('/feed', Icons.home_outlined, Icons.home_rounded, 'tab.home'),
+    ('/groups', Icons.groups_outlined, Icons.groups_rounded, 'group.title'),
     (
       '/notifications',
       Icons.notifications_outlined,
-      Icons.notifications,
+      Icons.notifications_rounded,
       'tab.notifications',
     ),
-    ('/chat', Icons.chat_bubble_outline, Icons.chat_bubble, 'tab.messages'),
-    ('/me', Icons.person_outline, Icons.person, 'tab.profile'),
+    (
+      '/chat',
+      Icons.chat_bubble_outline_rounded,
+      Icons.chat_bubble_rounded,
+      'tab.messages',
+    ),
+    ('/me', Icons.person_outline_rounded, Icons.person_rounded, 'tab.profile'),
   ];
 
-  static const _desktopTabs = [
-    ('/feed', Icons.home_outlined, Icons.home, 'tab.home'),
-    ('/discover', Icons.explore_outlined, Icons.explore, 'tab.discover'),
+  static const _desktopPrimaryTabs = [
+    ('/feed', Icons.home_outlined, Icons.home_rounded, 'tab.home'),
+    (
+      '/discover',
+      Icons.explore_outlined,
+      Icons.explore_rounded,
+      'tab.discover',
+    ),
     (
       '/notifications',
       Icons.notifications_outlined,
-      Icons.notifications,
+      Icons.notifications_rounded,
       'tab.notifications',
     ),
-    ('/chat', Icons.chat_bubble_outline, Icons.chat_bubble, 'tab.messages'),
-    ('/groups', Icons.groups_outlined, Icons.groups, 'group.title'),
-    ('/moderation', Icons.shield_outlined, Icons.shield, 'moderation.title'),
     (
-      '/ai/knowledge',
-      Icons.psychology_outlined,
-      Icons.psychology,
-      'ai.knowledge.title',
+      '/chat',
+      Icons.chat_bubble_outline_rounded,
+      Icons.chat_bubble_rounded,
+      'tab.messages',
     ),
-    (
-      '/ai/writing',
-      Icons.edit_note_outlined,
-      Icons.edit_note,
-      'ai.writing.title',
-    ),
-    ('/me', Icons.person_outline, Icons.person, 'tab.profile'),
+    ('/groups', Icons.groups_outlined, Icons.groups_rounded, 'group.title'),
+  ];
+
+  static const _moreRoutes = [
+    ('/moderation', Icons.shield_outlined, 'moderation.title'),
+    ('/ai/knowledge', Icons.psychology_outlined, 'ai.knowledge.title'),
+    ('/ai/writing', Icons.edit_note_outlined, 'ai.writing.title'),
+    ('/settings', Icons.settings_outlined, 'common.settings'),
   ];
 
   @override
@@ -148,9 +161,9 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   int _indexFor(
     String location,
-    List<(String, IconData, IconData, String)> tabs,
-  ) {
-    // Prefer exact / prefix match so `/me` does not steal unrelated paths.
+    List<(String, IconData, IconData, String)> tabs, {
+    int fallback = 0,
+  }) {
     var best = -1;
     var bestLen = -1;
     for (var i = 0; i < tabs.length; i++) {
@@ -161,17 +174,16 @@ class _AppShellState extends ConsumerState<AppShell> {
         bestLen = path.length;
       }
     }
-    // NavigationBar requires a non-negative index; unmatched shell routes
-    // fall back to home. On mobile /discover hides the bar entirely.
-    return best < 0 ? 0 : best;
+    return best < 0 ? fallback : best;
   }
 
-  Widget _tabIcon(IconData icon, {required int badgeCount}) {
-    if (badgeCount <= 0) return Icon(icon);
-    return Badge(
-      label: Text(badgeCount > 99 ? '99+' : '$badgeCount'),
-      child: Icon(icon),
-    );
+  bool _isMoreLocation(String location) {
+    for (final item in AppShell._moreRoutes) {
+      if (location == item.$1 || location.startsWith('${item.$1}/')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void _maybeStartRealtime(bool isAuthenticated) {
@@ -184,6 +196,19 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
   }
 
+  bool _isMobilePrimaryLocation(String location) {
+    if (location == '/feed' ||
+        location == '/notifications' ||
+        location == '/chat' ||
+        location == '/me') {
+      return true;
+    }
+    return location == '/groups' ||
+        location == '/groups/discover' ||
+        location == '/groups/my' ||
+        location == '/groups/invites';
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -191,9 +216,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final width = MediaQuery.sizeOf(context).width;
     final isWide = width >= AppBreakpoints.medium;
     final isExpanded = width >= AppBreakpoints.expanded;
-    final tabs = isWide ? AppShell._desktopTabs : AppShell._primaryTabs;
-    final currentIndex = _indexFor(location, tabs);
-    final theme = Theme.of(context);
+    final social = SocialColors.of(context);
     final unread = ref.watch(notificationsUnreadProvider);
     final isAuthenticated = ref.watch(
       authSessionProvider.select((s) => s.isAuthenticated),
@@ -219,53 +242,93 @@ class _AppShellState extends ConsumerState<AppShell> {
     _maybeStartRealtime(isAuthenticated);
 
     if (isWide) {
+      final isProfileSelected =
+          location == '/me' ||
+          location.startsWith('/me/') ||
+          location == '/account' ||
+          location.startsWith('/account/') ||
+          location == '/settings' ||
+          location.startsWith('/settings/');
+      final isMoreSelected = _isMoreLocation(location);
+      final selectedPrimaryIndex = isProfileSelected || isMoreSelected
+          ? -1
+          : _indexFor(location, AppShell._desktopPrimaryTabs, fallback: -1);
+
       return Scaffold(
+        backgroundColor: social.shellFrame,
         body: Row(
           children: [
             _SideNav(
               extended: isExpanded,
-              currentIndex: currentIndex,
-              tabs: tabs,
+              currentIndex: selectedPrimaryIndex,
+              profileSelected: isProfileSelected,
+              moreSelected: isMoreSelected,
+              tabs: AppShell._desktopPrimaryTabs,
+              moreRoutes: AppShell._moreRoutes,
               labelFor: l10n.t,
               notificationsUnread: unread,
             ),
-            VerticalDivider(width: 1, thickness: 1, color: theme.dividerColor),
-            Expanded(child: widget.child),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 8, 8, 8),
+                child: ClipRSuperellipse(
+                  borderRadius: BorderRadius.circular(AppRadius.canvas),
+                  child: ColoredBox(
+                    color: social.surfaceBase,
+                    child: widget.child,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       );
     }
 
-    // Discover is in-shell for desktop rail parity; hide bottom bar on mobile
-    // so no primary tab is falsely highlighted.
-    final hideBottomNav =
-        location == '/discover' || location.startsWith('/discover/');
+    const mobileTabs = AppShell._primaryTabs;
+    final currentIndex = _indexFor(location, mobileTabs);
+    final hideBottomNav = !_isMobilePrimaryLocation(location);
+    final reduced = AppMotion.reduced(context);
+
+    final bodyContent = reduced
+        ? widget.child
+        : TweenAnimationBuilder<double>(
+            key: ValueKey(
+              hideBottomNav
+                  ? 'mobile-discover-$location'
+                  : 'mobile-$currentIndex',
+            ),
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            builder: (context, value, child) =>
+                Opacity(opacity: 0.8 + 0.2 * value, child: child),
+            child: widget.child,
+          );
 
     return Scaffold(
-      body: widget.child,
+      backgroundColor: social.surfaceBase,
+      extendBody: true,
+      body: bodyContent,
       bottomNavigationBar: hideBottomNav
           ? null
-          : Container(
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: theme.dividerColor)),
-              ),
-              child: NavigationBar(
-                selectedIndex: currentIndex,
-                onDestinationSelected: (i) => context.go(tabs[i].$1),
-                destinations: [
-                  for (final t in tabs)
-                    NavigationDestination(
-                      icon: _tabIcon(
-                        t.$2,
+          : SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: LiquidGlassNavDock(
+                  selectedIndex: currentIndex,
+                  onSelected: (i) => context.go(mobileTabs[i].$1),
+                  items: [
+                    for (final t in mobileTabs)
+                      LiquidGlassNavItem(
+                        icon: t.$2,
+                        selectedIcon: t.$3,
+                        label: l10n.t(t.$4),
                         badgeCount: t.$1 == '/notifications' ? unread : 0,
                       ),
-                      selectedIcon: _tabIcon(
-                        t.$3,
-                        badgeCount: t.$1 == '/notifications' ? unread : 0,
-                      ),
-                      label: l10n.t(t.$4),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
@@ -276,14 +339,20 @@ class _SideNav extends StatelessWidget {
   const _SideNav({
     required this.extended,
     required this.currentIndex,
+    required this.profileSelected,
+    required this.moreSelected,
     required this.tabs,
+    required this.moreRoutes,
     required this.labelFor,
     required this.notificationsUnread,
   });
 
   final bool extended;
   final int currentIndex;
+  final bool profileSelected;
+  final bool moreSelected;
   final List<(String, IconData, IconData, String)> tabs;
+  final List<(String, IconData, String)> moreRoutes;
   final String Function(String) labelFor;
   final int notificationsUnread;
 
@@ -297,13 +366,17 @@ class _SideNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final width = extended ? 240.0 : 80.0;
-    final profileIndex = tabs.indexWhere((tab) => tab.$1 == '/me');
-    final profileTab = profileIndex >= 0 ? tabs[profileIndex] : null;
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final width = extended ? 220.0 : 72.0;
+
     return Container(
       width: width,
-      color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      color: social.shellFrame,
+      padding: EdgeInsets.symmetric(
+        vertical: 14,
+        horizontal: extended ? 12 : 8,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -313,50 +386,59 @@ class _SideNav extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _Brand(extended: extended),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
                   for (var i = 0; i < tabs.length; i++)
-                    if (i != profileIndex)
-                      _NavItem(
-                        icon: tabs[i].$2,
-                        selectedIcon: tabs[i].$3,
-                        label: labelFor(tabs[i].$4),
-                        selected: i == currentIndex,
-                        extended: extended,
-                        badgeCount: _badgeFor(tabs[i].$1),
-                        onTap: () => GoRouter.of(context).go(tabs[i].$1),
-                      ),
-                  const SizedBox(height: 8),
+                    _NavItem(
+                      icon: tabs[i].$2,
+                      selectedIcon: tabs[i].$3,
+                      label: labelFor(tabs[i].$4),
+                      selected: i == currentIndex,
+                      extended: extended,
+                      badgeCount: _badgeFor(tabs[i].$1),
+                      onTap: () => GoRouter.of(context).go(tabs[i].$1),
+                    ),
+                  _MoreNavMenu(
+                    extended: extended,
+                    selected: moreSelected,
+                    routes: moreRoutes,
+                    labelFor: labelFor,
+                  ),
+                  const SizedBox(height: 14),
                   if (extended)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 12,
-                      ),
-                      child: FilledButton.icon(
+                    SizedBox(
+                      height: 42,
+                      child: FilledButton(
                         key: const Key('app-shell-compose-button'),
                         onPressed: () => GoRouter.of(context).push('/meow'),
-                        icon: const Icon(Icons.edit, size: 18),
-                        label: Text(labelFor('common.post')),
                         style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
+                          shape: const StadiumBorder(),
+                          textStyle: theme.textTheme.labelLarge?.copyWith(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
+                        child: Text(labelFor('common.post')),
                       ),
                     )
                   else
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Center(
+                    Center(
+                      child: Tooltip(
+                        message: labelFor('common.post'),
                         child: SizedBox(
-                          width: 48,
-                          height: 48,
+                          width: 42,
+                          height: 42,
                           child: FilledButton(
                             key: const Key('app-shell-compose-button'),
                             onPressed: () => GoRouter.of(context).push('/meow'),
                             style: FilledButton.styleFrom(
+                              backgroundColor: scheme.primary,
+                              foregroundColor: scheme.onPrimary,
                               padding: EdgeInsets.zero,
                               shape: const CircleBorder(),
                             ),
-                            child: const Icon(Icons.edit, size: 20),
+                            child: const Icon(Icons.edit_rounded, size: 19),
                           ),
                         ),
                       ),
@@ -365,18 +447,15 @@ class _SideNav extends StatelessWidget {
               ),
             ),
           ),
-          if (profileTab != null) ...[
-            Divider(height: 24, color: theme.dividerColor),
-            _NavItem(
-              icon: profileTab.$2,
-              selectedIcon: profileTab.$3,
-              label: labelFor(profileTab.$4),
-              selected: profileIndex == currentIndex,
-              extended: extended,
-              badgeCount: _badgeFor(profileTab.$1),
-              onTap: () => GoRouter.of(context).go(profileTab.$1),
-            ),
-          ],
+          const SizedBox(height: 8),
+          _ProfileFooterPill(
+            extended: extended,
+            selected: profileSelected,
+            label: labelFor('tab.profile'),
+            settingsLabel: labelFor('common.settings'),
+            onOpenMe: () => GoRouter.of(context).go('/me'),
+            onOpenSettings: () => GoRouter.of(context).go('/settings'),
+          ),
         ],
       ),
     );
@@ -415,39 +494,53 @@ class _Brand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: extended ? 10 : 0, vertical: 4),
-      child: Row(
-        mainAxisAlignment: extended
-            ? MainAxisAlignment.start
-            : MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: primary.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: Icon(Icons.pets, color: primary, size: 20),
-          ),
-          if (extended) ...[
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'NekoTribe',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.2,
-                  color: theme.colorScheme.onSurface,
-                ),
-                overflow: TextOverflow.ellipsis,
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.inner),
+      hoverColor: social.surfaceHover,
+      onTap: () => GoRouter.of(context).go('/feed'),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: extended ? 10 : 0,
+          vertical: 8,
+        ),
+        child: Row(
+          mainAxisAlignment: extended
+              ? MainAxisAlignment.start
+              : MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.pets_rounded,
+                color: scheme.onPrimary,
+                size: 18,
               ),
             ),
+            if (extended) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'NekoTribe',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                    color: scheme.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -472,58 +565,265 @@ class _NavItem extends StatelessWidget {
   final VoidCallback onTap;
   final int? badgeCount;
 
-  Widget _icon(Color color) {
-    final data = selected ? selectedIcon : icon;
-    final iconWidget = Icon(data, color: color);
+  Widget _icon(BuildContext context, Color color) {
+    final reduced = AppMotion.reduced(context);
+    final iconWidget = reduced
+        ? Icon(selected ? selectedIcon : icon, color: color, size: 20)
+        : AnimatedSwitcher(
+            duration: AppMotion.fast,
+            child: Icon(
+              selected ? selectedIcon : icon,
+              key: ValueKey((selected, selectedIcon.codePoint)),
+              color: color,
+              size: 20,
+            ),
+          );
     final count = badgeCount ?? 0;
     if (count <= 0) return iconWidget;
-    return Badge(label: Text(count > 99 ? '99+' : '$count'), child: iconWidget);
+    return Builder(
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        final social = SocialColors.of(context);
+        return Badge(
+          backgroundColor: Color.alphaBlend(
+            social.primarySoft,
+            social.surfaceCard,
+          ),
+          textColor: scheme.primary,
+          label: Text(count > 99 ? '99+' : '$count'),
+          child: iconWidget,
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurface;
-    final bg = selected
-        ? theme.colorScheme.primary.withValues(alpha: 0.12)
-        : Colors.transparent;
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final fg = selected ? scheme.primary : scheme.onSurfaceVariant;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
+        color: selected ? social.primarySoft : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: extended ? 14 : 0,
-              vertical: 12,
-            ),
-            child: extended
-                ? Row(
-                    children: [
-                      _icon(color),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          label,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: color,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+          hoverColor: social.surfaceHover,
+          child: SizedBox(
+            height: 42,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: extended ? 12 : 0),
+              child: extended
+                  ? Row(
+                      children: [
+                        _icon(context, fg),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontSize: 14.5,
+                              color: fg,
+                              fontWeight: selected
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
+                        ),
+                      ],
+                    )
+                  : Center(
+                      child: Tooltip(message: label, child: _icon(context, fg)),
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MoreNavMenu extends StatelessWidget {
+  const _MoreNavMenu({
+    required this.extended,
+    required this.selected,
+    required this.routes,
+    required this.labelFor,
+  });
+
+  final bool extended;
+  final bool selected;
+  final List<(String, IconData, String)> routes;
+  final String Function(String) labelFor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final moreLabel = labelFor('common.more');
+    final fg = selected ? scheme.primary : scheme.onSurfaceVariant;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: MenuAnchor(
+        style: const MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+          surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
+          shadowColor: WidgetStatePropertyAll(Colors.transparent),
+          elevation: WidgetStatePropertyAll(0),
+          padding: WidgetStatePropertyAll(EdgeInsets.zero),
+        ),
+        menuChildren: [
+          LiquidGlassSurface(
+            preset: LiquidGlassPreset.popover,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final item in routes)
+                  MenuItemButton(
+                    onPressed: () => GoRouter.of(context).go(item.$1),
+                    leadingIcon: Icon(item.$2, size: 19),
+                    child: Text(labelFor(item.$3)),
+                  ),
+              ],
+            ),
+          ),
+        ],
+        builder: (context, controller, child) => Tooltip(
+          message: moreLabel,
+          child: Material(
+            color: selected ? social.primarySoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              key: const Key('app-shell-more-button'),
+              onTap: () =>
+                  controller.isOpen ? controller.close() : controller.open(),
+              child: Ink(
+                height: 42,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: extended ? 12 : 0),
+                  child: extended
+                      ? Row(
+                          children: [
+                            Icon(
+                              Icons.more_horiz_rounded,
+                              size: 20,
+                              color: selected ? scheme.primary : fg,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                moreLabel,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontSize: 14.5,
+                                  color: selected ? scheme.primary : fg,
+                                  fontWeight: selected
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Center(
+                          child: Icon(
+                            Icons.more_horiz_rounded,
+                            size: 20,
+                            color: selected ? scheme.primary : fg,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileFooterPill extends StatelessWidget {
+  const _ProfileFooterPill({
+    required this.extended,
+    required this.selected,
+    required this.label,
+    required this.settingsLabel,
+    required this.onOpenMe,
+    required this.onOpenSettings,
+  });
+
+  final bool extended;
+  final bool selected;
+  final String label;
+  final String settingsLabel;
+  final VoidCallback onOpenMe;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    return Material(
+      color: selected ? social.primarySoft : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpenMe,
+        hoverColor: social.surfaceHover,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: extended ? 10 : 0,
+            vertical: 8,
+          ),
+          child: extended
+              ? Row(
+                  children: [
+                    AppAvatar(url: null, size: 32, name: label, seed: 2),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: selected ? scheme.primary : scheme.onSurface,
                         ),
                       ),
-                    ],
-                  )
-                : Tooltip(message: label, child: _icon(color)),
-          ),
+                    ),
+                    IconButton(
+                      tooltip: settingsLabel,
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        Icons.settings_outlined,
+                        size: 18,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      onPressed: onOpenSettings,
+                    ),
+                  ],
+                )
+              : Center(
+                  child: Tooltip(
+                    message: label,
+                    child: AppAvatar(url: null, size: 32, name: label, seed: 2),
+                  ),
+                ),
         ),
       ),
     );

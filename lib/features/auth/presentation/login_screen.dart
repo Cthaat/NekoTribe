@@ -7,7 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/token_store.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/subtle_grid_box.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../../core/utils/auth_input.dart';
 import '../../../core/utils/group_invite.dart';
 import '../../../core/utils/group_post_link.dart';
@@ -171,194 +174,280 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final appBar = AppBar(
-      title: Text(l10n.t('auth.login')),
-      actions: [
-        IconButton(
-          tooltip: l10n.t('endpoint.title'),
-          onPressed: _busy ? null : _openEndpointSettings,
-          icon: const Icon(Icons.dns_outlined),
-        ),
-      ],
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+    final supportsSessionStorage = ref
+        .watch(tokenStoreProvider)
+        .supportsSessionStorage;
+    final endpointButton = IconButton(
+      tooltip: l10n.t('endpoint.title'),
+      onPressed: _busy ? null : _openEndpointSettings,
+      icon: const Icon(Icons.dns_outlined),
     );
-    if (!ref.watch(tokenStoreProvider).supportsSessionStorage) {
+    final appBar = AppBar(
+      title: isWide ? null : Text(l10n.t('auth.login')),
+      actions: [endpointButton],
+    );
+    if (!supportsSessionStorage) {
       return Scaffold(
         appBar: appBar,
         body: const ErrorView(error: SessionStorageUnavailable()),
       );
     }
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final supportsPasskeys = ref.watch(passkeyClientProvider).isSupported;
     return Scaffold(
-      appBar: appBar,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth < 420.0
-              ? constraints.maxWidth
-              : 420.0;
-          return Center(
-            child: SizedBox(
-              width: width,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+      appBar: isWide ? null : appBar,
+      body: Builder(
+        builder: (context) {
+          final formCard = SurfaceCard(
+            padding: const EdgeInsets.all(AppGap.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!isWide) ...[
+                  Center(
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(AppRadius.tile),
+                      ),
+                      child: Icon(
+                        Icons.pets,
+                        size: 32,
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppGap.lg),
+                  Text(
+                    l10n.t('app.title'),
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: AppGap.xs),
+                  Text(
+                    l10n.t('auth.login'),
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ] else
+                  Row(
                     children: [
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.12,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Icon(
-                          Icons.pets,
-                          size: 36,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        l10n.t('app.title'),
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        l10n.t('auth.login'),
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      TextField(
-                        controller: _account,
-                        decoration: InputDecoration(
-                          labelText: l10n.t('auth.account'),
-                          prefixIcon: const Icon(
-                            Icons.person_outline,
-                            size: 20,
+                      Expanded(
+                        child: Text(
+                          l10n.t('auth.login'),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _password,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          labelText: l10n.t('auth.password'),
-                          prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                      const SizedBox(width: AppGap.sm),
+                      endpointButton,
+                    ],
+                  ),
+                const SizedBox(height: AppGap.xl),
+                TextField(
+                  controller: _account,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('auth.account'),
+                    prefixIcon: const Icon(Icons.person_outline, size: 20),
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: AppGap.md),
+                TextField(
+                  controller: _password,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('auth.password'),
+                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                  ),
+                  onSubmitted: (_) => _login(),
+                ),
+                const SizedBox(height: AppGap.xs),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (v) =>
+                          setState(() => _rememberMe = v ?? false),
+                    ),
+                    Expanded(
+                      child: Text(
+                        l10n.t('auth.remember_me'),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => context.push('/auth/forgot'),
+                      child: Text(l10n.t('auth.forgot_password')),
+                    ),
+                  ],
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppGap.sm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppGap.md,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.errorContainer,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 18,
+                          color: scheme.onErrorContainer,
                         ),
-                        onSubmitted: (_) => _login(),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Checkbox(
-                            value: _rememberMe,
-                            onChanged: (v) =>
-                                setState(() => _rememberMe = v ?? false),
-                          ),
-                          Expanded(
-                            child: Text(
-                              l10n.t('auth.remember_me'),
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => context.push('/auth/forgot'),
-                            child: Text(l10n.t('auth.forgot_password')),
-                          ),
-                        ],
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.errorContainer.withValues(
-                              alpha: 0.5,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                size: 18,
-                                color: theme.colorScheme.error,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _error!,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.error,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: _busy ? null : _login,
-                        child: _busy && _pending != _LoginMethod.gitHub
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(l10n.t('auth.login')),
-                      ),
-                      if (supportsPasskeys) ...[
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: _busy ? null : _loginWithPasskey,
-                          icon: const Icon(Icons.key_outlined),
-                          label: Text(l10n.t('passkeys.sign_in')),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _busy ? null : _loginWithGitHub,
-                        icon: const Icon(Icons.open_in_new_outlined),
-                        label: Text(l10n.t('github_oauth.sign_in')),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            l10n.t('auth.no_account'),
+                        const SizedBox(width: AppGap.sm),
+                        Expanded(
+                          child: Text(
+                            _error!,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: scheme.onErrorContainer,
                             ),
                           ),
-                          TextButton(
-                            onPressed: () => context.push('/auth/register'),
-                            child: Text(l10n.t('auth.register')),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppGap.lg),
+                FilledButton(
+                  onPressed: _busy ? null : _login,
+                  child: _busy && _pending != _LoginMethod.gitHub
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.t('auth.login')),
+                ),
+                if (supportsPasskeys) ...[
+                  const SizedBox(height: AppGap.sm),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _loginWithPasskey,
+                    icon: const Icon(Icons.key_outlined),
+                    label: Text(l10n.t('passkeys.sign_in')),
+                  ),
+                ],
+                const SizedBox(height: AppGap.sm),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _loginWithGitHub,
+                  icon: const Icon(Icons.open_in_new_outlined),
+                  label: Text(l10n.t('github_oauth.sign_in')),
+                ),
+                const SizedBox(height: AppGap.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      l10n.t('auth.no_account'),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
                       ),
+                    ),
+                    TextButton(
+                      onPressed: () => context.push('/auth/register'),
+                      child: Text(l10n.t('auth.register')),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+
+          if (isWide) {
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppGap.xl),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 960),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 440),
+                          child: SubtleGridBox(
+                            backgroundColor: SocialColors.of(
+                              context,
+                            ).surfaceSubtle,
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.canvas,
+                            ),
+                            padding: const EdgeInsets.all(AppGap.xl),
+                            child: Center(
+                              child: SurfaceCard(
+                                radius: AppRadius.canvas,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 28,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 68,
+                                      height: 68,
+                                        decoration: BoxDecoration(
+                                          color: SocialColors.of(
+                                            context,
+                                          ).primarySoft,
+                                          borderRadius: BorderRadius.circular(
+                                            AppRadius.tile,
+                                          ),
+                                        ),
+                                      alignment: Alignment.center,
+                                      child: Icon(
+                                        Icons.pets_rounded,
+                                        size: 36,
+                                        color: scheme.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppGap.lg),
+                                    Text(
+                                      l10n.t('app.title'),
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.headlineSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: scheme.onSurface,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppGap.xl),
+                      SizedBox(width: 420, child: formCard),
                     ],
                   ),
                 ),
+              ),
+            );
+          }
+
+          return Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(AppGap.lg),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: formCard,
               ),
             ),
           );

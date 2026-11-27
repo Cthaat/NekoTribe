@@ -63,6 +63,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  shaders:
+    - shaders/liquid_glass.frag
   assets:
     - assets/config/app_config.json
     - contracts/requirements/ai-public-terms-catalog.json

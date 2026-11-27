@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/media_lightbox.dart';
 import '../../links/presentation/content_link_preview.dart';
@@ -63,7 +64,7 @@ class GroupPostCard extends StatelessWidget {
                             ? post.author.username
                             : post.author.displayName,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -123,7 +124,7 @@ class GroupPostCard extends StatelessWidget {
                     Tooltip(
                       message: l10n.t('media.open'),
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppRadius.inner),
                         onTap: () => showMediaLightbox(
                           context: context,
                           items: post.mediaUrls
@@ -135,7 +136,7 @@ class GroupPostCard extends StatelessWidget {
                           url: post.mediaUrls[i],
                           width: 108,
                           height: 108,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppRadius.inner),
                         ),
                       ),
                     ),
@@ -145,18 +146,44 @@ class GroupPostCard extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                TextButton.icon(
-                  onPressed: onLike,
-                  icon: Icon(
-                    post.isLikedByMe ? Icons.favorite : Icons.favorite_border,
-                    size: 18,
+                Tooltip(
+                  message: l10n.t(
+                    post.isLikedByMe ? 'common.unlike' : 'common.like',
                   ),
-                  label: Text('${post.likesCount}'),
+                  child: TextButton.icon(
+                    onPressed: onLike,
+                    icon: Icon(
+                      post.isLikedByMe ? Icons.favorite : Icons.favorite_border,
+                      size: 18,
+                    ),
+                    label: Text('${post.likesCount}'),
+                  ),
                 ),
-                TextButton.icon(
-                  onPressed: null,
-                  icon: const Icon(Icons.mode_comment_outlined, size: 18),
-                  label: Text('${post.commentsCount}'),
+                Semantics(
+                  label: l10n.t('post.stats.comments'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppGap.md,
+                      vertical: AppGap.sm,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.mode_comment_outlined,
+                          size: 18,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: AppGap.sm),
+                        Text(
+                          '${post.commentsCount}',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const Spacer(),
                 if (showModerationActions)

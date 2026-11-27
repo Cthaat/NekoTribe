@@ -312,6 +312,10 @@ void main() {
       await pumpScreen(tester, api);
       final input = find.byKey(const Key('ai-writing-input'));
       final send = find.byKey(const Key('ai-writing-send'));
+      expect(tester.widget<IconButton>(send).onPressed, isNull);
+      await tester.enterText(input, '   ');
+      await tester.pump();
+      expect(tester.widget<IconButton>(send).onPressed, isNull);
       final prefix = '界' * 21845;
       await tester.enterText(input, '${prefix}ab');
       await tester.pump();
@@ -332,6 +336,7 @@ void main() {
       final api = FakeWritingApi()..conflictOnGeneration = true;
       await pumpScreen(tester, api);
       await tester.enterText(find.byKey(const Key('ai-writing-input')), '原请求');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('ai-writing-send')));
       await tester.pumpAndSettle();
       expect(api.generatedSequences, [1]);
@@ -490,6 +495,7 @@ void main() {
           find.byKey(const Key('ai-writing-input')),
           '写一篇公告',
         );
+        await tester.pump();
         await tester.tap(find.byKey(const Key('ai-writing-send')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
@@ -620,6 +626,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('ai-writing-input')), '撰写公告');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('ai-writing-send')));
     await tester.pumpAndSettle();
     expect(api.createdTitles, ['项目笔记']);
@@ -640,6 +647,7 @@ void main() {
         find.byKey(const Key('ai-writing-input')),
         'keep this question',
       );
+      await tester.pump();
       final stop = find.byKey(const Key('ai-writing-stop'));
       expect(stop, findsNothing);
       await tester.tap(find.byKey(const Key('ai-writing-send')));
@@ -671,6 +679,7 @@ void main() {
       find.byKey(const Key('ai-writing-input')),
       'keep my draft',
     );
+    await tester.pump();
     final send = find.byKey(const Key('ai-writing-send'));
     await tester.tap(send);
     await tester.pumpAndSettle();
@@ -695,6 +704,7 @@ void main() {
       find.byKey(const Key('ai-writing-input')),
       'private draft',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('ai-writing-send')));
     await tester.pump();
     expect(api.appends, 1);
@@ -728,6 +738,7 @@ void main() {
         ..pendingAvailability = Completer<AiAvailability>();
       await pumpScreen(tester, api);
       await tester.enterText(find.byKey(const Key('ai-writing-input')), '保留草稿');
+      await tester.pump();
       expect(find.text('正在读取功能状态…'), findsOneWidget);
       expect(
         tester
@@ -780,6 +791,7 @@ void main() {
             find.byKey(const Key('ai-writing-input')),
             'draft',
           );
+          await tester.pump();
           await tester.tap(find.byKey(const Key('ai-availability-refresh')));
           await tester.pumpAndSettle();
           expect(find.text('draft'), findsOneWidget);
@@ -832,6 +844,7 @@ void main() {
           find.byKey(const Key('ai-writing-input')),
           '保留草稿',
         );
+        await tester.pump();
         expect(find.text('生成功能暂未启用，你仍可查看或删除历史会话。'), findsOneWidget);
         expect(
           tester
@@ -854,6 +867,7 @@ void main() {
     final api = FakeWritingApi()..failAvailability = true;
     await pumpScreen(tester, api);
     await tester.enterText(find.byKey(const Key('ai-writing-input')), '保留草稿');
+    await tester.pump();
     expect(find.text('暂时无法读取功能状态，请刷新后重试。'), findsOneWidget);
     expect(
       tester
@@ -885,6 +899,7 @@ void main() {
       expect(find.text('技能 · 写作草稿 · v3 · 已启用'), findsOneWidget);
       expect(find.text('当前模型配置版本 7'), findsOneWidget);
       await tester.enterText(find.byKey(const Key('ai-writing-input')), '草稿');
+      await tester.pump();
       final previousSend = tester
           .widget<IconButton>(find.byKey(const Key('ai-writing-send')))
           .onPressed!;
@@ -991,6 +1006,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('ai-knowledge-search')), '猫');
       await tester.enterText(find.byKey(const Key('ai-writing-input')), '猫');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('ai-writing-send')));
       await tester.pumpAndSettle();
       expect(api.knowledgeCreations, 1);
@@ -1014,6 +1030,7 @@ void main() {
       find.byKey(const Key('ai-writing-input')),
       '社区有什么猫？',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('ai-writing-send')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('ai-knowledge-search')), '猫咪');
@@ -1029,6 +1046,7 @@ void main() {
     final api = FakeWritingApi();
     await pumpScreen(tester, api, knowledge: true);
     await tester.enterText(find.byKey(const Key('ai-writing-input')), '问题');
+    await tester.pump();
     await tester.enterText(
       find.byKey(const Key('ai-knowledge-search')),
       '猫' * 86,
@@ -1212,6 +1230,7 @@ void main() {
     final api = FakeWritingApi();
     await pumpScreen(tester, api);
     await tester.enterText(find.byKey(const Key('ai-writing-input')), '帮我写公告');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('ai-writing-send')));
     await tester.pumpAndSettle();
     expect(find.text('帮我写公告'), findsOneWidget);
@@ -1222,14 +1241,27 @@ void main() {
   testWidgets(
     'writing can explicitly select the skill on a supporting backend',
     (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final api = FakeWritingApi()
         ..flags = AiAvailability.fromJson(
           aiAvailabilityFixture(explicitWriting: true),
         );
       await pumpScreen(tester, api);
-      await tester.tap(find.byKey(const Key('ai-writing-explicit-skill')));
+      final mode = find.byKey(const Key('ai-writing-mode'));
+      final explicitSkill = find.byKey(const Key('ai-writing-explicit-skill'));
+      expect(tester.widget(mode), isA<DropdownButton<Object>>());
+      expect(tester.getSize(mode).width, lessThanOrEqualTo(164));
+      expect(
+        tester.getCenter(mode).dy,
+        closeTo(tester.getCenter(explicitSkill).dy, 1),
+      );
+      await tester.tap(explicitSkill);
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('ai-writing-input')), '公告');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('ai-writing-send')));
       await tester.pumpAndSettle();
       expect(api.selectedWritingSkills, [true]);
@@ -1242,6 +1274,7 @@ void main() {
     final api = FakeWritingApi()..failFirst = true;
     await pumpScreen(tester, api);
     await tester.enterText(find.byKey(const Key('ai-writing-input')), '帮我写公告');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('ai-writing-send')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('ai-writing-retry')));
@@ -1259,6 +1292,7 @@ void main() {
         ..hasHistory = true;
       await pumpScreen(tester, api);
       await tester.enterText(find.byKey(const Key('ai-writing-input')), '公告');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('ai-writing-send')));
       await tester.pumpAndSettle();
       expect(
@@ -1287,6 +1321,7 @@ void main() {
     final api = FakeWritingApi();
     await pumpScreen(tester, api);
     await tester.enterText(find.byKey(const Key('ai-writing-input')), '公告');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('ai-writing-send')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('ai-writing-delete')));
@@ -1304,6 +1339,7 @@ void main() {
     final api = FakeWritingApi()..failDelete = true;
     await pumpScreen(tester, api);
     await tester.enterText(find.byKey(const Key('ai-writing-input')), '公告');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('ai-writing-send')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('ai-writing-delete')));
@@ -1343,6 +1379,7 @@ void main() {
       find.byKey(const Key('ai-writing-input')),
       'question',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('ai-writing-send')));
     await tester.pumpAndSettle();
     expect(find.text('回复已保存，暂时无法读取。请刷新会话查看。'), findsOneWidget);

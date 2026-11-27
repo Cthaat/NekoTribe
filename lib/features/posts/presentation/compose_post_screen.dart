@@ -12,8 +12,11 @@ import '../../../core/network/api_exception.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../ai/presentation/ai_writing_screen.dart';
 import '../../groups/presentation/group_detail_screen.dart';
 import '../../media/data/media_api.dart';
@@ -283,13 +286,14 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
     return V2PostDraftInput(
       content: _usingMarkdown && isValidPostMarkdown(_markdown)
           ? previous?.markdown == _markdown
-              ? previous!.content
-              : postMarkdownExcerpt(_markdown)
+                ? previous!.content
+                : postMarkdownExcerpt(_markdown)
           : _controller.text,
       markdown: _usingMarkdown ? _markdown : null,
       visibility: _visibility,
       location: _locationController.text,
-      tags: previous != null &&
+      tags:
+          previous != null &&
               _tagController.text == oldTags.join(', ') &&
               _imageTags.isEmpty
           ? oldTags
@@ -303,7 +307,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   void _setMarkdownMode(bool value) {
     setState(() {
       if (value && _markdown.isEmpty) _markdown = _controller.text;
-      if (!value && _controller.text.isEmpty && isValidPostMarkdown(_markdown)) {
+      if (!value &&
+          _controller.text.isEmpty &&
+          isValidPostMarkdown(_markdown)) {
         _controller.text = postMarkdownExcerpt(_markdown);
       }
       _usingMarkdown = value;
@@ -558,7 +564,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
     if (_working || _cloud != null || _cloudExpired) return;
     final markdown = _usingMarkdown ? _markdown : null;
     if (markdown != null && !isValidPostMarkdown(markdown)) {
-      setState(() => _error = AppLocalizations.of(context).t('post.markdown.invalid'));
+      setState(
+        () => _error = AppLocalizations.of(context).t('post.markdown.invalid'),
+      );
       return;
     }
     final content = markdown == null
@@ -702,21 +710,34 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final social = SocialColors.of(context);
     if (_cloudExpired) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.t('draft.title'))),
+        backgroundColor: social.surfaceBase,
+        appBar: AppBar(
+          leading: const SafeBackButton(),
+          backgroundColor: social.glassSurface,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: Text(l10n.t('draft.title')),
+        ),
         body: EmptyView(message: l10n.t('visibility.sessionChanged')),
       );
     }
     return Scaffold(
+      backgroundColor: social.surfaceBase,
       appBar: AppBar(
+        leading: const SafeBackButton(),
+        backgroundColor: social.glassSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text(l10n.t('compose.publish')),
         actions: [
           if (_isStandalone && widget.cloudDraft == null)
             IconButton(
               tooltip: l10n.t('draft.title'),
               onPressed: _working ? null : _openCloudDrafts,
-              icon: const Icon(Icons.cloud_outlined),
+              icon: const Icon(Icons.inventory_2_outlined),
             ),
           if (_localDraft != null)
             IconButton(
@@ -725,19 +746,30 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
               onPressed: _editorLocked ? null : _discardLocalDraft,
               icon: const Icon(Icons.delete_outline),
             ),
-          if (_cloud == null) Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: FilledButton(
-              onPressed: _working ? null : _publish,
-              child: _busy
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(l10n.t('compose.publish')),
+          if (_cloud == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _controller,
+                builder: (context, value, child) {
+                  final empty =
+                      !_usingMarkdown &&
+                      value.text.trim().isEmpty &&
+                      _media.isEmpty;
+                  return FilledButton(
+                    onPressed: _working || empty ? null : _publish,
+                    child: child,
+                  );
+                },
+                child: _busy
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(l10n.t('compose.publish')),
+              ),
             ),
-          ),
         ],
       ),
       body: Align(
@@ -748,264 +780,379 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
           ),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_isStandalone)
-                  PostMarkdownToggle(
-                    selected: _usingMarkdown,
-                    onChanged: _editorLocked ? null : _setMarkdownMode,
-                  ),
-                if (_usingMarkdown)
-                  PostMarkdownField(
-                    value: _markdown,
-                    onChanged: _editorLocked
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _markdown = value;
-                              _error = null;
-                            });
-                            _cacheLocalText();
-                          },
-                  )
-                else TextField(
-                  key: const Key('compose-content-field'),
-                  controller: _controller,
-                  onChanged: (_) => _cacheLocalText(),
-                  readOnly: _imageRequest != null || _draftWorking || _published,
-                  maxLines: 8,
-                  minLines: 5,
-                  maxLength: widget.cloudDraft == null ? 280 : null,
-                  decoration: InputDecoration(
-                    hintText: l10n.t('compose.placeholder'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const Key('compose-location-field'),
-                  controller: _locationController,
-                  readOnly: _draftWorking || _published,
-                  maxLength: widget.cloudDraft == null ? 60 : null,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('compose.location'),
-                    hintText: l10n.t('compose.location_hint'),
-                    prefixIcon: const Icon(Icons.location_on_outlined),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const Key('compose-tags-field'),
-                  controller: _tagController,
-                  readOnly: _imageRequest != null || _draftWorking || _published,
-                  maxLength: widget.cloudDraft == null ? 120 : null,
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('compose.tags'),
-                    hintText: l10n.t('compose.tags_hint'),
-                    prefixIcon: const Icon(Icons.tag_outlined),
-                  ),
-                ),
-                if (_imageTags.isNotEmpty)
-                  ListenableBuilder(
-                    listenable: Listenable.merge([_controller, _tagController]),
-                    builder: (context, _) {
-                      final applied = _tagNames().toSet();
-                      return Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final tag in _imageTags)
-                            InputChip(
-                              label: Text('#$tag'),
-                              selected: applied.contains(tag),
-                              showCheckmark: false,
-                              onDeleted: _editorLocked
-                                  ? null
-                                  : () =>
-                                        setState(() => _imageTags.remove(tag)),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                if (_restoredMediaIds.isNotEmpty)
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final id in _restoredMediaIds)
-                        InputChip(
-                          label: Text(l10n.t('draft.attachment').replaceFirst('{id}', '$id')),
-                          onDeleted: _editorLocked
-                              ? null
-                              : () => setState(() => _restoredMediaIds.remove(id)),
-                        ),
-                    ],
-                  ),
-                if (_media.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: _media.any((asset) => _altTextFor(asset) != null)
-                        ? 124
-                        : 100,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _media.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8),
-                      itemBuilder: (_, i) {
-                        final asset = _media[i];
-                        return _mediaTile(asset, theme, l10n);
-                      },
+            child: SurfaceCard(
+              radius: AppRadius.canvas,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_isStandalone) ...[
+                    PostMarkdownToggle(
+                      selected: _usingMarkdown,
+                      onChanged: _editorLocked ? null : _setMarkdownMode,
                     ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: _editorLocked || _mediaIds().length >= _maxMedia
-                          ? null
-                          : () => _pickMedia(FileType.image),
-                      tooltip: l10n.t('compose.media'),
-                      icon: _uploading
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(
-                              Icons.photo_outlined,
-                              color: theme.colorScheme.primary,
-                            ),
-                    ),
-                    IconButton(
-                      onPressed: _editorLocked || _mediaIds().length >= _maxMedia
-                          ? null
-                          : () => _pickMedia(FileType.video),
-                      tooltip: l10n.t('compose.video'),
-                      icon: Icon(
-                        Icons.video_file_outlined,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _editorLocked || _usingMarkdown
-                          ? null
-                          : _openWritingAssistant,
-                      tooltip: l10n.t('ai.writing.title'),
-                      icon: Icon(
-                        Icons.psychology_alt_outlined,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      _public ? Icons.public : Icons.lock_outline,
-                      size: 18,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 6),
-                    DropdownButton<String>(
-                      key: const Key('compose-visibility-field'),
-                      value: _visibility,
-                      underline: const SizedBox.shrink(),
-                      isDense: true,
+                    const SizedBox(height: 10),
+                  ],
+                  if (_usingMarkdown)
+                    PostMarkdownField(
+                      value: _markdown,
                       onChanged: _editorLocked
                           ? null
                           : (value) {
-                              if (value != null &&
-                                  _canSelectVisibility(value)) {
-                                setState(() => _visibility = value);
-                              }
+                              setState(() {
+                                _markdown = value;
+                                _error = null;
+                              });
+                              _cacheLocalText();
                             },
-                      items: [
-                        DropdownMenuItem(
-                          value: 'public',
-                          enabled: _canSelectVisibility('public'),
-                          child: Text(l10n.t('common.public')),
+                    )
+                  else
+                    TextField(
+                      key: const Key('compose-content-field'),
+                      controller: _controller,
+                      onChanged: (_) => _cacheLocalText(),
+                      readOnly:
+                          _imageRequest != null || _draftWorking || _published,
+                      maxLines: 10,
+                      minLines: 6,
+                      maxLength: widget.cloudDraft == null ? 280 : null,
+                      decoration: InputDecoration(
+                        hintText: l10n.t('compose.placeholder'),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 2,
+                          vertical: 4,
                         ),
-                        DropdownMenuItem(
-                          value: 'followers',
-                          enabled: _canSelectVisibility('followers'),
-                          child: Text(l10n.t('common.followers_only')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'mentioned',
-                          enabled: _canSelectVisibility('mentioned'),
-                          child: Text(l10n.t('common.mentioned_only')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'private',
-                          enabled: _canSelectVisibility('private'),
-                          child: Text(l10n.t('common.private')),
-                        ),
-                      ],
+                      ),
                     ),
-                  ],
-                ),
-                if (_mediaIds().isNotEmpty)
-                  Text(
-                    l10n.t('compose.media_visibility_locked'),
-                    textAlign: TextAlign.end,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                if (_isStandalone)
-                  PostPollComposer(
-                    key: ValueKey(_draftRevision),
-                    initial: _initialCloudInput?.poll,
-                    enabled: !_editorLocked,
-                    onChanged: (poll) => setState(() {
-                      _poll = poll;
-                      _error = null;
-                    }),
-                  ),
-                if (_isStandalone)
-                  PostDraftActions(
-                    key: ValueKey(('cloud', _draftRevision)),
-                    initial: widget.cloudDraft,
-                    readInput: _readCloudInput,
-                    enabled: !_regularWorking,
-                    onWorkingChanged: (working) =>
-                        setState(() => _draftWorking = working),
-                    onChanged: (draft) {
-                      setState(() => _cloud = draft);
-                      final local = _localDraft;
-                      if (draft.status == PostDraftStatus.published &&
-                          local != null && !_unmodifiedAssistantText) {
-                        unawaited(local.clearPublished(local.snapshot));
-                      }
-                    },
-                  ),
-                if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 18,
-                          color: theme.colorScheme.error,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _error!,
-                            style: TextStyle(color: theme.colorScheme.error),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('compose-location-field'),
+                          controller: _locationController,
+                          readOnly: _draftWorking || _published,
+                          maxLength: widget.cloudDraft == null ? 60 : null,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            hintText: l10n.t('compose.location'),
+                            counterText: '',
+                            isDense: true,
+                            prefixIcon: const Icon(
+                              Icons.location_on_outlined,
+                              size: 16,
+                            ),
+                            prefixIconConstraints: const BoxConstraints(
+                              minWidth: 34,
+                              minHeight: 34,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            filled: true,
+                            fillColor: social.surfaceSubtle,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          key: const Key('compose-tags-field'),
+                          controller: _tagController,
+                          readOnly:
+                              _imageRequest != null ||
+                              _draftWorking ||
+                              _published,
+                          maxLength: widget.cloudDraft == null ? 120 : null,
+                          textInputAction: TextInputAction.done,
+                          decoration: InputDecoration(
+                            hintText: l10n.t('compose.tags'),
+                            counterText: '',
+                            isDense: true,
+                            prefixIcon: const Icon(
+                              Icons.tag_outlined,
+                              size: 16,
+                            ),
+                            prefixIconConstraints: const BoxConstraints(
+                              minWidth: 34,
+                              minHeight: 34,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            filled: true,
+                            fillColor: social.surfaceSubtle,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_imageTags.isNotEmpty)
+                    ListenableBuilder(
+                      listenable: Listenable.merge([
+                        _controller,
+                        _tagController,
+                      ]),
+                      builder: (context, _) {
+                        final applied = _tagNames().toSet();
+                        return Wrap(
+                          spacing: 8,
+                          children: [
+                            for (final tag in _imageTags)
+                              InputChip(
+                                label: Text('#$tag'),
+                                selected: applied.contains(tag),
+                                showCheckmark: false,
+                                onDeleted: _editorLocked
+                                    ? null
+                                    : () => setState(
+                                        () => _imageTags.remove(tag),
+                                      ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  if (_restoredMediaIds.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final id in _restoredMediaIds)
+                          InputChip(
+                            label: Text(
+                              l10n
+                                  .t('draft.attachment')
+                                  .replaceFirst('{id}', '$id'),
+                            ),
+                            onDeleted: _editorLocked
+                                ? null
+                                : () => setState(
+                                    () => _restoredMediaIds.remove(id),
+                                  ),
+                          ),
                       ],
                     ),
+                  if (_media.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: _media.any((asset) => _altTextFor(asset) != null)
+                          ? 124
+                          : 100,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _media.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) {
+                          final asset = _media[i];
+                          return _mediaTile(asset, theme, l10n);
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed:
+                            _editorLocked || _mediaIds().length >= _maxMedia
+                            ? null
+                            : () => _pickMedia(FileType.image),
+                        tooltip: l10n.t('compose.media'),
+                        color: theme.colorScheme.primary,
+                        icon: _uploading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.photo_outlined),
+                      ),
+                      IconButton(
+                        onPressed:
+                            _editorLocked || _mediaIds().length >= _maxMedia
+                            ? null
+                            : () => _pickMedia(FileType.video),
+                        tooltip: l10n.t('compose.video'),
+                        color: theme.colorScheme.primary,
+                        icon: const Icon(Icons.video_file_outlined),
+                      ),
+                      IconButton(
+                        onPressed: _editorLocked || _usingMarkdown
+                            ? null
+                            : _openWritingAssistant,
+                        tooltip: l10n.t('ai.writing.title'),
+                        color: theme.colorScheme.primary,
+                        icon: const Icon(Icons.psychology_alt_outlined),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: social.surfaceSubtle,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _public ? Icons.public : Icons.lock_outline,
+                              size: 16,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 6),
+                            DropdownButton<String>(
+                              key: const Key('compose-visibility-field'),
+                              value: _visibility,
+                              underline: const SizedBox.shrink(),
+                              isDense: true,
+                              onChanged: _editorLocked
+                                  ? null
+                                  : (value) {
+                                      if (value != null &&
+                                          _canSelectVisibility(value)) {
+                                        setState(() => _visibility = value);
+                                      }
+                                    },
+                              items: [
+                                DropdownMenuItem(
+                                  value: 'public',
+                                  enabled: _canSelectVisibility('public'),
+                                  child: Text(l10n.t('common.public')),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'followers',
+                                  enabled: _canSelectVisibility('followers'),
+                                  child: Text(l10n.t('common.followers_only')),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'mentioned',
+                                  enabled: _canSelectVisibility('mentioned'),
+                                  child: Text(l10n.t('common.mentioned_only')),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'private',
+                                  enabled: _canSelectVisibility('private'),
+                                  child: Text(l10n.t('common.private')),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
+                  if (_mediaIds().isNotEmpty)
+                    Text(
+                      l10n.t('compose.media_visibility_locked'),
+                      textAlign: TextAlign.end,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  if (_isStandalone)
+                    PostPollComposer(
+                      key: ValueKey(_draftRevision),
+                      initial: _initialCloudInput?.poll,
+                      enabled: !_editorLocked,
+                      onChanged: (poll) => setState(() {
+                        _poll = poll;
+                        _error = null;
+                      }),
+                    ),
+                  if (_isStandalone)
+                    PostDraftActions(
+                      key: ValueKey(('cloud', _draftRevision)),
+                      initial: widget.cloudDraft,
+                      readInput: _readCloudInput,
+                      enabled: !_regularWorking,
+                      onWorkingChanged: (working) =>
+                          setState(() => _draftWorking = working),
+                      onChanged: (draft) {
+                        setState(() => _cloud = draft);
+                        final local = _localDraft;
+                        if (draft.status == PostDraftStatus.published &&
+                            local != null &&
+                            !_unmodifiedAssistantText) {
+                          unawaited(local.clearPublished(local.snapshot));
+                        }
+                      },
+                    ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 18,
+                            color: theme.colorScheme.error,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: TextStyle(color: theme.colorScheme.error),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1063,7 +1210,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                     bottom: 4,
                     left: 4,
                     child: IconButton.filledTonal(
-                      onPressed: _editorLocked ? null : () => _describeImage(asset),
+                      onPressed: _editorLocked
+                          ? null
+                          : () => _describeImage(asset),
                       tooltip: l10n.t('compose.image_description'),
                       icon: describing
                           ? const SizedBox(

@@ -20,6 +20,7 @@ import 'package:nekotribe/features/auth/presentation/register_screen.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/features/users/presentation/endpoint_screen.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
+import 'package:nekotribe/shared/widgets/ui/surface_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -27,8 +28,10 @@ void main() {
     'login can switch the backend without carrying the password over',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
-      await tester.binding.setSurfaceSize(const Size(900, 1100));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.view.physicalSize = const Size(900, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final store = _FakeTokenStore();
       final router = GoRouter(
         routes: [
@@ -54,7 +57,12 @@ void main() {
       );
       await tester.enterText(find.byType(TextField).at(0), 'demo');
       await tester.enterText(find.byType(TextField).at(1), 'fixture-password');
-      await tester.tap(find.byTooltip('服务器端点'));
+      final endpoint = find.byTooltip('服务器端点');
+      expect(
+        find.ancestor(of: endpoint, matching: find.byType(SurfaceCard)),
+        findsOneWidget,
+      );
+      await tester.tap(endpoint);
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byType(TextField).first,

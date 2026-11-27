@@ -488,7 +488,13 @@ void main() {
       await tester.tap(find.byTooltip('Reply to comment'));
       await tester.pumpAndSettle();
       expect(find.text('Replying to @author'), findsOneWidget);
+      final send = find.byWidgetPredicate(
+        (widget) => widget is IconButton && widget.tooltip == 'Post',
+      );
+      expect(tester.widget<IconButton>(send).onPressed, isNull);
       await tester.enterText(find.byType(TextField), ' a nested reply ');
+      await tester.pump();
+      expect(tester.widget<IconButton>(send).onPressed, isNotNull);
       posts.rejectReply = true;
       await tester.testTextInput.receiveAction(TextInputAction.send);
       await tester.pumpAndSettle();
@@ -560,6 +566,8 @@ void main() {
     expect(posts.postReplyReads, [(1, 1, 10, 'oldest')]);
     expect(find.text('First reply post'), findsOneWidget);
     expect(find.text('Unrelated post'), findsNothing);
+    await tester.ensureVisible(more);
+    await tester.pumpAndSettle();
     await tester.tap(more);
     await tester.pumpAndSettle();
     expect(find.text('First reply post'), findsOneWidget);

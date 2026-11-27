@@ -9,9 +9,14 @@ import 'package:intl/intl.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/pill_tag.dart';
+import '../../../shared/widgets/ui/subtle_grid_box.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../posts/data/local_post_drafts.dart';
 import '../../links/presentation/content_link_preview.dart';
 import '../../posts/domain/post_draft.dart';
@@ -619,17 +624,34 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     final l10n = AppLocalizations.of(context);
     if (widget.resumeDraft != null) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.t('draft.title'))),
+        appBar: AppBar(
+          leading: const SafeBackButton(fallbackRoute: '/groups'),
+          title: Text(l10n.t('draft.title')),
+        ),
         body: _expired
             ? EmptyView(message: l10n.t('visibility.sessionChanged'))
             : null,
       );
     }
     final theme = Theme.of(context);
+    final social = SocialColors.of(context);
+    final scheme = theme.colorScheme;
+    final dockInset = MediaQuery.sizeOf(context).width < AppBreakpoints.medium
+        ? 80.0
+        : 0.0;
     return Scaffold(
+      backgroundColor: social.surfaceBase,
       appBar: AppBar(
+        leading: const SafeBackButton(fallbackRoute: '/groups'),
+        backgroundColor: social.glassSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text(
           _group?.name ?? l10n.t('group.group'),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -654,10 +676,18 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       ),
       floatingActionButton:
           !_loading && !_busy && _group != null && _group!.canWritePosts
-          ? FloatingActionButton.extended(
-              onPressed: _composing ? null : _composePost,
-              icon: const Icon(Icons.edit),
-              label: Text(l10n.t('group.new_post')),
+          ? Padding(
+              padding: EdgeInsets.only(bottom: dockInset),
+              child: FloatingActionButton.extended(
+                shape: const StadiumBorder(),
+                elevation: theme.brightness == Brightness.dark ? 0 : 2,
+                onPressed: _composing ? null : _composePost,
+                icon: const Icon(Icons.edit),
+                label: Text(
+                  l10n.t('group.new_post'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
             )
           : null,
       body: _expired
@@ -684,49 +714,143 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                       return false;
                     },
                     child: ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 108),
                       children: [
-                        if (_group!.coverUrl != null)
-                          AppMediaImage(
-                            url: _group!.coverUrl!,
-                            height: 180,
-                            borderRadius: BorderRadius.zero,
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Row(
+                        SurfaceCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              AppAvatar(url: _group!.avatarUrl, size: 64),
-                              const SizedBox(width: 14),
-                              Expanded(
+                              Hero(
+                                tag: 'group-cover-${_group!.groupId}',
+                                child: SizedBox(
+                                  height: 132,
+                                  width: double.infinity,
+                                  child: _group!.coverUrl != null &&
+                                          _group!.coverUrl!.trim().isNotEmpty
+                                      ? AppMediaImage(
+                                          url: _group!.coverUrl!,
+                                          height: 132,
+                                          width: double.infinity,
+                                          borderRadius: BorderRadius.zero,
+                                        )
+                                      : SubtleGridBox(
+                                          backgroundColor: social.surfaceSubtle,
+                                          child: const SizedBox.expand(),
+                                        ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(16),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      _group!.name,
-                                      style: theme.textTheme.titleLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Wrap(
-                                      spacing: 12,
-                                      runSpacing: 4,
+                                    Row(
                                       children: [
-                                        _MetaPiece(
-                                          icon: Icons.people_outline,
-                                          text:
-                                              '${_group!.memberCount} ${l10n.t('group.members')}',
+                                        AppAvatar(
+                                          url: _group!.avatarUrl,
+                                          size: 56,
+                                          name: _group!.name,
+                                          seed: _group!.groupId,
                                         ),
-                                        _MetaPiece(
-                                          icon: Icons.lock_outline,
-                                          text: _group!.privacyDesc.isEmpty
-                                              ? _group!.privacy
-                                              : _group!.privacyDesc,
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                _group!.name,
+                                                style: theme.textTheme.titleLarge
+                                                    ?.copyWith(
+                                                      fontSize: 18,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Wrap(
+                                                spacing: 12,
+                                                runSpacing: 4,
+                                                children: [
+                                                  _MetaPiece(
+                                                    icon: Icons.people_outline,
+                                                    text:
+                                                        '${_group!.memberCount} ${l10n.t('group.members')}',
+                                                  ),
+                                                  _MetaPiece(
+                                                    icon: Icons.lock_outline,
+                                                    text:
+                                                        _group!
+                                                            .privacyDesc
+                                                            .isEmpty
+                                                        ? _group!.privacy
+                                                        : _group!.privacyDesc,
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
+                                    ),
+                                    if (_group!.description.isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _group!.description,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(height: 1.6),
+                                      ),
+                                    ],
+                                    if (_group!.tags.isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: _group!.tags
+                                            .map((t) => PillTag(label: '#$t'))
+                                            .toList(),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 14),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton(
+                                        onPressed:
+                                            _busy ||
+                                                !_canChangeMembership(_group!)
+                                            ? null
+                                            : _toggleMembership,
+                                        style: FilledButton.styleFrom(
+                                          shape: const StadiumBorder(),
+                                          backgroundColor:
+                                              _group!.membership.isMember
+                                              ? social.surfaceSubtle
+                                              : scheme.primary,
+                                          foregroundColor:
+                                              _group!.membership.isMember
+                                              ? scheme.onSurface
+                                              : scheme.onPrimary,
+                                        ),
+                                        child: _busy
+                                            ? const SizedBox(
+                                                height: 16,
+                                                width: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : Text(
+                                                l10n.t(
+                                                  _membershipLabel(_group!),
+                                                ),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -734,79 +858,31 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                             ],
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: _busy || !_canChangeMembership(_group!)
-                                  ? null
-                                  : _toggleMembership,
-                              style: _group!.membership.isMember
-                                  ? FilledButton.styleFrom(
-                                      backgroundColor: theme
-                                          .colorScheme
-                                          .surfaceContainerHighest,
-                                      foregroundColor:
-                                          theme.colorScheme.onSurface,
-                                    )
-                                  : null,
-                              child: _busy
-                                  ? const SizedBox(
-                                      height: 16,
-                                      width: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : Text(l10n.t(_membershipLabel(_group!))),
-                            ),
-                          ),
-                        ),
-                        if (_group!.description.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                            child: Text(
-                              _group!.description,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ),
-                        if (_group!.tags.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: _group!.tags
-                                  .map((t) => Chip(label: Text('#$t')))
-                                  .toList(),
-                            ),
-                          ),
-                        Divider(height: 1, color: theme.dividerColor),
+                        const SizedBox(height: 12),
                         if (_posts.isEmpty)
                           Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Center(
-                              child: Text(
-                                l10n.t(
-                                  _group!.privacy != 'public' &&
-                                          !_activeMember(_group!)
-                                      ? 'group.member_posts_only'
-                                      : 'group.no_posts',
-                                ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: EmptyView(
+                              message: l10n.t(
+                                _group!.privacy != 'public' &&
+                                        !_activeMember(_group!)
+                                    ? 'group.member_posts_only'
+                                    : 'group.no_posts',
                               ),
                             ),
                           )
                         else
-                          ..._posts.map(
-                            (p) => _GroupPostTile(
-                              post: p,
-                              canWrite: _group!.canWritePosts,
-                              onTap: () => context.push(
-                                '/groups/${widget.slug}/posts/${p.postId}',
+                          for (final p in _posts)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _GroupPostTile(
+                                post: p,
+                                canWrite: _group!.canWritePosts,
+                                onTap: () => context.push(
+                                  '/groups/${widget.slug}/posts/${p.postId}',
+                                ),
                               ),
                             ),
-                          ),
                         if (_hasNext)
                           const Padding(
                             padding: EdgeInsets.all(24),
@@ -894,129 +970,147 @@ class _GroupPostTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
+    final social = SocialColors.of(context);
+    return SurfaceCard(
+      padding: const EdgeInsets.all(16),
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                AppAvatar(url: post.author.avatarUrl, size: 36),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        post.author.displayName.isEmpty
-                            ? post.author.username
-                            : post.author.displayName,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AppAvatar(
+                url: post.author.avatarUrl,
+                size: 36,
+                name: post.author.displayName.isEmpty
+                    ? post.author.username
+                    : post.author.displayName,
+                seed: post.author.userId,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.author.displayName.isEmpty
+                          ? post.author.username
+                          : post.author.displayName,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
-                      Text(
-                        _formatDate(post.createdAt),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      _formatDate(post.createdAt),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: social.inkTertiary,
+                        fontSize: 12,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              if (post.isPinned)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Icon(
+                    Icons.push_pin_outlined,
+                    size: 15,
+                    color: theme.colorScheme.primary,
                   ),
                 ),
-                if (post.isPinned)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Icon(
-                      Icons.push_pin,
-                      size: 14,
-                      color: theme.colorScheme.primary,
-                    ),
+              if (post.isAnnouncement)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Icon(
+                    Icons.campaign_outlined,
+                    size: 16,
+                    color: theme.colorScheme.primary,
                   ),
-                if (post.isAnnouncement)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Icon(
-                      Icons.campaign,
-                      size: 14,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (post.markdown case final source?)
-              PostMarkdownBody(source: source)
-            else
-              Text(post.content, style: theme.textTheme.bodyMedium),
-            ContentLinkPreview(content: post.content, markdown: post.markdown),
-            if (post.poll case final poll?)
-              PostPollCard(
-                key: ValueKey((post.groupId, post.postId, poll.pollId)),
-                groupId: post.groupId,
-                postId: post.postId,
-                poll: poll,
-                canWrite: canWrite,
-              ),
-            if (post.mediaUrls.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: post.mediaUrls
-                    .map(
-                      (url) => ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: AppMediaImage(
-                          url: url,
-                          width: 120,
-                          height: 120,
-                          borderRadius: BorderRadius.zero,
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
+                ),
             ],
-            const SizedBox(height: 8),
-            DefaultTextStyle(
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.favorite_border,
-                    size: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+          ),
+          const SizedBox(height: 10),
+          if (post.markdown case final source?)
+            PostMarkdownBody(source: source)
+          else
+            Text(
+              post.content,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
+            ),
+          ContentLinkPreview(content: post.content, markdown: post.markdown),
+          if (post.poll case final poll?)
+            PostPollCard(
+              key: ValueKey((post.groupId, post.postId, poll.pollId)),
+              groupId: post.groupId,
+              postId: post.postId,
+              poll: poll,
+              canWrite: canWrite,
+            ),
+          if (post.mediaUrls.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: post.mediaUrls
+                  .map(
+                    (url) => ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.inner),
+                      child: AppMediaImage(
+                        url: url,
+                        width: 120,
+                        height: 120,
+                        borderRadius: BorderRadius.zero,
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+          const SizedBox(height: 10),
+          DefaultTextStyle(
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: social.inkTertiary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.favorite_border,
+                  size: 14,
+                  color: social.inkTertiary,
+                ),
+                if (post.likesCount > 0) ...[
                   const SizedBox(width: 4),
                   Text('${post.likesCount}'),
-                  const SizedBox(width: 14),
-                  Icon(
-                    Icons.mode_comment_outlined,
-                    size: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                ],
+                const SizedBox(width: 16),
+                Icon(
+                  Icons.mode_comment_outlined,
+                  size: 14,
+                  color: social.inkTertiary,
+                ),
+                if (post.commentsCount > 0) ...[
                   const SizedBox(width: 4),
                   Text('${post.commentsCount}'),
-                  const SizedBox(width: 14),
-                  Icon(
-                    Icons.visibility_outlined,
-                    size: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                ],
+                const SizedBox(width: 16),
+                Icon(
+                  Icons.visibility_outlined,
+                  size: 14,
+                  color: social.inkTertiary,
+                ),
+                if (post.viewsCount > 0) ...[
                   const SizedBox(width: 4),
                   Text('${post.viewsCount}'),
                 ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

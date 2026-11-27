@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/auth/token_store.dart';
 import '../../../core/config/app_config.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/viewport_visibility.dart';
 import '../data/link_preview_api.dart';
 import '../domain/link_preview.dart';
@@ -247,18 +248,20 @@ class _DisplayedLinkPreviewState extends ConsumerState<_DisplayedLinkPreview>
     if (preview == null) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final shape = RoundedSuperellipseBorder(
+      borderRadius: BorderRadius.circular(AppRadius.tile),
+    );
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Material(
-          color: colors.surfaceContainerLow,
-          shape: RoundedRectangleBorder(
-            side: BorderSide(color: colors.outlineVariant),
-            borderRadius: BorderRadius.circular(10),
-          ),
+          color: social.surfaceSubtle,
+          shape: shape,
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
-            borderRadius: BorderRadius.circular(10),
+            customBorder: shape,
             onTap: () => unawaited(_open(preview.url)),
             child: Padding(
               padding: const EdgeInsets.all(10),

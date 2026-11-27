@@ -8,6 +8,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/post_models.dart';
 import 'post_card.dart';
@@ -201,6 +202,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
+        leading: const SafeBackButton(),
         title: Row(
           children: [
             Icon(Icons.tag, color: theme.colorScheme.primary),

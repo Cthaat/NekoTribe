@@ -6,10 +6,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/ai_conversation_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/motion/animated_count.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/settings_group.dart';
+import '../../../shared/widgets/ui/subtle_grid_box.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../domain/user_models.dart';
 
 class AccountScreen extends ConsumerStatefulWidget {
@@ -112,7 +117,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
     return Scaffold(
+      backgroundColor: social.surfaceBase,
       appBar: AppBar(
         title: Text(l10n.t('tab.profile')),
         actions: [
@@ -141,151 +149,180 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                   children: [
                     _AccountHeader(user: _user!),
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                      child: Text(
-                        l10n.t('settings.account.profile'),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    _Section(
-                      tiles: [
-                        _Row(
-                          icon: Icons.person_outline,
-                          label: l10n.t('settings.account.profile'),
-                          onTap: () => context.push('/users/${_user!.userId}'),
-                        ),
-                        _Row(
-                          icon: Icons.edit_outlined,
-                          label: l10n.t('settings.account.edit_profile'),
-                          onTap: () => context.push('/account/profile'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                      child: Text(
-                        l10n.t('settings.section.content'),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    _Section(
-                      tiles: [
-                        _Row(
-                          icon: Icons.insights_outlined,
-                          label: l10n.t('settings.account.personal_analysis'),
-                          onTap: () => context.push('/account/overview'),
-                        ),
-                        _Row(
-                          icon: Icons.query_stats_outlined,
-                          label: l10n.t('settings.account.data_analysis'),
-                          onTap: () => context.push('/account/data'),
-                        ),
-                        _Row(
+                    const SizedBox(height: 12),
+                    _BentoShortcutGrid(
+                      items: [
+                        _BentoShortcutItem(
                           icon: Icons.article_outlined,
-                          label: l10n.t('settings.account.my_posts'),
+                          title: l10n.t('account.shortcut_posts'),
+                          subtitle:
+                              '${_user!.postsCount} ${l10n.t('profile.posts')} · ${_user!.likesCount} ${l10n.t('profile.likes')}',
                           onTap: () => context.push('/account/posts'),
                         ),
-                        _Row(
-                          icon: Icons.favorite_outline,
-                          label: l10n.t('settings.account.liked_posts'),
-                          onTap: () => context.push('/account/likes'),
-                        ),
-                        _Row(
-                          icon: Icons.bookmark_border,
-                          label: l10n.t('settings.account.bookmarks'),
-                          onTap: () => context.push('/account/bookmarks'),
-                        ),
-                        _Row(
-                          icon: Icons.storage_outlined,
-                          label: l10n.t('account.resources.title'),
-                          onTap: () => context.push('/account/billing'),
-                        ),
-                        _Row(
-                          icon: Icons.smart_toy_outlined,
-                          label: l10n.t('account.resources.ai_title'),
-                          onTap: () => context.push('/account/pro'),
-                        ),
-                        _Row(
-                          icon: Icons.groups_outlined,
-                          label: l10n.t('settings.account.groups'),
-                          onTap: () => context.push('/groups'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                      child: Text(
-                        l10n.t('settings.section.tools'),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    _Section(
-                      tiles: [
-                        _Row(
-                          icon: Icons.shield_outlined,
-                          label: l10n.t('moderation.title'),
-                          onTap: () => context.push('/moderation'),
-                        ),
-                        _Row(
-                          icon: Icons.psychology_outlined,
-                          label: l10n.t('ai.knowledge.title'),
-                          onTap: () => openAiConversation(context, knowledge: true),
-                        ),
-                        _Row(
-                          icon: Icons.edit_note_outlined,
-                          label: l10n.t('ai.writing.title'),
+                        _BentoShortcutItem(
+                          icon: Icons.auto_awesome_outlined,
+                          title: l10n.t('settings.section.ai'),
+                          subtitle:
+                              '${l10n.t('account.shortcut_writing')} · ${l10n.t('account.shortcut_knowledge')}',
                           onTap: () => openAiConversation(context),
                         ),
-                        _Row(
-                          icon: Icons.settings_outlined,
-                          label: l10n.t('common.settings'),
-                          onTap: () => context.push('/settings'),
+                        _BentoShortcutItem(
+                          icon: Icons.groups_outlined,
+                          title: l10n.t('account.shortcut_groups'),
+                          subtitle: l10n.t('settings.account.groups'),
+                          onTap: () => context.push('/groups'),
+                        ),
+                        _BentoShortcutItem(
+                          icon: Icons.insights_outlined,
+                          title: l10n.t('account.shortcut_analytics'),
+                          subtitle: l10n.t('settings.account.personal_analysis'),
+                          onTap: () => context.push('/account/overview'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _logout,
-                          icon: Icon(
-                            Icons.logout,
-                            color: theme.colorScheme.error,
+                    SettingsGroup(
+                      title: l10n.t('settings.section.content'),
+                      children: [
+                        SettingsTile(
+                          icon: Icons.favorite_outline_rounded,
+                          title: Text(l10n.t('account.shortcut_likes')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/account/likes'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.bookmark_border_rounded,
+                          title: Text(l10n.t('account.shortcut_bookmarks')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/account/bookmarks'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.psychology_outlined,
+                          title: Text(l10n.t('account.shortcut_knowledge')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () =>
+                              openAiConversation(context, knowledge: true),
+                        ),
+                        SettingsTile(
+                          icon: Icons.shield_outlined,
+                          title: Text(l10n.t('account.shortcut_moderation')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/moderation'),
+                        ),
+                      ],
+                    ),
+                    SettingsGroup(
+                      title: l10n.t('settings.account.profile'),
+                      children: [
+                        SettingsTile(
+                          icon: Icons.edit_outlined,
+                          title: Text(l10n.t('settings.account.edit_profile')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/account/profile'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.palette_outlined,
+                          title: Text(l10n.t('settings.appearance.title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/settings/appearance'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.tune_rounded,
+                          title: Text(l10n.t('common.settings')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/settings'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.security_outlined,
+                          title: Text(l10n.t('account.security.title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/settings/security'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.devices_outlined,
+                          title: Text(l10n.t('account.sessions.title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/settings/sessions'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.visibility_off_outlined,
+                          title: Text(l10n.t('visibility.title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/settings/relationships'),
+                        ),
+                      ],
+                    ),
+                    SettingsGroup(
+                      title: l10n.t('settings.section.tools'),
+                      children: [
+                        SettingsTile(
+                          icon: Icons.query_stats_outlined,
+                          title: Text(l10n.t('settings.account.data_analysis')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/account/data'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.smart_toy_outlined,
+                          title: Text(l10n.t('account.resources.ai_title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/account/pro'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.storage_outlined,
+                          title: Text(l10n.t('account.resources.title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/account/billing'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.hub_outlined,
+                          title: Text(l10n.t('ai.provider.title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/settings/ai-provider'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.gavel_outlined,
+                          title: Text(l10n.t('account.statements.title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/settings/statements'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.info_outline,
+                          title: Text(l10n.t('about.title')),
+                          trailing: const Icon(Icons.chevron_right, size: 20),
+                          onTap: () => context.push('/about'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    SurfaceCard(
+                      radius: AppRadius.card,
+                      color: scheme.errorContainer.withValues(alpha: 0.25),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 15,
+                      ),
+                      onTap: _logout,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.logout_rounded,
+                            size: 20,
+                            color: scheme.error,
                           ),
-                          label: Text(
+                          const SizedBox(width: 8),
+                          Text(
                             l10n.t('auth.logout'),
-                            style: TextStyle(color: theme.colorScheme.error),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(48),
-                            side: BorderSide(
-                              color: theme.colorScheme.error.withValues(
-                                alpha: 0.4,
-                              ),
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: scheme.error,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -302,65 +339,150 @@ class _AccountHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final displayName = user.displayName.isEmpty
+        ? user.username
+        : user.displayName;
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              AppAvatar(url: user.avatarUrl, size: 72),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.displayName.isEmpty
-                          ? user.username
-                          : user.displayName,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '@${user.username}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+        color: social.surfaceCard,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        boxShadow: isDark
+            ? const <BoxShadow>[]
+            : const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x080F172A),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
-              ),
-            ],
+              ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SubtleGridBox(
+            backgroundColor: scheme.surfaceContainer,
+            child: const SizedBox(height: 88, width: double.infinity),
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _Stat(
-                label: l10n.t('profile.followers'),
-                value: user.followersCount,
-              ),
-              _Stat(
-                label: l10n.t('profile.following'),
-                value: user.followingCount,
-              ),
-              _Stat(label: l10n.t('profile.posts'), value: user.postsCount),
-              _Stat(label: l10n.t('profile.likes'), value: user.likesCount),
-            ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Transform.translate(
+                  offset: const Offset(0, -28),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(3.5),
+                        decoration: BoxDecoration(
+                          color: social.surfaceCard,
+                          shape: BoxShape.circle,
+                        ),
+                        child: AppAvatar(
+                          url: user.avatarUrl,
+                          size: 68,
+                          name: displayName,
+                          seed: user.userId,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 32),
+                        child: FilledButton.tonalIcon(
+                          onPressed: () =>
+                              context.push('/users/${user.userId}'),
+                          icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                          label: Text(
+                            l10n.t('account.view_profile'),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: scheme.surfaceContainer,
+                            foregroundColor: scheme.onSurface,
+                            elevation: 0,
+                            shape: const StadiumBorder(),
+                            minimumSize: const Size(0, 34),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Transform.translate(
+                  offset: const Offset(0, -14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '@${user.username}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: 13.5,
+                          color: social.inkTertiary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (user.bio.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          user.bio.trim(),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            height: 1.55,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 8,
+                        children: [
+                          _InlineStat(
+                            value: user.followingCount,
+                            label: l10n.t('profile.following'),
+                          ),
+                          _InlineStat(
+                            value: user.followersCount,
+                            label: l10n.t('profile.followers'),
+                          ),
+                          _InlineStat(
+                            value: user.postsCount,
+                            label: l10n.t('profile.posts'),
+                          ),
+                          _InlineStat(
+                            value: user.likesCount,
+                            label: l10n.t('profile.likes'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -368,95 +490,128 @@ class _AccountHeader extends StatelessWidget {
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.tiles});
-  final List<Widget> tiles;
+class _InlineStat extends StatelessWidget {
+  const _InlineStat({required this.value, required this.label});
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: Column(children: tiles),
-    );
-  }
-}
-
-class _Row extends StatelessWidget {
-  const _Row({required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.bodyLarge,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-  final String label;
   final int value;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.45,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        AnimatedCount(
+          count: value,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Text(
-            '$value',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BentoShortcutItem {
+  const _BentoShortcutItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+}
+
+class _BentoShortcutGrid extends StatelessWidget {
+  const _BentoShortcutGrid({required this.items});
+
+  final List<_BentoShortcutItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var row = 0; row < items.length; row += 2) ...[
+          if (row > 0) const SizedBox(height: 10),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _BentoCell(item: items[row])),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: row + 1 < items.length
+                      ? _BentoCell(item: items[row + 1])
+                      : const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 4),
+        ],
+      ],
+    );
+  }
+}
+
+class _BentoCell extends StatelessWidget {
+  const _BentoCell({required this.item});
+
+  final _BentoShortcutItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    return SurfaceCard(
+      radius: AppRadius.card,
+      padding: const EdgeInsets.all(14),
+      onTap: item.onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(AppRadius.inner),
+            ),
+            alignment: Alignment.center,
+            child: Icon(item.icon, size: 20, color: scheme.onSurface),
+          ),
+          const SizedBox(height: 12),
           Text(
-            label,
+            item.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            item.subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 12.5,
+              color: social.inkTertiary,
             ),
           ),
         ],

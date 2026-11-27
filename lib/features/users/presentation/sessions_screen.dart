@@ -329,10 +329,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                               ),
                               if (!s.isCurrent)
                                 IconButton(
-                                  icon: Icon(
-                                    Icons.delete_outline,
-                                    color: theme.colorScheme.error,
-                                  ),
+                                  tooltip: l10n.t('account.sessions.revoke'),
+                                  color: theme.colorScheme.error,
+                                  icon: const Icon(Icons.delete_outline),
                                   onPressed: _changing || _loading
                                       ? null
                                       : () => _revoke(s),

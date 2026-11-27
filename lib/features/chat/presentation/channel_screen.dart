@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
@@ -9,9 +10,14 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/glass/liquid_glass_bars.dart';
+import '../../../shared/widgets/glass/liquid_glass_surface.dart';
+import '../../../shared/widgets/glass/liquid_glass_tokens.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../calls/data/call_signaling.dart';
 import '../../calls/presentation/call_widgets.dart';
@@ -33,11 +39,13 @@ class ChannelScreen extends ConsumerStatefulWidget {
     required this.groupId,
     required this.channelId,
     this.channelName,
+    this.embedded = false,
   });
 
   final int groupId;
   final int channelId;
   final String? channelName;
+  final bool embedded;
 
   @override
   ConsumerState<ChannelScreen> createState() => _ChannelScreenState();
@@ -47,6 +55,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   static const _maxAttachments = 32;
 
   final _composer = TextEditingController();
+  double _composerHeight = 84;
   bool _searchOpen = false;
   Future<List<V2ChatMember>>? _members;
   var _filters = const ChatMessageFilters();
@@ -1035,7 +1044,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
         if (!didPop) _closeMembers();
       },
       child: Scaffold(
-        appBar: AppBar(
+        extendBodyBehindAppBar: true,
+        appBar: LiquidGlassAppBar(
           leading: BackButton(
             key: const Key('chat-channel-members'),
             onPressed: _closeMembers,
@@ -1063,6 +1073,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
               return EmptyView(message: l10n.t('chat.members_empty'));
             }
             return ListView.builder(
+              padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
               itemCount: rows.length,
               itemBuilder: (context, index) {
                 final member = rows[index];
@@ -1109,10 +1120,17 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     final members = _members;
     if (members != null) return _buildMembers(members, l10n);
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final topInset = kToolbarHeight + MediaQuery.paddingOf(context).top;
     final width = MediaQuery.sizeOf(context).width;
     final compactTools = width < 600;
     return Scaffold(
-      appBar: AppBar(
+      extendBodyBehindAppBar: true,
+      appBar: LiquidGlassAppBar(
+        automaticallyImplyLeading: !widget.embedded,
+        leading: widget.embedded
+            ? null
+            : const SafeBackButton(fallbackRoute: '/chat'),
         title: Text(_appBarTitle),
         actions: [
           CallMenu(
@@ -1145,308 +1163,501 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
           constraints: const BoxConstraints(
             maxWidth: AppBreakpoints.contentMaxWidth,
           ),
-          child: Column(
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              if (_searchOpen)
-                ChatMessageSearch(
-                  inputKey: const Key('chat-channel-search-input'),
-                  title: l10n.t('chat.search_messages'),
-                  loadSenders: _loadSearchSenders,
-                  isCurrent: _binding.capture(),
-                  onApply: _searchMessages,
-                  onClear: _closeMessageSearch,
-                ),
-              Expanded(
-                child: _loading
-                    ? const LoadingView()
-                    : _error != null
-                    ? ErrorView(error: _error!, onRetry: _load)
-                    : _messages.isEmpty
-                    ? EmptyView(
-                        message: l10n.t(
-                          !_filters.active
-                              ? 'chat.empty_messages'
-                              : 'chat.search_empty',
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: _scroll,
-                        reverse: true,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        itemCount: _messages.length + (_loadingOlder ? 1 : 0),
-                        itemBuilder: (_, i) {
-                          if (_loadingOlder && i == _messages.length) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                          final message = _messages[i];
-                          return _ChannelMessageTile(
-                            message: message,
-                            readOnly: _searchOpen,
-                            timeLabel: _time(message.createdAt),
-                            onReply: () => _startReply(message),
-                            onReact: () => _react(message),
-                            onReactionSelected: (emoji) =>
-                                _react(message, emoji),
-                            onPin: message.canPin ? () => _pin(message) : null,
-                            onEdit:
-                                message.author.userId == _currentUserId &&
-                                    message.messageType == 'text'
-                                ? () => _editMessage(message)
-                                : null,
-                            onDelete: message.canDelete
-                                ? () => _deleteMessage(message)
-                                : null,
-                          );
-                        },
-                      ),
-              ),
-              if (_filters.active && _hasNext && !_loading && _error == null)
-                TextButton(
-                  onPressed: _loadingOlder ? null : _loadOlder,
-                  child: Text(l10n.t('chat.dm.load_older')),
-                ),
-              if (!_searchOpen)
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
-                    border: Border(top: BorderSide(color: theme.dividerColor)),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_typing.hasRemoteTyping)
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: Text(
-                                l10n.t('chat.channel.typing'),
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ),
-                          if (_replyTo != null) ...[
-                            _ReplyPreview(
-                              key: const Key('chat-channel-reply-preview'),
-                              message: _replyTo!,
-                              onCancel: _sending
-                                  ? null
-                                  : () => setState(() => _replyTo = null),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                          if (_attachments.isNotEmpty) ...[
-                            SizedBox(
-                              height: 52,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: _attachments.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(width: 8),
-                                itemBuilder: (_, i) => _AttachmentChip(
-                                  file: _attachments[i],
-                                  onRemove: _sending
-                                      ? null
-                                      : () => setState(() {
-                                          final attachment = _attachments
-                                              .removeAt(i);
-                                          _uploadedAttachments.remove(
-                                            attachment,
-                                          );
-                                        }),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              IconButton(
-                                key: const Key('chat-channel-attach-button'),
-                                tooltip: l10n.t('chat.upload_attachment'),
-                                onPressed: _pickingAttachment || _sending
-                                    ? null
-                                    : () => _pickAttachment(),
-                                icon: _pickingAttachment
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.attach_file),
-                              ),
-                              IconButton(
-                                key: const Key('chat-channel-image-button'),
-                                tooltip: l10n.t('compose.media'),
-                                onPressed: _pickingAttachment || _sending
-                                    ? null
-                                    : () =>
-                                          _pickAttachment(type: FileType.image),
-                                icon: const Icon(Icons.image_outlined),
-                              ),
-                              if (!compactTools) ...[
-                                PopupMenuButton<String>(
-                                  key: const Key('chat-channel-emoji-button'),
-                                  tooltip: 'Emoji',
-                                  onSelected: _insertComposerText,
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: '😀',
-                                      child: Text('😀'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: '😂',
-                                      child: Text('😂'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: '❤️',
-                                      child: Text('❤️'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: '👍',
-                                      child: Text('👍'),
-                                    ),
-                                    PopupMenuItem(value: '✨', child: Text('✨')),
-                                  ],
-                                  icon: const Icon(
-                                    Icons.emoji_emotions_outlined,
-                                  ),
-                                ),
-                                IconButton(
-                                  key: const Key('chat-channel-mention-button'),
-                                  tooltip: '@',
-                                  onPressed: _sending
-                                      ? null
-                                      : () => _insertComposerText('@'),
-                                  icon: const Icon(Icons.alternate_email),
-                                ),
-                                IconButton(
-                                  key: const Key('chat-channel-channel-button'),
-                                  tooltip: '#',
-                                  onPressed: _sending
-                                      ? null
-                                      : () => _insertComposerText('#'),
-                                  icon: const Icon(Icons.tag),
-                                ),
-                                IconButton(
-                                  key: const Key('chat-channel-sticker-button'),
-                                  tooltip: 'Sticker',
-                                  onPressed: _sending
-                                      ? null
-                                      : () => _insertComposerText('🎁 '),
-                                  icon: const Icon(
-                                    Icons.card_giftcard_outlined,
-                                  ),
-                                ),
-                              ] else
-                                PopupMenuButton<String>(
-                                  key: const Key('chat-channel-more-tools'),
-                                  tooltip: l10n.t('common.more'),
-                                  enabled: !_sending,
-                                  onSelected: _insertComposerText,
-                                  itemBuilder: (_) => [
-                                    PopupMenuItem(
-                                      key: const Key(
-                                        'chat-channel-emoji-button',
-                                      ),
-                                      value: '😀',
-                                      child: const Text('😀'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: '😂',
-                                      child: Text('😂'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: '❤️',
-                                      child: Text('❤️'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: '👍',
-                                      child: Text('👍'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: '✨',
-                                      child: Text('✨'),
-                                    ),
-                                    PopupMenuItem(
-                                      key: const Key(
-                                        'chat-channel-mention-button',
-                                      ),
-                                      value: '@',
-                                      child: const Text('@'),
-                                    ),
-                                    PopupMenuItem(
-                                      key: const Key(
-                                        'chat-channel-channel-button',
-                                      ),
-                                      value: '#',
-                                      child: const Text('#'),
-                                    ),
-                                    PopupMenuItem(
-                                      key: const Key(
-                                        'chat-channel-sticker-button',
-                                      ),
-                                      value: '🎁 ',
-                                      child: const Text('🎁'),
-                                    ),
-                                  ],
-                                  icon: const Icon(Icons.more_horiz),
-                                ),
-                              Expanded(
-                                child: TextField(
-                                  key: const Key('chat-channel-composer-field'),
-                                  controller: _composer,
-                                  minLines: 1,
-                                  maxLines: 5,
-                                  decoration: InputDecoration(
-                                    hintText: l10n.t('chat.message_hint'),
-                                    isDense: true,
-                                  ),
-                                  onSubmitted: (_) => _send(),
-                                  onChanged: (text) =>
-                                      _typing.input(text.trim().isNotEmpty),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              IconButton(
-                                key: const Key('chat-channel-send-button'),
-                                onPressed: _sending ? null : _send,
-                                icon: _sending
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : Icon(
-                                        Icons.send_rounded,
-                                        color: theme.colorScheme.primary,
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ],
+              Column(
+                children: [
+                  if (_searchOpen)
+                    Padding(
+                      padding: EdgeInsets.only(top: topInset),
+                      child: ChatMessageSearch(
+                        inputKey: const Key('chat-channel-search-input'),
+                        title: l10n.t('chat.search_messages'),
+                        loadSenders: _loadSearchSenders,
+                        isCurrent: _binding.capture(),
+                        onApply: _searchMessages,
+                        onClear: _closeMessageSearch,
                       ),
                     ),
+                  Expanded(
+                    child: _loading
+                        ? const LoadingView()
+                        : _error != null
+                        ? ErrorView(error: _error!, onRetry: _load)
+                        : _messages.isEmpty
+                        ? EmptyView(
+                            message: l10n.t(
+                              !_filters.active
+                                  ? 'chat.empty_messages'
+                                  : 'chat.search_empty',
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final maxBubbleWidth = math.min(
+                                constraints.maxWidth * 0.72,
+                                460.0,
+                              );
+                              return ListView.builder(
+                                controller: _scroll,
+                                reverse: true,
+                                padding: EdgeInsets.fromLTRB(
+                                  12,
+                                  _searchOpen ? 12 : topInset + 12,
+                                  12,
+                                  _searchOpen ? 12 : _composerHeight + 12,
+                                ),
+                                itemCount:
+                                    _messages.length + (_loadingOlder ? 1 : 0),
+                                itemBuilder: (_, i) {
+                                  if (_loadingOlder && i == _messages.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  final message = _messages[i];
+                                  final prev = i + 1 < _messages.length
+                                      ? _messages[i + 1]
+                                      : null;
+                                  final next = i - 1 >= 0
+                                      ? _messages[i - 1]
+                                      : null;
+                                  final day = _channelCalendarDay(
+                                    message.createdAt,
+                                  );
+                                  final prevDay = prev == null
+                                      ? null
+                                      : _channelCalendarDay(prev.createdAt);
+                                  final showDatePill =
+                                      day != null && day != prevDay;
+                                  final samePrev =
+                                      prev != null &&
+                                      !message.isDeleted &&
+                                      !prev.isDeleted &&
+                                      prev.author.userId ==
+                                          message.author.userId &&
+                                      day == prevDay &&
+                                      _channelWithinFiveMinutes(prev, message);
+                                  final sameNext =
+                                      next != null &&
+                                      !message.isDeleted &&
+                                      !next.isDeleted &&
+                                      next.author.userId ==
+                                          message.author.userId &&
+                                      _channelCalendarDay(next.createdAt) ==
+                                          day &&
+                                      _channelWithinFiveMinutes(message, next);
+                                  final isSelf =
+                                      _currentUserId != null &&
+                                      message.author.userId == _currentUserId;
+                                  final tile = _ChannelMessageTile(
+                                    message: message,
+                                    isSelf: isSelf,
+                                    samePrev: samePrev,
+                                    sameNext: sameNext,
+                                    maxWidth: maxBubbleWidth,
+                                    readOnly: _searchOpen,
+                                    timeLabel: _time(message.createdAt),
+                                    onReply: () => _startReply(message),
+                                    onReact: () => _react(message),
+                                    onReactionSelected: (emoji) =>
+                                        _react(message, emoji),
+                                    onPin: message.canPin
+                                        ? () => _pin(message)
+                                        : null,
+                                    onEdit:
+                                        message.author.userId ==
+                                                _currentUserId &&
+                                            message.messageType == 'text'
+                                        ? () => _editMessage(message)
+                                        : null,
+                                    onDelete: message.canDelete
+                                        ? () => _deleteMessage(message)
+                                        : null,
+                                  );
+                                  if (!showDatePill) return tile;
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: scheme.surfaceContainerHigh,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            _formatChannelDayLabel(
+                                              context,
+                                              l10n,
+                                              day,
+                                            ),
+                                            style: theme.textTheme.labelSmall
+                                                ?.copyWith(
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      tile,
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                  if (_filters.active &&
+                      _hasNext &&
+                      !_loading &&
+                      _error == null)
+                    TextButton(
+                      onPressed: _loadingOlder ? null : _loadOlder,
+                      child: Text(l10n.t('chat.dm.load_older')),
+                    ),
+                ],
+              ),
+              if (!_searchOpen)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: measureGlassOverlay(
+                    SafeArea(
+                      top: false,
+                      child: LiquidGlassSurface(
+                        preset: LiquidGlassPreset.floatingIsland,
+                        borderRadius: BorderRadius.circular(AppRadius.canvas),
+                        margin: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_typing.hasRemoteTyping)
+                              Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 10,
+                                    bottom: 6,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _ChannelTypingDots(color: scheme.primary),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        l10n.t('chat.channel.typing'),
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: scheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            if (_replyTo != null) ...[
+                              _ReplyPreview(
+                                key: const Key('chat-channel-reply-preview'),
+                                message: _replyTo!,
+                                onCancel: _sending
+                                    ? null
+                                    : () => setState(() => _replyTo = null),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            if (_attachments.isNotEmpty) ...[
+                              SizedBox(
+                                height: 52,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: _attachments.length,
+                                  separatorBuilder: (_, _) =>
+                                      const SizedBox(width: 8),
+                                  itemBuilder: (_, i) => _AttachmentChip(
+                                    file: _attachments[i],
+                                    onRemove: _sending
+                                        ? null
+                                        : () => setState(() {
+                                            final attachment = _attachments
+                                                .removeAt(i);
+                                            _uploadedAttachments.remove(
+                                              attachment,
+                                            );
+                                          }),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                IconButton(
+                                  key: const Key('chat-channel-attach-button'),
+                                  tooltip: l10n.t('chat.upload_attachment'),
+                                  onPressed: _pickingAttachment || _sending
+                                      ? null
+                                      : () => _pickAttachment(),
+                                  icon: _pickingAttachment
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.attach_file),
+                                ),
+                                IconButton(
+                                  key: const Key('chat-channel-image-button'),
+                                  tooltip: l10n.t('compose.media'),
+                                  onPressed: _pickingAttachment || _sending
+                                      ? null
+                                      : () => _pickAttachment(
+                                          type: FileType.image,
+                                        ),
+                                  icon: const Icon(Icons.image_outlined),
+                                ),
+                                if (!compactTools) ...[
+                                  PopupMenuButton<String>(
+                                    key: const Key('chat-channel-emoji-button'),
+                                    tooltip: 'Emoji',
+                                    onSelected: _insertComposerText,
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: '😀',
+                                        child: Text('😀'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: '😂',
+                                        child: Text('😂'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: '❤️',
+                                        child: Text('❤️'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: '👍',
+                                        child: Text('👍'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: '✨',
+                                        child: Text('✨'),
+                                      ),
+                                    ],
+                                    icon: const Icon(
+                                      Icons.emoji_emotions_outlined,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    key: const Key(
+                                      'chat-channel-mention-button',
+                                    ),
+                                    tooltip: '@',
+                                    onPressed: _sending
+                                        ? null
+                                        : () => _insertComposerText('@'),
+                                    icon: const Icon(Icons.alternate_email),
+                                  ),
+                                  IconButton(
+                                    key: const Key(
+                                      'chat-channel-channel-button',
+                                    ),
+                                    tooltip: '#',
+                                    onPressed: _sending
+                                        ? null
+                                        : () => _insertComposerText('#'),
+                                    icon: const Icon(Icons.tag),
+                                  ),
+                                  IconButton(
+                                    key: const Key(
+                                      'chat-channel-sticker-button',
+                                    ),
+                                    tooltip: 'Sticker',
+                                    onPressed: _sending
+                                        ? null
+                                        : () => _insertComposerText('🎁 '),
+                                    icon: const Icon(
+                                      Icons.card_giftcard_outlined,
+                                    ),
+                                  ),
+                                ] else
+                                  PopupMenuButton<String>(
+                                    key: const Key('chat-channel-more-tools'),
+                                    tooltip: l10n.t('common.more'),
+                                    enabled: !_sending,
+                                    onSelected: _insertComposerText,
+                                    itemBuilder: (_) => [
+                                      PopupMenuItem(
+                                        key: const Key(
+                                          'chat-channel-emoji-button',
+                                        ),
+                                        value: '😀',
+                                        child: const Text('😀'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: '😂',
+                                        child: Text('😂'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: '❤️',
+                                        child: Text('❤️'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: '👍',
+                                        child: Text('👍'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: '✨',
+                                        child: Text('✨'),
+                                      ),
+                                      PopupMenuItem(
+                                        key: const Key(
+                                          'chat-channel-mention-button',
+                                        ),
+                                        value: '@',
+                                        child: const Text('@'),
+                                      ),
+                                      PopupMenuItem(
+                                        key: const Key(
+                                          'chat-channel-channel-button',
+                                        ),
+                                        value: '#',
+                                        child: const Text('#'),
+                                      ),
+                                      PopupMenuItem(
+                                        key: const Key(
+                                          'chat-channel-sticker-button',
+                                        ),
+                                        value: '🎁 ',
+                                        child: const Text('🎁'),
+                                      ),
+                                    ],
+                                    icon: const Icon(Icons.more_horiz),
+                                  ),
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: SocialColors.of(
+                                        context,
+                                      ).surfaceSubtle,
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadius.tile,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                    ),
+                                    child: TextField(
+                                      key: const Key(
+                                        'chat-channel-composer-field',
+                                      ),
+                                      controller: _composer,
+                                      minLines: 1,
+                                      maxLines: 5,
+                                      decoration: InputDecoration(
+                                        hintText: l10n.t('chat.message_hint'),
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        isDense: true,
+                                        filled: false,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              vertical: 10,
+                                            ),
+                                      ),
+                                      onSubmitted: (_) => _send(),
+                                      onChanged: (text) => setState(
+                                        () => _typing.input(
+                                          text.trim().isNotEmpty,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                ValueListenableBuilder<TextEditingValue>(
+                                  valueListenable: _composer,
+                                  builder: (context, value, _) {
+                                    final hasContent =
+                                        value.text.trim().isNotEmpty ||
+                                        _attachments.isNotEmpty;
+                                    return AnimatedScale(
+                                      scale: hasContent ? 1.0 : 0.92,
+                                      duration: AppMotion.resolve(
+                                        context,
+                                        AppMotion.fast,
+                                      ),
+                                      curve: AppMotion.emphasizedDecelerate,
+                                      child: IconButton.filled(
+                                        key: const Key(
+                                          'chat-channel-send-button',
+                                        ),
+                                        tooltip: l10n.t('chat.send'),
+                                        style: IconButton.styleFrom(
+                                          disabledBackgroundColor:
+                                              scheme.surfaceContainerHigh,
+                                          disabledForegroundColor:
+                                              scheme.onSurfaceVariant,
+                                        ),
+                                        onPressed:
+                                            _sending ||
+                                                _pickingAttachment ||
+                                                !hasContent
+                                            ? null
+                                            : _send,
+                                        icon: _sending
+                                            ? SizedBox.square(
+                                                dimension: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: scheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                              )
+                                            : const Icon(
+                                                Icons.send_rounded,
+                                                size: 19,
+                                              ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    (height) {
+                      if (_composerHeight != height) {
+                        setState(() => _composerHeight = height);
+                      }
+                    },
                   ),
                 ),
             ],
@@ -1615,6 +1826,118 @@ class _AttachmentChip extends StatelessWidget {
   }
 }
 
+DateTime? _channelCalendarDay(String iso) {
+  final dt = DateTime.tryParse(iso)?.toLocal();
+  if (dt == null) return null;
+  return DateTime(dt.year, dt.month, dt.day);
+}
+
+bool _channelWithinFiveMinutes(V2ChatMessage a, V2ChatMessage b) {
+  final da = DateTime.tryParse(a.createdAt);
+  final db = DateTime.tryParse(b.createdAt);
+  if (da == null || db == null) return false;
+  return da.difference(db).inMilliseconds.abs() <= 300000;
+}
+
+String _formatChannelDayLabel(
+  BuildContext context,
+  AppLocalizations l10n,
+  DateTime day,
+) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  if (day == today) return l10n.t('chat.date_today');
+  if (day == today.subtract(const Duration(days: 1))) {
+    return l10n.t('chat.date_yesterday');
+  }
+  return DateFormat.MMMd(
+    Localizations.localeOf(context).toString(),
+  ).format(day);
+}
+
+class _ChannelTypingDots extends StatefulWidget {
+  const _ChannelTypingDots({required this.color});
+
+  final Color color;
+
+  @override
+  State<_ChannelTypingDots> createState() => _ChannelTypingDotsState();
+}
+
+class _ChannelTypingDotsState extends State<_ChannelTypingDots>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _controller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final active =
+        TickerMode.valuesOf(context).enabled && !AppMotion.reduced(context);
+    if (active) {
+      _controller ??= AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1100),
+      )..repeat();
+    } else {
+      _controller?.dispose();
+      _controller = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < 3; i++) ...[
+            if (i > 0) const SizedBox(width: 3),
+            CircleAvatar(radius: 2.5, backgroundColor: widget.color),
+          ],
+        ],
+      );
+    }
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) const SizedBox(width: 3),
+              Builder(
+                builder: (_) {
+                  final phase = (controller.value - i * 0.16) % 1.0;
+                  final wave = math.sin(phase * math.pi * 2);
+                  final dy = wave > 0 ? -wave * 3.0 : 0.0;
+                  final opacity = 0.4 + (wave > 0 ? wave * 0.6 : 0.0);
+                  return Transform.translate(
+                    offset: Offset(0, dy),
+                    child: Opacity(
+                      opacity: opacity,
+                      child: CircleAvatar(
+                        radius: 2.5,
+                        backgroundColor: widget.color,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _ChannelMessageTile extends StatelessWidget {
   const _ChannelMessageTile({
     required this.message,
@@ -1622,6 +1945,10 @@ class _ChannelMessageTile extends StatelessWidget {
     required this.onReply,
     required this.onReact,
     required this.onReactionSelected,
+    this.isSelf = false,
+    this.samePrev = false,
+    this.sameNext = false,
+    this.maxWidth = 460,
     this.onPin,
     this.onEdit,
     this.onDelete,
@@ -1633,6 +1960,10 @@ class _ChannelMessageTile extends StatelessWidget {
   final VoidCallback onReply;
   final VoidCallback onReact;
   final ValueChanged<String> onReactionSelected;
+  final bool isSelf;
+  final bool samePrev;
+  final bool sameNext;
+  final double maxWidth;
   final VoidCallback? onPin;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -1642,210 +1973,276 @@ class _ChannelMessageTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppAvatar(url: message.author.avatarUrl, size: 36),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        message.author.displayName.isEmpty
-                            ? message.author.username
-                            : message.author.displayName,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      timeLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    if (message.isPinned) ...[
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.push_pin,
-                        size: 14,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                if (message.replyTo != null) ...[
-                  ChatReplyQuote(replyTo: message.replyTo!),
-                  const SizedBox(height: 6),
-                ],
-                if (message.isDeleted)
-                  Text(
-                    l10n.t('chat.deleted_message'),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontStyle: FontStyle.italic,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                else if (message.content.isNotEmpty)
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(text: message.content),
-                        if (message.editedAt != null)
-                          TextSpan(
-                            text: ' (${l10n.t('chat.edited')})',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                      ],
-                    ),
-                    style: theme.textTheme.bodyMedium,
-                  )
-                else if (message.media.isEmpty)
-                  Text(
-                    l10n.t('chat.message_hint'),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                if (!message.isDeleted)
-                  ContentLinkPreview(content: message.content),
-                if (message.media.isNotEmpty) ...[
-                  if (message.content.isNotEmpty || message.isDeleted)
-                    const SizedBox(height: 8)
-                  else
-                    const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (var i = 0; i < message.media.length; i++)
-                        _MessageAttachment(
-                          media: message.media[i],
-                          allMedia: message.media,
-                          index: i,
-                        ),
-                    ],
-                  ),
-                ],
-                if (message.reactions.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (final reaction in message.reactions)
-                        ChatReactionChip(
-                          key: Key(
-                            'chat-channel-reaction-${message.messageId}-${reaction.emoji}',
-                          ),
-                          reaction: reaction,
-                          onPressed: readOnly
-                              ? null
-                              : () => onReactionSelected(reaction.emoji),
-                        ),
-                    ],
-                  ),
-                ],
-              ],
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final displayName = message.author.displayName.isEmpty
+        ? message.author.username
+        : message.author.displayName;
+    final bubbleColor = isSelf
+        ? (isDark
+              ? Color.alphaBlend(
+                  scheme.primary.withValues(alpha: 0.22),
+                  social.surfaceCard,
+                )
+              : scheme.primary)
+        : scheme.surfaceContainerHigh;
+    final textColor = isSelf
+        ? (isDark ? scheme.onSurface : scheme.onPrimary)
+        : scheme.onSurface;
+    final mutedColor = isSelf
+        ? (isDark
+              ? scheme.onSurfaceVariant
+              : scheme.onPrimary.withValues(alpha: 0.78))
+        : scheme.onSurfaceVariant;
+    final radius = BorderRadius.only(
+      topLeft: Radius.circular(isSelf ? 18 : (samePrev ? 4 : 18)),
+      topRight: Radius.circular(isSelf ? (samePrev ? 4 : 18) : 18),
+      bottomLeft: Radius.circular(isSelf ? 18 : 4),
+      bottomRight: Radius.circular(isSelf ? 4 : 18),
+    );
+    final menuButton = !readOnly
+        ? PopupMenuButton<_ChannelMessageAction>(
+            key: Key('chat-channel-more-${message.messageId}'),
+            tooltip: l10n.t('common.more'),
+            icon: Icon(
+              Icons.more_horiz,
+              size: 18,
+              color: scheme.onSurfaceVariant,
             ),
-          ),
-          // Compact always: collapse reply/react/pin/edit/delete into one menu.
-          if (!readOnly)
-            PopupMenuButton<_ChannelMessageAction>(
-              key: Key('chat-channel-more-${message.messageId}'),
-              tooltip: l10n.t('common.more'),
-              icon: const Icon(Icons.more_horiz),
-              onSelected: (action) {
-                switch (action) {
-                  case _ChannelMessageAction.reply:
-                    onReply();
-                    break;
-                  case _ChannelMessageAction.react:
-                    onReact();
-                    break;
-                  case _ChannelMessageAction.pin:
-                    onPin?.call();
-                    break;
-                  case _ChannelMessageAction.edit:
-                    onEdit?.call();
-                    break;
-                  case _ChannelMessageAction.delete:
-                    onDelete?.call();
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
+            onSelected: (action) {
+              switch (action) {
+                case _ChannelMessageAction.reply:
+                  onReply();
+                  break;
+                case _ChannelMessageAction.react:
+                  onReact();
+                  break;
+                case _ChannelMessageAction.pin:
+                  onPin?.call();
+                  break;
+                case _ChannelMessageAction.edit:
+                  onEdit?.call();
+                  break;
+                case _ChannelMessageAction.delete:
+                  onDelete?.call();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                key: Key('chat-channel-reply-${message.messageId}'),
+                value: _ChannelMessageAction.reply,
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.reply_rounded),
+                  title: Text(l10n.t('chat.reply')),
+                ),
+              ),
+              const PopupMenuItem(
+                value: _ChannelMessageAction.react,
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.thumb_up_alt_outlined),
+                  title: Text('👍'),
+                ),
+              ),
+              if (onPin != null)
                 PopupMenuItem(
-                  key: Key('chat-channel-reply-${message.messageId}'),
-                  value: _ChannelMessageAction.reply,
+                  value: _ChannelMessageAction.pin,
                   child: ListTile(
                     dense: true,
-                    leading: const Icon(Icons.reply_rounded),
-                    title: Text(l10n.t('chat.reply')),
+                    leading: Icon(
+                      message.isPinned
+                          ? Icons.push_pin
+                          : Icons.push_pin_outlined,
+                    ),
+                    title: Text(
+                      message.isPinned
+                          ? l10n.t('chat.unpin')
+                          : l10n.t('chat.pin'),
+                    ),
                   ),
                 ),
+              if (onEdit != null)
                 PopupMenuItem(
-                  value: _ChannelMessageAction.react,
-                  child: const ListTile(
+                  key: Key('chat-channel-edit-${message.messageId}'),
+                  value: _ChannelMessageAction.edit,
+                  child: ListTile(
                     dense: true,
-                    leading: Icon(Icons.thumb_up_alt_outlined),
-                    title: Text('👍'),
+                    leading: const Icon(Icons.edit_outlined),
+                    title: Text(l10n.t('common.edit')),
                   ),
                 ),
-                if (onPin != null)
-                  PopupMenuItem(
-                    value: _ChannelMessageAction.pin,
-                    child: ListTile(
-                      dense: true,
-                      leading: Icon(
-                        message.isPinned
-                            ? Icons.push_pin
-                            : Icons.push_pin_outlined,
-                      ),
-                      title: Text(
-                        message.isPinned
-                            ? l10n.t('chat.unpin')
-                            : l10n.t('chat.pin'),
-                      ),
-                    ),
+              if (onDelete != null)
+                PopupMenuItem(
+                  key: Key('chat-channel-delete-${message.messageId}'),
+                  value: _ChannelMessageAction.delete,
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.delete_outline),
+                    title: Text(l10n.t('common.delete')),
                   ),
-                if (onEdit != null)
-                  PopupMenuItem(
-                    key: Key('chat-channel-edit-${message.messageId}'),
-                    value: _ChannelMessageAction.edit,
-                    child: ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.edit_outlined),
-                      title: Text(l10n.t('common.edit')),
-                    ),
-                  ),
-                if (onDelete != null)
-                  PopupMenuItem(
-                    key: Key('chat-channel-delete-${message.messageId}'),
-                    value: _ChannelMessageAction.delete,
-                    child: ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.delete_outline),
-                      title: Text(l10n.t('common.delete')),
-                    ),
-                  ),
+                ),
+            ],
+          )
+        : null;
+
+    return Align(
+      alignment: isSelf ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.only(
+          top: samePrev ? 1.5 : 6,
+          bottom: sameNext ? 1.5 : 4,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!isSelf) ...[
+                if (!sameNext)
+                  AppAvatar(
+                    url: message.author.avatarUrl,
+                    size: 32,
+                    name: displayName,
+                    seed: message.author.userId,
+                  )
+                else
+                  const SizedBox(width: 32),
+                const SizedBox(width: 8),
               ],
-            ),
-        ],
+              if (isSelf && menuButton != null) menuButton,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: bubbleColor,
+                    borderRadius: radius,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!isSelf && !samePrev)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 3),
+                          child: Text(
+                            displayName,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      if (message.replyTo != null) ...[
+                        ChatReplyQuote(replyTo: message.replyTo!),
+                        const SizedBox(height: 6),
+                      ],
+                      if (message.isDeleted)
+                        Text(
+                          l10n.t('chat.deleted_message'),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontStyle: FontStyle.italic,
+                            color: mutedColor,
+                          ),
+                        )
+                      else if (message.content.isNotEmpty)
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: message.content),
+                              if (message.editedAt != null)
+                                TextSpan(
+                                  text: ' (${l10n.t('chat.edited')})',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: mutedColor,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: textColor,
+                          ),
+                        )
+                      else if (message.media.isEmpty)
+                        Text(
+                          l10n.t('chat.message_hint'),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: mutedColor,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      if (!message.isDeleted)
+                        ContentLinkPreview(content: message.content),
+                      if (message.media.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (var i = 0; i < message.media.length; i++)
+                              _MessageAttachment(
+                                media: message.media[i],
+                                allMedia: message.media,
+                                index: i,
+                              ),
+                          ],
+                        ),
+                      ],
+                      if (message.reactions.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final reaction in message.reactions)
+                              ChatReactionChip(
+                                key: Key(
+                                  'chat-channel-reaction-${message.messageId}-${reaction.emoji}',
+                                ),
+                                reaction: reaction,
+                                onPressed: readOnly
+                                    ? null
+                                    : () => onReactionSelected(reaction.emoji),
+                              ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 3),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            timeLabel,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: mutedColor,
+                              fontSize: 10.5,
+                            ),
+                          ),
+                          if (message.isPinned) ...[
+                            const SizedBox(width: 5),
+                            Icon(
+                              Icons.push_pin,
+                              size: 12,
+                              color: isSelf ? scheme.onPrimary : scheme.primary,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (!isSelf && menuButton != null) menuButton,
+            ],
+          ),
+        ),
       ),
     );
   }

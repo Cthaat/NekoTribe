@@ -8,6 +8,7 @@ const scripts = dirname(fileURLToPath(import.meta.url));
 const requiredFiles = ['index.html', 'flutter_bootstrap.js', 'main.dart.js'];
 const optionalFiles = [
   'flutter.js', 'flutter_service_worker.js', 'favicon.png', 'manifest.json', 'version.json',
+  'passkeys-bundle.js',
 ];
 const assetDirectories = ['assets', 'canvaskit', 'icons'];
 const instructions = `# NekoTribe Flutter Web

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../domain/user_models.dart';
 
@@ -117,7 +118,10 @@ class _AccountAnalyticsScreenState
     });
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('account.analytics.title'))),
+      appBar: AppBar(
+        leading: const SafeBackButton(fallbackRoute: '/me'),
+        title: Text(l10n.t('account.analytics.title')),
+      ),
       body: _expired
           ? EmptyView(message: l10n.t('visibility.sessionChanged'))
           : _loading

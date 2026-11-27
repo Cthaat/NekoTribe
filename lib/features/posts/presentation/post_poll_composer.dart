@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/theme/tokens.dart';
 import '../domain/post_poll.dart';
 
 class PostPollComposer extends StatefulWidget {
@@ -72,23 +73,30 @@ class _PostPollComposerState extends State<PostPollComposer> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final materials = MaterialLocalizations.of(context);
+    final social = SocialColors.of(context);
     final draft = _attached ? _draft() : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        CheckboxListTile(
-          key: const Key('post-poll-attach'),
-          title: Text(l10n.t('poll.attach')),
-          contentPadding: EdgeInsets.zero,
-          value: _attached,
-          onChanged: !widget.enabled
-              ? null
-              : (value) => _change(() {
-                  _attached = value ?? false;
-                  _closesAt ??= DateTime.now()
-                      .add(const Duration(days: 1))
-                      .copyWith(second: 0, millisecond: 0, microsecond: 0);
-                }),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: FilterChip(
+            key: const Key('post-poll-attach'),
+            shape: const StadiumBorder(),
+            side: BorderSide.none,
+            backgroundColor: social.surfaceSubtle,
+            selectedColor: social.primarySoft,
+            label: Text(l10n.t('poll.attach')),
+            selected: _attached,
+            onSelected: !widget.enabled
+                ? null
+                : (value) => _change(() {
+                    _attached = value;
+                    _closesAt ??= DateTime.now()
+                        .add(const Duration(days: 1))
+                        .copyWith(second: 0, millisecond: 0, microsecond: 0);
+                  }),
+          ),
         ),
         if (draft != null) ...[
           for (var index = 0; index < _options.length; index++)
@@ -110,14 +118,13 @@ class _PostPollComposerState extends State<PostPollComposer> {
           Wrap(
             spacing: 8,
             children: [
-              TextButton.icon(
+              TextButton(
                 onPressed:
                     widget.enabled &&
                         _options.length < V2CreatePostPoll.maxOptions
                     ? () => _change(() => _options.add(''))
                     : null,
-                icon: const Icon(Icons.add),
-                label: Text(l10n.t('poll.add_option')),
+                child: Text(l10n.t('poll.add_option')),
               ),
               if (_options.length > V2CreatePostPoll.minOptions)
                 TextButton(

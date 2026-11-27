@@ -91,6 +91,29 @@ void main() {
       expect(events, isEmpty);
     },
   );
+  test(
+    'clearIfCurrent is a no-op when no session is stored and notifies when one exists',
+    () async {
+      final storage = _Storage(),
+          store = TokenStore(storage: storage),
+          events = <int>[];
+      store.listenSessionChanges(() => events.add(store.revision));
+      expect(await store.clearIfCurrent(store.revision), isFalse);
+      expect(store.revision, 0);
+      expect(events, isEmpty);
+
+      const pair = TokenPair(
+        accessToken: 'fixture-access',
+        refreshToken: 'fixture-refresh',
+        sessionId: 'fixture-session',
+      );
+      await store.write(pair);
+      expect(await store.clearIfCurrent(store.revision), isTrue);
+      expect(store.revision, 1);
+      expect(events, [1, 1]);
+      expect(await store.read(), isNull);
+    },
+  );
   for (final operation in ['login', 'completion', 'logout']) {
     test(
       'actual repository tracks $operation network lifetime and releases failure',

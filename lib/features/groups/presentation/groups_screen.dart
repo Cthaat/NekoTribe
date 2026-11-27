@@ -6,9 +6,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
+import '../../../shared/widgets/glass/liquid_glass_bars.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../../core/network/api_response.dart';
 import '../domain/group_draft_metadata.dart';
 import '../domain/group_models.dart';
@@ -58,9 +61,25 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final social = SocialColors.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final dockInset = MediaQuery.sizeOf(context).width < AppBreakpoints.medium
+        ? 80.0
+        : 0.0;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.t('group.title')),
+      backgroundColor: social.surfaceBase,
+      extendBodyBehindAppBar: true,
+      appBar: LiquidGlassAppBar(
+        automaticallyImplyLeading:
+            ModalRoute.of(context)?.impliesAppBarDismissal ?? false,
+        title: Text(
+          l10n.t('group.title'),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         actions: [
           if (widget.inviteId != null)
             TextButton(
@@ -73,59 +92,81 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
             onPressed: () => context.push('/groups/invite'),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppBreakpoints.wideContentMaxWidth,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: AnimatedBuilder(
+                  animation: _tabController,
+                  builder: (context, _) => LiquidGlassSegmentedControl<int>(
+                    options: [
+                      for (final (index, tab) in _tabs.indexed)
+                        (index, l10n.t(tab.titleKey)),
+                    ],
+                    selected: _tabController.index,
+                    onSelect: _tabController.animateTo,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: AppBreakpoints.contentMaxWidth,
+            maxWidth: AppBreakpoints.wideContentMaxWidth,
           ),
-          child: Column(
+          child: TabBarView(
+            controller: _tabController,
             children: [
-              TabBar(
-                controller: _tabController,
-                tabs: _tabs.map((t) => Tab(text: l10n.t(t.titleKey))).toList(),
+              _GroupsList(
+                mode: 'discover',
+                key: const PageStorageKey('disc'),
+                emptyMessageKey: 'group.empty',
+                emptyActionLabelKey: 'common.create',
+                onEmptyAction: () =>
+                    unawaited(_showCreateGroupDialog(context, ref)),
               ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _GroupsList(
-                      mode: 'discover',
-                      key: const PageStorageKey('disc'),
-                      emptyMessageKey: 'group.empty',
-                      emptyActionLabelKey: 'common.create',
-                      onEmptyAction: () =>
-                          unawaited(_showCreateGroupDialog(context, ref)),
-                    ),
-                    _GroupsList(
-                      mode: 'my',
-                      key: PageStorageKey(('my', _membershipRevision)),
-                      emptyMessageKey: 'group.empty_my',
-                      emptyActionLabelKey: 'group.discover',
-                      onEmptyAction: () => _tabController.animateTo(0),
-                    ),
-                    _InvitesList(
-                      key: PageStorageKey(('inv', widget.inviteId)),
-                      inviteId: widget.inviteId,
-                      onAccepted: () => setState(() => _membershipRevision++),
-                    ),
-                    const _GroupsList(
-                      mode: 'popular',
-                      key: PageStorageKey('popular'),
-                      emptyMessageKey: 'group.empty',
-                    ),
-                  ],
-                ),
+              _GroupsList(
+                mode: 'my',
+                key: PageStorageKey(('my', _membershipRevision)),
+                emptyMessageKey: 'group.empty_my',
+                emptyActionLabelKey: 'group.discover',
+                onEmptyAction: () => _tabController.animateTo(0),
+              ),
+              _InvitesList(
+                key: PageStorageKey(('inv', widget.inviteId)),
+                inviteId: widget.inviteId,
+                onAccepted: () => setState(() => _membershipRevision++),
+              ),
+              const _GroupsList(
+                mode: 'popular',
+                key: PageStorageKey('popular'),
+                emptyMessageKey: 'group.empty',
               ),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateGroupDialog(context, ref),
-        icon: const Icon(Icons.add),
-        label: Text(l10n.t('common.create')),
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: dockInset),
+        child: FloatingActionButton.extended(
+          shape: const StadiumBorder(),
+          elevation: isDark ? 0 : 2,
+          onPressed: () => _showCreateGroupDialog(context, ref),
+          icon: const Icon(Icons.add),
+          label: Text(
+            l10n.t('common.create'),
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
     );
   }
@@ -711,33 +752,82 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     if (_expired) {
       return EmptyView(message: l10n.t('visibility.sessionChanged'));
     }
+    final topInset = MediaQuery.paddingOf(context).top;
     if (widget.mode == 'popular') {
-      return _buildResults(context, filtered: false);
+      return _buildResults(context, filtered: false, topInset: topInset);
     }
     final filtered = _filter != _noGroupFilter;
-    return Column(
+    final social = SocialColors.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: TextButton.icon(
-            onPressed: _editFilters,
-            icon: Badge(
-              isLabelVisible: filtered,
-              child: const Icon(Icons.filter_list),
-            ),
-            label: Text(
-              l10n.t(filtered ? 'group.filter.active' : 'group.filter.title'),
-            ),
+        _buildResults(context, filtered: filtered, topInset: topInset + 52),
+        Positioned(
+          left: 16,
+          right: 16,
+          top: topInset + 10,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              InkWell(
+                onTap: _editFilters,
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: filtered ? social.primarySoft : social.surfaceCard,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Badge(
+                        isLabelVisible: filtered,
+                        smallSize: 7,
+                        child: Icon(
+                          Icons.tune_rounded,
+                          size: 16,
+                          color: filtered
+                              ? scheme.primary
+                              : scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        l10n.t(
+                          filtered
+                              ? 'group.filter.active'
+                              : 'group.filter.title',
+                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: filtered
+                                  ? scheme.primary
+                                  : scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        Expanded(child: _buildResults(context, filtered: filtered)),
       ],
     );
   }
 
-  Widget _buildResults(BuildContext context, {required bool filtered}) {
+  Widget _buildResults(
+    BuildContext context, {
+    required bool filtered,
+    required double topInset,
+  }) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     if (_loading) return const LoadingView();
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty && !_hasNext) {
@@ -765,109 +855,76 @@ class _GroupsListState extends ConsumerState<_GroupsList>
         onAction: widget.onEmptyAction,
       );
     }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (n) {
-          if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
-            unawaited(_loadMore());
-          }
-          return false;
-        },
-        child: ListView.separated(
-          physics: widget.mode == 'popular'
-              ? const AlwaysScrollableScrollPhysics()
-              : null,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          itemCount: _items.length + (_hasNext ? 1 : 0),
-          separatorBuilder: (_, _) =>
-              Divider(height: 1, color: theme.dividerColor),
-          itemBuilder: (_, i) {
-            if (i >= _items.length) {
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Center(
-                  child: _loadingMore
-                      ? const CircularProgressIndicator()
-                      : OutlinedButton(
-                          onPressed: _loadMore,
-                          child: Text(l10n.t('common.more')),
-                        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = widget.mode == 'popular'
+            ? 1
+            : (constraints.maxWidth / 340).floor().clamp(1, 3);
+        return RefreshIndicator(
+          onRefresh: _load,
+          edgeOffset: topInset,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                unawaited(_loadMore());
+              }
+              return false;
+            },
+            child: CustomScrollView(
+              physics: widget.mode == 'popular'
+                  ? const AlwaysScrollableScrollPhysics()
+                  : null,
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(16, topInset + 8, 16, 108),
+                  sliver: SliverGrid.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      mainAxisExtent: 204,
+                    ),
+                    itemCount: _items.length,
+                    itemBuilder: (context, i) {
+                      final g = _items[i];
+                      final privacyLabel = g.privacyDesc.isNotEmpty
+                          ? g.privacyDesc
+                          : switch (g.privacy) {
+                              'public' => l10n.t('group.privacy.public'),
+                              'private' => l10n.t('group.privacy.private'),
+                              'secret' => l10n.t('group.privacy.secret'),
+                              _ => g.privacy,
+                            };
+                      return _GroupSocialCard(
+                        group: g,
+                        privacyLabel: privacyLabel,
+                        onTap: () async {
+                          await context.push('/groups/${g.slug}');
+                          if (mounted && !_expired) await _load();
+                        },
+                      );
+                    },
+                  ),
                 ),
-              );
-            }
-            final g = _items[i];
-            return InkWell(
-              onTap: () async {
-                await context.push('/groups/${g.slug}');
-                if (mounted && !_expired) await _load();
-              },
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Row(
-                  children: [
-                    AppAvatar(url: g.avatarUrl, size: 48),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            g.name,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            g.description.isEmpty
-                                ? '@${g.slug}'
-                                : g.description,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                if (_hasNext)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Center(
+                        child: _loadingMore
+                            ? const CircularProgressIndicator()
+                            : OutlinedButton(
+                                onPressed: _loadMore,
+                                child: Text(l10n.t('common.more')),
+                              ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.people_outline,
-                              size: 14,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${g.memberCount}',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          g.privacyDesc.isEmpty ? g.privacy : g.privacyDesc,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1069,12 +1126,14 @@ class _InvitesListState extends ConsumerState<_InvitesList>
         ),
       );
     }
+    final topInset = MediaQuery.paddingOf(context).top;
     return RefreshIndicator(
+      edgeOffset: topInset,
       onRefresh: () async {
         if (!_responding) await _load();
       },
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: EdgeInsets.fromLTRB(16, topInset + 8, 16, 108),
         itemCount: _items.length + (_hasNext ? 1 : 0),
         itemBuilder: (_, i) {
           if (i >= _items.length) {
@@ -1086,7 +1145,10 @@ class _InvitesListState extends ConsumerState<_InvitesList>
                         dimension: 24,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : OutlinedButton(
+                    : FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          shape: const StadiumBorder(),
+                        ),
                         onPressed: _responding ? null : _loadMore,
                         child: Text(l10n.t('common.more')),
                       ),
@@ -1099,86 +1161,295 @@ class _InvitesListState extends ConsumerState<_InvitesList>
               ? (group['name'] as String? ?? l10n.t('group.group'))
               : l10n.t('group.group');
           final message = inv.message ?? '';
-          return Column(
-            children: [
-              if (i > 0) Divider(height: 1, color: theme.dividerColor),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AppAvatar(
-                      url: group != null
-                          ? group['avatar_url'] as String?
-                          : null,
-                      size: 44,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            groupName,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${l10n.t('group.invite_from')} @${inv.inviter.username}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (message.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              message,
-                              style: theme.textTheme.bodyMedium,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Column(
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SurfaceCard(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppAvatar(
+                    url: group != null ? group['avatar_url'] as String? : null,
+                    size: 44,
+                    name: groupName,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IconButton(
-                          tooltip: l10n.t('group.invite_response.accept'),
-                          visualDensity: VisualDensity.compact,
-                          icon: Icon(
-                            Icons.check,
-                            color: theme.colorScheme.primary,
+                        Text(
+                          groupName,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
                           ),
-                          onPressed: _responding || _loadingMore
-                              ? null
-                              : () => _respond(inv, true),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        IconButton(
-                          tooltip: l10n.t('group.invite_response.reject'),
-                          visualDensity: VisualDensity.compact,
-                          icon: Icon(
-                            Icons.close,
-                            color: theme.colorScheme.error,
+                        const SizedBox(height: 2),
+                        Text(
+                          '${l10n.t('group.invite_from')} @${inv.inviter.username}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
-                          onPressed: _responding || _loadingMore
-                              ? null
-                              : () => _respond(inv, false),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                        if (message.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            message,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              height: 1.55,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ],
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      IconButton(
+                        tooltip: l10n.t('group.invite_response.accept'),
+                        visualDensity: VisualDensity.compact,
+                        color: theme.colorScheme.primary,
+                        icon: const Icon(Icons.check_rounded),
+                        onPressed: _responding || _loadingMore
+                            ? null
+                            : () => _respond(inv, true),
+                      ),
+                      IconButton(
+                        tooltip: l10n.t('group.invite_response.reject'),
+                        visualDensity: VisualDensity.compact,
+                        color: theme.colorScheme.error,
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: _responding || _loadingMore
+                            ? null
+                            : () => _respond(inv, false),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _GroupSocialCard extends StatelessWidget {
+  const _GroupSocialCard({
+    required this.group,
+    required this.privacyLabel,
+    required this.onTap,
+  });
+
+  final V2Group group;
+  final String privacyLabel;
+  final VoidCallback onTap;
+
+  String _initialFor(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 'G';
+    return String.fromCharCode(trimmed.runes.first).toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final g = group;
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final initial = _initialFor(g.name);
+    final hasCover = g.coverUrl != null && g.coverUrl!.trim().isNotEmpty;
+    final hasAvatar = g.avatarUrl != null && g.avatarUrl!.trim().isNotEmpty;
+
+    return SurfaceCard(
+      radius: AppRadius.card,
+      padding: EdgeInsets.zero,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasCover)
+            Hero(
+              tag: 'group-cover-${g.groupId}',
+              child: SizedBox(
+                height: 68,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    AppMediaImage(
+                      url: g.coverUrl!,
+                      width: double.infinity,
+                      height: 68,
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    Positioned(
+                      right: 10,
+                      top: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: social.surfaceCard.withValues(alpha: 0.88),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                        child: Text(
+                          privacyLabel,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          );
-        },
+            ),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, hasCover ? 12 : 16, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: social.surfaceSubtle,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: hasAvatar
+                            ? AppMediaImage(
+                                url: g.avatarUrl!,
+                                width: 44,
+                                height: 44,
+                                borderRadius: BorderRadius.circular(14),
+                              )
+                            : Center(
+                                child: Text(
+                                  initial,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          g.name,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!hasCover) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: social.surfaceSubtle,
+                            borderRadius: BorderRadius.circular(AppRadius.pill),
+                          ),
+                          child: Text(
+                            privacyLabel,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    g.description.isEmpty ? '@${g.slug}' : g.description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 13,
+                      height: 1.55,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.people_outline_rounded,
+                        size: 14,
+                        color: social.inkTertiary,
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          '${g.memberCount} ${l10n.t('group.members')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: social.inkTertiary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: g.membership.isMember
+                              ? social.surfaceSubtle
+                              : social.primarySoft,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                        child: Text(
+                          g.membership.isMember
+                              ? '${l10n.t('group.joined_check')} ✓'
+                              : l10n.t('group.join'),
+                          style: TextStyle(
+                            color: g.membership.isMember
+                                ? scheme.onSurfaceVariant
+                                : scheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

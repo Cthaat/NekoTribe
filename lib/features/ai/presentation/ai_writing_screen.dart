@@ -9,6 +9,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
+import '../../../shared/widgets/glass/liquid_glass_bars.dart';
+import '../../../shared/widgets/glass/liquid_glass_surface.dart';
+import '../../../shared/widgets/glass/liquid_glass_tokens.dart';
+import '../../../shared/widgets/safe_back_button.dart';
+import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/pill_tag.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/utils/ai_conversation_link.dart';
 import '../../groups/domain/group_models.dart';
@@ -82,6 +90,8 @@ enum _WritingMode { draft, polish, tags, summary }
 class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
   final _input = TextEditingController();
   final _search = TextEditingController();
+  double _topControlsHeight = 0;
+  double _composerHeight = 148;
   String _titleDraft = '';
   _WritingMode _writingMode = _WritingMode.draft;
   String? _conversation;
@@ -981,16 +991,164 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
     }
   }
 
+  Widget _buildKnowledgeScopeOption(AiKnowledgeScope scope) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final selected = scope == _knowledgeScope;
+    final radius = BorderRadius.circular(AppRadius.pill);
+    final control = Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: _busy
+              ? null
+              : () {
+                  if (selected) return;
+                  _setKnowledgeScope(scope);
+                  if (scope == AiKnowledgeScope.group) {
+                    unawaited(_chooseKnowledgeGroup());
+                  }
+                },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            child: Text(
+              l10n.t('ai.knowledge.scope.${scope.name}'),
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                color: selected
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!selected) return control;
+    return LiquidGlassSurface(
+      preset: LiquidGlassPreset.pillIndicator,
+      borderRadius: radius,
+      blurEnabled: false,
+      child: control,
+    );
+  }
+
+  Widget _buildComposerOptions({
+    required bool showExplicitSkill,
+    required bool canGenerate,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final social = SocialColors.of(context);
+
+    String modeLabel(_WritingMode mode) =>
+        l10n.t('ai.writing.mode.${mode.name}');
+
+    return Wrap(
+      spacing: AppGap.sm,
+      runSpacing: AppGap.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (!widget.knowledge)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 164),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: social.surfaceSubtle,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Semantics(
+                  label: l10n.t('ai.writing.mode_label'),
+                  child: DropdownButton<_WritingMode>(
+                    key: const Key('ai-writing-mode'),
+                    value: _writingMode,
+                    isDense: true,
+                    isExpanded: false,
+                    menuWidth: 224,
+                    underline: const SizedBox.shrink(),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      decoration: TextDecoration.none,
+                    ),
+                    selectedItemBuilder: (_) => [
+                      for (final mode in _WritingMode.values)
+                        if (mode == _writingMode)
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 116),
+                            child: Text(
+                              modeLabel(mode),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )
+                        else
+                          const SizedBox.shrink(),
+                    ],
+                    items: [
+                      for (final mode in _WritingMode.values)
+                        DropdownMenuItem(
+                          value: mode,
+                          child: Text(modeLabel(mode)),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (mode) {
+                            if (!_active || _busy || mode == null) return;
+                            setState(() => _writingMode = mode);
+                          },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (showExplicitSkill)
+          FilterChip(
+            key: const Key('ai-writing-explicit-skill'),
+            shape: const StadiumBorder(),
+            side: BorderSide.none,
+            backgroundColor: social.surfaceSubtle,
+            selectedColor: social.primarySoft,
+            showCheckmark: false,
+            avatar: Icon(
+              _explicitSkill ? Icons.check_box : Icons.check_box_outline_blank,
+              size: 16,
+            ),
+            label: Text(
+              l10n.t('ai.availability.select_explicitly'),
+              overflow: TextOverflow.ellipsis,
+            ),
+            onSelected: !_busy && canGenerate
+                ? (selected) => setState(() => _explicitSkill = selected)
+                : null,
+            selected: _explicitSkill,
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final social = SocialColors.of(context);
+    final topInset = kToolbarHeight + MediaQuery.paddingOf(context).top;
     ref.listen(aiWritingApiProvider, (previous, next) {
       if (!identical(previous, next)) _expire();
     });
     if (_expired) {
       return Scaffold(
-        appBar: AppBar(),
+        extendBodyBehindAppBar: true,
+        backgroundColor: social.surfaceBase,
+        appBar: const LiquidGlassAppBar(leading: SafeBackButton()),
         body: Center(child: Text(l10n.t('visibility.sessionChanged'))),
       );
     }
@@ -1017,8 +1175,22 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
         !_savedReplyPending &&
         _messages.isNotEmpty &&
         _messages.last.role == 'user';
+    final citationStyle = TextButton.styleFrom(
+      backgroundColor: theme.colorScheme.secondaryContainer.withValues(
+        alpha: 0.7,
+      ),
+      foregroundColor: theme.colorScheme.onSecondaryContainer,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      minimumSize: Size.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: const StadiumBorder(),
+      textStyle: theme.textTheme.labelMedium,
+    );
     return Scaffold(
-      appBar: AppBar(
+      extendBodyBehindAppBar: true,
+      backgroundColor: social.surfaceBase,
+      appBar: LiquidGlassAppBar(
+        leading: const SafeBackButton(),
         title: Text(
           l10n.t(widget.knowledge ? 'ai.knowledge.title' : 'ai.writing.title'),
         ),
@@ -1070,437 +1242,627 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              if (widget.composerDraft != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(l10n.t('ai.writing.composer_source')),
-                ),
-              if (widget.initialDiscussion != null &&
-                  _conversation == null &&
-                  _input.text.isNotEmpty &&
-                  _writingMode == _WritingMode.summary)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(l10n.t('ai.writing.discussion_prefilled')),
-                ),
-              if (widget.knowledge)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Wrap(
-                    spacing: 12,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Semantics(
-                        label: l10n.t('ai.knowledge.scope.label'),
-                        child: SizedBox(
-                          width: 300,
-                          child: DropdownButton<AiKnowledgeScope>(
-                            isExpanded: true,
-                            value: _knowledgeScope,
-                            onChanged: _busy
-                                ? null
-                                : (scope) {
-                                    if (scope != null &&
-                                        scope != _knowledgeScope) {
-                                      _setKnowledgeScope(scope);
-                                      if (scope == AiKnowledgeScope.group) {
-                                        unawaited(_chooseKnowledgeGroup());
-                                      }
-                                    }
-                                  },
-                            items: [
-                              for (final scope in AiKnowledgeScope.values)
-                                DropdownMenuItem(
-                                  value: scope,
-                                  child: Text(
-                                    l10n.t('ai.knowledge.scope.${scope.name}'),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
+              _messages.isEmpty
+                  ? Padding(
+                      padding: EdgeInsets.only(
+                        top: topInset + _topControlsHeight,
+                        bottom: _composerHeight,
                       ),
-                      if (_knowledgeScope == AiKnowledgeScope.group)
-                        OutlinedButton(
-                          onPressed: _busy ? null : _chooseKnowledgeGroup,
-                          child: Text(
-                            _scopeGroupName ??
-                                (_scopeGroupId == null
-                                    ? l10n.t('ai.knowledge.scope.choose_group')
-                                    : '#$_scopeGroupId'),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  l10n.t(
-                    widget.knowledge
-                        ? 'ai.knowledge.description'
-                        : 'ai.writing.description',
-                  ),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Semantics(
-                      liveRegion: true,
-                      child: Text(l10n.t('ai.availability.$availabilityState')),
-                    ),
-                    TextButton(
-                      key: const Key('ai-availability-refresh'),
-                      onPressed: _busy || availability.isLoading
-                          ? null
-                          : () {
-                              setState(() => _explicitSkill = false);
-                              ref.invalidate(aiAvailabilityProvider);
-                            },
-                      child: Text(l10n.t('ai.availability.refresh')),
-                    ),
-                  ],
-                ),
-              ),
-              if (skill != null || modelConfigRevision != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: AiSkillMetadata(
-                    skill: skill,
-                    modelConfigRevision: modelConfigRevision,
-                  ),
-                ),
-              if (skill?.explicitSelection == true && skill?.enabled == true)
-                CheckboxListTile(
-                  key: const Key('ai-writing-explicit-skill'),
-                  title: Text(l10n.t('ai.availability.select_explicitly')),
-                  value: _explicitSkill,
-                  onChanged: !_busy && canGenerate
-                      ? (value) =>
-                            setState(() => _explicitSkill = value == true)
-                      : null,
-                ),
-              Expanded(
-                child: _messages.isEmpty
-                    ? Center(
-                        child: Text(
-                          l10n.t(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final emptyMessage = l10n.t(
                             widget.knowledge
                                 ? 'ai.knowledge.empty'
                                 : 'ai.writing.empty',
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        reverse: true,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount:
-                            _messages.length + (_hasOlderMessages ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == _messages.length) {
-                            return TextButton(
-                              onPressed: _busy || _savedReplyPending
-                                  ? null
-                                  : _loadOlderMessages,
-                              child: Text(l10n.t('chat.dm.load_older')),
-                            );
-                          }
-                          final message =
-                              _messages[_messages.length - 1 - index];
-                          final isUser = message.role == 'user';
-                          return Align(
-                            alignment: isUser
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Card(
-                              color: isUser
-                                  ? theme.colorScheme.primaryContainer
-                                  : theme.colorScheme.surfaceContainerHighest,
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SelectableText(message.content),
-                                    if (message.role == 'assistant' &&
-                                        message.content.trim().isNotEmpty)
-                                      Wrap(
-                                        spacing: 6,
-                                        crossAxisAlignment:
-                                            WrapCrossAlignment.center,
-                                        children: [
-                                          TextButton.icon(
-                                            onPressed: () =>
-                                                _copyReply(message.content),
-                                            icon: const Icon(
-                                              Icons.copy,
-                                              size: 16,
-                                            ),
-                                            label: Text(
-                                              l10n.t('ai.writing.copy_reply'),
-                                            ),
-                                          ),
-                                          if (!widget.knowledge &&
-                                              message.content.length <= 280)
-                                            OutlinedButton(
-                                              onPressed: () =>
-                                                  _useAsPost(message.content),
-                                              child: Text(
-                                                l10n.t(
-                                                  widget.composerDraft == null
-                                                      ? 'ai.writing.use_as_post'
-                                                      : 'ai.writing.apply_to_composer',
-                                                ),
-                                              ),
-                                            ),
-                                          if (!widget.knowledge &&
-                                              message.content.length > 280)
-                                            Text(
-                                              l10n.t(
-                                                'ai.writing.post_too_long',
-                                              ),
-                                              style: theme.textTheme.bodySmall,
-                                            ),
-                                        ],
-                                      ),
-                                    if (message.modelVersion
-                                        case final version?)
-                                      Text(
-                                        '${l10n.t('ai.modelVersion')} · $version',
-                                        style: theme.textTheme.bodySmall,
-                                      ),
-                                    if (message.configRevision
-                                        case final revision?)
-                                      Text(
-                                        l10n
-                                            .t('ai.replyConfigRevision')
-                                            .replaceAll(
-                                              '{revision}',
-                                              '$revision',
-                                            ),
-                                        style: theme.textTheme.bodySmall,
-                                      ),
-                                    if (message.citations.isNotEmpty) ...[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        l10n.t('ai.knowledge.sources'),
-                                        style: theme.textTheme.labelSmall,
-                                      ),
-                                      for (final source in message.citations)
-                                        if (source.kind == 'terms')
-                                          _termsCitation(source, l10n)
-                                        else if (source.kind == 'group_post' ||
-                                            source.kind == 'group_comment')
-                                          TextButton(
-                                            onPressed: _busy
-                                                ? null
-                                                : () => _openGroupCitation(
-                                                    source,
-                                                  ),
-                                            child: Text(
-                                              '${l10n.t('ai.knowledge.${source.kind}')} #${source.id}',
-                                            ),
-                                          )
-                                        else if (source.kind == 'post' ||
-                                            source.postId != null)
-                                          TextButton(
-                                            onPressed: () => context.push(
-                                              '/posts/${source.postId ?? source.id}${source.kind == 'comment' ? '?comment=${source.id}' : ''}',
-                                            ),
-                                            child: Text(
-                                              '${l10n.t(source.kind == 'post' ? 'ai.knowledge.post' : 'ai.knowledge.comment')} #${source.id}',
-                                            ),
-                                          )
-                                        else
-                                          Text(
-                                            '${l10n.t('ai.knowledge.comment')} #${source.id}',
-                                          ),
-                                    ],
-                                  ],
+                          );
+                          if (constraints.maxHeight < 180) {
+                            return Center(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  emptyMessage,
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
                               ),
+                            );
+                          }
+                          return Center(
+                            child: SingleChildScrollView(
+                              child: EmptyView(message: emptyMessage),
                             ),
                           );
                         },
                       ),
-              ),
-              if (_notice != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    _notice == 'quota'
-                        ? aiQuotaNotice(l10n, _quotaRetry)
-                        : l10n.t(_notice!),
-                    style: TextStyle(
-                      color:
-                          _notice == 'ai.knowledge.insufficient' ||
-                              _notice == 'ai.writing.stopped'
-                          ? theme.colorScheme.onSurfaceVariant
-                          : theme.colorScheme.error,
-                    ),
-                  ),
-                ),
-              if (widget.knowledge)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: TextField(
-                    key: const Key('ai-knowledge-search'),
-                    controller: _search,
-                    enabled: !_busy,
-                    decoration: InputDecoration(
-                      labelText: l10n.t('ai.knowledge.search_label'),
-                      hintText: l10n.t('ai.knowledge.search_placeholder'),
-                      helperText: l10n.t('ai.knowledge.search_hint'),
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              if (_needsRefresh || (widget.knowledge && _conversation != null))
-                TextButton(
-                  key: const Key('ai-writing-refresh'),
-                  onPressed: _busy ? null : () => _reconcile(),
-                  child: Text(
-                    l10n.t(
-                      widget.knowledge
-                          ? 'ai.knowledge.recheck_sources'
-                          : 'ai.writing.refresh',
-                    ),
-                  ),
-                ),
-              if (canRetry)
-                TextButton(
-                  key: const Key('ai-writing-retry'),
-                  onPressed: _busy || !canGenerate
-                      ? null
-                      : () => _reconcile(generate: true),
-                  child: Text(l10n.t('ai.writing.retry')),
-                ),
-              if (_generation != null)
-                TextButton(
-                  key: const Key('ai-writing-stop'),
-                  onPressed: () => _generation?.cancel(),
-                  child: Text(l10n.t('ai.writing.stop')),
-                ),
-              if (_generation != null && _preview.isNotEmpty)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 160),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(_preview),
-                  ),
-                ),
-              if (!widget.knowledge)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      Text(l10n.t('ai.writing.mode_label')),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButton<_WritingMode>(
-                          key: const Key('ai-writing-mode'),
-                          value: _writingMode,
-                          isExpanded: true,
-                          items: _WritingMode.values
-                              .map(
-                                (mode) => DropdownMenuItem(
-                                  value: mode,
-                                  child: Text(
-                                    l10n.t('ai.writing.mode.${mode.name}'),
-                                    overflow: TextOverflow.ellipsis,
+                    )
+                  : ListView.builder(
+                      reverse: true,
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        topInset + _topControlsHeight,
+                        16,
+                        _composerHeight + 8,
+                      ),
+                      itemCount: _messages.length + (_hasOlderMessages ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _messages.length) {
+                          return TextButton(
+                            onPressed: _busy || _savedReplyPending
+                                ? null
+                                : _loadOlderMessages,
+                            child: Text(l10n.t('chat.dm.load_older')),
+                          );
+                        }
+                        final message = _messages[_messages.length - 1 - index];
+                        final isUser = message.role == 'user';
+                        return Align(
+                          alignment: isUser
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 560),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isUser
+                                    ? theme.colorScheme.primaryContainer
+                                    : theme.colorScheme.surfaceContainerLow,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(
+                                    AppRadius.tile,
+                                  ),
+                                  topRight: const Radius.circular(
+                                    AppRadius.tile,
+                                  ),
+                                  bottomLeft: Radius.circular(
+                                    isUser ? AppRadius.tile : 6,
+                                  ),
+                                  bottomRight: Radius.circular(
+                                    isUser ? 6 : AppRadius.tile,
                                   ),
                                 ),
-                              )
-                              .toList(),
-                          onChanged: _busy
-                              ? null
-                              : (mode) {
-                                  if (mode != null) {
-                                    setState(() => _writingMode = mode);
-                                  }
-                                },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _input,
-                  builder: (context, input, _) {
-                    final bytes = utf8
-                        .encode(_outgoingContent(input.text, l10n))
-                        .length;
-                    final tooLong = bytes > _messageMaxBytes;
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            key: const Key('ai-writing-input'),
-                            controller: _input,
-                            enabled: !_busy,
-                            minLines: 1,
-                            maxLines: 5,
-                            decoration: InputDecoration(
-                              hintText: l10n.t(
-                                widget.knowledge
-                                    ? 'ai.knowledge.placeholder'
-                                    : _writingMode == _WritingMode.draft
-                                    ? 'ai.writing.placeholder'
-                                    : 'ai.writing.source_placeholder',
                               ),
-                              border: const OutlineInputBorder(),
-                              counterText:
-                                  '$bytes / $_messageMaxBytes ${l10n.t('ai.writing.bytes')}',
-                              counterStyle: tooLong
-                                  ? TextStyle(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.error,
-                                    )
-                                  : null,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SelectableText(
+                                    message.content,
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      height: 1.6,
+                                    ),
+                                  ),
+                                  if (message.role == 'assistant' &&
+                                      message.content.trim().isNotEmpty) ...[
+                                    const SizedBox(height: AppGap.sm),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        FilledButton.tonal(
+                                          style: FilledButton.styleFrom(
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                          onPressed: () =>
+                                              _copyReply(message.content),
+                                          child: Text(
+                                            l10n.t('ai.writing.copy_reply'),
+                                          ),
+                                        ),
+                                        if (!widget.knowledge &&
+                                            message.content.length <= 280)
+                                          FilledButton.tonal(
+                                            style: FilledButton.styleFrom(
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                            ),
+                                            onPressed: () =>
+                                                _useAsPost(message.content),
+                                            child: Text(
+                                              l10n.t(
+                                                widget.composerDraft == null
+                                                    ? 'ai.writing.use_as_post'
+                                                    : 'ai.writing.apply_to_composer',
+                                              ),
+                                            ),
+                                          ),
+                                        if (!widget.knowledge &&
+                                            message.content.length > 280)
+                                          Text(
+                                            l10n.t('ai.writing.post_too_long'),
+                                            style: theme.textTheme.bodySmall,
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (message.modelVersion case final version?)
+                                    Text(
+                                      '${l10n.t('ai.modelVersion')} · $version',
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                  if (message.configRevision
+                                      case final revision?)
+                                    Text(
+                                      l10n
+                                          .t('ai.replyConfigRevision')
+                                          .replaceAll(
+                                            '{revision}',
+                                            '$revision',
+                                          ),
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                  if (message.citations.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      l10n.t('ai.knowledge.sources'),
+                                      style: theme.textTheme.labelSmall,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        for (final source in message.citations)
+                                          if (source.kind == 'terms')
+                                            _termsCitation(source, l10n)
+                                          else if (source.kind ==
+                                                  'group_post' ||
+                                              source.kind == 'group_comment')
+                                            TextButton(
+                                              style: citationStyle,
+                                              onPressed: _busy
+                                                  ? null
+                                                  : () => _openGroupCitation(
+                                                      source,
+                                                    ),
+                                              child: Text(
+                                                '${l10n.t('ai.knowledge.${source.kind}')} #${source.id}',
+                                              ),
+                                            )
+                                          else if (source.kind == 'post' ||
+                                              source.postId != null)
+                                            TextButton(
+                                              style: citationStyle,
+                                              onPressed: () => context.push(
+                                                '/posts/${source.postId ?? source.id}${source.kind == 'comment' ? '?comment=${source.id}' : ''}',
+                                              ),
+                                              child: Text(
+                                                '${l10n.t(source.kind == 'post' ? 'ai.knowledge.post' : 'ai.knowledge.comment')} #${source.id}',
+                                              ),
+                                            )
+                                          else
+                                            PillTag(
+                                              label:
+                                                  '${l10n.t('ai.knowledge.comment')} #${source.id}',
+                                            ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+              Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: EdgeInsets.only(top: topInset),
+                  child: measureGlassOverlay(
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.composerDraft != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(l10n.t('ai.writing.composer_source')),
+                          ),
+                        if (widget.initialDiscussion != null &&
+                            _conversation == null &&
+                            _input.text.isNotEmpty &&
+                            _writingMode == _WritingMode.summary)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              l10n.t('ai.writing.discussion_prefilled'),
+                            ),
+                          ),
+                        if (widget.knowledge)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                            child: LiquidGlassSurface(
+                              preset: LiquidGlassPreset.stickyHeader,
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.tile,
+                              ),
+                              padding: const EdgeInsets.all(8),
+                              child: Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Semantics(
+                                    label: l10n.t('ai.knowledge.scope.label'),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: social.surfaceSubtle,
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadius.pill,
+                                        ),
+                                      ),
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            for (final scope
+                                                in AiKnowledgeScope.values)
+                                              _buildKnowledgeScopeOption(scope),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (_knowledgeScope == AiKnowledgeScope.group)
+                                    FilledButton.tonal(
+                                      onPressed: _busy
+                                          ? null
+                                          : _chooseKnowledgeGroup,
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: social.primarySoft,
+                                        foregroundColor:
+                                            theme.colorScheme.primary,
+                                        shape: const StadiumBorder(),
+                                      ),
+                                      child: Text(
+                                        _scopeGroupName ??
+                                            (_scopeGroupId == null
+                                                ? l10n.t(
+                                                    'ai.knowledge.scope.choose_group',
+                                                  )
+                                                : '#$_scopeGroupId'),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: SurfaceCard(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.t(
+                                      widget.knowledge
+                                          ? 'ai.knowledge.description'
+                                          : 'ai.writing.description',
+                                    ),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppGap.sm),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      Semantics(
+                                        liveRegion: true,
+                                        child: Text(
+                                          l10n.t(
+                                            'ai.availability.$availabilityState',
+                                          ),
+                                        ),
+                                      ),
+                                      TextButton(
+                                        key: const Key(
+                                          'ai-availability-refresh',
+                                        ),
+                                        style: TextButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          minimumSize: Size.zero,
+                                        ),
+                                        onPressed:
+                                            _busy || availability.isLoading
+                                            ? null
+                                            : () {
+                                                setState(
+                                                  () => _explicitSkill = false,
+                                                );
+                                                ref.invalidate(
+                                                  aiAvailabilityProvider,
+                                                );
+                                              },
+                                        child: Text(
+                                          l10n.t('ai.availability.refresh'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (skill != null ||
+                                      modelConfigRevision != null) ...[
+                                    const SizedBox(height: AppGap.sm),
+                                    AiSkillMetadata(
+                                      skill: skill,
+                                      modelConfigRevision: modelConfigRevision,
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        IconButton.filled(
-                          key: const Key('ai-writing-send'),
-                          onPressed:
-                              _busy ||
-                                  _needsRefresh ||
-                                  !_scopeReady ||
-                                  !canGenerate ||
-                                  tooLong
-                              ? null
-                              : _send,
-                          tooltip: l10n.t('ai.writing.send'),
-                          icon: _busy
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                      ],
+                    ),
+                    (height) {
+                      if (_topControlsHeight != height) {
+                        setState(() => _topControlsHeight = height);
+                      }
+                    },
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: measureGlassOverlay(
+                  SafeArea(
+                    top: false,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_notice != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              _notice == 'quota'
+                                  ? aiQuotaNotice(l10n, _quotaRetry)
+                                  : l10n.t(_notice!),
+                              style: TextStyle(
+                                color:
+                                    _notice == 'ai.knowledge.insufficient' ||
+                                        _notice == 'ai.writing.stopped'
+                                    ? theme.colorScheme.onSurfaceVariant
+                                    : theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        if (_needsRefresh ||
+                            (widget.knowledge && _conversation != null) ||
+                            canRetry ||
+                            _generation != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: Wrap(
+                              spacing: 8,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                if (_needsRefresh ||
+                                    (widget.knowledge && _conversation != null))
+                                  TextButton(
+                                    key: const Key('ai-writing-refresh'),
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _reconcile(),
+                                    child: Text(
+                                      l10n.t(
+                                        widget.knowledge
+                                            ? 'ai.knowledge.recheck_sources'
+                                            : 'ai.writing.refresh',
+                                      ),
+                                    ),
                                   ),
-                                )
-                              : const Icon(Icons.send),
+                                if (canRetry)
+                                  TextButton(
+                                    key: const Key('ai-writing-retry'),
+                                    onPressed: _busy || !canGenerate
+                                        ? null
+                                        : () => _reconcile(generate: true),
+                                    child: Text(l10n.t('ai.writing.retry')),
+                                  ),
+                                if (_generation != null)
+                                  TextButton(
+                                    key: const Key('ai-writing-stop'),
+                                    onPressed: () => _generation?.cancel(),
+                                    child: Text(l10n.t('ai.writing.stop')),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        if (_generation != null && _preview.isNotEmpty)
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 160),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Text(_preview),
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+                          child: LiquidGlassSurface(
+                            preset: LiquidGlassPreset.floatingIsland,
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.canvas,
+                            ),
+                            padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (widget.knowledge) ...[
+                                  TextField(
+                                    key: const Key('ai-knowledge-search'),
+                                    controller: _search,
+                                    enabled: !_busy,
+                                    decoration: InputDecoration(
+                                      labelText: l10n.t(
+                                        'ai.knowledge.search_label',
+                                      ),
+                                      hintText: l10n.t(
+                                        'ai.knowledge.search_placeholder',
+                                      ),
+                                      helperText: l10n.t(
+                                        'ai.knowledge.search_hint',
+                                      ),
+                                      isDense: true,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                      filled: true,
+                                      fillColor: social.surfaceSubtle,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                ],
+                                ValueListenableBuilder<TextEditingValue>(
+                                  valueListenable: _input,
+                                  builder: (context, input, _) {
+                                    final bytes = utf8
+                                        .encode(
+                                          _outgoingContent(input.text, l10n),
+                                        )
+                                        .length;
+                                    final tooLong = bytes > _messageMaxBytes;
+                                    return Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            key: const Key('ai-writing-input'),
+                                            controller: _input,
+                                            enabled: !_busy,
+                                            minLines: 1,
+                                            maxLines: 5,
+                                            decoration: InputDecoration(
+                                              filled: false,
+                                              border: InputBorder.none,
+                                              enabledBorder: InputBorder.none,
+                                              focusedBorder: InputBorder.none,
+                                              disabledBorder: InputBorder.none,
+                                              hintText: l10n.t(
+                                                widget.knowledge
+                                                    ? 'ai.knowledge.placeholder'
+                                                    : _writingMode ==
+                                                          _WritingMode.draft
+                                                    ? 'ai.writing.placeholder'
+                                                    : 'ai.writing.source_placeholder',
+                                              ),
+                                              counterText:
+                                                  '$bytes / $_messageMaxBytes ${l10n.t('ai.writing.bytes')}',
+                                              counterStyle: tooLong
+                                                  ? TextStyle(
+                                                      color: Theme.of(
+                                                        context,
+                                                      ).colorScheme.error,
+                                                    )
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton.filled(
+                                          key: const Key('ai-writing-send'),
+                                          onPressed:
+                                              _busy ||
+                                                  _needsRefresh ||
+                                                  !_scopeReady ||
+                                                  !canGenerate ||
+                                                  input.text.trim().isEmpty ||
+                                                  tooLong
+                                              ? null
+                                              : _send,
+                                          tooltip: l10n.t('ai.writing.send'),
+                                          icon: _busy
+                                              ? const SizedBox(
+                                                  width: 20,
+                                                  height: 20,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : const Icon(
+                                                  Icons.send_rounded,
+                                                  size: 19,
+                                                ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                if (!widget.knowledge ||
+                                    (skill?.explicitSelection == true &&
+                                        skill?.enabled == true)) ...[
+                                  const SizedBox(height: AppGap.sm),
+                                  _buildComposerOptions(
+                                    showExplicitSkill:
+                                        skill?.explicitSelection == true &&
+                                        skill?.enabled == true,
+                                    canGenerate: canGenerate,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
                       ],
-                    );
+                    ),
+                  ),
+                  (height) {
+                    if (_composerHeight != height) {
+                      setState(() => _composerHeight = height);
+                    }
                   },
                 ),
               ),
@@ -1512,9 +1874,21 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
   }
 
   Widget _termsCitation(AiKnowledgeCitation source, AppLocalizations l10n) {
+    final theme = Theme.of(context);
     final title = '${l10n.t('ai.knowledge.terms')} #${source.id}';
-    if (source.version == null) return Text(title);
+    if (source.version == null) return PillTag(label: title);
     return TextButton(
+      style: TextButton.styleFrom(
+        backgroundColor: theme.colorScheme.secondaryContainer.withValues(
+          alpha: 0.7,
+        ),
+        foregroundColor: theme.colorScheme.onSecondaryContainer,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: const StadiumBorder(),
+        textStyle: theme.textTheme.labelMedium,
+      ),
       onPressed: () => _openTerms(source, title),
       child: Text(title),
     );
@@ -1611,6 +1985,9 @@ class _HistoryDialogState extends State<_HistoryDialog> {
                       itemBuilder: (context, index) {
                         final item = _items[index];
                         return ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
                           title: Text(
                             item.title?.isNotEmpty == true
                                 ? item.title!

@@ -15,6 +15,9 @@ class StorageKeys {
   // Shared preferences (UI)
   static const String themeMode = 'nekotribe.theme_mode';
   static const String themeSeedColor = 'nekotribe.theme_seed_color';
+  static const String fontSize = 'nekotribe.font_size';
+  static const String compactMode = 'nekotribe.compact_mode';
+  static const String liquidGlassIntensity = 'nekotribe.liquid_glass_intensity';
   static const String locale = 'nekotribe.locale';
   static const String draftPost = 'nekotribe.draft_post';
 

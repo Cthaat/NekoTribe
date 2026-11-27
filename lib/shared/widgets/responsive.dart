@@ -14,11 +14,11 @@ class AppBreakpoints {
   static const double expanded = 1100;
 
   /// Maximum width for primary content columns (feed, profile, settings).
-  static const double contentMaxWidth = 680;
+  static const double contentMaxWidth = 640;
 
   /// Wider content cap for screens that benefit from extra room (search,
   /// moderation tables).
-  static const double wideContentMaxWidth = 960;
+  static const double wideContentMaxWidth = 920;
 
   static bool isCompact(BuildContext context) =>
       MediaQuery.sizeOf(context).width < compact;

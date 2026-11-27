@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/motion/skeleton.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/user_models.dart';
 
@@ -135,7 +138,15 @@ class _UserDiscoveryResultsState extends ConsumerState<UserDiscoveryResults> {
     });
     ref.listen(usersRepositoryProvider, (_, _) => _restart());
     final l10n = AppLocalizations.of(context);
-    if (_changing || (_loading && _users.isEmpty)) return const LoadingView();
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    if (_changing || (_loading && _users.isEmpty)) {
+      return ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        children: [for (var i = 0; i < 4; i++) const ListTileSkeleton()],
+      );
+    }
     if (_error != null && _users.isEmpty) {
       return ErrorView(error: _error!, onRetry: _load);
     }
@@ -149,43 +160,123 @@ class _UserDiscoveryResultsState extends ConsumerState<UserDiscoveryResults> {
       );
     }
     return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 108),
       children: [
         if (widget.query.isEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.fromLTRB(4, 6, 4, 10),
             child: Text(
               l10n.t('search.recommended_users'),
-              style: Theme.of(context).textTheme.titleMedium,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        for (final user in _users)
-          ListTile(
-            key: ValueKey(user.userId),
-            leading: AppAvatar(url: user.avatarUrl, size: 36),
-            title: Text(
-              user.displayName.isEmpty ? user.username : user.displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text(
-              '@${user.username}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+        for (var i = 0; i < _users.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          SurfaceCard(
+            key: ValueKey(_users[i].userId),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             onTap: () {
+              final user = _users[i];
               if (_canRead && _users.contains(user)) {
                 context.push('/user/${user.userId}/profile');
               }
             },
+            child: Row(
+              children: [
+                AppAvatar(
+                  url: _users[i].avatarUrl,
+                  size: 44,
+                  name: _users[i].displayName.isEmpty
+                      ? _users[i].username
+                      : _users[i].displayName,
+                  seed: _users[i].userId,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _users[i].displayName.isEmpty
+                                  ? _users[i].username
+                                  : _users[i].displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (_users[i].verified) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.verified_rounded,
+                              size: 15,
+                              color: scheme.primary,
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '@${_users[i].username}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (_users[i].bio.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _users[i].bio.trim(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: social.surfaceSubtle,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
+        ],
         if (_error != null)
           ErrorView(error: _error!, onRetry: () => _load(more: true))
         else if (_hasNext)
-          Center(
-            child: OutlinedButton(
-              onPressed: _loading ? null : () => _load(more: true),
-              child: Text(
-                l10n.t(_loading ? 'common.loading' : 'search.load_more_users'),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: FilledButton.tonal(
+                style: FilledButton.styleFrom(shape: const StadiumBorder()),
+                onPressed: _loading ? null : () => _load(more: true),
+                child: Text(
+                  l10n.t(_loading ? 'common.loading' : 'search.load_more_users'),
+                ),
               ),
             ),
           ),

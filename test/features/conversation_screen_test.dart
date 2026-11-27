@@ -165,6 +165,8 @@ void main() {
     final media = _DirectMediaApi();
     await _pumpConversation(tester, api, media: media);
     await tester.pumpAndSettle();
+    final send = find.byKey(const Key('dm-send-button'));
+    expect(tester.widget<IconButton>(send).onPressed, isNull);
     await tester.tap(find.byKey(const Key('dm-reply-6')));
     await tester.pump();
     await tester.tap(find.byKey(const Key('dm-attach-button')));
@@ -172,7 +174,8 @@ void main() {
     expect(find.text('draft.png'), findsOneWidget);
     expect(media.calls, isEmpty);
     expect(api.sentContent, isNull);
-    await tester.tap(find.byKey(const Key('dm-send-button')));
+    expect(tester.widget<IconButton>(send).onPressed, isNotNull);
+    await tester.tap(send);
     await tester.pumpAndSettle();
     expect(media.calls, [('image', 'chat')]);
     expect(api.sentContent, '');
@@ -267,8 +270,11 @@ void main() {
     await tester.pumpAndSettle();
     final composer = find.byKey(const Key('dm-composer-field'));
     await tester.enterText(composer, 'first draft');
-    await tester.tap(find.byKey(const Key('dm-send-button')));
     await tester.pump();
+    final send = find.byKey(const Key('dm-send-button'));
+    await tester.tap(send);
+    await tester.pump();
+    expect(tester.widget<IconButton>(send).onPressed, isNull);
     await tester.enterText(composer, 'next draft');
     receipt.complete();
     await tester.pumpAndSettle();
@@ -531,6 +537,7 @@ void main() {
     expect(find.text('hello edge'), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('dm-composer-field')), 'ping');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('dm-send-button')));
     await tester.pumpAndSettle();
 

@@ -7,8 +7,11 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/theme/theme_color_picker.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/settings_group.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/users_repository.dart';
 import '../domain/user_models.dart';
@@ -174,7 +177,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     if (_expired) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.t('common.settings'))),
+        appBar: AppBar(
+          leading: const SafeBackButton(fallbackRoute: '/me'),
+          title: Text(l10n.t('common.settings')),
+        ),
         body: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -199,8 +205,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     final themePreference = ref.watch(themeProvider);
     final locale = ref.watch(localeProvider);
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
+        leading: const SafeBackButton(fallbackRoute: '/me'),
         title: Text(l10n.t('common.settings')),
         bottom: _saving
             ? const PreferredSize(
@@ -228,473 +236,379 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                   children: [
-                    _SectionHeader(
+                    SettingsGroup(
                       title: l10n.t('settings.section.appearance'),
-                    ),
-                    _Group(
                       children: [
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.palette_outlined,
-                          label: l10n.t('settings.appearance.workspace'),
+                          title: Text(l10n.t('settings.appearance.workspace')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/settings/appearance'),
                         ),
-                        _Divider(),
-                        _DropdownRow(
+                        SettingsTile(
                           icon: Icons.brightness_6,
-                          label: l10n.t('theme.mode'),
-                          value: themePreference.mode,
-                          items: [
-                            DropdownMenuItem(
-                              value: ThemeMode.system,
-                              child: Text(l10n.t('settings.option.system')),
-                            ),
-                            DropdownMenuItem(
-                              value: ThemeMode.light,
-                              child: Text(l10n.t('settings.option.light')),
-                            ),
-                            DropdownMenuItem(
-                              value: ThemeMode.dark,
-                              child: Text(l10n.t('settings.option.dark')),
-                            ),
-                          ],
-                          onChanged: (v) {
-                            if (v != null) {
-                              ref.read(themeProvider.notifier).setMode(v);
-                            }
-                          },
-                        ),
-                        _Divider(),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                          child: ThemeColorPicker(
-                            selected: themePreference.seedColor,
-                            onSelected: (color) => ref
-                                .read(themeProvider.notifier)
-                                .setSeedColor(color),
+                          title: Text(l10n.t('theme.mode')),
+                          trailing: DropdownButton<ThemeMode>(
+                            value: themePreference.mode,
+                            underline: const SizedBox.shrink(),
+                            isDense: true,
+                            items: [
+                              DropdownMenuItem(
+                                value: ThemeMode.system,
+                                child: Text(l10n.t('settings.option.system')),
+                              ),
+                              DropdownMenuItem(
+                                value: ThemeMode.light,
+                                child: Text(l10n.t('settings.option.light')),
+                              ),
+                              DropdownMenuItem(
+                                value: ThemeMode.dark,
+                                child: Text(l10n.t('settings.option.dark')),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) {
+                                ref.read(themeProvider.notifier).setMode(v);
+                              }
+                            },
                           ),
                         ),
-                        _Divider(),
-                        _DropdownRow(
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppGap.lg,
+                            vertical: AppGap.md,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.palette_outlined,
+                                    size: 20,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: AppGap.md),
+                                  Expanded(
+                                    child: Text(
+                                      l10n.t('theme.color'),
+                                      style: ListTileTheme.of(
+                                        context,
+                                      ).titleTextStyle,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppGap.sm),
+                              ThemeColorPicker(
+                                selected: themePreference.seedColor,
+                                onSelected: (color) => ref
+                                    .read(themeProvider.notifier)
+                                    .setSeedColor(color),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SettingsTile(
                           icon: Icons.language,
-                          label: l10n.t('common.language'),
-                          value: locale?.languageCode ?? 'system',
-                          items: [
-                            DropdownMenuItem(
-                              value: 'system',
-                              child: Text(l10n.t('settings.option.system')),
-                            ),
-                            DropdownMenuItem(
-                              value: 'zh',
-                              child: Text(l10n.t('settings.option.zh')),
-                            ),
-                            DropdownMenuItem(
-                              value: 'en',
-                              child: Text(l10n.t('settings.option.en')),
-                            ),
-                          ],
-                          onChanged: (v) {
-                            if (v == 'system') {
-                              ref.read(localeProvider.notifier).set(null);
-                            } else if (v != null) {
-                              ref.read(localeProvider.notifier).set(Locale(v));
-                            }
-                          },
+                          title: Text(l10n.t('common.language')),
+                          trailing: DropdownButton<String>(
+                            value: locale?.languageCode ?? 'system',
+                            underline: const SizedBox.shrink(),
+                            isDense: true,
+                            items: [
+                              DropdownMenuItem(
+                                value: 'system',
+                                child: Text(l10n.t('settings.option.system')),
+                              ),
+                              DropdownMenuItem(
+                                value: 'zh',
+                                child: Text(l10n.t('settings.option.zh')),
+                              ),
+                              DropdownMenuItem(
+                                value: 'en',
+                                child: Text(l10n.t('settings.option.en')),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v == 'system') {
+                                ref.read(localeProvider.notifier).set(null);
+                              } else if (v != null) {
+                                ref.read(localeProvider.notifier).set(Locale(v));
+                              }
+                            },
+                          ),
                         ),
                       ],
                     ),
-                    _SectionHeader(title: l10n.t('settings.section.account')),
-                    _Group(
+                    SettingsGroup(
+                      title: l10n.t('settings.section.account'),
                       children: [
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.edit_outlined,
-                          label: l10n.t('settings.account.edit_profile'),
+                          title: Text(l10n.t('settings.account.edit_profile')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/account/profile'),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.article_outlined,
-                          label: l10n.t('settings.account.my_posts'),
+                          title: Text(l10n.t('settings.account.my_posts')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/account/posts'),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.favorite_outline,
-                          label: l10n.t('settings.account.liked_posts'),
+                          title: Text(l10n.t('settings.account.liked_posts')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/account/likes'),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.bookmark_border,
-                          label: l10n.t('settings.account.bookmarks'),
+                          title: Text(l10n.t('settings.account.bookmarks')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/account/bookmarks'),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.workspace_premium_outlined,
-                          label: l10n.t('settings.account.pro'),
+                          title: Text(l10n.t('settings.account.pro')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/settings/pro'),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.receipt_long_outlined,
-                          label: l10n.t('settings.account.billing'),
+                          title: Text(l10n.t('settings.account.billing')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/settings/billing'),
                         ),
                       ],
                     ),
-                    _SectionHeader(title: l10n.t('settings.section.privacy')),
-                    _Group(
+                    SettingsGroup(
+                      title: l10n.t('settings.section.ai'),
                       children: [
-                        _NavRow(
-                          icon: Icons.people_outline,
-                          label: l10n.t('visibility.title'),
-                          onTap: () => context.push('/settings/relationships'),
-                        ),
-                        _Divider(),
-                        _SwitchRow(
-                          icon: Icons.notifications_active_outlined,
-                          label: l10n.t('settings.privacy.login_alerts'),
-                          value: _settings?.loginAlerts ?? false,
-                          onChanged: _saving
-                              ? null
-                              : (v) => patch({'login_alerts': v}),
-                        ),
-                        _Divider(),
-                        _SwitchRow(
-                          icon: Icons.visibility_outlined,
-                          label: l10n.t('settings.privacy.show_online_status'),
-                          value: _settings?.showOnlineStatus ?? false,
-                          onChanged: _saving
-                              ? null
-                              : (v) => patch({'show_online_status': v}),
-                        ),
-                        _Divider(),
-                        _SwitchRow(
-                          icon: Icons.mail_outline,
-                          label: l10n.t('settings.privacy.allow_dm_strangers'),
-                          value: _settings?.allowDmFromStrangers ?? false,
-                          onChanged: _saving
-                              ? null
-                              : (v) => patch({'allow_dm_from_strangers': v}),
-                        ),
-                        _Divider(),
-                        _DropdownRow(
-                          icon: Icons.lock_outline,
-                          label: l10n.t('settings.privacy.profile_visibility'),
-                          value: _settings?.profileVisibility ?? 'public',
-                          items: [
-                            DropdownMenuItem(
-                              value: 'public',
-                              child: Text(l10n.t('common.public')),
-                            ),
-                            if (![
-                              'public',
-                              'private',
-                            ].contains(_settings?.profileVisibility))
-                              DropdownMenuItem(
-                                value: _settings?.profileVisibility ?? '',
-                                enabled: false,
-                                child: Text(
-                                  l10n.t('settings.privacy.unknown_visibility'),
-                                ),
-                              ),
-                            DropdownMenuItem(
-                              value: 'private',
-                              child: Text(l10n.t('common.private')),
-                            ),
-                          ],
-                          onChanged: _saving
-                              ? null
-                              : (v) {
-                                  if (v != null) {
-                                    patch({'profile_visibility': v});
-                                  }
-                                },
-                        ),
-                      ],
-                    ),
-                    _SectionHeader(
-                      title: l10n.t('settings.section.notifications'),
-                    ),
-                    _Group(
-                      children: [
-                        _SwitchRow(
-                          icon: Icons.notifications_outlined,
-                          label: l10n.t('settings.notifications.push'),
-                          value: _settings?.pushNotificationEnabled ?? false,
-                          onChanged: _saving
-                              ? null
-                              : (v) => patch({'push_notification_enabled': v}),
-                        ),
-                        _Divider(),
-                        _SwitchRow(
-                          icon: Icons.email_outlined,
-                          label: l10n.t('settings.notifications.email'),
-                          value: _settings?.emailNotificationEnabled ?? false,
-                          onChanged: _saving
-                              ? null
-                              : (v) => patch({'email_notification_enabled': v}),
-                        ),
-                      ],
-                    ),
-                    _SectionHeader(title: l10n.t('settings.section.ai')),
-                    _Group(
-                      children: [
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.psychology_outlined,
-                          label: l10n.t('ai.knowledge.title'),
-                          onTap: () => openAiConversation(context, knowledge: true),
+                          title: Text(l10n.t('ai.knowledge.title')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          onTap: () =>
+                              openAiConversation(context, knowledge: true),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.edit_note_outlined,
-                          label: l10n.t('ai.writing.title'),
+                          title: Text(l10n.t('ai.writing.title')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => openAiConversation(context),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.vpn_key_outlined,
-                          label: l10n.t('ai.provider.title'),
+                          title: Text(l10n.t('ai.provider.title')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/settings/ai-provider'),
                         ),
                       ],
                     ),
-                    _SectionHeader(title: l10n.t('settings.section.security')),
-                    _Group(
+                    SettingsGroup(
+                      title: l10n.t('settings.section.privacy'),
                       children: [
-                        _NavRow(
+                        SettingsTile(
+                          icon: Icons.people_outline,
+                          title: Text(l10n.t('visibility.title')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          onTap: () => context.push('/settings/relationships'),
+                        ),
+                        SettingsTile(
+                          icon: Icons.notifications_active_outlined,
+                          title: Text(l10n.t('settings.privacy.login_alerts')),
+                          trailing: Switch(
+                            value: _settings?.loginAlerts ?? false,
+                            onChanged: _saving
+                                ? null
+                                : (v) => patch({'login_alerts': v}),
+                          ),
+                        ),
+                        SettingsTile(
+                          icon: Icons.visibility_outlined,
+                          title: Text(
+                            l10n.t('settings.privacy.show_online_status'),
+                          ),
+                          trailing: Switch(
+                            value: _settings?.showOnlineStatus ?? false,
+                            onChanged: _saving
+                                ? null
+                                : (v) => patch({'show_online_status': v}),
+                          ),
+                        ),
+                        SettingsTile(
+                          icon: Icons.mail_outline,
+                          title: Text(
+                            l10n.t('settings.privacy.allow_dm_strangers'),
+                          ),
+                          trailing: Switch(
+                            value: _settings?.allowDmFromStrangers ?? false,
+                            onChanged: _saving
+                                ? null
+                                : (v) => patch({'allow_dm_from_strangers': v}),
+                          ),
+                        ),
+                        SettingsTile(
+                          icon: Icons.lock_outline,
+                          title: Text(
+                            l10n.t('settings.privacy.profile_visibility'),
+                          ),
+                          trailing: DropdownButton<String>(
+                            value: _settings?.profileVisibility ?? 'public',
+                            underline: const SizedBox.shrink(),
+                            isDense: true,
+                            items: [
+                              DropdownMenuItem(
+                                value: 'public',
+                                child: Text(l10n.t('common.public')),
+                              ),
+                              if (![
+                                'public',
+                                'private',
+                              ].contains(_settings?.profileVisibility))
+                                DropdownMenuItem(
+                                  value: _settings?.profileVisibility ?? '',
+                                  enabled: false,
+                                  child: Text(
+                                    l10n.t(
+                                      'settings.privacy.unknown_visibility',
+                                    ),
+                                  ),
+                                ),
+                              DropdownMenuItem(
+                                value: 'private',
+                                child: Text(l10n.t('common.private')),
+                              ),
+                            ],
+                            onChanged: _saving
+                                ? null
+                                : (v) {
+                                    if (v != null) {
+                                      patch({'profile_visibility': v});
+                                    }
+                                  },
+                          ),
+                        ),
+                      ],
+                    ),
+                    SettingsGroup(
+                      title: l10n.t('settings.section.notifications'),
+                      children: [
+                        SettingsTile(
+                          icon: Icons.notifications_outlined,
+                          title: Text(l10n.t('settings.notifications.push')),
+                          trailing: Switch(
+                            value: _settings?.pushNotificationEnabled ?? false,
+                            onChanged: _saving
+                                ? null
+                                : (v) =>
+                                      patch({'push_notification_enabled': v}),
+                          ),
+                        ),
+                        SettingsTile(
+                          icon: Icons.email_outlined,
+                          title: Text(l10n.t('settings.notifications.email')),
+                          trailing: Switch(
+                            value: _settings?.emailNotificationEnabled ?? false,
+                            onChanged: _saving
+                                ? null
+                                : (v) =>
+                                      patch({'email_notification_enabled': v}),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SettingsGroup(
+                      title: l10n.t('settings.section.security'),
+                      children: [
+                        SettingsTile(
                           icon: Icons.security,
-                          label: l10n.t('settings.security.security'),
+                          title: Text(l10n.t('settings.security.security')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/settings/security'),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.devices,
-                          label: l10n.t('settings.security.sessions'),
+                          title: Text(l10n.t('settings.security.sessions')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/settings/sessions'),
                         ),
-                        _Divider(),
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.gavel,
-                          label: l10n.t('settings.security.statements'),
+                          title: Text(l10n.t('settings.security.statements')),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/settings/statements'),
                         ),
                       ],
                     ),
-                    _SectionHeader(title: l10n.t('settings.section.endpoint')),
-                    _Group(
+                    SettingsGroup(
+                      title: l10n.t('settings.section.endpoint'),
                       children: [
-                        _NavRow(
+                        SettingsTile(
                           icon: Icons.dns_outlined,
-                          label: l10n.t('endpoint.title'),
-                          subtitle: ref.watch(appConfigProvider).apiBaseUrl,
+                          title: Text(l10n.t('endpoint.title')),
+                          subtitle: Text(
+                            ref.watch(appConfigProvider).apiBaseUrl,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                          ),
                           onTap: () => context.push('/settings/endpoint'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-      child: Text(
-        title,
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _Group extends StatelessWidget {
-  const _Group({required this.children});
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: Column(children: children),
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      indent: 52,
-      color: Theme.of(context).dividerColor,
-    );
-  }
-}
-
-class _NavRow extends StatelessWidget {
-  const _NavRow({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.subtitle,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final String? subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: theme.textTheme.bodyLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (subtitle != null && subtitle!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        subtitle!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFeatures: const [],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-  final IconData icon;
-  final String label;
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyLarge,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Switch(value: value, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-}
-
-class _DropdownRow<T> extends StatelessWidget {
-  const _DropdownRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
-  final IconData icon;
-  final String label;
-  final T value;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Flexible(
-            child: DropdownButton<T>(
-              isExpanded: true,
-              value: value,
-              onChanged: onChanged,
-              items: items,
-              underline: const SizedBox.shrink(),
-              isDense: true,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

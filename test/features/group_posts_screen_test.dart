@@ -58,6 +58,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('正在回复 @cats'), findsOneWidget);
     await tester.enterText(find.byType(TextField), '  回复内容  ');
+    await tester.pump();
     await tester.tap(find.byTooltip('发布'));
     await tester.pumpAndSettle();
     expect(api.createdReplies, [(42, 9, 17, '回复内容')]);

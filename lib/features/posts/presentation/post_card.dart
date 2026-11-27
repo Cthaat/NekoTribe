@@ -2,15 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/utils/ai_conversation_link.dart';
+import '../../../shared/format/relative_time.dart';
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/motion/animated_count.dart';
+import '../../../shared/motion/like_button.dart';
+import '../../../shared/motion/pressable.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/pill_tag.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../links/presentation/content_link_preview.dart';
 import '../../media/presentation/private_attachment_button.dart';
 import '../../media/presentation/public_video_player_native.dart'
@@ -33,6 +39,9 @@ class PostCard extends ConsumerStatefulWidget {
     this.onRecommendationFeedback,
     this.profilePinned = false,
     this.onChangeProfilePin,
+    this.avatarHeroTag,
+    this.focused = false,
+    this.onOpenLikers,
   });
 
   final V2Post post;
@@ -45,6 +54,9 @@ class PostCard extends ConsumerStatefulWidget {
   final VoidCallback? onRecommendationFeedback;
   final bool profilePinned;
   final ValueChanged<bool>? onChangeProfilePin;
+  final String? avatarHeroTag;
+  final bool focused;
+  final VoidCallback? onOpenLikers;
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -56,6 +68,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   bool _busyBookmark = false;
   bool _busyRetweet = false;
   bool _busyDelete = false;
+  bool _expandedText = false;
 
   @override
   void initState() {
@@ -349,259 +362,563 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
   }
 
-  String _formatDate(String iso) {
-    final dt = DateTime.tryParse(iso);
-    if (dt == null) return iso;
-    final local = dt.toLocal();
-    final now = DateTime.now();
-    if (now.difference(local).inDays < 1) {
-      return DateFormat.Hm().format(local);
+  String _formatDate(BuildContext context, String iso) {
+    return formatRelativeTime(iso, locale: Localizations.localeOf(context));
+  }
+
+  String _fullDate(BuildContext context, String iso) {
+    return formatFullTimestamp(iso, locale: Localizations.localeOf(context));
+  }
+
+  bool get _isLongPlainText {
+    if (_post.content.length > 320) return true;
+    return '\n'.allMatches(_post.content).length >= 7;
+  }
+
+  Widget _buildPopupMenu(AppLocalizations l10n, Color muted) {
+    return SizedBox(
+      height: 28,
+      width: 28,
+      child: PopupMenuButton<String>(
+        key: Key('post-more-button-${_post.postId}'),
+        padding: EdgeInsets.zero,
+        tooltip: l10n.t('common.more'),
+        icon: Icon(Icons.more_horiz, size: 18, color: muted),
+        onSelected: _handleMenu,
+        itemBuilder: (_) => [
+          if (widget.onChangeProfilePin != null)
+            PopupMenuItem(
+              value: widget.profilePinned ? 'profile_unpin' : 'profile_pin',
+              child: Text(
+                l10n.t(
+                  widget.profilePinned
+                      ? 'profile.pin.clear'
+                      : 'profile.pin.set',
+                ),
+              ),
+            ),
+          if (_post.viewerState.canDelete) ...[
+            PopupMenuItem(
+              value: 'edit',
+              child: Text(l10n.t('common.edit')),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Text(l10n.t('common.delete')),
+            ),
+          ],
+          PopupMenuItem(
+            value: 'quote',
+            child: Text(l10n.t('post.quote.menu')),
+          ),
+          PopupMenuItem(
+            value: 'not_interested',
+            child: Text(l10n.t('post.feedback.not_interested')),
+          ),
+          PopupMenuItem(
+            value: 'show_less',
+            child: Text(l10n.t('post.feedback.show_less')),
+          ),
+          PopupMenuItem(
+            value: 'knowledge',
+            child: Text(l10n.t('ai.knowledge.title')),
+          ),
+          PopupMenuItem(
+            value: 'report',
+            child: Text(l10n.t('common.report')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildBodyAndExtras(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme scheme,
+    AppLocalizations l10n, {
+    required bool expandPlainText,
+    required double bodyFontSize,
+  }) {
+    return [
+      if (_post.markdown case final source?) ...[
+        const SizedBox(height: 8),
+        PostMarkdownBody(source: source),
+      ] else if (_post.content.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        AnimatedSize(
+          duration: AppMotion.resolve(context, AppMotion.base),
+          curve: AppMotion.emphasizedDecelerate,
+          alignment: Alignment.topLeft,
+          child: (!expandPlainText && _isLongPlainText && !_expandedText)
+              ? Text(
+                  _post.content,
+                  maxLines: 8,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontSize: bodyFontSize,
+                    height: expandPlainText ? 1.65 : 1.62,
+                  ),
+                )
+              : SelectableText(
+                  _post.content,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontSize: bodyFontSize,
+                    height: expandPlainText ? 1.65 : 1.62,
+                  ),
+                ),
+        ),
+        if (!expandPlainText && _isLongPlainText)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: GestureDetector(
+              onTap: () => setState(() => _expandedText = !_expandedText),
+              child: Text(
+                l10n.t(_expandedText ? 'post.show_less' : 'post.show_more'),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+      ],
+      if (_post.tags.isNotEmpty || _post.location.isNotEmpty) ...[
+        const SizedBox(height: AppGap.sm),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            if (_post.location.isNotEmpty)
+              PillTag(icon: Icons.place_outlined, label: _post.location),
+            for (final tag in _post.tags) PillTag(label: '#$tag'),
+          ],
+        ),
+      ],
+      ContentLinkPreview(content: _post.content, markdown: _post.markdown),
+      if (_post.media.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        _MediaGrid(media: _post.media),
+      ],
+      if (_post.poll case final poll?)
+        PostPollCard(
+          key: ValueKey((_post.postId, poll.pollId)),
+          postId: _post.postId,
+          poll: poll,
+        ),
+    ];
+  }
+
+  Widget _buildActionBar(
+    AppLocalizations l10n,
+    ColorScheme scheme,
+    SocialColors social, {
+    required bool fullWidth,
+    required double iconSize,
+  }) {
+    final bookmarkLabel = l10n.t(
+      _post.viewerState.isBookmarked ? 'common.unbookmark' : 'common.bookmark',
+    );
+    if (fullWidth) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _ActionButton(
+            icon: Icons.chat_bubble_outline,
+            label: l10n.t('common.comment'),
+            iconSize: iconSize,
+            count: null,
+            activeColor: scheme.primary,
+            onTap: _openPost,
+          ),
+          _ActionButton(
+            key: Key('post-retweet-button-${_post.postId}'),
+            icon: Icons.repeat_rounded,
+            label: l10n.t('post.quote.menu'),
+            iconSize: iconSize,
+            count: null,
+            activeColor: social.repost,
+            onTap: _quotePost,
+          ),
+          Semantics(
+            button: true,
+            label: l10n.t(
+              _post.viewerState.isLiked ? 'common.unlike' : 'common.like',
+            ),
+            child: SocialLikeButton(
+              liked: _post.viewerState.isLiked,
+              count: _post.stats.likesCount,
+              iconSize: iconSize,
+              showZero: false,
+              onTap: _toggleLike,
+            ),
+          ),
+          _ActionButton(
+            icon: _post.viewerState.isBookmarked
+                ? Icons.bookmark
+                : Icons.bookmark_border,
+            label: bookmarkLabel,
+            iconSize: iconSize,
+            count: null,
+            active: _post.viewerState.isBookmarked,
+            activeColor: social.bookmark,
+            onTap: _toggleBookmark,
+          ),
+        ],
+      );
     }
-    if (local.year == now.year) {
-      return DateFormat.Md().format(local);
-    }
-    return DateFormat.yMd().format(local);
+
+    return Row(
+      children: [
+        _ActionButton(
+          icon: Icons.chat_bubble_outline,
+          label: l10n.t('common.comment'),
+          iconSize: iconSize,
+          count: _post.stats.commentsCount,
+          hideZero: true,
+          activeColor: scheme.primary,
+          onTap: _openPost,
+        ),
+        const SizedBox(width: 20),
+        _ActionButton(
+          key: Key('post-retweet-button-${_post.postId}'),
+          icon: Icons.repeat_rounded,
+          label: l10n.t('post.quote.menu'),
+          iconSize: iconSize,
+          count: _post.stats.retweetsCount,
+          hideZero: true,
+          activeColor: social.repost,
+          onTap: _quotePost,
+        ),
+        const SizedBox(width: 20),
+        Semantics(
+          button: true,
+          label: l10n.t(
+            _post.viewerState.isLiked ? 'common.unlike' : 'common.like',
+          ),
+          child: SocialLikeButton(
+            liked: _post.viewerState.isLiked,
+            count: _post.stats.likesCount,
+            iconSize: iconSize,
+            showZero: false,
+            onTap: _toggleLike,
+          ),
+        ),
+        const Spacer(),
+        _ActionButton(
+          icon: _post.viewerState.isBookmarked
+              ? Icons.bookmark
+              : Icons.bookmark_border,
+          label: bookmarkLabel,
+          iconSize: iconSize,
+          count: null,
+          active: _post.viewerState.isBookmarked,
+          activeColor: social.bookmark,
+          onTap: _toggleBookmark,
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final muted = scheme.onSurfaceVariant;
     final displayName = _post.author.displayName.isEmpty
         ? _post.author.username
         : _post.author.displayName;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      elevation: 0,
-      color: theme.colorScheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
-        ),
+    Widget avatar = Pressable(
+      onTap: () => context.push('/users/${_post.author.userId}'),
+      child: AppAvatar(
+        url: _post.author.avatarUrl,
+        size: widget.focused ? 46 : 40,
+        name: displayName,
+        seed: _post.author.userId,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: _openPost,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: () => context.push('/users/${_post.author.userId}'),
-                child: AppAvatar(url: _post.author.avatarUrl, size: 42),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (widget.profilePinned)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
+    );
+    if (widget.avatarHeroTag != null) {
+      avatar = Hero(tag: widget.avatarHeroTag!, child: avatar);
+    }
+
+    if (widget.focused) {
+      return SurfaceCard(
+        radius: AppRadius.card,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                avatar,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () =>
+                        context.push('/users/${_post.author.userId}'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Icon(Icons.push_pin, size: 14, color: muted),
-                            const SizedBox(width: 4),
-                            Text(
-                              l10n.t('profile.pin.label'),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: muted,
+                            Flexible(
+                              child: Text(
+                                displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Flexible(
-                                flex: 3,
-                                child: Text(
-                                  displayName,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.2,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                flex: 2,
-                                child: Text(
-                                  '@${_post.author.username}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: muted,
-                                    height: 1.2,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
+                            if (_post.author.verified) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.verified,
+                                size: 16,
+                                color: scheme.primary,
                               ),
                             ],
-                          ),
+                          ],
                         ),
-                        const SizedBox(width: 6),
                         Text(
-                          _formatDate(_post.createdAt),
+                          '@${_post.author.username}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
+                            color: social.inkTertiary,
                           ),
                         ),
                       ],
                     ),
-                    if (_post.markdown case final source?) ...[
-                      const SizedBox(height: 8),
-                      PostMarkdownBody(source: source),
-                    ] else if (_post.content.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      SelectableText(
-                        _post.content,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          height: 1.35,
+                  ),
+                ),
+                _buildPopupMenu(l10n, muted),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ..._buildBodyAndExtras(
+              context,
+              theme,
+              scheme,
+              l10n,
+              expandPlainText: true,
+              bodyFontSize: 17,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _fullDate(context, _post.createdAt),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: social.inkTertiary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Divider(height: 1, thickness: 1, color: social.divider),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Wrap(
+                spacing: 18,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _StatCountItem(
+                    count: _post.stats.retweetsCount,
+                    label: l10n.t('post.stats.reposts'),
+                  ),
+                  Tooltip(
+                    message: l10n.t('post.likers.title'),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: widget.onOpenLikers,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 2,
+                          vertical: 2,
+                        ),
+                        child: _StatCountItem(
+                          count: _post.stats.likesCount,
+                          label: l10n.t('post.stats.likes'),
                         ),
                       ),
-                    ],
-                    ContentLinkPreview(
-                      content: _post.content,
-                      markdown: _post.markdown,
                     ),
-                    if (_post.media.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      _MediaGrid(media: _post.media),
-                    ],
-                    if (_post.poll case final poll?)
-                      PostPollCard(
-                        key: ValueKey((_post.postId, poll.pollId)),
-                        postId: _post.postId,
-                        poll: poll,
-                      ),
-                    const SizedBox(height: 4),
-                    Row(
+                  ),
+                  _StatCountItem(
+                    count: _post.stats.commentsCount,
+                    label: l10n.t('post.stats.comments'),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, thickness: 1, color: social.divider),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: _buildActionBar(
+                l10n,
+                scheme,
+                social,
+                fullWidth: true,
+                iconSize: 21,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final tertiaryInk = social.inkTertiary;
+    return SurfaceCard(
+      radius: AppRadius.card,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      onTap: _openPost,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          avatar,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.profilePinned)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
                       children: [
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: _ActionButton(
-                              icon: Icons.chat_bubble_outline,
-                              label: '${_post.stats.commentsCount}',
-                              onTap: _openPost,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: _ActionButton(
-                              key: Key('post-retweet-button-${_post.postId}'),
-                              icon: Icons.repeat_rounded,
-                              label: '${_post.stats.retweetsCount}',
-                              activeColor: theme.colorScheme.primary,
-                              onTap: _quotePost,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: _ActionButton(
-                              icon: _post.viewerState.isLiked
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              label: '${_post.stats.likesCount}',
-                              active: _post.viewerState.isLiked,
-                              activeColor: const Color(0xFFE0245E),
-                              onTap: _toggleLike,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: _ActionButton(
-                              icon: _post.viewerState.isBookmarked
-                                  ? Icons.bookmark
-                                  : Icons.bookmark_border,
-                              label: '',
-                              active: _post.viewerState.isBookmarked,
-                              activeColor: theme.colorScheme.primary,
-                              onTap: _toggleBookmark,
-                            ),
+                        Icon(Icons.push_pin_rounded, size: 13, color: muted),
+                        const SizedBox(width: 4),
+                        Text(
+                          l10n.t('profile.pin.label'),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: muted,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                height: 28,
-                width: 28,
-                child: PopupMenuButton<String>(
-                  key: Key('post-more-button-${_post.postId}'),
-                  padding: EdgeInsets.zero,
-                  tooltip: l10n.t('common.more'),
-                  icon: Icon(Icons.more_horiz, size: 18, color: muted),
-                  onSelected: _handleMenu,
-                  itemBuilder: (_) => [
-                    if (widget.onChangeProfilePin != null)
-                      PopupMenuItem(
-                        value: widget.profilePinned
-                            ? 'profile_unpin'
-                            : 'profile_pin',
-                        child: Text(
-                          l10n.t(
-                            widget.profilePinned
-                                ? 'profile.pin.clear'
-                                : 'profile.pin.set',
+                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              displayName,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                height: 1.25,
+                              ),
+                            ),
                           ),
-                        ),
+                          if (_post.author.verified) ...[
+                            const SizedBox(width: 3),
+                            Icon(
+                              Icons.verified,
+                              size: 15,
+                              color: scheme.primary,
+                            ),
+                          ],
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '@${_post.author.username}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: 13,
+                                color: tertiaryInk,
+                                height: 1.25,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                          Text(
+                            ' · ',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 13,
+                              color: tertiaryInk,
+                            ),
+                          ),
+                          Tooltip(
+                            message: _fullDate(
+                              context,
+                              _post.createdAt,
+                            ),
+                            child: Text(
+                              _formatDate(context, _post.createdAt),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: 13,
+                                color: tertiaryInk,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    if (_post.viewerState.canDelete) ...[
-                      PopupMenuItem(
-                        value: 'edit',
-                        child: Text(l10n.t('common.edit')),
-                      ),
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Text(l10n.t('common.delete')),
-                      ),
-                    ],
-                    PopupMenuItem(
-                      value: 'quote',
-                      child: Text(l10n.t('post.quote.menu')),
                     ),
-                    PopupMenuItem(
-                      value: 'not_interested',
-                      child: Text(l10n.t('post.feedback.not_interested')),
-                    ),
-                    PopupMenuItem(
-                      value: 'show_less',
-                      child: Text(l10n.t('post.feedback.show_less')),
-                    ),
-                    PopupMenuItem(
-                      value: 'knowledge',
-                      child: Text(l10n.t('ai.knowledge.title')),
-                    ),
-                    PopupMenuItem(
-                      value: 'report',
-                      child: Text(l10n.t('common.report')),
-                    ),
+                    _buildPopupMenu(l10n, muted),
                   ],
                 ),
-              ),
-            ],
+                ..._buildBodyAndExtras(
+                  context,
+                  theme,
+                  scheme,
+                  l10n,
+                  expandPlainText: false,
+                  bodyFontSize: 15.5,
+                ),
+                const SizedBox(height: 8),
+                _buildActionBar(
+                  l10n,
+                  scheme,
+                  social,
+                  fullWidth: false,
+                  iconSize: 18,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCountItem extends StatelessWidget {
+  const _StatCountItem({required this.count, required this.label});
+
+  final int count;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedCount(
+          count: count,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
           ),
         ),
-      ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -768,17 +1085,18 @@ class _PublicMediaGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (media.isEmpty) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
-    final radius = BorderRadius.circular(14);
+    final radius = BorderRadius.circular(AppRadius.tile);
+    Widget frame(Widget child) =>
+        ClipRSuperellipse(borderRadius: radius, child: child);
+
     if (media.length == 1) {
-      return Tooltip(
-        message: l10n.t('media.open'),
-        child: InkWell(
-          onTap: () => _open(context, 0),
-          borderRadius: radius,
-          child: ClipRRect(
-            borderRadius: radius,
+      return frame(
+        Tooltip(
+          message: l10n.t('media.open'),
+          child: InkWell(
+            onTap: () => _open(context, 0),
             child: AspectRatio(
-              aspectRatio: 16 / 9,
+              aspectRatio: 16 / 10,
               child: AppMediaImage(
                 url: media.first.publicUrl,
                 borderRadius: BorderRadius.zero,
@@ -788,15 +1106,96 @@ class _PublicMediaGrid extends StatelessWidget {
         ),
       );
     }
+
+    if (media.length == 2) {
+      final cellRadius = BorderRadius.circular(4);
+      return frame(
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Row(
+            children: [
+              for (var i = 0; i < 2; i++) ...[
+                if (i > 0) const SizedBox(width: 3),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _open(context, i),
+                    child: AppMediaImage(
+                      url: media[i].publicUrl,
+                      height: double.infinity,
+                      borderRadius: cellRadius,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (media.length == 3) {
+      final cellRadius = BorderRadius.circular(4);
+      return frame(
+        AspectRatio(
+          aspectRatio: 16 / 10,
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => _open(context, 0),
+                  child: AppMediaImage(
+                    url: media[0].publicUrl,
+                    height: double.infinity,
+                    borderRadius: cellRadius,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 3),
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _open(context, 1),
+                        child: AppMediaImage(
+                          url: media[1].publicUrl,
+                          width: double.infinity,
+                          height: double.infinity,
+                          borderRadius: cellRadius,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _open(context, 2),
+                        child: AppMediaImage(
+                          url: media[2].publicUrl,
+                          width: double.infinity,
+                          height: double.infinity,
+                          borderRadius: cellRadius,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final count = media.length.clamp(0, 4);
-    return ClipRRect(
-      borderRadius: radius,
-      child: GridView.count(
+    final cellRadius = BorderRadius.circular(4);
+    return frame(
+      GridView.count(
         crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: 3,
         crossAxisSpacing: 3,
+        childAspectRatio: 1.35,
         children: [
           for (var i = 0; i < count; i++)
             Tooltip(
@@ -805,7 +1204,7 @@ class _PublicMediaGrid extends StatelessWidget {
                 onTap: () => _open(context, i),
                 child: AppMediaImage(
                   url: media[i].publicUrl,
-                  borderRadius: BorderRadius.zero,
+                  borderRadius: cellRadius,
                 ),
               ),
             ),
@@ -815,51 +1214,94 @@ class _PublicMediaGrid extends StatelessWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends StatefulWidget {
   const _ActionButton({
     super.key,
     required this.icon,
     required this.label,
+    required this.count,
     required this.onTap,
     this.active = false,
     this.activeColor,
+    this.iconSize = 18,
+    this.hideZero = false,
   });
 
   final IconData icon;
   final String label;
+  final int? count;
   final VoidCallback onTap;
   final bool active;
   final Color? activeColor;
+  final double iconSize;
+  final bool hideZero;
+
+  @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = active
-        ? (activeColor ?? theme.colorScheme.primary)
-        : theme.colorScheme.onSurfaceVariant;
-    final hoverColor = (activeColor ?? theme.colorScheme.primary).withValues(
-      alpha: 0.08,
-    );
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      hoverColor: hoverColor,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: color),
-            if (label.isNotEmpty) ...[
-              const SizedBox(width: 4),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelMedium?.copyWith(color: color),
-              ),
-            ],
-          ],
+    final accent = widget.activeColor ?? theme.colorScheme.primary;
+    final color = widget.active
+        ? accent
+        : (_hovered ? accent : theme.colorScheme.onSurfaceVariant);
+    final count = widget.count;
+    final showCount = count != null && !(widget.hideZero && count <= 0);
+
+    return Tooltip(
+      message: widget.label,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          hoverColor: Colors.transparent,
+          splashColor: accent.withValues(alpha: 0.10),
+          onTap: widget.onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: AppMotion.fast,
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _hovered
+                        ? accent.withValues(alpha: 0.10)
+                        : Colors.transparent,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    widget.icon,
+                    size: widget.iconSize,
+                    color: color,
+                  ),
+                ),
+                if (showCount) ...[
+                  const SizedBox(width: 2),
+                  AnimatedCount(
+                    count: count,
+                    hideZero: widget.hideZero,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: color,
+                      fontWeight: widget.active
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

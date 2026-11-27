@@ -16,8 +16,41 @@ import 'package:nekotribe/features/users/data/users_api.dart';
 import 'package:nekotribe/features/users/data/users_repository.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
+import 'package:nekotribe/shared/widgets/ui/surface_card.dart';
 
 void main() {
+  testWidgets('case status shares the filter card and filters the queue', (
+    tester,
+  ) async {
+    final fixture = _AppealsFixture();
+    await tester.pumpWidget(fixture.screen(initialTab: 1));
+    await tester.pumpAndSettle();
+
+    final status = find.byKey(const Key('moderation-content-status'));
+    expect(tester.widget(status), isA<DropdownButtonFormField<String>>());
+    final card = find.ancestor(of: status, matching: find.byType(SurfaceCard));
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(of: card, matching: find.byType(ExpansionTile)),
+      findsOneWidget,
+    );
+    final decoration = tester.widget<InputDecorator>(
+      find.descendant(of: status, matching: find.byType(InputDecorator)),
+    ).decoration;
+    expect(decoration.filled, isTrue);
+    expect(decoration.enabledBorder?.borderSide, BorderSide.none);
+    await tester.tap(status);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('已通过').last);
+    await tester.pumpAndSettle();
+
+    expect(fixture.api.contentStatus, 'approved');
+    expect(
+      find.descendant(of: status, matching: find.text('已通过')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('queue displays only valid sentiment signals in original order', (
     tester,
   ) async {
@@ -423,6 +456,7 @@ class _FakeModerationApi extends ModerationApi {
   }
 
   List<V2ModerationContentItem>? contentItems;
+  String? contentStatus;
 
   List<V2ModerationSetting> _settings = [
     _setting(key: 'auto_hide_report_threshold', value: '10', type: 'number'),
@@ -456,6 +490,7 @@ class _FakeModerationApi extends ModerationApi {
     int page = 1,
     int size = 20,
   }) async {
+    contentStatus = status;
     contentPriority = priority;
     return PagedResult(
       items: status == 'pending' && bulkDecision == null

@@ -208,7 +208,12 @@ List<int> _visible(WidgetTester tester) => tester
 
 Future<void> _openMenu(WidgetTester tester, int postId) async {
   final button = find.byKey(Key('post-more-button-$postId'));
-  await tester.ensureVisible(button);
+  await Scrollable.ensureVisible(
+    tester.element(button),
+    alignment: 0.5,
+    duration: Duration.zero,
+  );
+  await tester.pumpAndSettle();
   await tester.tap(button);
   await tester.pumpAndSettle();
 }

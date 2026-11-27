@@ -9,9 +9,11 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/api_response.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
-import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../ai/presentation/moderation_advice_dialog.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/moderation_api.dart';
@@ -92,29 +94,68 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
     return Scaffold(
+      backgroundColor: social.surfaceBase,
       appBar: AppBar(
+        leading: const SafeBackButton(),
+        backgroundColor: social.glassSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Text(l10n.t('moderation.title')),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          tabs: [
-            Tab(text: l10n.t('moderation.tabs.overview')),
-            Tab(text: l10n.t('moderation.tabs.content')),
-            Tab(text: l10n.t('moderation.tabs.reports')),
-            Tab(text: l10n.t('moderation.tabs.users')),
-            Tab(text: l10n.t('moderation.tabs.appeals')),
-            Tab(text: l10n.t('moderation.tabs.settings')),
-            Tab(text: l10n.t('moderation.aiOps.title')),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: social.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  indicator: BoxDecoration(
+                    color: social.surfaceCard,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  labelColor: scheme.onSurface,
+                  unselectedLabelColor: scheme.onSurfaceVariant,
+                  labelStyle: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                  dividerColor: Colors.transparent,
+                  tabs: [
+                    Tab(height: 32, text: l10n.t('moderation.tabs.overview')),
+                    Tab(height: 32, text: l10n.t('moderation.tabs.content')),
+                    Tab(height: 32, text: l10n.t('moderation.tabs.reports')),
+                    Tab(height: 32, text: l10n.t('moderation.tabs.users')),
+                    Tab(height: 32, text: l10n.t('moderation.tabs.appeals')),
+                    Tab(height: 32, text: l10n.t('moderation.tabs.settings')),
+                    Tab(height: 32, text: l10n.t('moderation.aiOps.title')),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: AppBreakpoints.contentMaxWidth,
+            maxWidth: 960,
           ),
           child: TabBarView(
             controller: _tabController,
@@ -124,6 +165,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
                 loading: _statsLoading,
                 error: _statsError,
                 onRetry: _loadStats,
+                onOpenTab: _tabController.animateTo,
               ),
               const _ContentTab(),
               const _ReportsTab(),
@@ -145,16 +187,21 @@ class _OverviewTab extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onRetry,
+    required this.onOpenTab,
   });
 
   final V2ModerationStats? stats;
   final bool loading;
   final Object? error;
   final VoidCallback onRetry;
+  final ValueChanged<int> onOpenTab;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
     if (loading) return const LoadingView();
     if (error != null) return ErrorView(error: error!, onRetry: onRetry);
     if (stats == null) {
@@ -162,58 +209,123 @@ class _OverviewTab extends StatelessWidget {
     }
     return RefreshIndicator(
       onRefresh: () async => onRetry(),
-      child: GridView.count(
-        padding: const EdgeInsets.all(16),
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.7,
-        children: [
-          _StatCard(
-            icon: Icons.hourglass_top_outlined,
-            label: l10n.t('moderation.stats.pending'),
-            value: '${stats!.pending}',
-            color: const Color(0xFFE3A857),
-          ),
-          _StatCard(
-            icon: Icons.check_circle_outline,
-            label: l10n.t('moderation.stats.approved'),
-            value: '${stats!.approved}',
-            color: const Color(0xFF34A853),
-          ),
-          _StatCard(
-            icon: Icons.cancel_outlined,
-            label: l10n.t('moderation.stats.rejected'),
-            value: '${stats!.rejected}',
-            color: const Color(0xFFE0245E),
-          ),
-          _StatCard(
-            icon: Icons.flag_outlined,
-            label: l10n.t('moderation.stats.flagged'),
-            value: '${stats!.flagged}',
-            color: const Color(0xFFE94E77),
-          ),
-          _StatCard(
-            icon: Icons.task_alt,
-            label: l10n.t('moderation.stats.today_processed'),
-            value: '${stats!.todayProcessed}',
-          ),
-          _StatCard(
-            icon: Icons.report_problem_outlined,
-            label: l10n.t('moderation.stats.open_reports'),
-            value: '${stats!.openReports}',
-          ),
-          _StatCard(
-            icon: Icons.timer_outlined,
-            label: l10n.t('moderation.stats.avg_minutes'),
-            value: stats!.avgProcessMinutes.toStringAsFixed(1),
-          ),
-          _StatCard(
-            icon: Icons.gavel_outlined,
-            label: l10n.t('moderation.stats.appeal_success'),
-            value: '${(stats!.appealSuccessRate * 100).toStringAsFixed(1)}%',
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 720 ? 4 : 2;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+            children: [
+              GridView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  mainAxisExtent: 76,
+                ),
+                children: [
+                  _StatCard(
+                    icon: Icons.hourglass_top_outlined,
+                    label: l10n.t('moderation.stats.pending'),
+                    value: '${stats!.pending}',
+                    color: const Color(0xFFE3A857),
+                  ),
+                  _StatCard(
+                    icon: Icons.check_circle_outline,
+                    label: l10n.t('moderation.stats.approved'),
+                    value: '${stats!.approved}',
+                    color: const Color(0xFF34A853),
+                  ),
+                  _StatCard(
+                    icon: Icons.cancel_outlined,
+                    label: l10n.t('moderation.stats.rejected'),
+                    value: '${stats!.rejected}',
+                    color: const Color(0xFFE0245E),
+                  ),
+                  _StatCard(
+                    icon: Icons.flag_outlined,
+                    label: l10n.t('moderation.stats.flagged'),
+                    value: '${stats!.flagged}',
+                    color: const Color(0xFFE94E77),
+                  ),
+                  _StatCard(
+                    icon: Icons.task_alt,
+                    label: l10n.t('moderation.stats.today_processed'),
+                    value: '${stats!.todayProcessed}',
+                  ),
+                  _StatCard(
+                    icon: Icons.report_problem_outlined,
+                    label: l10n.t('moderation.stats.open_reports'),
+                    value: '${stats!.openReports}',
+                  ),
+                  _StatCard(
+                    icon: Icons.timer_outlined,
+                    label: l10n.t('moderation.stats.avg_minutes'),
+                    value: stats!.avgProcessMinutes.toStringAsFixed(1),
+                  ),
+                  _StatCard(
+                    icon: Icons.gavel_outlined,
+                    label: l10n.t('moderation.stats.appeal_success'),
+                    value:
+                        '${(stats!.appealSuccessRate * 100).toStringAsFixed(1)}%',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SurfaceCard(
+                radius: AppRadius.card,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.t('moderation.tabs.content'),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${l10n.t('moderation.stats.pending')}: ${stats!.pending} · '
+                      '${l10n.t('moderation.stats.flagged')}: ${stats!.flagged} · '
+                      '${l10n.t('moderation.stats.open_reports')}: ${stats!.openReports}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilledButton.tonal(
+                          onPressed: () => onOpenTab(1),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: social.primarySoft,
+                            foregroundColor: scheme.primary,
+                            shape: const StadiumBorder(),
+                          ),
+                          child: Text(l10n.t('moderation.tabs.content')),
+                        ),
+                        FilledButton.tonal(
+                          onPressed: () => onOpenTab(2),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: social.surfaceSubtle,
+                            foregroundColor: scheme.onSurface,
+                            shape: const StadiumBorder(),
+                          ),
+                          child: Text(l10n.t('moderation.tabs.reports')),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -235,13 +347,9 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tint = color ?? theme.colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.dividerColor),
-      ),
+    return SurfaceCard(
+      radius: AppRadius.card,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,21 +357,21 @@ class _StatCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: tint.withValues(alpha: 0.15),
+                  color: tint.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, size: 16, color: tint),
+                child: Icon(icon, size: 14, color: tint),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
-                  style: theme.textTheme.bodySmall?.copyWith(
+                  style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -272,8 +380,9 @@ class _StatCard extends StatelessWidget {
           const Spacer(),
           Text(
             value,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w700,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],
@@ -642,6 +751,18 @@ class _ContentTabState extends ConsumerState<_ContentTab>
     if (_expired) {
       return EmptyView(message: l10n.t('visibility.sessionChanged'));
     }
+    String optionLabel(String category, String option) => option == 'all'
+        ? l10n.t('common.all')
+        : category == 'reason'
+        ? _moderationReasonLabel(l10n, option)
+        : l10n.t('moderation.content.option.$option');
+
+    final social = SocialColors.of(context);
+    final filterBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.inner),
+      borderSide: BorderSide.none,
+    );
+
     Widget select(
       String category,
       String value,
@@ -651,20 +772,24 @@ class _ContentTabState extends ConsumerState<_ContentTab>
       return DropdownButtonFormField<String>(
         key: Key('moderation-content-$category'),
         initialValue: value,
+        isExpanded: true,
         decoration: InputDecoration(
           labelText: l10n.t('moderation.content.filter.$category'),
+          filled: true,
+          fillColor: social.surfaceSubtle,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 10,
+          ),
+          border: filterBorder,
+          enabledBorder: filterBorder,
+          focusedBorder: filterBorder,
         ),
         items: [
           for (final option in options)
             DropdownMenuItem(
               value: option,
-              child: Text(
-                option == 'all'
-                    ? l10n.t('common.all')
-                    : category == 'reason'
-                    ? _moderationReasonLabel(l10n, option)
-                    : l10n.t('moderation.content.option.$option'),
-              ),
+              child: Text(optionLabel(category, option)),
             ),
         ],
         onChanged: (next) {
@@ -677,72 +802,94 @@ class _ContentTabState extends ConsumerState<_ContentTab>
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: select('status', _status, [
-            'all',
-            'pending',
-            'approved',
-            'rejected',
-            'flagged',
-            'removed',
-            'restored',
-          ], (value) => _status = value),
-        ),
-        ExpansionTile(
-          title: Text(l10n.t('moderation.content.filters')),
-          childrenPadding: const EdgeInsets.symmetric(horizontal: 12),
-          children: [
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height * 0.30,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
+        SurfaceCard(
+          radius: AppRadius.card,
+          margin: const EdgeInsets.fromLTRB(
+            AppGap.lg,
+            AppGap.md,
+            AppGap.lg,
+            AppGap.sm,
+          ),
+          padding: const EdgeInsets.fromLTRB(AppGap.md, AppGap.md, AppGap.md, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              select('status', _status, [
+                'all',
+                'pending',
+                'approved',
+                'rejected',
+                'flagged',
+                'removed',
+                'restored',
+              ], (value) => _status = value),
+              Theme(
+                data: theme.copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  title: Text(l10n.t('moderation.content.filters')),
+                  tilePadding: const EdgeInsets.symmetric(
+                    horizontal: AppGap.sm,
+                  ),
+                  childrenPadding: const EdgeInsets.only(bottom: AppGap.md),
                   children: [
-                    TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        labelText: l10n.t('moderation.content.search'),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(context).height * 0.30,
                       ),
-                      onSubmitted: (_) => _load(),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                labelText: l10n.t('moderation.content.search'),
+                              ),
+                              onSubmitted: (_) => _load(),
+                            ),
+                            const SizedBox(height: AppGap.md),
+                            select('priority', _priority, [
+                              'all',
+                              'low',
+                              'normal',
+                              'high',
+                              'urgent',
+                            ], (value) => _priority = value),
+                            const SizedBox(height: AppGap.md),
+                            select('reason', _reason, [
+                              'all',
+                              'spam',
+                              'harassment',
+                              'hate',
+                              'violence',
+                              'adult',
+                              'misinformation',
+                              'copyright',
+                              'other',
+                            ], (value) => _reason = value),
+                            const SizedBox(height: AppGap.md),
+                            select('date', _dateRange, [
+                              'all',
+                              'today',
+                              'yesterday',
+                              'week',
+                              'month',
+                            ], (value) => _dateRange = value),
+                            const SizedBox(height: AppGap.md),
+                            select('sort', _sort, [
+                              'newest',
+                              'oldest',
+                              'most_reports',
+                              'most_engagement',
+                            ], (value) => _sort = value),
+                          ],
+                        ),
+                      ),
                     ),
-                    select('priority', _priority, [
-                      'all',
-                      'low',
-                      'normal',
-                      'high',
-                      'urgent',
-                    ], (value) => _priority = value),
-                    select('reason', _reason, [
-                      'all',
-                      'spam',
-                      'harassment',
-                      'hate',
-                      'violence',
-                      'adult',
-                      'misinformation',
-                      'copyright',
-                      'other',
-                    ], (value) => _reason = value),
-                    select('date', _dateRange, [
-                      'all',
-                      'today',
-                      'yesterday',
-                      'week',
-                      'month',
-                    ], (value) => _dateRange = value),
-                    select('sort', _sort, [
-                      'newest',
-                      'oldest',
-                      'most_reports',
-                      'most_engagement',
-                    ], (value) => _sort = value),
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         if (_selectedPosts.isNotEmpty)
           Padding(
@@ -985,37 +1132,30 @@ class _ContentTabState extends ConsumerState<_ContentTab>
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: OutlinedButton.icon(
+                                      child: OutlinedButton(
                                         key: Key(
                                           'moderation-content-reject-${item.postId}',
                                         ),
-                                        onPressed: () =>
-                                            _resolve(item, 'reject'),
-                                        icon: Icon(
-                                          Icons.close,
-                                          color: theme.colorScheme.error,
-                                          size: 16,
+                                        onPressed: _applying
+                                            ? null
+                                            : () => _resolve(item, 'reject'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor:
+                                              theme.colorScheme.error,
                                         ),
-                                        label: Text(
-                                          l10n.t('moderation.reject'),
-                                          style: TextStyle(
-                                            color: theme.colorScheme.error,
-                                          ),
-                                        ),
+                                        child: Text(l10n.t('moderation.reject')),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
-                                      child: FilledButton.icon(
+                                      child: FilledButton(
                                         key: Key(
                                           'moderation-content-approve-${item.postId}',
                                         ),
-                                        onPressed: () =>
-                                            _resolve(item, 'approve'),
-                                        icon: const Icon(Icons.check, size: 16),
-                                        label: Text(
-                                          l10n.t('moderation.approve'),
-                                        ),
+                                        onPressed: _applying
+                                            ? null
+                                            : () => _resolve(item, 'approve'),
+                                        child: Text(l10n.t('moderation.approve')),
                                       ),
                                     ),
                                   ],
@@ -1293,28 +1433,25 @@ class _ReportsTabState extends ConsumerState<_ReportsTab>
                                     targetId: r.targetId,
                                   ),
                                   if (isResolved)
-                                    OutlinedButton.icon(
+                                    OutlinedButton(
                                       key: Key(
                                         'moderation-report-reopen-${r.reportId}',
                                       ),
                                       onPressed: () => _resolve(r, 'pending'),
-                                      icon: const Icon(Icons.replay, size: 16),
-                                      label: Text(
+                                      child: Text(
                                         l10n.t('moderation.reports.reopen'),
                                       ),
                                     )
                                   else ...[
-                                    TextButton.icon(
+                                    TextButton(
                                       onPressed: () => _resolve(r, 'dismissed'),
-                                      icon: const Icon(Icons.close, size: 16),
-                                      label: Text(
+                                      child: Text(
                                         l10n.t('moderation.reports.dismiss'),
                                       ),
                                     ),
-                                    FilledButton.icon(
+                                    FilledButton(
                                       onPressed: () => _resolve(r, 'resolved'),
-                                      icon: const Icon(Icons.check, size: 16),
-                                      label: Text(
+                                      child: Text(
                                         l10n.t('moderation.reports.resolve'),
                                       ),
                                     ),

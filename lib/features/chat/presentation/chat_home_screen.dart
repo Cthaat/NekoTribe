@@ -7,14 +7,19 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/motion/skeleton.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../realtime/data/realtime_service.dart'
     show realtimeUserIdFromAccessToken;
 import '../domain/chat_models.dart';
+import 'channel_screen.dart';
 import 'chat_realtime_binding.dart';
+import 'conversation_screen.dart';
 
 class ChatHomeScreen extends ConsumerStatefulWidget {
   const ChatHomeScreen({super.key});
@@ -41,6 +46,8 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
   bool _hasMoreGroups = false, _loadingMoreGroups = false;
   bool _loading = true;
   Object? _error;
+  ({int conversationId, String title})? _selectedDm;
+  ({int groupId, int channelId, String name})? _selectedChannel;
 
   @override
   void initState() {
@@ -148,6 +155,8 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
       _hasMoreGroups = _loadingMoreGroups = false;
       _loading = true;
       _error = null;
+      _selectedDm = null;
+      _selectedChannel = null;
     });
   }
 
@@ -365,6 +374,18 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
   }
 
   void _openChannel(V2ChatChannel channel) {
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    if (wide) {
+      setState(() {
+        _selectedDm = null;
+        _selectedChannel = (
+          groupId: channel.groupId,
+          channelId: channel.channelId,
+          name: channel.name,
+        );
+      });
+      return;
+    }
     context.push(
       '/chat/groups/${channel.groupId}/channels/${channel.channelId}',
       extra: {
@@ -379,6 +400,14 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
     final title = c.participant.displayName.isEmpty
         ? c.participant.username
         : c.participant.displayName;
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    if (wide) {
+      setState(() {
+        _selectedChannel = null;
+        _selectedDm = (conversationId: c.conversationId, title: title);
+      });
+      return;
+    }
     await context.push(
       '/chat/conversation/${c.conversationId}',
       extra: {'title': title, 'name': title},
@@ -421,267 +450,520 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.t('tab.messages')),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(text: l10n.t('chat.direct')),
-            Tab(text: l10n.t('chat.groups')),
-          ],
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+
+    final listColumn = Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: social.surfaceSubtle,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: social.surfaceCard,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelColor: scheme.onSurface,
+              unselectedLabelColor: scheme.onSurfaceVariant,
+              labelStyle: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              unselectedLabelStyle: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+              dividerColor: Colors.transparent,
+              tabs: [
+                Tab(height: 36, text: l10n.t('chat.direct')),
+                Tab(height: 36, text: l10n.t('chat.groups')),
+              ],
+            ),
+          ),
         ),
-      ),
-      body: _loading
-          ? const LoadingView()
-          : _error != null
-          ? ErrorView(error: _error!, onRetry: _load)
-          : Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: AppBreakpoints.contentMaxWidth,
-                ),
-                child: TabBarView(
+        Expanded(
+          child: _loading
+              ? ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    for (var i = 0; i < 6; i++) const ListTileSkeleton(),
+                  ],
+                )
+              : _error != null
+              ? ErrorView(error: _error!, onRetry: _load)
+              : TabBarView(
                   controller: _tabController,
                   children: [
-                    _conversationError != null
-                        ? ErrorView(
-                            error: _conversationError!,
-                            onRetry: () =>
-                                _refreshConversations(userInitiated: true),
-                          )
-                        : _conversations.isEmpty &&
-                              _conversationPage == 1 &&
-                              !_hasMoreConversations
-                        ? EmptyView(
-                            message: l10n.t('chat.empty'),
-                            icon: Icons.chat_bubble_outline,
-                            actionLabel: l10n.t('tab.discover'),
-                            onAction: () => context.push('/discover'),
-                          )
-                        : RefreshIndicator(
-                            onRefresh: () => _refreshConversations(
-                              page: _conversationPage,
-                              userInitiated: true,
-                            ),
-                            child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(
-                                12,
-                                12,
-                                12,
-                                24,
-                              ),
-                              itemCount:
-                                  _conversations.length +
-                                  (_conversationPage > 1 ||
-                                          _hasMoreConversations
-                                      ? 1
-                                      : 0),
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (_, i) {
-                                if (i == _conversations.length) {
-                                  return Wrap(
-                                    alignment: WrapAlignment.center,
-                                    children: [
-                                      if (_conversationPage > 1)
-                                        TextButton(
-                                          onPressed: _loadingConversationPage
-                                              ? null
-                                              : () => _refreshConversations(
-                                                  page: _conversationPage - 1,
-                                                  userInitiated: true,
-                                                ),
-                                          child: Text(
-                                            l10n.t(
-                                              'chat.conversations_previous_page',
-                                            ),
-                                          ),
-                                        ),
-                                      if (_hasMoreConversations)
-                                        TextButton(
-                                          onPressed: _loadingConversationPage
-                                              ? null
-                                              : () => _refreshConversations(
-                                                  page: _conversationPage + 1,
-                                                  userInitiated: true,
-                                                ),
-                                          child: Text(
-                                            l10n.t(
-                                              'chat.conversations_next_page',
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  );
-                                }
-                                final c = _conversations[i];
-                                final name = c.participant.displayName.isEmpty
-                                    ? c.participant.username
-                                    : c.participant.displayName;
-                                final subtitle =
-                                    c.lastMessage?.content.trim().isNotEmpty ==
-                                        true
-                                    ? c.lastMessage!.content
-                                    : '';
-                                final theme = Theme.of(context);
-                                return Material(
-                                  color: theme
-                                      .colorScheme
-                                      .surfaceContainerHighest
-                                      .withValues(alpha: 0.35),
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    leading: c.unreadCount > 0
-                                        ? Badge(
-                                            label: Text('${c.unreadCount}'),
-                                            child: AppAvatar(
-                                              url: c.participant.avatarUrl,
-                                              size: 48,
-                                            ),
-                                          )
-                                        : AppAvatar(
-                                            url: c.participant.avatarUrl,
-                                            size: 48,
-                                          ),
-                                    title: Text(
-                                      name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                                    subtitle: Text(
-                                      subtitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                    ),
-                                    trailing: Text(
-                                      c.lastMessage != null
-                                          ? _formatDate(
-                                              c.lastMessage!.createdAt,
-                                            )
-                                          : _formatDate(c.updatedAt),
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                    ),
-                                    onTap: () => _openConversation(c),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                    _groups.isEmpty && !_hasMoreGroups
-                        ? EmptyView(
-                            message: l10n.t('chat.no_groups'),
-                            icon: Icons.groups_outlined,
-                            actionLabel: l10n.t('group.title'),
-                            onAction: () => context.go('/groups'),
-                          )
-                        : RefreshIndicator(
-                            onRefresh: _load,
-                            child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(
-                                12,
-                                12,
-                                12,
-                                24,
-                              ),
-                              itemCount:
-                                  _groups.length + (_hasMoreGroups ? 1 : 0),
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (_, i) {
-                                if (i == _groups.length) {
-                                  return TextButton(
-                                    onPressed: _loadingMoreGroups
-                                        ? null
-                                        : _loadMoreGroups,
-                                    child: Text(l10n.t('chat.more_groups')),
-                                  );
-                                }
-                                final g = _groups[i];
-                                final theme = Theme.of(context);
-                                return Material(
-                                  color: theme
-                                      .colorScheme
-                                      .surfaceContainerHighest
-                                      .withValues(alpha: 0.35),
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    leading: AppAvatar(
-                                      url: g.avatarUrl,
-                                      size: 48,
-                                    ),
-                                    title: Text(
-                                      g.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                                    subtitle: Text(
-                                      l10n
-                                          .t('chat.members_channels')
-                                          .replaceAll(
-                                            '{members}',
-                                            '${g.memberCount}',
-                                          )
-                                          .replaceAll(
-                                            '{channels}',
-                                            '${g.channelCount}',
-                                          ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                    ),
-                                    trailing: g.unreadCount > 0
-                                        ? Badge(label: Text('${g.unreadCount}'))
-                                        : null,
-                                    onTap: () => _openGroup(g),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
+                    _buildDirectList(l10n, theme, scheme, social, isWide),
+                    _buildGroupsList(l10n, theme, scheme, social),
                   ],
                 ),
+        ),
+      ],
+    );
+
+    if (isWide) {
+      Widget detailPane;
+      if (_selectedDm case final dm?) {
+        detailPane = ConversationScreen(
+          key: ValueKey('split-dm-${dm.conversationId}'),
+          conversationId: dm.conversationId,
+          title: dm.title,
+          embedded: true,
+        );
+      } else if (_selectedChannel case final ch?) {
+        detailPane = ChannelScreen(
+          key: ValueKey('split-ch-${ch.groupId}-${ch.channelId}'),
+          groupId: ch.groupId,
+          channelId: ch.channelId,
+          channelName: ch.name,
+          embedded: true,
+        );
+      } else {
+        detailPane = Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.forum_outlined,
+                    size: 30,
+                    color: scheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.t('chat.select_conversation'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  l10n.t('chat.select_conversation_hint'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return Scaffold(
+        backgroundColor: social.surfaceBase,
+        body: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 344,
+                child: SurfaceCard(
+                  radius: AppRadius.card,
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AppBar(
+                        backgroundColor: Colors.transparent,
+                        elevation: 0,
+                        scrolledUnderElevation: 0,
+                        title: Text(l10n.t('tab.messages')),
+                        automaticallyImplyLeading: false,
+                      ),
+                      Expanded(child: listColumn),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SurfaceCard(
+                  radius: AppRadius.card,
+                  padding: EdgeInsets.zero,
+                  child: detailPane,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: social.surfaceBase,
+      appBar: AppBar(
+        backgroundColor: social.glassSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(l10n.t('tab.messages')),
+      ),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.contentMaxWidth,
+          ),
+          child: listColumn,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDirectList(
+    AppLocalizations l10n,
+    ThemeData theme,
+    ColorScheme scheme,
+    SocialColors social,
+    bool isWide,
+  ) {
+    if (_conversationError != null) {
+      return ErrorView(
+        error: _conversationError!,
+        onRetry: () => _refreshConversations(userInitiated: true),
+      );
+    }
+    if (_conversations.isEmpty &&
+        _conversationPage == 1 &&
+        !_hasMoreConversations) {
+      return EmptyView(
+        message: l10n.t('chat.empty'),
+        icon: Icons.chat_bubble_outline,
+        actionLabel: l10n.t('tab.discover'),
+        onAction: () => context.push('/discover'),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: () => _refreshConversations(
+        page: _conversationPage,
+        userInitiated: true,
+      ),
+      child: ListView.separated(
+        padding: EdgeInsets.fromLTRB(10, 6, 10, isWide ? 16 : 108),
+        itemCount:
+            _conversations.length +
+            (_conversationPage > 1 || _hasMoreConversations ? 1 : 0),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        itemBuilder: (_, i) {
+          if (i == _conversations.length) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                children: [
+                  if (_conversationPage > 1)
+                    TextButton(
+                      onPressed: _loadingConversationPage
+                          ? null
+                          : () => _refreshConversations(
+                              page: _conversationPage - 1,
+                              userInitiated: true,
+                            ),
+                      child: Text(l10n.t('chat.conversations_previous_page')),
+                    ),
+                  if (_hasMoreConversations)
+                    TextButton(
+                      onPressed: _loadingConversationPage
+                          ? null
+                          : () => _refreshConversations(
+                              page: _conversationPage + 1,
+                              userInitiated: true,
+                            ),
+                      child: Text(l10n.t('chat.conversations_next_page')),
+                    ),
+                ],
+              ),
+            );
+          }
+          final c = _conversations[i];
+          final name = c.participant.displayName.isEmpty
+              ? c.participant.username
+              : c.participant.displayName;
+          final subtitle =
+              c.lastMessage?.content.trim().isNotEmpty == true
+              ? c.lastMessage!.content
+              : '';
+          final unread = c.unreadCount > 0;
+          final selected =
+              isWide && _selectedDm?.conversationId == c.conversationId;
+          final timeLabel = c.lastMessage != null
+              ? _formatDate(c.lastMessage!.createdAt)
+              : _formatDate(c.updatedAt);
+          return Material(
+            color: selected ? social.surfaceSubtle : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.tile),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.tile),
+              onTap: () => _openConversation(c),
+              hoverColor: social.hover,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+              child: Row(
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      AppAvatar(
+                        url: c.participant.avatarUrl,
+                        size: 52,
+                        name: name,
+                        seed: c.participant.userId,
+                      ),
+                      if (c.participant.onlineStatus == 'online')
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 14,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              color: social.statusOnlineFg,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: scheme.surface,
+                                width: 2.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: unread
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              timeLabel,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: unread
+                                    ? scheme.primary
+                                    : scheme.onSurfaceVariant,
+                                fontWeight: unread
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: unread
+                                      ? scheme.onSurface
+                                      : scheme.onSurfaceVariant,
+                                  fontWeight: unread
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                            if (unread) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                constraints: const BoxConstraints(minWidth: 20),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: scheme.primary,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '${c.unreadCount}',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: scheme.onPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
+        );
+        },
+      ),
+    );
+  }
+
+  Widget _buildGroupsList(
+    AppLocalizations l10n,
+    ThemeData theme,
+    ColorScheme scheme,
+    SocialColors social,
+  ) {
+    if (_groups.isEmpty && !_hasMoreGroups) {
+      return EmptyView(
+        message: l10n.t('chat.no_groups'),
+        icon: Icons.groups_outlined,
+        actionLabel: l10n.t('group.title'),
+        onAction: () => context.go('/groups'),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 108),
+        itemCount: _groups.length + (_hasMoreGroups ? 1 : 0),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        itemBuilder: (_, i) {
+          if (i == _groups.length) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: TextButton(
+                  onPressed: _loadingMoreGroups ? null : _loadMoreGroups,
+                  child: Text(l10n.t('chat.more_groups')),
+                ),
+              ),
+            );
+          }
+          final g = _groups[i];
+          final unread = g.unreadCount > 0;
+          return Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _openGroup(g),
+              hoverColor: social.hover,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                child: Row(
+                children: [
+                  AppAvatar(
+                    url: g.avatarUrl,
+                    size: 52,
+                    name: g.name,
+                    seed: g.groupId,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                g.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: unread
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (unread)
+                              Container(
+                                constraints: const BoxConstraints(minWidth: 20),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: scheme.primary,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '${g.unreadCount}',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: scheme.onPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n
+                              .t('chat.members_channels')
+                              .replaceAll('{members}', '${g.memberCount}')
+                              .replaceAll('{channels}', '${g.channelCount}'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        },
+      ),
     );
   }
 }
@@ -1022,7 +1304,7 @@ class _GroupChannelPickerState extends ConsumerState<_GroupChannelPicker> {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: _channels.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
                 itemBuilder: (context, index) {
                   final channel = _channels[index];
                   return ListTile(

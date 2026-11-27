@@ -130,7 +130,11 @@ void main() {
         ..trending[2] = _page([_post(81), _post(82)]);
       await tester.pumpWidget(_app(tokens, posts, _FakeGroupsApi(tokens)));
       await tester.pump();
+      await tester.tap(find.byKey(const Key('feed-recommended-info-button')));
+      await tester.pump();
       expect(find.textContaining('近 30 天'), findsOneWidget);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump();
       await tester.tap(find.text('关注'));
       await tester.pumpAndSettle();
       expect(find.text('Post 71'), findsOneWidget);

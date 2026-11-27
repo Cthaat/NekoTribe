@@ -39,10 +39,15 @@ void main() {
         child: const MaterialApp(home: ComposePostScreen()),
       ),
     );
-    await tester.tap(find.byKey(const Key('post-markdown-toggle')));
+    final markdown = find.byKey(const Key('post-markdown-toggle'));
+    expect(tester.getSize(markdown).width, lessThan(240));
+    await tester.tap(markdown);
     await tester.pumpAndSettle();
     final source = '# **${'文' * 300}**\n\nmore';
-    await tester.enterText(find.byKey(const Key('post-markdown-field')), source);
+    await tester.enterText(
+      find.byKey(const Key('post-markdown-field')),
+      source,
+    );
     await tester.tap(find.widgetWithText(FilledButton, '发布'));
     await tester.pumpAndSettle();
     expect(api.content, '文' * 280);
@@ -66,11 +71,16 @@ void main() {
         child: const MaterialApp(home: ComposePostScreen()),
       ),
     );
+    final publish = find.widgetWithText(FilledButton, '发布');
+    expect(tester.widget<FilledButton>(publish).onPressed, isNull);
     await tester.enterText(
       find.byKey(const Key('compose-content-field')),
       'Pick one',
     );
+    await tester.pump();
+    expect(tester.widget<FilledButton>(publish).onPressed, isNotNull);
     final attach = find.byKey(const Key('post-poll-attach'));
+    expect(tester.getSize(attach).width, lessThan(240));
     await tester.ensureVisible(attach);
     await tester.tap(attach);
     await tester.pumpAndSettle();

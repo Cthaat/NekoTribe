@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../../shared/widgets/viewport_visibility.dart';
 import '../domain/post_poll.dart';
@@ -279,7 +280,6 @@ class _PostPollCardState extends ConsumerState<PostPollCard>
       );
     }
     final materials = MaterialLocalizations.of(context);
-    final theme = Theme.of(context);
     final deadline = _poll.closesAt.toLocal();
     final canVote = _canVote;
     final canSelect = canVote && !_sending;
@@ -289,10 +289,13 @@ class _PostPollCardState extends ConsumerState<PostPollCard>
     );
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
+      decoration: ShapeDecoration(
+        color: SocialColors.of(context).surfaceSubtle,
+        shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+        ),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

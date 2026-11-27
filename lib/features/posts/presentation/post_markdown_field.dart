@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/theme/tokens.dart';
 import '../domain/post_markdown.dart';
 
 class PostMarkdownToggle extends StatelessWidget {
@@ -16,13 +17,22 @@ class PostMarkdownToggle extends StatelessWidget {
   final ValueChanged<bool>? onChanged;
 
   @override
-  Widget build(BuildContext context) => CheckboxListTile(
-    key: const Key('post-markdown-toggle'),
-    value: selected,
-    onChanged: onChanged == null ? null : (value) => onChanged!(value ?? false),
-    contentPadding: EdgeInsets.zero,
-    title: Text(AppLocalizations.of(context).t('post.markdown.option')),
-  );
+  Widget build(BuildContext context) {
+    final social = SocialColors.of(context);
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: FilterChip(
+        key: const Key('post-markdown-toggle'),
+        shape: const StadiumBorder(),
+        side: BorderSide.none,
+        backgroundColor: social.surfaceSubtle,
+        selectedColor: social.primarySoft,
+        selected: selected,
+        onSelected: onChanged,
+        label: Text(AppLocalizations.of(context).t('post.markdown.option')),
+      ),
+    );
+  }
 }
 
 class PostMarkdownField extends StatelessWidget {

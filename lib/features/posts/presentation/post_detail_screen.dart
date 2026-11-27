@@ -1,14 +1,25 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../shared/format/relative_time.dart';
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/motion/animated_count.dart';
+import '../../../shared/motion/entrance.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/glass/liquid_glass_bars.dart';
+import '../../../shared/widgets/glass/liquid_glass_surface.dart';
+import '../../../shared/widgets/glass/liquid_glass_tokens.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../ai/presentation/ai_writing_screen.dart';
 import '../domain/post_draft_metadata.dart';
 import '../domain/post_models.dart';
@@ -29,6 +40,7 @@ class PostDetailScreen extends ConsumerStatefulWidget {
 class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   V2Post? _post;
   bool _showRetweets = false;
+  bool _relatedSelected = false;
   List<V2Comment> _comments = [];
   List<V2Post> _relatedPosts = [];
   int _relatedPage = 0;
@@ -51,6 +63,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   bool _deletingComment = false;
   V2Comment? _replyTarget;
   bool _sendingComment = false;
+  double _composerHeight = 108;
   final _replyController = TextEditingController();
   bool get _active => mounted && !_expired;
 
@@ -327,8 +340,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   void _selectRelatedPosts({required bool retweets}) {
-    if (!_active || _showRetweets == retweets) return;
-    setState(() => _showRetweets = retweets);
+    if (!_active || (_relatedSelected && _showRetweets == retweets)) return;
+    setState(() {
+      _relatedSelected = true;
+      _showRetweets = retweets;
+    });
     _loadRelatedPosts(reset: true);
   }
 
@@ -488,10 +504,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     );
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final topInset = kToolbarHeight + MediaQuery.paddingOf(context).top;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final showComposer =
+        !_commentsPending &&
+        _commentsError == null &&
+        (widget.commentId == null || _replyTarget != null);
     final showRelatedPosts = signedIn && widget.commentId == null;
-    final relatedRows = showRelatedPosts ? _relatedPosts.length + 2 : 0;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.t('post.title'))),
+      backgroundColor: social.surfaceBase,
+      extendBodyBehindAppBar: true,
+      resizeToAvoidBottomInset: false,
+      appBar: LiquidGlassAppBar(
+        leading: const SafeBackButton(),
+        title: Text(l10n.t('post.title')),
+      ),
       body: _expired
           ? Center(child: Text(l10n.t('visibility.sessionChanged')))
           : _loading
@@ -506,16 +535,16 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 constraints: const BoxConstraints(
                   maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
-                child: Column(
-                  children: [
-                    if (widget.commentId != null)
-                      TextButton(
-                        onPressed: () =>
-                            context.replace('/posts/${widget.postId}'),
-                        child: Text(l10n.t('ai.knowledge.all_comments')),
-                      ),
-                    Expanded(
-                      child: NotificationListener<ScrollNotification>(
+                child: AnimatedPadding(
+                  duration: AppMotion.resolve(context, AppMotion.glide),
+                  curve: AppMotion.glideCurve,
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.viewInsetsOf(context).bottom,
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      NotificationListener<ScrollNotification>(
                         onNotification: (n) {
                           if (n.metrics.pixels >=
                               n.metrics.maxScrollExtent - 200) {
@@ -523,272 +552,509 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           }
                           return false;
                         },
-                        child: ListView.builder(
-                          itemCount:
-                              2 +
-                              relatedRows + // post card + divider
-                              (_comments.isEmpty
-                                  ? (_hasNext ? 0 : 1)
-                                  : _comments.length) +
-                              (_hasNext ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == 0) {
-                              final card = PostCard(
-                                post: _post!,
-                                onRetweeted: () {
-                                  if (_showRetweets) {
-                                    _loadRelatedPosts(reset: true);
-                                  }
-                                },
-                                onChanged: (p) {
-                                  if (_active) setState(() => _post = p);
-                                },
-                                onDeleted: _leaveDeletedPost,
-                                onReport: () {
-                                  final post = _post;
-                                  if (!_active || post == null) return;
-                                  showReportDialog(
-                                    context,
-                                    ref,
-                                    targetType: 'post',
-                                    targetId: post.postId,
-                                  );
-                                },
-                              );
-                              if (!signedIn || _post!.postId != widget.postId) {
-                                return card;
-                              }
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  card,
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).push<void>(
-                                          MaterialPageRoute<void>(
-                                            builder: (_) => PostLikersScreen(
-                                              postId: widget.postId,
+                        child: CustomScrollView(
+                          slivers: [
+                            PinnedHeaderSliver(
+                              child: SizedBox(height: topInset),
+                            ),
+                            if (widget.commentId != null)
+                              SliverToBoxAdapter(
+                                child: TextButton(
+                                  onPressed: () => context.replace(
+                                    '/posts/${widget.postId}',
+                                  ),
+                                  child: Text(
+                                    l10n.t('ai.knowledge.all_comments'),
+                                  ),
+                                ),
+                              ),
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                              sliver: SliverToBoxAdapter(
+                                child: Builder(
+                                  builder: (context) {
+                                    final card = PostCard(
+                                      post: _post!,
+                                      focused: true,
+                                      avatarHeroTag:
+                                          'avatar-${_post!.postId}-${_post!.author.userId}',
+                                      onOpenLikers:
+                                          signedIn &&
+                                              _post!.postId == widget.postId
+                                          ? () => Navigator.of(context)
+                                                .push<void>(
+                                                  MaterialPageRoute<void>(
+                                                    builder: (_) =>
+                                                        PostLikersScreen(
+                                                          postId: widget.postId,
+                                                        ),
+                                                  ),
+                                                )
+                                          : null,
+                                      onRetweeted: () {
+                                        if (_showRetweets) {
+                                          _loadRelatedPosts(reset: true);
+                                        }
+                                      },
+                                      onChanged: (p) {
+                                        if (_active) setState(() => _post = p);
+                                      },
+                                      onDeleted: _leaveDeletedPost,
+                                      onReport: () {
+                                        final post = _post;
+                                        if (!_active || post == null) return;
+                                        showReportDialog(
+                                          context,
+                                          ref,
+                                          targetType: 'post',
+                                          targetId: post.postId,
+                                        );
+                                      },
+                                    );
+                                    if (!signedIn ||
+                                        _post!.postId != widget.postId) {
+                                      return card;
+                                    }
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        card,
+                                        if (showRelatedPosts)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 10,
+                                            ),
+                                            child: Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: [
+                                                ActionChip(
+                                                  backgroundColor:
+                                                      scheme.surfaceContainer,
+                                                  side: BorderSide.none,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          AppRadius.inner,
+                                                        ),
+                                                  ),
+                                                  avatar: Icon(
+                                                    Icons.reply_rounded,
+                                                    size: 16,
+                                                    color: scheme.primary,
+                                                  ),
+                                                  label: Text(
+                                                    l10n.t(
+                                                      'post.replies.write',
+                                                    ),
+                                                    style: theme
+                                                        .textTheme
+                                                        .labelMedium
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                  ),
+                                                  onPressed: _openCompose,
+                                                ),
+                                                if (_post!.visibility ==
+                                                        'public' &&
+                                                    _post!.content
+                                                        .trim()
+                                                        .isNotEmpty)
+                                                  ActionChip(
+                                                    backgroundColor:
+                                                        scheme.surfaceContainer,
+                                                    side: BorderSide.none,
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            AppRadius.inner,
+                                                          ),
+                                                    ),
+                                                    avatar: Icon(
+                                                      Icons.auto_awesome,
+                                                      size: 16,
+                                                      color: scheme.primary,
+                                                    ),
+                                                    label: Text(
+                                                      l10n.t(
+                                                        _summaryPending
+                                                            ? 'common.loading'
+                                                            : 'ai.writing.summarize_post',
+                                                      ),
+                                                      style: theme
+                                                          .textTheme
+                                                          .labelMedium
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                    ),
+                                                    onPressed: _summaryPending
+                                                        ? null
+                                                        : _openDiscussionSummary,
+                                                  ),
+                                              ],
                                             ),
                                           ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            if (showRelatedPosts)
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: _RelatedTabsDelegate(
+                                  showRetweets: _showRetweets,
+                                  repliesLabel: l10n.t('post.replies.title'),
+                                  repostsLabel: l10n.t('post.reposts.title'),
+                                  onSelect: _selectRelatedPosts,
+                                ),
+                              ),
+                            if (showRelatedPosts)
+                              SliverPadding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                sliver: SliverList.builder(
+                                  itemCount: _relatedPosts.length + 1,
+                                  itemBuilder: (context, index) {
+                                    if (index == _relatedPosts.length) {
+                                      return _relatedFooter(l10n);
+                                    }
+                                    final reply = _relatedPosts[index];
+                                    return Padding(
+                                      key: ValueKey(reply.postId),
+                                      padding: const EdgeInsets.only(
+                                        bottom: 10,
+                                      ),
+                                      child: PostCard(
+                                        post: reply,
+                                        onChanged: (updated) {
+                                          if (!_active) return;
+                                          setState(() {
+                                            _relatedPosts = [
+                                              for (final post in _relatedPosts)
+                                                if (post.postId ==
+                                                    updated.postId)
+                                                  updated
+                                                else
+                                                  post,
+                                            ];
+                                          });
+                                        },
+                                        onDeleted: () {
+                                          if (_active) {
+                                            _loadRelatedPosts(reset: true);
+                                          }
+                                        },
+                                        onReport: () {
+                                          if (!_active) return;
+                                          showReportDialog(
+                                            context,
+                                            ref,
+                                            targetType: 'post',
+                                            targetId: reply.postId,
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                              sliver: SliverList.builder(
+                                itemCount:
+                                    1 +
+                                    (_comments.isEmpty
+                                        ? (_hasNext ? 0 : 1)
+                                        : _comments.length) +
+                                    (_hasNext ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  if (index == 0) {
+                                    return Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        4,
+                                        14,
+                                        4,
+                                        8,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Text(
+                                            l10n.t('post.stats.comments'),
+                                            style: theme.textTheme.labelLarge
+                                                ?.copyWith(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                ),
+                                          ),
+                                          if (_comments.isNotEmpty) ...[
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              '· ${_comments.length}',
+                                              style: theme.textTheme.labelMedium
+                                                  ?.copyWith(
+                                                    color: social.inkTertiary,
+                                                  ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  if (_commentsPending) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+                                  if (_commentsError case final error?) {
+                                    return ErrorView(
+                                      error: error,
+                                      onRetry: _loadComments,
+                                    );
+                                  }
+                                  if (_comments.isEmpty) {
+                                    if (!_hasNext) {
+                                      return Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: EmptyView(
+                                          message: l10n.t(
+                                            widget.commentId == null
+                                                ? 'post.comments.empty'
+                                                : 'ai.knowledge.cited_comment_missing',
+                                          ),
                                         ),
-                                    child: Text(l10n.t('post.likers.title')),
-                                  ),
-                                  if (showRelatedPosts)
-                                    TextButton(
-                                      onPressed: _openCompose,
-                                      child: Text(l10n.t('post.replies.write')),
-                                    ),
-                                  if (showRelatedPosts &&
-                                      _post!.visibility == 'public' &&
-                                      _post!.content.trim().isNotEmpty)
-                                    TextButton(
-                                      onPressed: _summaryPending
+                                      );
+                                    }
+                                    return const Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+
+                                  final contentIndex = index - 1;
+                                  if (contentIndex < _comments.length) {
+                                    final c = _comments[contentIndex];
+                                    final tile = _CommentTile(
+                                      comment: c,
+                                      isNestedReply: c.parentCommentId != null,
+                                      onReply: _sendingComment
                                           ? null
-                                          : _openDiscussionSummary,
-                                      child: Text(
-                                        l10n.t(
-                                          _summaryPending
-                                              ? 'common.loading'
-                                              : 'ai.writing.summarize_post',
-                                        ),
-                                      ),
+                                          : () => _replyToComment(c),
+                                      onLike:
+                                          _pendingCommentLikes.contains(
+                                            c.commentId,
+                                          )
+                                          ? null
+                                          : () => _toggleCommentLike(c),
+                                      canDelete: c.canDelete,
+                                      onDelete: c.canDelete && !_deletingComment
+                                          ? () => _deleteComment(c)
+                                          : null,
+                                    );
+                                    if (contentIndex < 8) {
+                                      return StaggeredEntrance(
+                                        index: contentIndex,
+                                        child: tile,
+                                      );
+                                    }
+                                    return tile;
+                                  }
+
+                                  return const Padding(
+                                    padding: EdgeInsets.all(24),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
                                     ),
-                                ],
-                              );
-                            }
-                            if (showRelatedPosts && index <= relatedRows) {
-                              if (index == 1) {
-                                return Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    16,
-                                    16,
-                                    8,
-                                  ),
-                                  child: Wrap(
-                                    spacing: 8,
-                                    children: [
-                                      ChoiceChip(
-                                        label: Text(
-                                          l10n.t('post.replies.title'),
-                                        ),
-                                        selected: !_showRetweets,
-                                        onSelected: (_) => _selectRelatedPosts(
-                                          retweets: false,
-                                        ),
-                                      ),
-                                      ChoiceChip(
-                                        label: Text(
-                                          l10n.t('post.reposts.title'),
-                                        ),
-                                        selected: _showRetweets,
-                                        onSelected: (_) =>
-                                            _selectRelatedPosts(retweets: true),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-                              if (index == relatedRows) {
-                                return _relatedFooter(l10n);
-                              }
-                              final reply = _relatedPosts[index - 2];
-                              return PostCard(
-                                key: ValueKey(reply.postId),
-                                post: reply,
-                                onChanged: (updated) {
-                                  if (!_active) return;
-                                  setState(() {
-                                    _relatedPosts = [
-                                      for (final post in _relatedPosts)
-                                        if (post.postId == updated.postId)
-                                          updated
-                                        else
-                                          post,
-                                    ];
-                                  });
-                                },
-                                onDeleted: () {
-                                  if (_active) _loadRelatedPosts(reset: true);
-                                },
-                                onReport: () {
-                                  if (!_active) return;
-                                  showReportDialog(
-                                    context,
-                                    ref,
-                                    targetType: 'post',
-                                    targetId: reply.postId,
                                   );
                                 },
-                              );
-                            }
-                            if (index == 1 + relatedRows) {
-                              return Divider(
-                                height: 1,
-                                color: theme.dividerColor,
-                              );
-                            }
-
-                            if (_commentsPending) {
-                              return const Padding(
-                                padding: EdgeInsets.all(24),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            if (_commentsError case final error?) {
-                              return ErrorView(
-                                error: error,
-                                onRetry: _loadComments,
-                              );
-                            }
-                            if (_comments.isEmpty) {
-                              if (!_hasNext) {
-                                return Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: EmptyView(
-                                    message: l10n.t(
-                                      widget.commentId == null
-                                          ? 'post.comments.empty'
-                                          : 'ai.knowledge.cited_comment_missing',
-                                    ),
-                                  ),
-                                );
-                              }
-                              return const Padding(
-                                padding: EdgeInsets.all(24),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-
-                            final contentIndex = index - 2 - relatedRows;
-                            if (contentIndex < _comments.length) {
-                              final c = _comments[contentIndex];
-                              return _CommentTile(
-                                comment: c,
-                                onReply: _sendingComment
-                                    ? null
-                                    : () => _replyToComment(c),
-                                onLike:
-                                    _pendingCommentLikes.contains(c.commentId)
-                                    ? null
-                                    : () => _toggleCommentLike(c),
-                                canDelete: c.canDelete,
-                                onDelete: c.canDelete && !_deletingComment
-                                    ? () => _deleteComment(c)
-                                    : null,
-                              );
-                            }
-
-                            return const Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    if (!_commentsPending &&
-                        _commentsError == null &&
-                        (widget.commentId == null || _replyTarget != null))
-                      Container(
-                        decoration: BoxDecoration(
-                          color: theme.scaffoldBackgroundColor,
-                          border: Border(
-                            top: BorderSide(color: theme.dividerColor),
-                          ),
-                        ),
-                        child: SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _replyController,
-                                    enabled: !_sendingComment,
-                                    decoration: InputDecoration(
-                                      hintText: l10n.t('common.comment'),
-                                      labelText: _replyTarget == null
-                                          ? null
-                                          : '${l10n.t('chat.replying_to')} @${_replyTarget!.author.username}',
-                                      isDense: true,
-                                    ),
-                                    textInputAction: TextInputAction.send,
-                                    onSubmitted: (_) => _submitReply(),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  onPressed: _sendingComment
-                                      ? null
-                                      : _submitReply,
-                                  tooltip: l10n.t('common.post'),
-                                  icon: Icon(
-                                    Icons.send_rounded,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                ),
-                                if (_replyTarget != null)
-                                  IconButton(
-                                    onPressed: _sendingComment
-                                        ? null
-                                        : () => setState(
-                                            () => _replyTarget = null,
-                                          ),
-                                    tooltip: l10n.t('common.cancel'),
-                                    icon: const Icon(Icons.close),
-                                  ),
-                              ],
+                              ),
                             ),
-                          ),
+                            SliverPadding(
+                              padding: EdgeInsets.only(
+                                bottom: showComposer
+                                    ? math.max(
+                                        108 + bottomInset,
+                                        _composerHeight,
+                                      )
+                                    : bottomInset,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                  ],
+                      if (showComposer)
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: measureGlassOverlay(
+                            SafeArea(
+                              top: false,
+                              child: LiquidGlassSurface(
+                                preset: LiquidGlassPreset.floatingIsland,
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.canvas,
+                                ),
+                                margin: const EdgeInsets.fromLTRB(
+                                  12,
+                                  6,
+                                  12,
+                                  12,
+                                ),
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  10,
+                                  10,
+                                  10,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (_replyTarget != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 6,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                '${l10n.t('chat.replying_to')} @${_replyTarget!.author.username}',
+                                                style: theme
+                                                    .textTheme
+                                                    .labelMedium
+                                                    ?.copyWith(
+                                                      color: scheme.primary,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            IconButton(
+                                              onPressed: _sendingComment
+                                                  ? null
+                                                  : () => setState(
+                                                      () => _replyTarget = null,
+                                                    ),
+                                              tooltip: l10n.t('common.cancel'),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              icon: const Icon(
+                                                Icons.close,
+                                                size: 16,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    AnimatedSize(
+                                      duration: AppMotion.resolve(
+                                        context,
+                                        AppMotion.glide,
+                                      ),
+                                      curve: AppMotion.glideCurve,
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _replyController,
+                                              enabled: !_sendingComment,
+                                              minLines: 1,
+                                              maxLines: 5,
+                                              decoration: InputDecoration(
+                                                hintText: l10n.t(
+                                                  'post.reply_placeholder',
+                                                ),
+                                                isDense: true,
+                                                filled: false,
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 8,
+                                                    ),
+                                                border: InputBorder.none,
+                                                enabledBorder: InputBorder.none,
+                                                focusedBorder: InputBorder.none,
+                                              ),
+                                              textInputAction:
+                                                  TextInputAction.send,
+                                              onSubmitted: (_) =>
+                                                  _submitReply(),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          ValueListenableBuilder<
+                                            TextEditingValue
+                                          >(
+                                            valueListenable: _replyController,
+                                            builder: (context, value, _) {
+                                              final hasText = value.text
+                                                  .trim()
+                                                  .isNotEmpty;
+                                              return AnimatedScale(
+                                                scale: hasText ? 1.0 : 0.92,
+                                                duration: AppMotion.resolve(
+                                                  context,
+                                                  AppMotion.micro,
+                                                ),
+                                                curve: AppMotion.glideCurve,
+                                                child: IconButton.filled(
+                                                  onPressed:
+                                                      _sendingComment ||
+                                                          !hasText
+                                                      ? null
+                                                      : _submitReply,
+                                                  tooltip: l10n.t(
+                                                    'common.post',
+                                                  ),
+                                                  style: IconButton.styleFrom(
+                                                    fixedSize: const Size(
+                                                      38,
+                                                      38,
+                                                    ),
+                                                  ),
+                                                  icon: const Icon(
+                                                    Icons.send_rounded,
+                                                    size: 18,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            (height) {
+                              if (_composerHeight != height) {
+                                setState(() => _composerHeight = height);
+                              }
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -805,7 +1071,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final error = _relatedError;
     if (error != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -826,12 +1092,18 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         ),
       );
     }
+    if (_relatedPosts.isEmpty && !_relatedSelected) {
+      return const SizedBox.shrink();
+    }
     return _relatedPosts.isEmpty
         ? Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 12),
             child: Text(
               l10n.t(
                 _showRetweets ? 'post.reposts.empty' : 'post.replies.empty',
+              ),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: SocialColors.of(context).inkTertiary,
               ),
             ),
           )
@@ -842,12 +1114,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 class _CommentTile extends StatelessWidget {
   const _CommentTile({
     required this.comment,
+    this.isNestedReply = false,
     this.onLike,
     this.onReply,
     required this.canDelete,
     this.onDelete,
   });
   final V2Comment comment;
+  final bool isNestedReply;
   final VoidCallback? onLike;
   final VoidCallback? onReply;
   final VoidCallback? onDelete;
@@ -856,13 +1130,26 @@ class _CommentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
     final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+    final displayName = comment.author.displayName.isEmpty
+        ? comment.author.username
+        : comment.author.displayName;
+    final locale = Localizations.localeOf(context);
+
+    final card = SurfaceCard(
+      radius: AppRadius.card,
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppAvatar(url: comment.author.avatarUrl, size: 36),
+          AppAvatar(
+            url: comment.author.avatarUrl,
+            size: 36,
+            name: displayName,
+            seed: comment.author.userId,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -872,11 +1159,9 @@ class _CommentTile extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        comment.author.displayName.isEmpty
-                            ? comment.author.username
-                            : comment.author.displayName,
+                        displayName,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -887,37 +1172,92 @@ class _CommentTile extends StatelessWidget {
                       child: Text(
                         '@${comment.author.username}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: social.inkTertiary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    Text(
+                      ' · ',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: social.inkTertiary,
+                      ),
+                    ),
+                    Tooltip(
+                      message: formatFullTimestamp(
+                        comment.createdAt,
+                        locale: locale,
+                      ),
+                      child: Text(
+                        formatRelativeTime(comment.createdAt, locale: locale),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: social.inkTertiary,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(comment.content, style: theme.textTheme.bodyMedium),
+                const SizedBox(height: 6),
+                Text(
+                  comment.content,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.60),
+                ),
+                const SizedBox(height: 6),
                 Wrap(
+                  spacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Tooltip(
                       message: l10n.t(
                         comment.isLiked ? 'common.unlike' : 'common.like',
                       ),
-                      child: TextButton.icon(
-                        onPressed: onLike,
-                        icon: Icon(
-                          comment.isLiked
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          size: 18,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: onLike,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                comment.isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                size: 17,
+                                color: comment.isLiked
+                                    ? social.like
+                                    : scheme.onSurfaceVariant,
+                              ),
+                              if (comment.likesCount > 0) ...[
+                                const SizedBox(width: 4),
+                                AnimatedCount(
+                                  count: comment.likesCount,
+                                  hideZero: true,
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: comment.isLiked
+                                        ? social.like
+                                        : scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                        label: Text('${comment.likesCount}'),
                       ),
                     ),
                     IconButton(
                       onPressed: onReply,
                       tooltip: l10n.t('post.comment.reply'),
-                      icon: const Icon(Icons.reply, size: 18),
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        Icons.reply,
+                        size: 17,
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -927,15 +1267,152 @@ class _CommentTile extends StatelessWidget {
           if (canDelete)
             IconButton(
               tooltip: l10n.t('common.delete'),
+              visualDensity: VisualDensity.compact,
               icon: Icon(
                 Icons.delete_outline,
                 size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
+                color: scheme.onSurfaceVariant,
               ),
               onPressed: onDelete,
             ),
         ],
       ),
     );
+
+    if (!isNestedReply) {
+      return Padding(padding: const EdgeInsets.only(bottom: 10), child: card);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 0, 10),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 2,
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: card),
+          ],
+        ),
+      ),
+    );
   }
+}
+
+class _RelatedTabsDelegate extends SliverPersistentHeaderDelegate {
+  _RelatedTabsDelegate({
+    required this.showRetweets,
+    required this.repliesLabel,
+    required this.repostsLabel,
+    required this.onSelect,
+  });
+
+  final bool showRetweets;
+  final String repliesLabel;
+  final String repostsLabel;
+  final void Function({required bool retweets}) onSelect;
+
+  @override
+  double get minExtent => 60;
+
+  @override
+  double get maxExtent => 60;
+
+  Widget _buildTabChip(BuildContext context, String label, bool retweets) {
+    final selected = retweets == showRetweets;
+    final scheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final caption = SizedBox(
+          width: constraints.maxWidth,
+          height: 34,
+          child: Center(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        );
+        return ChoiceChip(
+          showCheckmark: false,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+          elevation: 0,
+          pressElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          selectedColor: Colors.transparent,
+          side: BorderSide.none,
+          shape: const StadiumBorder(),
+          padding: EdgeInsets.zero,
+          labelPadding: EdgeInsets.zero,
+          selected: selected,
+          onSelected: (_) => onSelect(retweets: retweets),
+          label: selected
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.primary,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: caption,
+                )
+              : caption,
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return LiquidGlassSurface(
+      preset: LiquidGlassPreset.stickyHeader,
+      borderRadius: BorderRadius.zero,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(
+            alpha: Theme.of(context).brightness == Brightness.dark
+                ? 0.22
+                : 0.06,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: SizedBox(
+            height: 34,
+            child: Row(
+              children: [
+                Expanded(child: _buildTabChip(context, repliesLabel, false)),
+                Expanded(child: _buildTabChip(context, repostsLabel, true)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _RelatedTabsDelegate oldDelegate) =>
+      oldDelegate.showRetweets != showRetweets ||
+      oldDelegate.repliesLabel != repliesLabel ||
+      oldDelegate.repostsLabel != repostsLabel;
 }

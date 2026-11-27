@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,10 +11,17 @@ import '../../../core/network/api_response.dart';
 import '../../../core/utils/ai_conversation_link.dart';
 import '../../../core/utils/group_post_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
+import '../../../shared/motion/entrance.dart';
+import '../../../shared/motion/skeleton.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
+import '../../../shared/theme/tokens.dart';
+import '../../../shared/widgets/glass/liquid_glass_bars.dart';
+import '../../../shared/widgets/glass/liquid_glass_surface.dart';
+import '../../../shared/widgets/glass/liquid_glass_tokens.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../groups/domain/group_models.dart';
 import '../../groups/presentation/group_post_card.dart';
 import '../domain/post_models.dart';
@@ -47,6 +56,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   };
   _FeedTabState<V2GroupPost> _groups = _FeedTabState();
   final _pendingGroupLikes = <(int, int)>{};
+  bool _fabVisible = true;
 
   _HomeFeedTab get _selected => _HomeFeedTab.values[_tab.index];
 
@@ -56,6 +66,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     _tab = TabController(length: _HomeFeedTab.values.length, vsync: this);
     _tab.addListener(() {
       if (_tab.indexIsChanging) return;
+      if (mounted) setState(() {});
       _load(_selected);
     });
     _stopSessionListener = ref
@@ -163,6 +174,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   }
 
   Future<void> _refresh(_HomeFeedTab tab) async {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.android)) {
+      HapticFeedback.selectionClick();
+    }
     setState(() {
       if (tab == _HomeFeedTab.groups) {
         _groups = _FeedTabState();
@@ -172,6 +188,46 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       }
     });
     await _load(tab);
+  }
+
+  void _showRecommendedInfo() {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => LiquidGlassSurface(
+        preset: LiquidGlassPreset.popover,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadius.canvas),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.t('feed.recommended_info_title'),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  l10n.t('feed.recommended_explanation'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _compose() async {
@@ -244,84 +300,253 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final session = ref.watch(authSessionProvider);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final isWide = AppBreakpoints.isMedium(context);
+
+    final mqPadding = MediaQuery.paddingOf(context);
+    final mqViewPadding = MediaQuery.viewPaddingOf(context);
+    final dockInset = (mqPadding.bottom - mqViewPadding.bottom).clamp(
+      0.0,
+      200.0,
+    );
+
+    final headerActions = <Widget>[
+      if (_selected == _HomeFeedTab.recommended)
+        LiquidGlassIconButton(
+          key: const Key('feed-recommended-info-button'),
+          tooltip: l10n.t('feed.recommended_explanation'),
+          icon: Icon(
+            Icons.info_outline_rounded,
+            size: 19,
+            color: scheme.onSurfaceVariant,
+          ),
+          onPressed: _showRecommendedInfo,
+        ),
+      LiquidGlassIconButton(
+        key: const Key('feed-ai-knowledge-button'),
+        tooltip: l10n.t('ai.knowledge.title'),
+        icon: const Icon(Icons.library_books_outlined),
+        onPressed: () {
+          if (requireAuthenticatedAction(context, ref)) {
+            openAiConversation(context, knowledge: true);
+          }
+        },
+      ),
+      LiquidGlassIconButton(
+        key: const Key('feed-ai-writing-button'),
+        tooltip: l10n.t('ai.writing.title'),
+        icon: const Icon(Icons.auto_awesome_outlined),
+        onPressed: () {
+          if (requireAuthenticatedAction(context, ref)) {
+            openAiConversation(context);
+          }
+        },
+      ),
+      LiquidGlassIconButton(
+        key: const Key('feed-search-button'),
+        tooltip: l10n.t('tab.discover'),
+        icon: const Icon(Icons.search_rounded),
+        onPressed: () => context.push('/discover'),
+      ),
+    ];
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.t('app.title')),
-        actions: [
-          IconButton(
-            key: const Key('feed-ai-knowledge-button'),
-            tooltip: l10n.t('ai.knowledge.title'),
-            icon: const Icon(Icons.library_books_outlined),
-            onPressed: () {
-              if (requireAuthenticatedAction(context, ref)) {
-                openAiConversation(context, knowledge: true);
-              }
-            },
-          ),
-          IconButton(
-            key: const Key('feed-ai-writing-button'),
-            tooltip: l10n.t('ai.writing.title'),
-            icon: const Icon(Icons.auto_awesome_outlined),
-            onPressed: () {
-              if (requireAuthenticatedAction(context, ref)) {
-                openAiConversation(context);
-              }
-            },
-          ),
-          IconButton(
-            key: const Key('feed-search-button'),
-            tooltip: l10n.t('tab.discover'),
-            icon: const Icon(Icons.search),
-            onPressed: () => context.push('/discover'),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final theme = Theme.of(context);
-              final viewportWidth = MediaQuery.sizeOf(context).width;
-              final availableWidth =
-                  constraints.maxWidth.isFinite &&
-                      constraints.maxWidth < viewportWidth
-                  ? constraints.maxWidth
-                  : viewportWidth;
-              final width = availableWidth < AppBreakpoints.contentMaxWidth
-                  ? availableWidth
-                  : AppBreakpoints.contentMaxWidth;
-              return Center(
-                child: SizedBox(
-                  width: width,
-                  child: TabBar(
-                    controller: _tab,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.center,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 16),
-                    dividerColor: theme.colorScheme.outlineVariant.withValues(
-                      alpha: 0.45,
+      extendBodyBehindAppBar: true,
+      backgroundColor: social.surfaceBase,
+      floatingActionButton: isWide
+          ? null
+          : Padding(
+              padding: EdgeInsets.only(bottom: dockInset, right: 4),
+              child: AnimatedSlide(
+                offset: _fabVisible ? Offset.zero : const Offset(0, 1.8),
+                duration: AppMotion.resolve(context, AppMotion.glide),
+                curve: AppMotion.curve,
+                child: AnimatedScale(
+                  scale: _fabVisible ? 1.0 : 0.72,
+                  duration: AppMotion.resolve(context, AppMotion.glide),
+                  curve: AppMotion.curve,
+                  child: Tooltip(
+                    message: l10n.t('common.post'),
+                    excludeFromSemantics: true,
+                    child: Semantics(
+                      button: true,
+                      label: l10n.t('common.post'),
+                      child: SizedBox.square(
+                        dimension: 50,
+                        child: LiquidGlassSurface(
+                          preset: LiquidGlassPreset.iconButton,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          interactive: true,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: scheme.primary.withValues(
+                                alpha: theme.brightness == Brightness.dark
+                                    ? 0.24
+                                    : 0.86,
+                              ),
+                            ),
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _compose,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.edit_rounded,
+                                    size: 22,
+                                    color: theme.brightness == Brightness.dark
+                                        ? scheme.primary
+                                        : scheme.onPrimary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                    indicatorSize: TabBarIndicatorSize.label,
-                    onTap: (idx) => _load(_HomeFeedTab.values[idx]),
-                    tabs: [
-                      for (final tab in _HomeFeedTab.values)
-                        Tab(text: l10n.t('feed.tab.${tab.name}')),
-                    ],
                   ),
                 ),
-              );
-            },
+              ),
+            ),
+      body: NotificationListener<ScrollUpdateNotification>(
+        onNotification: (n) {
+          if (isWide || n.metrics.axis != Axis.vertical) return false;
+          final delta = n.scrollDelta ?? 0;
+          if (delta > 10 && _fabVisible) {
+            setState(() => _fabVisible = false);
+          } else if ((delta < -10 || n.metrics.pixels <= 16) && !_fabVisible) {
+            setState(() => _fabVisible = true);
+          }
+          return false;
+        },
+        child: NestedScrollView(
+          floatHeaderSlivers: true,
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverAppBar(
+              floating: true,
+              snap: true,
+              pinned: true,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              backgroundColor: Colors.transparent,
+              forceMaterialTransparency: true,
+              flexibleSpace: AnimatedSwitcher(
+                duration: AppMotion.resolve(context, AppMotion.fast),
+                child: innerBoxIsScrolled
+                    ? const LiquidGlassSurface(
+                        key: ValueKey('feed-header-glass'),
+                        preset: LiquidGlassPreset.stickyHeader,
+                        borderRadius: BorderRadius.zero,
+                        child: SizedBox.expand(),
+                      )
+                    : const SizedBox.expand(
+                        key: ValueKey('feed-header-clear'),
+                      ),
+              ),
+              leadingWidth: isWide ? null : 54,
+              leading: isWide
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Center(
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: scheme.primary,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.pets_rounded,
+                            size: 17,
+                            color: scheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+              titleSpacing: isWide ? 0 : 8,
+              title: isWide
+                  ? Align(
+                      alignment: Alignment.center,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: AppBreakpoints.contentMaxWidth,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  l10n.t('tab.home'),
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              for (var i = 0; i < headerActions.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 8),
+                                headerActions[i],
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  : Text(
+                      l10n.t('app.title'),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+              actions: isWide
+                  ? null
+                  : [
+                      for (var i = 0; i < headerActions.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 6),
+                        headerActions[i],
+                      ],
+                      const SizedBox(width: 12),
+                    ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(54),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: AppBreakpoints.contentMaxWidth,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                      child: _CapsuleSegmentedTabs(
+                        controller: _tab,
+                        labels: [
+                          for (final tab in _HomeFeedTab.values)
+                            l10n.t('feed.tab.${tab.name}'),
+                        ],
+                        onSelect: (idx) => _load(_HomeFeedTab.values[idx]),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          body: TabBarView(
+            controller: _tab,
+            children: [
+              for (final tab in _HomeFeedTab.values)
+                _buildFeedTab(tab, session),
+            ],
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _compose,
-        child: const Icon(Icons.edit),
-      ),
-      body: TabBarView(
-        controller: _tab,
-        children: [
-          for (final tab in _HomeFeedTab.values) _buildFeedTab(tab, session),
-        ],
       ),
     );
   }
@@ -348,29 +573,33 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       return _buildTimeline(
         tab,
         state,
-        (post) => GroupPostCard(
-          key: ValueKey(_groupKey(post)),
-          post: post,
-          groupName: post.groupName,
-          showModerationActions: false,
-          onTap: () {
-            if (!_isCurrent(tab, state)) return;
-            context.push(
-              groupPostLocation((
-                groupId: post.groupId,
-                postId: post.postId,
-                commentId: null,
-              )),
-            );
-          },
-          onLike: _pendingGroupLikes.contains(_groupKey(post))
-              ? null
-              : () => _likeGroupPost(state, post),
-          onReport: () => showReportDialog(
-            context,
-            ref,
-            targetType: 'group_post',
-            targetId: post.postId,
+        (post) => SurfaceCard(
+          radius: AppRadius.card,
+          padding: EdgeInsets.zero,
+          child: GroupPostCard(
+            key: ValueKey(_groupKey(post)),
+            post: post,
+            groupName: post.groupName,
+            showModerationActions: false,
+            onTap: () {
+              if (!_isCurrent(tab, state)) return;
+              context.push(
+                groupPostLocation((
+                  groupId: post.groupId,
+                  postId: post.postId,
+                  commentId: null,
+                )),
+              );
+            },
+            onLike: _pendingGroupLikes.contains(_groupKey(post))
+                ? null
+                : () => _likeGroupPost(state, post),
+            onReport: () => showReportDialog(
+              context,
+              ref,
+              targetType: 'group_post',
+              targetId: post.postId,
+            ),
           ),
         ),
       );
@@ -382,6 +611,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
       (post) => PostCard(
         key: ValueKey(post.postId),
         post: post,
+        avatarHeroTag: 'feed-${tab.name}-${post.postId}',
         onChanged: (updated) {
           if (!_isCurrent(tab, state)) return;
           setState(() {
@@ -422,9 +652,27 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     Widget Function(T item) buildItem,
   ) {
     final l10n = AppLocalizations.of(context);
-    final hasExplanation = tab == _HomeFeedTab.recommended;
+    final scheme = Theme.of(context).colorScheme;
+    if (state.loading && state.items.isEmpty) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.contentMaxWidth,
+          ),
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 108),
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 6,
+            itemBuilder: (_, _) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: PostSkeleton(animate: _selected == tab),
+            ),
+          ),
+        ),
+      );
+    }
     final messageCount = state.items.isEmpty && !state.hasMore ? 1 : 0;
-    final extra = hasExplanation ? 1 : 0;
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -432,6 +680,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
           maxWidth: AppBreakpoints.contentMaxWidth,
         ),
         child: RefreshIndicator(
+          color: scheme.primary,
           onRefresh: () => _refresh(tab),
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
@@ -445,29 +694,19 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
               return false;
             },
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(0, 8, 0, 88),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 108),
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount:
-                  extra +
-                  state.items.length +
-                  messageCount +
-                  (state.hasMore ? 1 : 0),
-              itemBuilder: (context, i) {
-                if (hasExplanation && i == 0) {
-                  final theme = Theme.of(context);
+                  state.items.length + messageCount + (state.hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index < state.items.length) {
                   return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: Text(
-                      l10n.t('feed.recommended_explanation'),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: StaggeredEntrance(
+                      index: index,
+                      child: buildItem(state.items[index]),
                     ),
                   );
-                }
-                final index = i - extra;
-                if (index < state.items.length) {
-                  return buildItem(state.items[index]);
                 }
                 if (state.loading) {
                   return const Padding(
@@ -500,6 +739,33 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CapsuleSegmentedTabs extends StatelessWidget {
+  const _CapsuleSegmentedTabs({
+    required this.controller,
+    required this.labels,
+    required this.onSelect,
+  });
+
+  final TabController controller;
+  final List<String> labels;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) => LiquidGlassSegmentedControl<int>(
+        options: labels.indexed.toList(),
+        selected: controller.index,
+        onSelect: (index) {
+          if (controller.index != index) controller.animateTo(index);
+          onSelect(index);
+        },
       ),
     );
   }

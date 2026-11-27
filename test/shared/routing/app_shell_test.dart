@@ -13,6 +13,7 @@ import 'package:nekotribe/features/realtime/data/realtime_service.dart';
 import 'package:nekotribe/shared/i18n/app_localizations.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 import 'package:nekotribe/shared/routing/app_shell.dart';
+import 'package:nekotribe/shared/widgets/glass/liquid_glass_bars.dart';
 
 void main() {
   GoRouter buildRouter({String initialLocation = '/feed'}) {
@@ -99,7 +100,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('discover route'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(LiquidGlassNavDock), findsNothing);
   });
 
   testWidgets('desktop publish button opens the post composer route', (
@@ -259,7 +260,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('群组'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(LiquidGlassNavDock), findsOneWidget);
 
     await tester.tap(find.text('群组'));
     await tester.pumpAndSettle();
@@ -314,7 +315,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('groups'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(LiquidGlassNavDock), findsOneWidget);
   });
 }
 

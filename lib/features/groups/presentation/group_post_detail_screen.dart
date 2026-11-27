@@ -12,6 +12,7 @@ import '../../../core/utils/group_post_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
@@ -643,7 +644,11 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: _submittingComment ? null : _submitComment,
+                    onPressed:
+                        _submittingComment ||
+                            _commentController.text.trim().isEmpty
+                        ? null
+                        : _submitComment,
                     icon: const Icon(Icons.send_rounded),
                     tooltip: l10n.t('common.post'),
                   ),
@@ -792,11 +797,16 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
                             const SizedBox(height: 14),
                             Row(
                               children: [
-                                _StatButton(
+                                _PostMetric(
                                   icon: _post!.isLikedByMe
                                       ? Icons.favorite
                                       : Icons.favorite_border,
                                   label: '${_post!.likesCount}',
+                                  semanticLabel: l10n.t(
+                                    _post!.isLikedByMe
+                                        ? 'common.unlike'
+                                        : 'common.like',
+                                  ),
                                   active: _post!.isLikedByMe,
                                   activeColor: const Color(0xFFE0245E),
                                   onTap: _postMutationPending
@@ -804,16 +814,16 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
                                       : _toggleLike,
                                 ),
                                 const SizedBox(width: 20),
-                                _StatButton(
+                                _PostMetric(
                                   icon: Icons.mode_comment_outlined,
                                   label: '${_post!.commentsCount}',
-                                  onTap: () {},
+                                  semanticLabel: l10n.t('post.stats.comments'),
                                 ),
                                 const SizedBox(width: 20),
-                                _StatButton(
+                                _PostMetric(
                                   icon: Icons.visibility_outlined,
                                   label: '${_post!.viewsCount}',
-                                  onTap: () {},
+                                  semanticLabel: l10n.t('post.stats.views'),
                                 ),
                               ],
                             ),
@@ -935,16 +945,18 @@ class _GroupPostDetailScreenState extends ConsumerState<GroupPostDetailScreen> {
   }
 }
 
-class _StatButton extends StatelessWidget {
-  const _StatButton({
+class _PostMetric extends StatelessWidget {
+  const _PostMetric({
     required this.icon,
     required this.label,
-    required this.onTap,
+    required this.semanticLabel,
+    this.onTap,
     this.active = false,
     this.activeColor,
   });
   final IconData icon;
   final String label;
+  final String semanticLabel;
   final VoidCallback? onTap;
   final bool active;
   final Color? activeColor;
@@ -955,23 +967,30 @@ class _StatButton extends StatelessWidget {
     final color = active
         ? (activeColor ?? theme.colorScheme.primary)
         : theme.colorScheme.onSurfaceVariant;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(color: color),
-            ),
-          ],
-        ),
+    final content = Padding(
+      padding: const EdgeInsets.all(AppGap.xs),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(color: color),
+          ),
+        ],
       ),
+    );
+    return Semantics(
+      label: semanticLabel,
+      button: onTap != null,
+      child: onTap == null
+          ? content
+          : InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: content,
+            ),
     );
   }
 }
@@ -1066,11 +1085,9 @@ class _CommentTile extends StatelessWidget {
             ),
           if (onDelete != null)
             IconButton(
-              icon: Icon(
-                Icons.delete_outline,
-                size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              tooltip: l10n.t('common.delete'),
+              color: theme.colorScheme.onSurfaceVariant,
+              icon: const Icon(Icons.delete_outline, size: 18),
               onPressed: onDelete,
             ),
         ],

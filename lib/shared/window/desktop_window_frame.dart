@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../i18n/app_localizations.dart';
+import '../theme/tokens.dart';
 
 const desktopWindowDragAreaKey = ValueKey('desktop-window-drag-area');
 const desktopWindowMinimizeButtonKey = ValueKey(
@@ -119,65 +120,59 @@ class _DesktopWindowTitleBarState extends State<_DesktopWindowTitleBar> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final borderColor = colors.outlineVariant.withValues(alpha: 0.55);
 
     return Material(
-      color: colors.surface,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: borderColor)),
-        ),
-        child: SizedBox(
-          height: 36,
-          child: Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  key: desktopWindowDragAreaKey,
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: (_) => widget.controls.startDragging(),
-                  onDoubleTap: _toggleMaximized,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      children: [
-                        Icon(Icons.pets, size: 16, color: colors.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          l10n.t('app.title'),
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelLarge,
-                        ),
-                      ],
-                    ),
+      color: SocialColors.of(context).shellFrame,
+      child: SizedBox(
+        height: 36,
+        child: Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                key: desktopWindowDragAreaKey,
+                behavior: HitTestBehavior.opaque,
+                onPanStart: (_) => widget.controls.startDragging(),
+                onDoubleTap: _toggleMaximized,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.pets, size: 16, color: colors.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.t('app.title'),
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge,
+                      ),
+                    ],
                   ),
                 ),
               ),
-              _WindowControlButton(
-                key: desktopWindowMinimizeButtonKey,
-                tooltip: l10n.t('window.minimize'),
-                icon: Icons.minimize,
-                onPressed: widget.controls.minimize,
-              ),
-              _WindowControlButton(
-                key: desktopWindowMaximizeButtonKey,
-                tooltip: _isMaximized
-                    ? l10n.t('window.restore')
-                    : l10n.t('window.maximize'),
-                icon: _isMaximized
-                    ? Icons.filter_none_outlined
-                    : Icons.crop_square,
-                onPressed: _toggleMaximized,
-              ),
-              _WindowControlButton(
-                key: desktopWindowCloseButtonKey,
-                tooltip: l10n.t('window.close'),
-                icon: Icons.close,
-                isClose: true,
-                onPressed: widget.controls.close,
-              ),
-            ],
-          ),
+            ),
+            _WindowControlButton(
+              key: desktopWindowMinimizeButtonKey,
+              tooltip: l10n.t('window.minimize'),
+              icon: Icons.minimize,
+              onPressed: widget.controls.minimize,
+            ),
+            _WindowControlButton(
+              key: desktopWindowMaximizeButtonKey,
+              tooltip: _isMaximized
+                  ? l10n.t('window.restore')
+                  : l10n.t('window.maximize'),
+              icon: _isMaximized
+                  ? Icons.filter_none_outlined
+                  : Icons.crop_square,
+              onPressed: _toggleMaximized,
+            ),
+            _WindowControlButton(
+              key: desktopWindowCloseButtonKey,
+              tooltip: l10n.t('window.close'),
+              icon: Icons.close,
+              isClose: true,
+              onPressed: widget.controls.close,
+            ),
+          ],
         ),
       ),
     );
@@ -209,7 +204,7 @@ class _WindowControlButtonState extends State<_WindowControlButton> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final closeHover = widget.isClose && _hovered;
-    final foreground = closeHover ? Colors.white : colors.onSurface;
+    final foreground = closeHover ? colors.onError : colors.onSurface;
     final background = closeHover
         ? colors.error
         : _hovered

@@ -244,6 +244,8 @@ void main() {
 
     await tester.pumpWidget(_testApp(chatApi: chatApi, mediaApi: mediaApi));
     await tester.pumpAndSettle();
+    final send = find.byKey(const Key('chat-channel-send-button'));
+    expect(tester.widget<IconButton>(send).onPressed, isNull);
 
     await tester.tap(find.byKey(const Key('chat-channel-attach-button')));
     await tester.pumpAndSettle();
@@ -251,7 +253,8 @@ void main() {
     expect(find.text('chat.pdf'), findsOneWidget);
     expect(picker.withEagerData, isFalse);
 
-    await tester.tap(find.byKey(const Key('chat-channel-send-button')));
+    expect(tester.widget<IconButton>(send).onPressed, isNotNull);
+    await tester.tap(send);
     await tester.pumpAndSettle();
 
     expect(mediaApi.uploadedFileNames, ['chat.pdf']);
@@ -458,6 +461,7 @@ void main() {
     expect(find.byKey(const Key('chat-channel-reply-preview')), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'Reply from Flutter');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('chat-channel-send-button')));
     await tester.pumpAndSettle();
 

@@ -218,7 +218,24 @@ class TokenStore {
     await runSessionChange((_) async => publish());
   });
 
+  Future<bool> _hasStoredSession() async {
+    if (_cached != null) return true;
+    if (!supportsSessionStorage) return false;
+    for (final key in const [
+      StorageKeys.sessionId,
+      StorageKeys.accessToken,
+      StorageKeys.refreshToken,
+      StorageKeys.currentUser,
+    ]) {
+      final value = await _storage.read(key: key);
+      if (value != null && value.isNotEmpty) return true;
+    }
+    return false;
+  }
+
   Future<bool> clearIfCurrent(int expectedRevision) => _exclusive(() async {
+    if (_revision != expectedRevision) return false;
+    if (!await _hasStoredSession()) return false;
     if (_revision != expectedRevision) return false;
     return runSessionChange((_) async {
       await _clearPair();

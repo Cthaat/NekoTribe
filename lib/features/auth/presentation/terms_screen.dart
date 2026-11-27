@@ -15,6 +15,7 @@ class TermsScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(l10n.t('terms.title')),
         leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
               context.canPop() ? context.pop() : context.go('/feed'),

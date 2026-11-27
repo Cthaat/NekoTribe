@@ -293,9 +293,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(path: '/sentiment', redirect: (_, __) => '/ai/knowledge'),
           GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),
-        ],
-      ),
-      GoRoute(path: '/posts/:postId', builder: _postDetail),
+          GoRoute(path: '/posts/:postId', builder: _postDetail),
       GoRoute(
         path: '/posts/:postId/edit',
         builder: (_, state) {
@@ -547,6 +545,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/moderation/settings',
         builder: (_, __) => const ModerationScreen(initialTab: 5),
       ),
+    ],
+  ),
     ],
     errorBuilder: (context, state) => Scaffold(
       appBar: AppBar(title: const Text('NekoTribe')),

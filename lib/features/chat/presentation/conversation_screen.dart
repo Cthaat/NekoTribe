@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
@@ -9,8 +10,13 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
+import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
+import '../../../shared/widgets/glass/liquid_glass_bars.dart';
+import '../../../shared/widgets/glass/liquid_glass_surface.dart';
+import '../../../shared/widgets/glass/liquid_glass_tokens.dart';
+import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../../core/network/api_exception.dart';
 import '../../calls/presentation/call_widgets.dart';
@@ -29,9 +35,11 @@ class ConversationScreen extends ConsumerStatefulWidget {
     super.key,
     required this.conversationId,
     this.title,
+    this.embedded = false,
   });
   final int conversationId;
   final String? title;
+  final bool embedded;
 
   @override
   ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
@@ -40,6 +48,7 @@ class ConversationScreen extends ConsumerStatefulWidget {
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _scrollController = ScrollController();
   final _composer = TextEditingController();
+  double _composerHeight = 84;
   late final ChatRealtimeBinding _binding;
   late final ChatTyping _typing;
   late final AppLifecycleListener _lifecycle;
@@ -60,6 +69,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _deferredUpdates = <int>{};
   final _attachments = <PlatformFile>[];
   final _uploadedAttachments = Map<PlatformFile, int>.identity();
+  final _animateIds = <int>{};
   V2DirectMessage? _replyTo;
   CancelToken? _sendRequest;
   int? _viewerId;
@@ -135,6 +145,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       _deletedMessages.clear();
       _attachments.clear();
       _uploadedAttachments.clear();
+      _animateIds.clear();
       _replyTo = null;
       _composer.clear();
       _page = 1;
@@ -250,7 +261,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       if (_deletedMessages.contains(message.messageId)) return;
       final atLatest =
           !_scrollController.hasClients || _scrollController.offset < 80;
-      setState(() => _upsertMessage(message));
+      setState(() {
+        _animateIds.add(message.messageId);
+        _upsertMessage(message);
+      });
       if (atLatest && _visibleView) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
       }
@@ -405,8 +419,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measureQueued = false;
       if (!_visibleView || _loading || _error != null) return;
-      final viewport = _globalBounds(_viewport);
-      if (viewport == null) return;
+      final bounds = _globalBounds(_viewport);
+      if (bounds == null) return;
+      final viewport = Rect.fromLTRB(
+        bounds.left,
+        bounds.top +
+            (_searchOpen
+                ? 0
+                : kToolbarHeight + MediaQuery.paddingOf(context).top),
+        bounds.right,
+        bounds.bottom - (_searchOpen ? 0 : _composerHeight),
+      );
+      if (viewport.isEmpty) return;
       for (final message in _messages) {
         if (message.isDeleted || message.messageId <= _seenThrough) continue;
         final bounds = _globalBounds(_bubbleKeys[message.messageId]);
@@ -902,6 +926,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           );
       if (!current()) return;
       setState(() {
+        _animateIds.add(message.messageId);
         _upsertMessage(message);
         if (_composer.text == draft) _composer.clear();
         _attachments.clear();
@@ -925,6 +950,35 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return DateFormat.Hm().format(dt.toLocal());
   }
 
+  DateTime? _calendarDay(String iso) {
+    final dt = DateTime.tryParse(iso)?.toLocal();
+    if (dt == null) return null;
+    return DateTime(dt.year, dt.month, dt.day);
+  }
+
+  bool _withinFiveMinutes(V2DirectMessage a, V2DirectMessage b) {
+    final da = DateTime.tryParse(a.createdAt);
+    final db = DateTime.tryParse(b.createdAt);
+    if (da == null || db == null) return false;
+    return da.difference(db).inMilliseconds.abs() <= 300000;
+  }
+
+  String _formatDayLabel(
+    BuildContext context,
+    AppLocalizations l10n,
+    DateTime day,
+  ) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (day == today) return l10n.t('chat.date_today');
+    if (day == today.subtract(const Duration(days: 1))) {
+      return l10n.t('chat.date_yesterday');
+    }
+    return DateFormat.MMMd(
+      Localizations.localeOf(context).toString(),
+    ).format(day);
+  }
+
   String get _appBarTitle {
     final title = widget.title?.trim();
     if (title != null && title.isNotEmpty) return title;
@@ -932,35 +986,56 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Widget _buildComposer(AppLocalizations l10n, ThemeData theme) {
+    final scheme = theme.colorScheme;
     final busy = _sending || _pickingAttachment;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (_typing.hasRemoteTyping)
-          Text(l10n.t('chat.dm.typing'), style: theme.textTheme.bodySmall),
-        if (_replyTo case final reply?)
-          Row(
-            children: [
-              Expanded(
-                child: ChatReplyQuote(
-                  replyTo: V2ChatMessageReply(
-                    messageId: reply.messageId,
-                    authorName: reply.author.displayName.isEmpty
-                        ? reply.author.username
-                        : reply.author.displayName,
-                    content: reply.content.isEmpty
-                        ? reply.media.firstOrNull?.fileName ?? ''
-                        : reply.content,
+          Padding(
+            padding: const EdgeInsets.only(left: 10, bottom: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _TypingDots(color: scheme.primary),
+                const SizedBox(width: 6),
+                Text(
+                  l10n.t('chat.dm.typing'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
-              ),
-              IconButton(
-                tooltip: l10n.t('chat.dm.cancel_reply'),
-                onPressed: busy ? null : () => setState(() => _replyTo = null),
-                icon: const Icon(Icons.close, size: 18),
-              ),
-            ],
+              ],
+            ),
+          ),
+        if (_replyTo case final reply?)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ChatReplyQuote(
+                    replyTo: V2ChatMessageReply(
+                      messageId: reply.messageId,
+                      authorName: reply.author.displayName.isEmpty
+                          ? reply.author.username
+                          : reply.author.displayName,
+                      content: reply.content.isEmpty
+                          ? reply.media.firstOrNull?.fileName ?? ''
+                          : reply.content,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: l10n.t('chat.dm.cancel_reply'),
+                  onPressed: busy
+                      ? null
+                      : () => setState(() => _replyTo = null),
+                  icon: const Icon(Icons.close, size: 18),
+                ),
+              ],
+            ),
           ),
         if (_attachments.isNotEmpty)
           SizedBox(
@@ -998,37 +1073,70 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             IconButton(
               key: const Key('dm-attach-button'),
               tooltip: l10n.t('chat.upload_attachment'),
-              icon: const Icon(Icons.attach_file),
+              color: scheme.onSurfaceVariant,
+              icon: const Icon(Icons.attach_file_rounded),
               onPressed: busy || _attachments.length >= directMessageMaxMedia
                   ? null
                   : _pickAttachments,
             ),
             Expanded(
-              child: TextField(
-                key: const Key('dm-composer-field'),
-                controller: _composer,
-                maxLines: 5,
-                minLines: 1,
-                textInputAction: TextInputAction.send,
-                onChanged: (text) => _typing.input(text.trim().isNotEmpty),
-                onSubmitted: (_) => _send(),
-                decoration: InputDecoration(
-                  hintText: l10n.t('chat.message_hint'),
-                  isDense: true,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: SocialColors.of(context).surfaceSubtle,
+                  borderRadius: BorderRadius.circular(AppRadius.tile),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: TextField(
+                  key: const Key('dm-composer-field'),
+                  controller: _composer,
+                  maxLines: 5,
+                  minLines: 1,
+                  textInputAction: TextInputAction.send,
+                  onChanged: (text) =>
+                      setState(() => _typing.input(text.trim().isNotEmpty)),
+                  onSubmitted: (_) => _send(),
+                  decoration: InputDecoration(
+                    hintText: l10n.t('chat.message_hint'),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    isDense: true,
+                    filled: false,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            IconButton(
-              key: const Key('dm-send-button'),
-              tooltip: l10n.t('chat.dm.send'),
-              icon: _sending
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(Icons.send_rounded, color: theme.colorScheme.primary),
-              onPressed: busy ? null : _send,
+            const SizedBox(width: 6),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _composer,
+              builder: (context, value, _) {
+                final hasContent =
+                    value.text.trim().isNotEmpty || _attachments.isNotEmpty;
+                return AnimatedScale(
+                  scale: hasContent ? 1.0 : 0.92,
+                  duration: AppMotion.resolve(context, AppMotion.fast),
+                  curve: AppMotion.emphasizedDecelerate,
+                  child: IconButton.filled(
+                    key: const Key('dm-send-button'),
+                    tooltip: l10n.t('chat.dm.send'),
+                    style: IconButton.styleFrom(
+                      disabledBackgroundColor: scheme.surfaceContainerHigh,
+                      disabledForegroundColor: scheme.onSurfaceVariant,
+                    ),
+                    icon: _sending
+                        ? SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          )
+                        : const Icon(Icons.send_rounded, size: 19),
+                    onPressed: busy || !hasContent ? null : _send,
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -1041,6 +1149,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _observeDisplayedMessages();
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final topInset = kToolbarHeight + MediaQuery.paddingOf(context).top;
     final receipt = _messages.fold(
       0,
       (highest, message) =>
@@ -1052,7 +1162,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           : highest,
     );
     return Scaffold(
-      appBar: AppBar(
+      extendBodyBehindAppBar: true,
+      appBar: LiquidGlassAppBar(
+        automaticallyImplyLeading: !widget.embedded,
+        leading: widget.embedded
+            ? null
+            : const SafeBackButton(fallbackRoute: '/chat'),
         title: Text(_appBarTitle),
         actions: [
           CallMenu(
@@ -1095,95 +1210,202 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           constraints: const BoxConstraints(
             maxWidth: AppBreakpoints.contentMaxWidth,
           ),
-          child: Column(
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              if (_searchOpen)
-                ChatMessageSearch(
-                  inputKey: const Key('dm-search-input'),
-                  title: l10n.t('chat.dm.search_messages'),
-                  loadSenders: _loadSearchSenders,
-                  isCurrent: _binding.capture(),
-                  onApply: _searchMessages,
-                  onClear: _closeMessageSearch,
-                ),
-              Expanded(
-                child: _loading
-                    ? const LoadingView()
-                    : _error != null
-                    ? ErrorView(error: _error!, onRetry: _reload)
-                    : _messages.isEmpty && !_hasNext
-                    ? EmptyView(
-                        message: l10n.t(
-                          _filters.active
-                              ? 'chat.search_empty'
-                              : 'chat.dm.empty',
-                        ),
-                      )
-                    : ListView.builder(
-                        key: _viewport,
-                        controller: _scrollController,
-                        reverse: true,
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                        itemCount: _messages.length + (_hasNext ? 1 : 0),
-                        itemBuilder: (_, i) {
-                          if (i == _messages.length) {
-                            return TextButton(
-                              onPressed: _loadingOlder ? null : _loadOlder,
-                              child: Text(l10n.t('chat.dm.load_older')),
-                            );
-                          }
-                          final message = _messages[i];
-                          return _MessageBubble(
-                            key: _bubbleKeys.putIfAbsent(
-                              message.messageId,
-                              GlobalKey.new,
-                            ),
-                            message: message,
-                            formatTime: _formatTime,
-                            isSelf: message.author.userId == _viewerId,
-                            showReadReceipt: message.messageId == receipt,
-                            onReply:
-                                _searchOpen || message.isDeleted || _sending
-                                ? null
-                                : () {
-                                    if (_binding.capture()() &&
-                                        _visibleMessage(message.messageId) !=
-                                            null) {
-                                      setState(() => _replyTo = message);
-                                    }
-                                  },
-                            onReact:
-                                _searchOpen ||
-                                    message.isDeleted ||
-                                    _reactionRequests.containsKey(
-                                      message.messageId,
-                                    )
-                                ? null
-                                : (emoji) => unawaited(
-                                    _react(message.messageId, emoji),
-                                  ),
-                            onDelete:
-                                !_searchOpen &&
-                                    _canDelete(message) &&
-                                    _deletingMessageId == null
-                                ? () => unawaited(_deleteDirectMessage(message))
-                                : null,
-                          );
-                        },
+              Column(
+                children: [
+                  if (_searchOpen)
+                    Padding(
+                      padding: EdgeInsets.only(top: topInset),
+                      child: ChatMessageSearch(
+                        inputKey: const Key('dm-search-input'),
+                        title: l10n.t('chat.dm.search_messages'),
+                        loadSenders: _loadSearchSenders,
+                        isCurrent: _binding.capture(),
+                        onApply: _searchMessages,
+                        onClear: _closeMessageSearch,
                       ),
+                    ),
+                  Expanded(
+                    child: _loading
+                        ? const LoadingView()
+                        : _error != null
+                        ? ErrorView(error: _error!, onRetry: _reload)
+                        : _messages.isEmpty && !_hasNext
+                        ? EmptyView(
+                            message: l10n.t(
+                              _filters.active
+                                  ? 'chat.search_empty'
+                                  : 'chat.dm.empty',
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final maxBubbleWidth = math.min(
+                                constraints.maxWidth * 0.72,
+                                460.0,
+                              );
+                              return ListView.builder(
+                                key: _viewport,
+                                controller: _scrollController,
+                                reverse: true,
+                                padding: EdgeInsets.fromLTRB(
+                                  12,
+                                  _searchOpen ? 12 : topInset + 12,
+                                  12,
+                                  _searchOpen ? 12 : _composerHeight + 12,
+                                ),
+                                itemCount:
+                                    _messages.length + (_hasNext ? 1 : 0),
+                                itemBuilder: (_, i) {
+                                  if (i == _messages.length) {
+                                    return TextButton(
+                                      onPressed: _loadingOlder
+                                          ? null
+                                          : _loadOlder,
+                                      child: Text(l10n.t('chat.dm.load_older')),
+                                    );
+                                  }
+                                  final message = _messages[i];
+                                  final prev = i + 1 < _messages.length
+                                      ? _messages[i + 1]
+                                      : null;
+                                  final next = i - 1 >= 0
+                                      ? _messages[i - 1]
+                                      : null;
+                                  final day = _calendarDay(message.createdAt);
+                                  final prevDay = prev == null
+                                      ? null
+                                      : _calendarDay(prev.createdAt);
+                                  final showDatePill =
+                                      day != null && day != prevDay;
+                                  final samePrev =
+                                      prev != null &&
+                                      !message.isDeleted &&
+                                      !prev.isDeleted &&
+                                      prev.author.userId ==
+                                          message.author.userId &&
+                                      day == prevDay &&
+                                      _withinFiveMinutes(prev, message);
+                                  final sameNext =
+                                      next != null &&
+                                      !message.isDeleted &&
+                                      !next.isDeleted &&
+                                      next.author.userId ==
+                                          message.author.userId &&
+                                      _calendarDay(next.createdAt) == day &&
+                                      _withinFiveMinutes(message, next);
+                                  final bubble = _MessageBubble(
+                                    key: _bubbleKeys.putIfAbsent(
+                                      message.messageId,
+                                      GlobalKey.new,
+                                    ),
+                                    message: message,
+                                    formatTime: _formatTime,
+                                    isSelf: message.author.userId == _viewerId,
+                                    samePrev: samePrev,
+                                    sameNext: sameNext,
+                                    maxWidth: maxBubbleWidth,
+                                    animateEntrance: _animateIds.remove(
+                                      message.messageId,
+                                    ),
+                                    showReadReceipt:
+                                        message.messageId == receipt,
+                                    onReply:
+                                        _searchOpen ||
+                                            message.isDeleted ||
+                                            _sending
+                                        ? null
+                                        : () {
+                                            if (_binding.capture()() &&
+                                                _visibleMessage(
+                                                      message.messageId,
+                                                    ) !=
+                                                    null) {
+                                              setState(
+                                                () => _replyTo = message,
+                                              );
+                                            }
+                                          },
+                                    onReact:
+                                        _searchOpen ||
+                                            message.isDeleted ||
+                                            _reactionRequests.containsKey(
+                                              message.messageId,
+                                            )
+                                        ? null
+                                        : (emoji) => unawaited(
+                                            _react(message.messageId, emoji),
+                                          ),
+                                    onDelete:
+                                        !_searchOpen &&
+                                            _canDelete(message) &&
+                                            _deletingMessageId == null
+                                        ? () => unawaited(
+                                            _deleteDirectMessage(message),
+                                          )
+                                        : null,
+                                  );
+                                  if (!showDatePill) return bubble;
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: scheme.surfaceContainerHigh,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            _formatDayLabel(context, l10n, day),
+                                            style: theme.textTheme.labelSmall
+                                                ?.copyWith(
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      bubble,
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
               if (!_searchOpen)
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
-                    border: Border(top: BorderSide(color: theme.dividerColor)),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                      child: _buildComposer(l10n, theme),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: measureGlassOverlay(
+                    SafeArea(
+                      top: false,
+                      child: LiquidGlassSurface(
+                        preset: LiquidGlassPreset.floatingIsland,
+                        borderRadius: BorderRadius.circular(AppRadius.canvas),
+                        margin: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                        padding: const EdgeInsets.all(8),
+                        child: _buildComposer(l10n, theme),
+                      ),
                     ),
+                    (height) {
+                      if (_composerHeight != height) {
+                        setState(() => _composerHeight = height);
+                      }
+                    },
                   ),
                 ),
             ],
@@ -1194,12 +1416,99 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 }
 
+class _TypingDots extends StatefulWidget {
+  const _TypingDots({required this.color});
+
+  final Color color;
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _controller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final active =
+        TickerMode.valuesOf(context).enabled && !AppMotion.reduced(context);
+    if (active) {
+      _controller ??= AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1100),
+      )..repeat();
+    } else {
+      _controller?.dispose();
+      _controller = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < 3; i++) ...[
+            if (i > 0) const SizedBox(width: 3),
+            CircleAvatar(radius: 2.5, backgroundColor: widget.color),
+          ],
+        ],
+      );
+    }
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) const SizedBox(width: 3),
+              Builder(
+                builder: (_) {
+                  final phase = (controller.value - i * 0.16) % 1.0;
+                  final wave = math.sin(phase * math.pi * 2);
+                  final dy = wave > 0 ? -wave * 3.0 : 0.0;
+                  final opacity = 0.4 + (wave > 0 ? wave * 0.6 : 0.0);
+                  return Transform.translate(
+                    offset: Offset(0, dy),
+                    child: Opacity(
+                      opacity: opacity,
+                      child: CircleAvatar(
+                        radius: 2.5,
+                        backgroundColor: widget.color,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     super.key,
     required this.message,
     required this.formatTime,
     required this.isSelf,
+    required this.samePrev,
+    required this.sameNext,
+    required this.maxWidth,
+    required this.animateEntrance,
     required this.showReadReceipt,
     this.onDelete,
     this.onReply,
@@ -1209,6 +1518,10 @@ class _MessageBubble extends StatelessWidget {
   final V2DirectMessage message;
   final String Function(String) formatTime;
   final bool isSelf;
+  final bool samePrev;
+  final bool sameNext;
+  final double maxWidth;
+  final bool animateEntrance;
   final bool showReadReceipt;
   final VoidCallback? onDelete;
   final VoidCallback? onReply;
@@ -1217,56 +1530,83 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final social = SocialColors.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context);
     final bubbleColor = isSelf
-        ? theme.colorScheme.primary
-        : theme.colorScheme.surfaceContainerHighest;
+        ? (isDark
+              ? Color.alphaBlend(
+                  scheme.primary.withValues(alpha: 0.22),
+                  social.surfaceCard,
+                )
+              : scheme.primary)
+        : scheme.surfaceContainerHigh;
     final textColor = isSelf
-        ? theme.colorScheme.onPrimary
-        : theme.colorScheme.onSurface;
+        ? (isDark ? scheme.onSurface : scheme.onPrimary)
+        : scheme.onSurface;
     final secondaryColor = isSelf
-        ? theme.colorScheme.onPrimary.withValues(alpha: 0.75)
-        : theme.colorScheme.onSurfaceVariant;
-    return Align(
+        ? (isDark
+              ? scheme.onSurfaceVariant
+              : scheme.onPrimary.withValues(alpha: 0.78))
+        : scheme.onSurfaceVariant;
+    final displayName = message.author.displayName.isEmpty
+        ? message.author.username
+        : message.author.displayName;
+    final radius = BorderRadius.only(
+      topLeft: Radius.circular(isSelf ? 18 : (samePrev ? 4 : 18)),
+      topRight: Radius.circular(isSelf ? (samePrev ? 4 : 18) : 18),
+      bottomLeft: Radius.circular(isSelf ? 18 : 4),
+      bottomRight: Radius.circular(isSelf ? 4 : 18),
+    );
+    final child = Align(
       alignment: isSelf ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: EdgeInsets.only(
+          top: samePrev ? 1.5 : 6,
+          bottom: sameNext ? 1.5 : 4,
+        ),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (!isSelf) ...[
-                AppAvatar(url: message.author.avatarUrl, size: 32),
+                if (!sameNext)
+                  AppAvatar(
+                    url: message.author.avatarUrl,
+                    size: 32,
+                    name: displayName,
+                    seed: message.author.userId,
+                  )
+                else
+                  const SizedBox(width: 32),
                 const SizedBox(width: 8),
               ],
               Flexible(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 11,
+                    horizontal: 15,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
                     color: bubbleColor,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(18),
-                      topRight: const Radius.circular(18),
-                      bottomLeft: Radius.circular(isSelf ? 18 : 5),
-                      bottomRight: Radius.circular(isSelf ? 5 : 18),
-                    ),
+                    borderRadius: radius,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (!isSelf && message.author.displayName.isNotEmpty)
+                      if (!isSelf &&
+                          !samePrev &&
+                          message.author.displayName.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 3),
                           child: Text(
                             message.author.displayName,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1413,6 +1753,20 @@ class _MessageBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+    if (!animateEntrance || AppMotion.reduced(context)) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppMotion.base,
+      curve: AppMotion.emphasizedDecelerate,
+      builder: (context, t, inner) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * 10),
+          child: Transform.scale(scale: 0.92 + 0.08 * t, child: inner),
+        ),
+      ),
+      child: child,
     );
   }
 }

@@ -12,6 +12,7 @@ import 'shared/i18n/app_localizations.dart';
 import 'shared/providers/providers.dart';
 import 'shared/routing/app_router.dart';
 import 'shared/theme/app_theme.dart';
+import 'shared/theme/tokens.dart';
 import 'shared/window/desktop_window_frame.dart';
 
 Future<void> main() async {
@@ -68,9 +69,19 @@ class NekoTribeApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'NekoTribe',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(theme.seedColor),
-      darkTheme: AppTheme.dark(theme.seedColor),
+      theme: AppTheme.light(
+        theme.seedColor,
+        theme.glassIntensity,
+        theme.compactMode,
+      ),
+      darkTheme: AppTheme.dark(
+        theme.seedColor,
+        theme.glassIntensity,
+        theme.compactMode,
+      ),
       themeMode: theme.mode,
+      themeAnimationDuration: AppMotion.base,
+      themeAnimationCurve: AppMotion.emphasizedDecelerate,
       locale: locale,
       supportedLocales: AppLocalizations.supported,
       localizationsDelegates: const [
@@ -79,10 +90,18 @@ class NekoTribeApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => DesktopWindowFrame(
-        enabled: isDesktopWindowFrameSupported,
-        child: CallOverlay(child: child ?? const SizedBox.shrink()),
-      ),
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler: TextScaler.linear(theme.fontSize.scale),
+          ),
+          child: DesktopWindowFrame(
+            enabled: isDesktopWindowFrameSupported,
+            child: CallOverlay(child: child ?? const SizedBox.shrink()),
+          ),
+        );
+      },
       routerConfig: router,
     );
   }
