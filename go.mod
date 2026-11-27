@@ -9,10 +9,10 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.16
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/oracle/go-oracledb/v26 v26.4.0
-	github.com/redis/go-redis/v9 v9.23.0
-	golang.org/x/crypto v0.58.0
+	github.com/redis/go-redis/v9 v9.24.0
+	golang.org/x/crypto v0.59.0
 	golang.org/x/image v0.48.0
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	golang.org/x/text v0.44.0
 )
 
