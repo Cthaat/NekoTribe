@@ -12,6 +12,7 @@ const { isHidden, prefersReducedMotion, reset } = useScrollDirection({
   threshold: 48,
   hysteresis: 16
 });
+const condensed = computed(() => isHidden.value && !prefersReducedMotion.value);
 
 watch(
   () => route.path,
@@ -68,9 +69,9 @@ const activeIndex = computed(() =>
 
 <template>
   <nav
-    class="fixed inset-x-4 bottom-3 z-40 mx-auto flex h-[64px] max-w-[400px] items-center rounded-full p-1.5 liquid-glass-dock transition-[transform,opacity] duration-220 ease-[var(--ease-spring)] md:hidden"
-    :class="isHidden && !prefersReducedMotion ? 'translate-y-[calc(100%+24px)] opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'"
-    :aria-hidden="isHidden && !prefersReducedMotion ? 'true' : undefined"
+    class="fixed inset-x-4 bottom-3 z-40 mx-auto flex h-[64px] max-w-[400px] origin-bottom items-center rounded-full p-1.5 liquid-glass-dock transition-[translate,scale] duration-220 ease-[var(--ease-spring)] focus-within:translate-y-0 focus-within:scale-100 motion-reduce:transition-none md:hidden"
+    :class="condensed ? 'translate-y-1 scale-[0.96]' : 'translate-y-0 scale-100'"
+    :data-condensed="condensed"
     :aria-label="t('nav.main.home')"
   >
     <div
