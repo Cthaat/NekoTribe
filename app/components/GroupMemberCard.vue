@@ -168,6 +168,7 @@ const handleViewProfile = () => emit('view-profile', props.member.userId);
             variant="ghost"
             size="icon"
             class="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent"
+              :aria-label="t('common.more')"
             :disabled="disabled"
           >
             <MoreHorizontal class="h-4 w-4" />

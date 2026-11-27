@@ -30,6 +30,7 @@ import PostLikersDialog from '@/components/PostLikersDialog.vue';
 import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import TweetList from '@/components/TweetList.vue';
 import CommentSection from '@/components/CommentSection.vue';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import TweetComposer from '@/components/TweetComposer.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,9 +42,12 @@ import {
 } from '@/components/ui/dialog';
 import {
   AlertTriangle,
+  ArrowLeft,
+  CornerDownLeft,
   Inbox,
   Loader2,
-  MessageSquare
+  MessageSquare,
+  Sparkles
 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { useRoute } from 'vue-router';
@@ -74,7 +78,9 @@ const commentToDelete = ref<number | null>(null);
 const deletingComment = ref(false);
 const relatedPosts = ref<PostVM[]>([]);
 type RelatedPostKind = 'replies' | 'retweets';
+type DetailSectionTab = 'comments' | 'replies' | 'retweets';
 const relatedKind = ref<RelatedPostKind>('replies');
+const detailTab = ref<DetailSectionTab>('comments');
 const tweetPending = ref(false);
 const commentPending = ref(false);
 const summaryPending = ref(false);
@@ -322,6 +328,7 @@ watch(
     if (id !== previousId) {
       clearInteractions();
       relatedKind.value = 'replies';
+      detailTab.value = 'comments';
       tweet.value = null;
       await loadPageData();
       openReplyFromRoute();
@@ -679,21 +686,39 @@ async function handleSubmitPostReply(
 </script>
 
 <template>
-  <div class="bg-background pt-4">
-    <p v-if="expired" role="status" class="mx-auto max-w-2xl px-4 py-6">{{ t('visibility.sessionChanged') }}</p>
-    <div v-else-if="tweetPending">
+  <div class="min-w-0">
+    <header
+      class="sticky top-0 z-20 flex h-14 items-center gap-3 bg-background/90 px-3 backdrop-blur-xl sm:px-0"
+    >
+      <button
+        type="button"
+        class="pressable inline-flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
+        :aria-label="t('post.detail.headerTitle')"
+        @click="router.back()"
+      >
+        <ArrowLeft class="size-5" />
+      </button>
+      <h1 class="truncate text-[18px] font-semibold tracking-tight text-foreground">
+        {{ t('post.detail.headerTitle') }}
+      </h1>
+    </header>
+
+    <p v-if="expired" role="status" class="px-3 py-6 text-sm text-muted-foreground sm:px-0">
+      {{ t('visibility.sessionChanged') }}
+    </p>
+    <div v-else-if="tweetPending" class="px-3 pt-2 sm:px-0">
       <TweetCardSkeleton />
     </div>
 
     <div
       v-else-if="tweetError"
-      class="mx-auto max-w-2xl px-4"
+      class="px-3 py-4 sm:px-0"
     >
       <div
-        class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-rose-500/30 bg-rose-50/30 py-12 text-center dark:bg-rose-950/20"
+        class="flex flex-col items-center justify-center gap-3 rounded-[20px] bg-card py-12 text-center"
       >
         <span
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10"
         >
           <AlertTriangle class="h-5 w-5 text-rose-500" />
         </span>
@@ -705,29 +730,67 @@ async function handleSubmitPostReply(
             {{ tweetError }}
           </p>
         </div>
-        <Button variant="outline" @click="loadTweet">{{ t('common.retry') }}</Button>
+        <Button variant="secondary" class="rounded-full" @click="loadTweet">{{ t('common.retry') }}</Button>
       </div>
     </div>
 
-    <div v-else-if="tweet">
+    <div v-else-if="tweet" class="space-y-3 px-3 pt-1 pb-12 sm:px-0">
       <TweetCard
         :tweet="tweet"
+        focused
         @delete-tweet="handleDeleteTweet"
         @reply-tweet="handleReplyTweet"
         @retweet-tweet="handleRetweetTweet"
         @like-tweet="handleLikeTweet"
         @bookmark-tweet="handleBookmarkTweet"
-      />
-      <PostLikersDialog
+      >
+        <template
+          v-if="preferenceStore.isLoggedIn && tweet.id === currentPostId"
+          #likers-stat
+        >
+          <PostLikersDialog
+            :key="currentPostId"
+            :post-id="currentPostId"
+          >
+            <template #trigger>
+              <button
+                type="button"
+                class="pressable inline-flex items-center gap-1 rounded-sm hover:underline"
+              >
+                <strong class="font-semibold tabular-nums text-foreground">
+                  {{ tweet.counts.likes }}
+                </strong>
+                <span class="text-muted-foreground">{{ t('post.detail.likesLabel') }}</span>
+              </button>
+            </template>
+          </PostLikersDialog>
+        </template>
+      </TweetCard>
+
+      <div
         v-if="preferenceStore.isLoggedIn && tweet.id === currentPostId"
-        :key="currentPostId"
-        :post-id="currentPostId"
-      />
-      <Button v-if="preferenceStore.isLoggedIn && tweet.id === currentPostId &&
-        tweet.visibility === 'public' && tweet.content.trim() && citedCommentId === undefined"
-        variant="outline" size="sm" :disabled="summaryPending" @click="openDiscussionSummary">
-        {{ t(summaryPending ? 'common.loading' : 'aiWriting.summarizePost') }}
-      </Button>
+        class="flex flex-wrap items-center gap-2 pt-0.5"
+      >
+        <button
+          type="button"
+          class="pressable inline-flex items-center gap-1.5 rounded-xl bg-[var(--primary-soft)] px-3.5 py-2 text-xs font-semibold text-primary transition-colors hover:opacity-85"
+          @click="handleReplyTweet(tweet)"
+        >
+          <CornerDownLeft class="size-3.5" />
+          <span>{{ t('post.detail.writeReplyPost') }}</span>
+        </button>
+        <button
+          v-if="tweet.visibility === 'public' && tweet.content.trim() && citedCommentId === undefined"
+          type="button"
+          class="pressable inline-flex items-center gap-1.5 rounded-xl bg-secondary px-3.5 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+          :disabled="summaryPending"
+          @click="openDiscussionSummary"
+        >
+          <Sparkles class="size-3.5" />
+          <span>{{ t(summaryPending ? 'common.loading' : 'aiWriting.summarizePost') }}</span>
+        </button>
+      </div>
+
       <RetweetModal
         v-if="selectedTweetForRetweet"
         v-model:open="isRetweetModalOpen"
@@ -737,14 +800,14 @@ async function handleSubmitPostReply(
       />
       <Dialog v-model:open="isReplyComposerOpen">
         <DialogContent
-          class="flex max-h-[88vh] max-w-2xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
+          class="flex max-h-[88vh] max-w-2xl flex-col overflow-hidden rounded-[24px] border-0 bg-card p-0"
         >
           <DialogHeader
-            class="border-b border-border/60 bg-background/60 px-5 py-4 backdrop-blur"
+            class="border-b border-[var(--divider)] px-5 py-4"
           >
             <div class="flex items-start gap-3">
               <span
-                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary"
               >
                 <MessageSquare class="h-3.5 w-3.5" />
               </span>
@@ -774,45 +837,79 @@ async function handleSubmitPostReply(
         </DialogContent>
       </Dialog>
 
-      <section v-if="preferenceStore.isLoggedIn && citedCommentId === undefined" class="mx-auto mt-6 grid max-w-2xl gap-3 px-4 sm:px-0">
-        <header class="flex items-start gap-3">
-          <span
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+      <section v-if="preferenceStore.isLoggedIn && citedCommentId === undefined" class="space-y-3 pt-1">
+        <div
+          role="tablist"
+          class="flex items-center rounded-full bg-secondary p-[3px]"
+        >
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="detailTab === 'comments'"
+            :aria-pressed="detailTab === 'comments'"
+            class="flex-1 rounded-full py-2 text-center text-[13.5px] transition-all duration-200"
+            :class="detailTab === 'comments' ? 'bg-card font-semibold text-foreground shadow-xs dark:shadow-none' : 'font-medium text-muted-foreground hover:text-foreground'"
+            @click="detailTab = 'comments'"
           >
-            <MessageSquare class="h-4 w-4" />
-          </span>
-          <div class="min-w-0 grid gap-0.5">
-            <div class="flex flex-wrap gap-1">
-              <Button size="sm" :variant="relatedKind === 'replies' ? 'secondary' : 'ghost'"
-                :aria-pressed="relatedKind === 'replies'" @click="selectRelatedKind('replies')">
-                {{ t('post.replies.title') }}
-              </Button>
-              <Button size="sm" :variant="relatedKind === 'retweets' ? 'secondary' : 'ghost'"
-                :aria-pressed="relatedKind === 'retweets'" @click="selectRelatedKind('retweets')">
-                {{ t('post.reposts.title') }}
-              </Button>
-            </div>
-            <p class="text-xs text-muted-foreground">
-              {{
-                t(relatedKind === 'replies' ? 'post.replies.total' : 'post.reposts.total', { count: relatedTotal })
-              }}
-            </p>
-          </div>
-        </header>
+            <span>{{ t('comment.title') }}</span>
+            <span
+              v-if="comments.length > 0"
+              class="ml-1.5 text-xs font-normal tabular-nums text-[var(--ink-tertiary)]"
+            >
+              ({{ comments.length }})
+            </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="detailTab === 'replies'"
+            :aria-pressed="detailTab === 'replies'"
+            class="flex-1 rounded-full py-2 text-center text-[13.5px] transition-all duration-200"
+            :class="detailTab === 'replies' ? 'bg-card font-semibold text-foreground shadow-xs dark:shadow-none' : 'font-medium text-muted-foreground hover:text-foreground'"
+            @click="detailTab = 'replies'; selectRelatedKind('replies')"
+          >
+            <span>{{ t('post.replies.title') }}</span>
+            <span
+              v-if="detailTab === 'replies' && relatedTotal > 0"
+              class="ml-1.5 text-xs font-normal tabular-nums text-[var(--ink-tertiary)]"
+            >
+              ({{ relatedTotal }})
+            </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="detailTab === 'retweets'"
+            :aria-pressed="detailTab === 'retweets'"
+            class="flex-1 rounded-full py-2 text-center text-[13.5px] transition-all duration-200"
+            :class="detailTab === 'retweets' ? 'bg-card font-semibold text-foreground shadow-xs dark:shadow-none' : 'font-medium text-muted-foreground hover:text-foreground'"
+            @click="detailTab = 'retweets'; selectRelatedKind('retweets')"
+          >
+            <span>{{ t('post.reposts.title') }}</span>
+            <span
+              v-if="detailTab === 'retweets' && relatedTotal > 0"
+              class="ml-1.5 text-xs font-normal tabular-nums text-[var(--ink-tertiary)]"
+            >
+              ({{ relatedTotal }})
+            </span>
+          </button>
+        </div>
+
+        <template v-if="detailTab !== 'comments'">
 
         <div
           v-if="relatedPending && relatedPosts.length === 0"
-          class="grid gap-3"
+          class="space-y-3"
         >
           <TweetCardSkeleton v-for="i in 2" :key="i" />
         </div>
 
         <div
           v-else-if="relatedError && relatedPosts.length === 0"
-          class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rose-500/30 bg-rose-50/30 py-10 text-center dark:bg-rose-950/20"
+          class="flex flex-col items-center justify-center gap-2 rounded-[20px] bg-card py-10 text-center"
         >
           <span
-            class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
+            class="flex h-11 w-11 items-center justify-center rounded-full bg-rose-500/10"
           >
             <AlertTriangle class="h-5 w-5 text-rose-500" />
           </span>
@@ -828,6 +925,7 @@ async function handleSubmitPostReply(
           v-else-if="relatedPosts.length > 0"
           :tweets="relatedPosts"
           :show-relation-context="false"
+          class="-mx-3 sm:mx-0"
           @delete-tweet="handleDeleteTweet"
           @reply-tweet="handleReplyTweet"
           @retweet-tweet="handleRetweetTweet"
@@ -835,23 +933,15 @@ async function handleSubmitPostReply(
           @bookmark-tweet="handleBookmarkTweet"
         />
 
-        <div
+        <AppEmptyState
           v-else
-          class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/10 py-10 text-center"
-        >
-          <span
-            class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
-          >
-            <Inbox class="h-5 w-5 text-muted-foreground" />
-          </span>
-          <p class="text-sm text-muted-foreground">
-            {{ t(relatedKind === 'replies' ? 'post.replies.empty' : 'post.reposts.empty') }}
-          </p>
-        </div>
+          :title="t(relatedKind === 'replies' ? 'post.replies.empty' : 'post.reposts.empty')"
+          compact
+        />
 
         <div
           v-if="relatedPosts.length > 0 || relatedHasNext"
-          class="grid gap-2 pt-1"
+          class="grid gap-2 py-2 empty:hidden"
         >
           <p
             v-if="relatedError"
@@ -861,8 +951,8 @@ async function handleSubmitPostReply(
           </p>
           <Button
             v-if="relatedHasNext"
-            variant="outline"
-            class="mx-auto h-9 rounded-md shadow-xs"
+            variant="secondary"
+            class="mx-auto h-9 rounded-full"
             :disabled="relatedPending"
             @click="loadMoreRelatedPosts"
           >
@@ -877,23 +967,26 @@ async function handleSubmitPostReply(
             }}
           </Button>
         </div>
+        </template>
       </section>
 
-      <div v-if="citedCommentId !== undefined" class="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div v-show="detailTab === 'comments' || citedCommentId !== undefined || !preferenceStore.isLoggedIn">
+        <div v-if="citedCommentId !== undefined" class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p v-if="!commentPending && !commentError && !comments.length" role="status">{{ t('aiKnowledge.citedCommentMissing') }}</p>
         <NuxtLink :to="localePath(`/tweet/${currentPostId}`)" class="text-sm text-primary underline">{{ t('aiKnowledge.allComments') }}</NuxtLink>
       </div>
-      <div v-if="commentPending" class="mx-auto max-w-2xl px-4 py-6" role="status">
+      <div v-if="commentPending" class="px-4 py-6" role="status">
         <Loader2 class="h-5 w-5 animate-spin" :aria-label="t('common.loading')" />
       </div>
-      <div v-else-if="commentError" class="mx-auto grid max-w-2xl justify-items-start gap-2 px-4 py-6">
+      <div v-else-if="commentError" class="grid justify-items-start gap-2 rounded-[20px] bg-card p-6">
         <p role="alert">{{ t('comment.feedback.loadFailed') }}</p>
-        <Button variant="outline" @click="loadComments">{{ t('common.retry') }}</Button>
+        <Button variant="secondary" class="rounded-full" @click="loadComments">{{ t('common.retry') }}</Button>
       </div>
       <CommentSection
         v-else
         :comments="comments"
         :post-id="tweet.id"
+        :show-header="citedCommentId !== undefined || !preferenceStore.isLoggedIn"
         :pending-like-ids="pendingCommentLikeIds"
         @like-comment="handleLikeTweetComment"
         :submit-reply="handleReplyTweetComment"
@@ -901,20 +994,21 @@ async function handleSubmitPostReply(
         @delete-comment="requestCommentDelete"
         @send-reply="handleTweetComment"
       />
+      </div>
       <Dialog
         :open="commentToDelete !== null"
         @update:open="open => { if (!open && !deletingComment) commentToDelete = null; }"
       >
-        <DialogContent>
+        <DialogContent class="rounded-[24px] border-0 bg-card">
           <DialogHeader>
             <DialogTitle>{{ t('comment.deleteConfirmTitle') }}</DialogTitle>
             <DialogDescription>{{ t('comment.deleteConfirmBody') }}</DialogDescription>
           </DialogHeader>
           <div class="flex justify-end gap-2">
-            <Button variant="outline" :disabled="deletingComment" @click="commentToDelete = null">
+            <Button variant="secondary" class="rounded-full" :disabled="deletingComment" @click="commentToDelete = null">
               {{ t('common.cancel') }}
             </Button>
-            <Button variant="destructive" :disabled="deletingComment" @click="confirmCommentDelete">
+            <Button variant="destructive" class="rounded-full" :disabled="deletingComment" @click="confirmCommentDelete">
               {{ t('comment.delete') }}
             </Button>
           </div>
@@ -924,13 +1018,13 @@ async function handleSubmitPostReply(
 
     <div
       v-else
-      class="mx-auto max-w-2xl px-4"
+      class="px-3 py-4 sm:px-0"
     >
       <div
-        class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/10 py-12 text-center"
+        class="flex flex-col items-center justify-center gap-2 rounded-[20px] bg-card py-12 text-center"
       >
         <span
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-secondary"
         >
           <Inbox class="h-5 w-5 text-muted-foreground" />
         </span>

@@ -52,7 +52,7 @@ function handleBookmarkTweet(
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl">
+  <TransitionGroup name="feed" tag="div" class="space-y-3 px-3 py-2 sm:px-0">
     <TweetCard
       v-for="tweet in props.tweets"
       :key="tweet.id"
@@ -68,7 +68,7 @@ function handleBookmarkTweet(
       :can-manage-profile-pin="canManageProfilePin"
       :profile-pin-pending="profilePinPending"
     />
-  </div>
+  </TransitionGroup>
 </template>
 
 

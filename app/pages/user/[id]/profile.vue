@@ -18,14 +18,13 @@ import {
   PaginationPrevious
 } from '@/components/ui/pagination';
 import { toast } from 'vue-sonner';
-import { useRoute } from 'vue-router';
-import { BarChart3, FileText, Inbox, AlertTriangle } from 'lucide-vue-next';
+import { useRoute, useRouter } from 'vue-router';
+import { ArrowLeft, Inbox, AlertTriangle } from 'lucide-vue-next';
 import type { PostVM } from '@/types/posts';
 import {
   v2BookmarkPost,
   v2DeletePost,
   v2FollowUser,
-  v2GetUserAnalytics,
   v2GetUserById,
   v2LikePost,
   v2ListUserPosts,
@@ -35,6 +34,7 @@ import {
 } from '@/services';
 
 const route = useRoute();
+const router = useRouter();
 const { t } = useAppLocale();
 const localePath = useLocalePath();
 const app = useNuxtApp();
@@ -49,6 +49,10 @@ interface AccountHeaderUser {
   email: string;
   avatar: string;
   follow: string;
+  bio?: string;
+  website?: string;
+  verified?: boolean;
+  postsCount?: number;
   stats: {
     followersCount: number;
     followingCount: number;
@@ -59,16 +63,6 @@ interface AccountHeaderUser {
   lastSeenAt: string | null;
 }
 
-interface UserAnalyticsData {
-  totalTweets: number;
-  tweetsThisWeek: number;
-  totalLikesReceived: number;
-  avgLikesPerTweet: number;
-  totalLikesGiven: number;
-  totalCommentsMade: number;
-  engagementScore: number;
-}
-
 const user = ref<AccountHeaderUser>({
   id: 0,
   name: '',
@@ -77,6 +71,10 @@ const user = ref<AccountHeaderUser>({
   email: '',
   avatar: '',
   follow: 'unfollow',
+  bio: '',
+  website: '',
+  verified: false,
+  postsCount: 0,
   stats: {
     followersCount: 0,
     followingCount: 0,
@@ -95,8 +93,16 @@ const localizedAccountTabs = computed(() => {
   }));
 });
 const activeTab = ref('Overview');
-
-const userAnalytics = ref<UserAnalyticsData | null>(null);
+const profilePostTab = ref<'posts' | 'replies' | 'media'>('posts');
+const profileTabOrder: Array<'posts' | 'replies' | 'media'> = ['posts', 'replies', 'media'];
+const profileTabPillStyle = computed(() => {
+  const index = Math.max(0, profileTabOrder.indexOf(profilePostTab.value));
+  const widthPct = 100 / profileTabOrder.length;
+  return {
+    left: `calc(${index * widthPct}% + 3px)`,
+    width: `calc(${widthPct}% - 6px)`
+  };
+});
 
 const userId = computed(() => {
   const raw = route.params.id;
@@ -118,7 +124,6 @@ let blockIntent: { id: number; name: string; revision: number } | null = null;
 const blockName = ref('');
 let disposed = false;
 let profileLoad = 0;
-let analyticsLoad = 0;
 let tweetsLoad = 0;
 let pinLoad = 0;
 let relationshipIntent = 0;
@@ -128,11 +133,13 @@ const isCurrent = (id: number, revision: number) => !disposed && !queue.isIdenti
 
 function resetRelationship(): void {
   relationshipIntent++;
-  analyticsLoad++;
-  userAnalytics.value = null;
   user.value.point = 0;
   relationshipBusy.value = false;
   user.value.id = 0;
+  user.value.bio = '';
+  user.value.website = '';
+  user.value.verified = false;
+  user.value.postsCount = 0;
   blockedByViewer.value = false;
   blockedByTarget.value = false;
   blockDialogOpen.value = false;
@@ -147,6 +154,7 @@ function resetRelationship(): void {
   tweetsError.value = null;
   fullTweets.value = [];
   totalTweetsCount.value = 0;
+  profilePostTab.value = 'posts';
   page.value = 1;
 }
 
@@ -180,9 +188,19 @@ const canManageProfilePin = computed(() => profileReady.value && preferenceStore
   preferenceStore.preferences.user.id === userId.value);
 const visibleProfileTweets = computed(() => {
   const pin = pinnedTweet.value;
-  if (!pin || blockedByViewer.value || blockedByTarget.value) return fullTweets.value;
-  const other = fullTweets.value.filter(tweet => tweet.id !== pin.id);
-  return page.value === 1 ? [fullTweets.value.find(tweet => tweet.id === pin.id) ?? pin,...other] : other;
+  const base = !pin || blockedByViewer.value || blockedByTarget.value
+    ? fullTweets.value
+    : (() => {
+        const other = fullTweets.value.filter(tweet => tweet.id !== pin.id);
+        return page.value === 1 ? [fullTweets.value.find(tweet => tweet.id === pin.id) ?? pin, ...other] : other;
+      })();
+  if (profilePostTab.value === 'replies') {
+    return base.filter(tweet => tweet.replyToPostId !== null);
+  }
+  if (profilePostTab.value === 'media') {
+    return base.filter(tweet => tweet.media.length > 0);
+  }
+  return base;
 });
 const tweetsLoading = ref(false);
 const tweetsError = ref<string | null>(null);
@@ -208,6 +226,10 @@ async function loadUserProfile(): Promise<boolean> {
     user.value.title = publicUser.username;
     user.value.location = publicUser.location;
     user.value.avatar = publicUser.avatarUrl;
+    user.value.bio = publicUser.bio;
+    user.value.website = publicUser.website;
+    user.value.verified = publicUser.verified;
+    user.value.postsCount = publicUser.postsCount;
     user.value.onlineStatus = publicUser.onlineStatus;
     user.value.lastSeenAt = publicUser.lastSeenAt;
     user.value.stats.followersCount =
@@ -228,32 +250,6 @@ async function loadUserProfile(): Promise<boolean> {
     return false;
   } finally {
     if (isCurrent(id, revision) && load === profileLoad) profileLoading.value = false;
-  }
-}
-
-async function loadUserAnalytics() {
-  const id = userId.value;
-  const revision = queue.revision;
-  if (!isCurrent(id, revision)) return;
-  const load = ++analyticsLoad;
-  userAnalytics.value = null;
-  user.value.point = 0;
-  try {
-    const analytics = await app.runWithContext(() => v2GetUserAnalytics(id));
-    if (!isCurrent(id, revision) || load !== analyticsLoad) return;
-    userAnalytics.value = {
-      totalTweets: analytics.totalPosts,
-      tweetsThisWeek: analytics.postsThisWeek,
-      totalLikesReceived: analytics.totalLikesReceived,
-      avgLikesPerTweet: analytics.avgLikesPerPost,
-      totalLikesGiven: analytics.totalLikesGiven,
-      totalCommentsMade: analytics.totalCommentsMade,
-      engagementScore: analytics.engagementScore
-    };
-    user.value.stats.likesCount = analytics.totalLikesReceived;
-    user.value.point = analytics.engagementScore;
-  } catch {
-    // An inaccessible profile has no analytics panel.
   }
 }
 
@@ -327,7 +323,6 @@ async function handleToggleProfilePin(tweet: PostVM) {
 async function refreshProfilePage(): Promise<void> {
   if (!await loadUserProfile()) return;
   await Promise.all([
-    loadUserAnalytics(),
     loadTweets(),
     loadPinnedTweet()
   ]);
@@ -485,10 +480,8 @@ async function applyVisibility(target: { id: number; revision: number }, action:
     if (!isCurrent(target.id, target.revision) || intent !== relationshipIntent) return;
     profileLoad++;
     if (action === 'block') {
-      analyticsLoad++;
       pinLoad++;
       pinnedTweet.value = null;
-      userAnalytics.value = null;
       user.value.point = 0;
       blockedByViewer.value = true;
       user.value.follow = 'unfollow';
@@ -504,107 +497,123 @@ async function applyVisibility(target: { id: number; revision: number }, action:
 </script>
 
 <template>
-  <div class="grid gap-6 p-4 sm:p-6 lg:p-8">
-    <p v-if="profileLoading && !profileReady" role="status">{{ t('common.loading') }}</p>
-    <div v-else-if="profileError" class="grid justify-items-start gap-2 rounded-xl border p-5">
-      <p role="alert">{{ t('account.errors.loadUser') }}</p>
-      <Button variant="outline" @click="refreshProfilePage">{{ t('common.retry') }}</Button>
-    </div>
-    <AccountHeaderCard
-      v-if="profileReady"
-      :user="user"
-      :account-tabs="localizedAccountTabs"
-      v-model="activeTab"
-      :interaction-blocked="blockedByViewer || blockedByTarget"
-      :relationship-busy="relationshipBusy || changingIdentity"
-      :visibility-actions="visibilityEnabled"
-      :blocked-by-viewer="blockedByViewer"
-      :analytics-available="userAnalytics !== null && !blockedByViewer && !blockedByTarget"
-      @follow="followUser"
-      @visibility="startVisibility"
-      @refresh="refreshProfilePage"
-    />
-    <Dialog v-model:open="blockDialogOpen">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{{ t('visibility.block') }}</DialogTitle>
-          <DialogDescription>{{ t('visibility.confirmBlock', { name: blockName }) }}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" @click="blockDialogOpen = false">{{ t('common.cancel') }}</Button>
-          <Button variant="destructive" @click="confirmBlock">{{ t('visibility.block') }}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    <section
-      v-if="profileReady && userAnalytics && !blockedByViewer && !blockedByTarget"
-      class="grid gap-5 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+  <div class="min-w-0">
+    <header
+      class="sticky top-0 z-20 flex h-14 items-center gap-3 bg-background/90 px-3 backdrop-blur-xl sm:px-0"
     >
-      <header class="flex items-start gap-3">
-        <span
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
-        >
-          <BarChart3 class="h-4 w-4" />
-        </span>
-        <div class="min-w-0 grid gap-0.5">
-          <h2 class="text-lg font-semibold tracking-tight">
-            {{ t('account.overview.title') }}
-          </h2>
-          <p class="text-xs text-muted-foreground">
-            {{ t('account.overview.description') }}
-          </p>
-        </div>
-      </header>
-      <OverAllPanel :userAnalytics="userAnalytics" summary-only />
-    </section>
-
-    <section
-      v-if="profileReady"
-      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
-    >
-      <header class="flex items-start gap-3">
-        <span
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
-        >
-          <FileText class="h-4 w-4" />
-        </span>
-        <div class="min-w-0 grid gap-0.5">
-          <h2 class="text-lg font-semibold tracking-tight">
-            {{ t('post.feed.title') }}
-          </h2>
-          <p class="text-xs text-muted-foreground">
-            {{
-              t('post.feed.total', {
-                count: totalTweetsCount
-              })
-            }}
-          </p>
-        </div>
-      </header>
-
-      <div
-        v-if="tweetsLoading"
-        class="grid gap-3"
+      <button
+        type="button"
+        class="pressable inline-flex size-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
+        :aria-label="t('common.back')"
+        @click="router.back()"
       >
+        <ArrowLeft class="size-5" />
+      </button>
+      <div class="min-w-0">
+        <h1 class="truncate text-[18px] font-semibold tracking-tight text-foreground">
+          {{ profileReady ? (user.name || `@${user.title}`) : t('nav.main.profile') }}
+        </h1>
+        <p v-if="profileReady" class="truncate text-xs text-[var(--ink-tertiary)]">
+          {{ t('account.profileTabs.postsCount', { count: user.postsCount ?? totalTweetsCount }) }}
+        </p>
+      </div>
+    </header>
+
+    <div v-if="profileLoading && !profileReady" class="space-y-3 px-3 pt-2 sm:px-0">
+      <div class="overflow-hidden rounded-[20px] bg-card">
+        <div class="h-[116px] animate-pulse bg-secondary" />
+        <div class="space-y-3 px-4 pb-5">
+          <div class="-mt-10 size-20 animate-pulse rounded-full bg-secondary ring-4 ring-card" />
+          <div class="h-5 w-40 animate-pulse rounded-lg bg-secondary" />
+          <div class="h-4 w-28 animate-pulse rounded-lg bg-secondary" />
+        </div>
+      </div>
+      <div class="space-y-3">
         <TweetCardSkeleton v-for="i in 3" :key="i" />
       </div>
+    </div>
 
-      <div
-        v-else-if="tweetsError"
-        class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-rose-500/30 bg-rose-50/30 py-10 text-center dark:bg-rose-950/20"
-      >
-        <span
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
-        >
-          <AlertTriangle class="h-5 w-5 text-rose-500" />
-        </span>
-        <p class="text-sm text-rose-600 dark:text-rose-400">{{ tweetsError }}</p>
-        <Button variant="outline" size="sm" @click="loadTweets">{{ t('common.retry') }}</Button>
+    <div v-else-if="profileError" class="px-3 pt-2 sm:px-0">
+      <div class="grid justify-items-start gap-3 rounded-[20px] bg-card p-6">
+        <p role="alert" class="text-sm text-destructive">{{ t('account.errors.loadUser') }}</p>
+        <Button variant="secondary" size="sm" class="rounded-full" @click="refreshProfilePage">{{ t('common.retry') }}</Button>
+      </div>
+    </div>
+
+    <template v-else-if="profileReady">
+      <div class="px-3 pt-1 sm:px-0">
+        <AccountHeaderCard
+          social-mode
+          :user="user"
+          :account-tabs="localizedAccountTabs"
+          v-model="activeTab"
+          :interaction-blocked="blockedByViewer || blockedByTarget"
+          :relationship-busy="relationshipBusy || changingIdentity"
+          :visibility-actions="visibilityEnabled"
+          :blocked-by-viewer="blockedByViewer"
+          :analytics-available="false"
+          @follow="followUser"
+          @visibility="startVisibility"
+          @refresh="refreshProfilePage"
+        />
       </div>
 
-      <div v-else-if="visibleProfileTweets.length > 0">
+      <Dialog v-model:open="blockDialogOpen">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{{ t('visibility.block') }}</DialogTitle>
+            <DialogDescription>{{ t('visibility.confirmBlock', { name: blockName }) }}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" class="rounded-full" @click="blockDialogOpen = false">{{ t('common.cancel') }}</Button>
+            <Button variant="destructive" class="rounded-full" @click="confirmBlock">{{ t('visibility.block') }}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <!-- Capsule Segmented Tabs (Posts / Replies / Media) -->
+      <div
+        class="sticky top-14 z-10 bg-background/75 px-3 py-2.5 backdrop-blur-xl sm:px-0"
+        role="tablist"
+      >
+        <div class="relative flex h-10 items-center rounded-full bg-secondary p-[3px]">
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute top-[3px] bottom-[3px] rounded-full bg-primary shadow-[0_2px_8px_rgba(0,122,255,0.28)] transition-[left,width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] dark:shadow-none"
+            :style="profileTabPillStyle"
+          />
+          <button
+            v-for="tabKey in profileTabOrder"
+            :key="tabKey"
+            type="button"
+            role="tab"
+            :aria-selected="profilePostTab === tabKey"
+            class="relative z-10 flex h-full flex-1 items-center justify-center rounded-full text-[13.5px] transition-colors"
+            :class="profilePostTab === tabKey ? 'font-semibold text-primary-foreground' : 'font-medium text-muted-foreground hover:text-foreground'"
+            @click="profilePostTab = tabKey"
+          >
+            {{ t(`account.profileTabs.${tabKey}`) }}
+          </button>
+        </div>
+      </div>
+
+      <section class="pb-10">
+        <div v-if="tweetsLoading" class="space-y-3 px-3 py-2 sm:px-0">
+          <TweetCardSkeleton v-for="i in 4" :key="i" />
+        </div>
+
+        <div v-else-if="tweetsError" class="px-3 py-2 sm:px-0">
+          <div class="flex flex-col items-center justify-center gap-2 rounded-[20px] bg-card py-12 text-center">
+            <span class="flex size-12 items-center justify-center rounded-full bg-rose-500/10">
+              <AlertTriangle class="size-5 text-rose-500" />
+            </span>
+            <p class="text-sm text-rose-600 dark:text-rose-400">{{ tweetsError }}</p>
+            <Button variant="secondary" size="sm" class="rounded-full" @click="loadTweets">{{ t('common.retry') }}</Button>
+          </div>
+        </div>
+
         <TweetList
+          v-else-if="visibleProfileTweets.length > 0"
           :tweets="visibleProfileTweets"
           :pinned-post-id="pinnedTweet?.id"
           :can-manage-profile-pin="canManageProfilePin"
@@ -616,47 +625,41 @@ async function applyVisibility(target: { id: number; revision: number }, action:
           @bookmark-tweet="handleBookmarkTweet"
           @toggle-profile-pin="handleToggleProfilePin"
         />
-      </div>
 
-      <div
-        v-else
-        class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 py-10 text-center"
-      >
-        <span
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
-        >
-          <Inbox class="h-5 w-5 text-muted-foreground" />
-        </span>
-        <p class="text-sm text-muted-foreground">
-          {{ t('post.feed.emptyUserPosts') }}
-        </p>
-      </div>
+        <div v-else class="px-3 py-2 sm:px-0">
+          <div class="flex flex-col items-center justify-center gap-2 rounded-[20px] bg-card px-4 py-14 text-center">
+            <span class="flex size-12 items-center justify-center rounded-full bg-secondary">
+              <Inbox class="size-5 text-muted-foreground" />
+            </span>
+            <p class="text-sm text-muted-foreground">
+              {{ t('post.feed.emptyUserPosts') }}
+            </p>
+          </div>
+        </div>
 
-      <div v-if="totalPages > 1" class="pt-2">
-        <Pagination
-          v-model:page="page"
-          :items-per-page="pageSize"
-          :total="totalTweetsCount"
-          class="flex justify-center"
-        >
-          <PaginationContent v-slot="{ items }">
-            <PaginationPrevious />
-            <template
-              v-for="(item, index) in items"
-              :key="index"
-            >
-              <PaginationItem
-                v-if="item.type === 'page'"
-                :value="item.value"
-                :is-active="item.value === page"
-              >
-                {{ item.value }}
-              </PaginationItem>
-            </template>
-            <PaginationNext />
-          </PaginationContent>
-        </Pagination>
-      </div>
-    </section>
+        <div v-if="totalPages > 1" class="px-3 py-4 sm:px-0">
+          <Pagination
+            v-model:page="page"
+            :items-per-page="pageSize"
+            :total="totalTweetsCount"
+            class="flex justify-center"
+          >
+            <PaginationContent v-slot="{ items }">
+              <PaginationPrevious />
+              <template v-for="(item, index) in items" :key="index">
+                <PaginationItem
+                  v-if="item.type === 'page'"
+                  :value="item.value"
+                  :is-active="item.value === page"
+                >
+                  {{ item.value }}
+                </PaginationItem>
+              </template>
+              <PaginationNext />
+            </PaginationContent>
+          </Pagination>
+        </div>
+      </section>
+    </template>
   </div>
 </template>

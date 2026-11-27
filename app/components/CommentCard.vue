@@ -2,15 +2,13 @@
 import { ref, computed } from 'vue';
 import type { PropType } from 'vue';
 import type { NestedCommentVM } from '@/types/posts';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
+import UserAvatar from '@/components/UserAvatar.vue';
+import LikeButton from '@/components/motion/LikeButton.vue';
+import { formatFullTime, formatRelativeTime } from '@/utils/relativeTime';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import AppSendButton from '@/components/app/AppSendButton.vue';
-import { Heart, MessageSquare, Trash2 } from 'lucide-vue-next';
+import { MessageSquare, Trash2 } from 'lucide-vue-next';
 
 const { t, locale } = useAppLocale();
 
@@ -68,20 +66,11 @@ const likePending = computed(() =>
   props.pendingLikeIds?.has(props.comment.id) ?? false
 );
 
-const formattedDate = computed(() => {
-  return new Date(props.comment.createdAt).toLocaleString(
-    locale.value === 'zh' ? 'zh-CN' : 'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }
-  );
-});
+const formattedDate = computed(() => formatFullTime(props.comment.createdAt, locale.value));
+const relativeDate = computed(() => formatRelativeTime(props.comment.createdAt, locale.value));
 
 const indentationStyle = computed(() => ({
-  marginLeft: `${Math.min(props.level, 6) * 20}px`
+  paddingLeft: `${Math.min(props.level, 4) * 24}px`
 }));
 
 const fallbackInitial = computed(() => {
@@ -144,87 +133,89 @@ function handleReplyBlur() {
   <div
     :id="`comment-${comment.id}`"
     class="relative flex min-w-0 flex-col"
+    :class="level === 0 ? 'overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none' : ''"
     :style="indentationStyle"
   >
     <div
       v-if="level > 0"
-      class="pointer-events-none absolute -left-3 top-0 h-full w-px bg-border/70"
+      class="pointer-events-none absolute -left-3 top-2 bottom-2 w-0.5 rounded-full bg-accent"
       aria-hidden="true"
     />
 
     <div
-      class="group/comment min-w-0 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/30"
+      class="group/comment min-w-0 px-4 py-3.5 transition-colors duration-150"
     >
       <div class="flex min-w-0 items-start gap-3">
-        <Avatar class="h-8 w-8 shrink-0 ring-1 ring-border">
-          <AvatarImage
+        <div class="flex shrink-0 flex-col items-center self-stretch">
+          <UserAvatar
             :src="comment.author.avatarUrl"
-            :alt="comment.author.name"
+            :name="comment.author.name"
+            :username="comment.author.username"
+            :seed="comment.author.id"
+            size="sm"
           />
-          <AvatarFallback class="text-xs">
-            {{ fallbackInitial }}
-          </AvatarFallback>
-        </Avatar>
+          <div
+            v-if="comment.children && comment.children.length > 0"
+            class="mt-1.5 w-0.5 flex-1 rounded-full bg-accent"
+            aria-hidden="true"
+          />
+        </div>
 
         <div class="min-w-0 flex-1">
-          <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-            <span class="truncate font-semibold">
+          <div class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
+            <span class="truncate font-semibold text-foreground">
               {{ comment.author.name }}
             </span>
-            <span class="truncate text-xs text-muted-foreground">
+            <span class="truncate text-xs text-[var(--ink-tertiary)]">
               @{{ comment.author.username }}
             </span>
-            <span class="text-xs text-muted-foreground">·</span>
-            <span class="text-xs text-muted-foreground">
-              {{ formattedDate }}
-            </span>
+            <span class="text-xs text-[var(--ink-tertiary)]">·</span>
+            <time
+              :datetime="comment.createdAt"
+              :title="formattedDate"
+              class="text-xs text-[var(--ink-tertiary)]"
+            >
+              {{ relativeDate }}
+            </time>
           </div>
 
           <p
-            class="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground"
+            class="mt-1 whitespace-pre-wrap break-words text-[15px] leading-[1.62] text-foreground"
           >
             {{ comment.content }}
           </p>
 
-          <div class="mt-2 flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-7 gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
+          <div class="mt-1.5 -ml-1.5 flex items-center gap-2">
+            <LikeButton
+              :liked="isLiked"
+              :count="likesCount"
               :disabled="likePending"
-              :aria-pressed="isLiked"
-              @click="handleLike"
-            >
-              <Heart
-                class="h-3.5 w-3.5 transition-transform"
-                :class="{
-                  'fill-rose-600 text-rose-600 dark:fill-rose-400 dark:text-rose-400':
-                    isLiked
-                }"
-              />
-              <span class="tabular-nums font-medium">
-                {{ likesCount }}
-              </span>
-            </Button>
+              icon-class="size-4"
+              @toggle="handleLike"
+            />
             <Button
               v-if="allowReply"
               variant="ghost"
-              size="sm"
-              class="h-7 gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-sky-500/10 hover:text-sky-600 dark:hover:text-sky-400"
+                size="icon"
+                class="size-8 text-muted-foreground hover:text-foreground"
+                :aria-label="t('comment.reply')"
+                :title="t('comment.reply')"
+                :aria-expanded="isReplyBoxOpen"
+                :disabled="replyPending"
               @click="toggleReplyBox"
             >
               <MessageSquare class="h-3.5 w-3.5" />
-              <span class="font-medium">{{ t('comment.reply') }}</span>
             </Button>
             <Button
               v-if="enableDelete && comment.viewer.canDelete"
               variant="ghost"
-              size="sm"
-              class="h-7 gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                size="icon"
+                class="size-8 text-muted-foreground hover:text-destructive"
+                :aria-label="t('comment.delete')"
+                :title="t('comment.delete')"
               @click="handleDelete"
             >
               <Trash2 class="h-3.5 w-3.5" />
-              <span class="font-medium">{{ t('comment.delete') }}</span>
             </Button>
           </div>
 
@@ -238,28 +229,28 @@ function handleReplyBlur() {
           >
             <div
               v-if="allowReply && isReplyBoxOpen"
-              class="mt-3 rounded-lg border border-border/60 bg-card p-3 transition-colors"
-              :class="{ 'border-ring/60 ring-2 ring-ring/20': isReplyInputFocused }"
+              class="mt-2.5 rounded-2xl bg-secondary p-3 transition-colors"
+              :class="{ 'ring-1 ring-primary/25': isReplyInputFocused }"
             >
               <Textarea
                 v-model="replyContent"
                 :disabled="replyPending"
                 :placeholder="t('comment.replyPlaceholder')"
-                class="min-h-[60px] resize-none border-none bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+                class="min-h-[60px] resize-none border-none bg-transparent p-0 text-sm leading-[1.6] shadow-none focus-visible:ring-0"
                 @focus="isReplyInputFocused = true"
                 @blur="handleReplyBlur"
               />
               <div
-                class="mt-2 flex items-center justify-between gap-2 border-t border-border/40 pt-2"
+                class="mt-2 flex items-center justify-between gap-2 border-t border-[var(--divider)] pt-2"
               >
-                <span class="text-xs tabular-nums text-muted-foreground">
+                <span class="text-xs tabular-nums text-[var(--ink-tertiary)]">
                   {{ replyContent.length }}
                 </span>
                 <div class="flex items-center gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
-                    class="h-7"
+                    class="h-8 rounded-full"
                     :disabled="replyPending"
                     @click="toggleReplyBox"
                   >
@@ -267,7 +258,7 @@ function handleReplyBlur() {
                   </Button>
                   <AppSendButton
                     size="sm"
-                    class="h-7"
+                    class="h-8 rounded-full font-semibold"
                     :disabled="replyPending || !replyContent.trim()"
                     @click="handleSubmitReply"
                   >
@@ -283,7 +274,7 @@ function handleReplyBlur() {
 
     <div
       v-if="comment.children && comment.children.length > 0"
-      class="mt-0.5"
+      class="pb-2"
     >
       <CommentCard
         v-for="childComment in comment.children"

@@ -1,11 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { MessageCircle, MessagesSquare } from 'lucide-vue-next';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
+import { MessageCircle } from 'lucide-vue-next';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -27,6 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const { t, locale } = useAppLocale();
+const localePath = useLocalePath();
 
 const hasConversations = computed(
   () => props.conversations.length > 0
@@ -70,45 +67,39 @@ function formatConversationTime(value: string | undefined): string {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-muted/20">
-    <div class="shrink-0 border-b border-border/60 bg-background/60 p-3 backdrop-blur">
-      <div class="flex items-center gap-2 text-sm font-semibold">
-        <MessagesSquare class="h-4 w-4 text-muted-foreground" />
-        <span class="truncate">
-          {{ t('chat.directConversations.title') }}
-        </span>
-      </div>
-      <p class="mt-1 text-xs text-muted-foreground">
-        {{ t('chat.directConversations.description') }}
-      </p>
-    </div>
-
+  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
     <ScrollArea class="min-h-0 flex-1">
-      <div class="space-y-px p-2">
+      <div class="space-y-1 p-2">
         <template v-if="isLoading && !hasConversations">
           <div
             v-for="item in 4"
             :key="item"
-            class="flex items-center gap-3 rounded-md p-2"
+            class="flex items-center gap-3 px-4 py-3"
           >
-            <Skeleton class="h-9 w-9 rounded-full" />
+            <Skeleton class="h-[52px] w-[52px] rounded-full" />
             <div class="min-w-0 flex-1 space-y-2">
-              <Skeleton class="h-3.5 w-24" />
-              <Skeleton class="h-3 w-32" />
+              <Skeleton class="h-3.5 w-28" />
+              <Skeleton class="h-3 w-40" />
             </div>
           </div>
         </template>
 
         <div
           v-else-if="!hasConversations"
-          class="mx-auto my-6 flex max-w-[14rem] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center"
+          class="mx-auto my-8 flex max-w-[15rem] flex-col items-center justify-center rounded-2xl bg-[var(--hover)] px-4 py-8 text-center"
         >
-          <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60">
-            <MessageCircle class="h-4 w-4 text-muted-foreground" />
+          <div class="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <MessageCircle class="h-5 w-5" />
           </div>
           <p class="text-xs leading-relaxed text-muted-foreground">
             {{ t('chat.directConversations.empty') }}
           </p>
+          <NuxtLink
+            :to="localePath('/?feed=trending')"
+            class="mt-4 inline-flex h-8 items-center rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            {{ t('nav.main.discover') }}
+          </NuxtLink>
         </div>
 
         <template v-else>
@@ -117,24 +108,19 @@ function formatConversationTime(value: string | undefined): string {
             :key="conversation.conversation_id"
             role="button"
             tabindex="0"
-            class="group/conv relative flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors"
+            class="group/conv relative flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors"
             :class="[
               conversation.conversation_id === activeConversationId
-                ? 'bg-accent text-accent-foreground'
-                : 'text-foreground hover:bg-accent/50'
+                ? 'bg-secondary text-foreground'
+                : 'text-foreground hover:bg-[var(--hover)]'
             ]"
             @click="emit('select', conversation)"
             @keydown.enter.prevent="emit('select', conversation)"
             @keydown.space.prevent="emit('select', conversation)"
           >
-            <span
-              v-if="conversation.conversation_id === activeConversationId"
-              class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
-              aria-hidden="true"
-            />
             <button
               type="button"
-              class="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              class="relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               :aria-label="participantName(conversation)"
               @click.stop="
                 emit(
@@ -143,30 +129,30 @@ function formatConversationTime(value: string | undefined): string {
                 )
               "
             >
-              <Avatar class="h-9 w-9 ring-1 ring-border">
-                <AvatarImage
-                  :src="participantAvatar(conversation)"
-                  :alt="participantName(conversation)"
-                />
-                <AvatarFallback class="text-xs">
-                  {{ initials(conversation) }}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                :src="participantAvatar(conversation)"
+                :name="participantName(conversation)"
+                :username="conversation.participant.username"
+                :seed="participantUserId(conversation)"
+                class="!h-[52px] !w-[52px] text-base"
+              />
+              <span
+                v-if="conversation.participant.online_status === 'online'"
+                class="absolute right-0 bottom-0 size-3.5 rounded-full bg-emerald-500 ring-2 ring-background"
+              />
             </button>
 
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span
                   class="min-w-0 flex-1 truncate text-sm"
-                  :class="{
-                    'font-semibold': conversation.unread_count > 0,
-                    'font-medium': conversation.unread_count === 0
-                  }"
+                  :class="conversation.unread_count > 0 ? 'font-bold text-foreground' : 'font-semibold'"
                 >
                   {{ participantName(conversation) }}
                 </span>
                 <span
-                  class="shrink-0 text-[10px] tabular-nums text-muted-foreground"
+                  class="shrink-0 text-[11px] tabular-nums"
+                  :class="conversation.unread_count > 0 ? 'font-semibold text-primary' : 'text-muted-foreground'"
                 >
                   {{
                     formatConversationTime(
@@ -176,12 +162,12 @@ function formatConversationTime(value: string | undefined): string {
                   }}
                 </span>
               </div>
-              <div class="mt-0.5 flex items-center gap-2">
+              <div class="mt-1 flex items-center gap-2">
                 <span
                   class="min-w-0 flex-1 truncate text-xs"
                   :class="
                     conversation.unread_count > 0
-                      ? 'text-foreground/80'
+                      ? 'font-medium text-foreground'
                       : 'text-muted-foreground'
                   "
                 >
@@ -193,7 +179,7 @@ function formatConversationTime(value: string | undefined): string {
                 </span>
                 <span
                   v-if="conversation.unread_count > 0"
-                  class="inline-flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium tabular-nums text-primary-foreground"
+                  class="inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-primary/14 px-1.5 text-[11px] font-semibold tabular-nums text-primary"
                 >
                   {{
                     conversation.unread_count > 99
@@ -207,7 +193,7 @@ function formatConversationTime(value: string | undefined): string {
         </template>
       </div>
     </ScrollArea>
-    <div v-if="(page ?? 1) > 1 || hasNext" class="flex shrink-0 flex-wrap justify-center gap-1 border-t px-2 py-1">
+    <div v-if="(page ?? 1) > 1 || hasNext" class="flex shrink-0 flex-wrap justify-center gap-1 px-2 py-1.5">
       <Button v-if="(page ?? 1) > 1" size="sm" variant="ghost" :disabled="isLoading" @click="emit('change-page', (page ?? 1) - 1)">{{ t('chat.directConversations.previousPage') }}</Button>
       <Button v-if="hasNext" size="sm" variant="ghost" :disabled="isLoading" @click="emit('change-page', (page ?? 1) + 1)">{{ t('chat.directConversations.nextPage') }}</Button>
     </div>

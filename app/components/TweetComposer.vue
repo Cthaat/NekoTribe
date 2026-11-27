@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import PostPollEditor from '@/components/PostPollEditor.vue';
 import PostDraftsDialog from '@/components/PostDraftsDialog.vue';
-import { openPostPollDraft, postPollPayload, type PostPollDraft } from '@/utils/post-poll-draft';
+import { newPostPollDraft, openPostPollDraft, postPollPayload, type PostPollDraft } from '@/utils/post-poll-draft';
 import { markdownBytes, markdownExcerpt, maxMarkdownBytes, validMarkdownBody } from '@/utils/post-markdown';
 import {
   computed,
@@ -129,6 +129,7 @@ const MAX_CHARS = 280;
 const MAX_MEDIA = 4;
 const MAX_TAGS = 8;
 const MAX_LOCATION_LENGTH = 60;
+const toolbarButtonClass = 'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
 const quickEmojis = [
   '🔥',
   '✨',
@@ -860,26 +861,26 @@ defineExpose({
 
 <template>
   <div
-    class="mobile-scroll-safe rounded-xl border border-border/60 bg-card shadow-none"
+    class="mobile-scroll-safe @container rounded-[24px] bg-card shadow-[0_2px_18px_rgba(15,23,42,0.04)] dark:shadow-none"
     @drop="handleDrop"
     @dragover.prevent="isDraggingMedia = true"
     @dragleave="isDraggingMedia = false"
   >
-    <div class="space-y-4 p-4 sm:p-5">
+    <div class="space-y-3.5 p-4 sm:p-5">
       <div
         v-if="contextPost"
-        class="rounded-lg border border-border/60 bg-muted/30 p-3"
+        class="rounded-2xl bg-secondary/45 p-3"
       >
         <div class="mb-2 flex items-center justify-between gap-3">
           <span
-            class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+            class="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
           >
             <component :is="contextIcon" class="h-3 w-3" />
             {{ contextLabel }}
           </span>
           <button
             type="button"
-            class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            class="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground"
             :aria-label="t('post.composer.clearContext')"
             @click="clearContext"
           >
@@ -890,49 +891,72 @@ defineExpose({
       </div>
 
       <div
-        class="relative rounded-lg border border-border/60 bg-muted/20 transition-colors focus-within:border-ring/60 focus-within:ring-2 focus-within:ring-ring/20"
+        class="relative rounded-2xl transition-colors"
         :class="{
-          'border-primary/50 bg-primary/5 ring-2 ring-primary/15':
+          'bg-primary/5 ring-2 ring-primary/15':
             isDraggingMedia
         }"
       >
         <Textarea
           v-model="tweetContent"
           :placeholder="t('post.composer.placeholder')"
-          class="min-h-44 resize-none border-0 bg-transparent p-4 text-base shadow-none focus-visible:ring-0 md:text-base"
+          class="min-h-40 resize-none border-0 bg-transparent p-1 text-base leading-relaxed shadow-none focus-visible:ring-0 md:text-base"
           @input="handleInput"
           @keydown="handleKeyDown"
           @paste="handlePaste"
         />
         <div
-          class="pointer-events-none absolute inset-x-4 bottom-3 text-xs text-muted-foreground"
+          class="pointer-events-none absolute inset-x-2 bottom-2 text-xs text-muted-foreground"
           :class="{ hidden: !isDraggingMedia }"
         >
           {{ t('post.composer.dropHint') }}
         </div>
       </div>
 
-      <PostPollEditor v-if="!replyTo && !quoteTo" v-model="pollDraft" :disabled="mediaBusy" />
-      <div v-if="!replyTo && !quoteTo" class="flex flex-wrap items-center gap-3">
-        <label class="flex items-center gap-2 text-sm">
-          <input v-model="markdownEnabled" type="checkbox" :disabled="mediaBusy" />{{ t('post.markdown.mode') }}
-        </label>
+      <div v-if="!replyTo && !quoteTo" class="flex flex-wrap items-center gap-1.5">
+        <Button
+          v-if="!pollDraft"
+          type="button"
+          size="sm"
+          variant="secondary"
+          class="rounded-full bg-secondary/70 px-3 text-xs shadow-none"
+          :disabled="mediaBusy"
+          @click="pollDraft = newPostPollDraft()"
+        >
+          {{ t('post.poll.add') }}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          class="rounded-full bg-secondary/70 px-3 text-xs shadow-none aria-pressed:bg-primary/15 aria-pressed:text-primary"
+          :aria-pressed="markdownEnabled"
+          :disabled="mediaBusy"
+          @click="markdownEnabled = !markdownEnabled"
+        >
+          {{ t('post.markdown.mode') }}
+        </Button>
+        <template v-if="preferences.isLoggedIn">
+          <Button type="button" size="sm" variant="secondary" class="rounded-full bg-secondary/70 px-3 text-xs shadow-none" :disabled="mediaBusy" @click="draftListOpen = true">{{ t('post.drafts.title') }}</Button>
+          <Button type="button" size="sm" variant="secondary" class="rounded-full bg-secondary/70 px-3 text-xs shadow-none" :disabled="mediaBusy || !markdownReady || (!!pollDraft && !postPollPayload(pollDraft))" @click="handleSubmit('save')">{{ t('post.drafts.save') }}</Button>
+          <span v-if="savedDraftId !== null" class="text-xs text-muted-foreground">{{ t('post.drafts.editing') }}</span>
+        </template>
         <span v-if="markdownEnabled" class="text-xs" :class="characterCount > bodyLimit ? 'text-destructive' : 'text-muted-foreground'">
           {{ t('post.markdown.size', {used:characterCount,limit:bodyLimit}) }}
         </span>
       </div>
-      <div v-if="preferences.isLoggedIn && !replyTo && !quoteTo" class="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" variant="outline" :disabled="mediaBusy" @click="draftListOpen = true">{{ t('post.drafts.title') }}</Button>
-        <Button type="button" size="sm" variant="outline" :disabled="mediaBusy || !markdownReady || (!!pollDraft && !postPollPayload(pollDraft))" @click="handleSubmit('save')">{{ t('post.drafts.save') }}</Button>
-        <span v-if="savedDraftId !== null" class="text-xs text-muted-foreground">{{ t('post.drafts.editing') }}</span>
-      </div>
+      <PostPollEditor
+        v-if="!replyTo && !quoteTo && pollDraft"
+        v-model="pollDraft"
+        :disabled="mediaBusy"
+      />
       <PostDraftsDialog v-model:open="draftListOpen" :group-id="0" @resume="resumeDraft"
         @removed="id => { if (id === savedDraftId) savedDraftId = null }" />
       <ul v-if="restoredMediaIds.length" class="flex flex-wrap gap-2">
-        <li v-for="(id,index) in restoredMediaIds" :key="id" class="flex items-center gap-2 rounded border px-2 text-xs">
+        <li v-for="(id,index) in restoredMediaIds" :key="id" class="flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs">
           <span>{{ t('post.drafts.attachment', {index:index+1}) }}</span>
-          <Button type="button" size="icon" variant="ghost" :disabled="mediaBusy"
-            :aria-label="t('post.drafts.removeAttachment')" @click="restoredMediaIds = restoredMediaIds.filter(item => item !== id)"><X class="size-4" /></Button>
+          <Button type="button" size="icon" variant="ghost" class="size-5 rounded-full" :disabled="mediaBusy"
+            :aria-label="t('post.drafts.removeAttachment')" @click="restoredMediaIds = restoredMediaIds.filter(item => item !== id)"><X class="size-3.5" /></Button>
         </li>
       </ul>
 
@@ -953,7 +977,7 @@ defineExpose({
         <div
           v-for="draft in mediaDrafts"
           :key="draft.id"
-          class="group/media overflow-hidden rounded-lg border border-border/60 bg-muted/20"
+          class="group/media overflow-hidden rounded-2xl bg-secondary/45"
         >
           <div class="relative aspect-video bg-muted">
             <img
@@ -1001,7 +1025,7 @@ defineExpose({
               :disabled="mediaBusy || (draft.kind !== 'image' && draft.mediaId !== undefined)"
               :placeholder="t('post.composer.altTextPlaceholder')"
               maxlength="500"
-              class="h-8 text-xs shadow-xs"
+              class="h-8 rounded-xl border-0 bg-card/80 text-xs shadow-none"
             />
             <Input
               v-model="draft.description"
@@ -1010,10 +1034,10 @@ defineExpose({
                 t('post.composer.mediaDescriptionPlaceholder')
               "
               maxlength="240"
-              class="h-8 text-xs shadow-xs"
+              class="h-8 rounded-xl border-0 bg-card/80 text-xs shadow-none"
             />
             <Button v-if="draft.kind === 'image' && ['image/jpeg','image/png','image/webp'].includes(draft.file.type)"
-              type="button" size="sm" variant="outline" :disabled="mediaBusy" @click="suggestImageDetails(draft)">
+              type="button" size="sm" variant="secondary" class="rounded-full" :disabled="mediaBusy" @click="suggestImageDetails(draft)">
               <WandSparkles class="size-4" aria-hidden="true" />
               {{ describingImage === draft.id ? t('aiVision.generating') : t('aiVision.suggest') }}
             </Button>
@@ -1057,7 +1081,7 @@ defineExpose({
         <span
           v-for="tag in tagNames"
           :key="`tag-${tag}`"
-          class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+          class="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
         >
           <Hash class="h-3 w-3" />
           {{ tag }}
@@ -1065,6 +1089,7 @@ defineExpose({
             v-if="manualTags.includes(tag)"
             type="button"
             class="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            :aria-label="`${t('common.delete')} ${tag}`"
             @click="removeManualTag(tag)"
           >
             <X class="h-3 w-3" />
@@ -1073,13 +1098,14 @@ defineExpose({
         <span
           v-for="mention in activeMentions"
           :key="`mention-${mention.userId}`"
-          class="inline-flex items-center gap-1 rounded-full border border-sky-200/60 bg-sky-100/60 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300"
+          class="inline-flex items-center gap-1 rounded-full bg-sky-500/12 px-2.5 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300"
         >
           <AtSign class="h-3 w-3" />
           {{ mention.displayName }}
           <button
             type="button"
             class="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full transition hover:bg-sky-200/60 dark:hover:bg-sky-900/40"
+            :aria-label="`${t('common.delete')} ${mention.displayName}`"
             @click="removeMention(mention.username)"
           >
             <X class="h-3 w-3" />
@@ -1087,13 +1113,14 @@ defineExpose({
         </span>
         <span
           v-if="location.trim()"
-          class="inline-flex items-center gap-1 rounded-full border border-emerald-200/60 bg-emerald-100/60 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+          class="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300"
         >
           <MapPin class="h-3 w-3" />
           {{ location.trim() }}
           <button
             type="button"
             class="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full transition hover:bg-emerald-200/60 dark:hover:bg-emerald-900/40"
+            :aria-label="`${t('common.delete')} ${location}`"
             @click="location = ''"
           >
             <X class="h-3 w-3" />
@@ -1103,14 +1130,14 @@ defineExpose({
     </div>
 
     <div
-      class="flex flex-col gap-3 border-t border-border/60 bg-muted/10 p-3 sm:flex-row sm:items-center sm:justify-between"
+      class="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 pb-4 pt-1 sm:px-5 @xl:flex-nowrap @xl:px-4"
     >
-      <div class="mobile-action-row">
+      <div class="flex flex-wrap items-center gap-1 [&_button]:rounded-full">
         <TooltipProvider>
           <Tooltip v-if="preferences.isLoggedIn">
             <TooltipTrigger as-child>
               <button type="button" :disabled="mediaBusy"
-                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                :class="toolbarButtonClass"
                 :aria-label="t('aiWriting.title')" @click="openWritingAssistant">
                 <WandSparkles class="h-4 w-4" />
               </button>
@@ -1121,7 +1148,7 @@ defineExpose({
             <TooltipTrigger as-child>
               <button
                 type="button"
-                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                :class="toolbarButtonClass"
                 :aria-label="t('post.composer.addMedia')"
                 @click="triggerFileInput"
               >
@@ -1137,7 +1164,7 @@ defineExpose({
             <TooltipTrigger as-child>
               <button
                 type="button"
-                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                :class="toolbarButtonClass"
                 :aria-label="t('post.composer.replyPost')"
                 @click="emit('open-reply-dialog')"
               >
@@ -1153,7 +1180,7 @@ defineExpose({
             <TooltipTrigger as-child>
               <button
                 type="button"
-                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                :class="toolbarButtonClass"
                 :aria-label="t('post.composer.quotePost')"
                 @click="emit('open-quote-dialog')"
               >
@@ -1169,7 +1196,7 @@ defineExpose({
             <TooltipTrigger as-child>
               <button
                 type="button"
-                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                :class="toolbarButtonClass"
                 :aria-label="t('post.composer.addMention')"
                 @click="startMention"
               >
@@ -1180,146 +1207,151 @@ defineExpose({
               {{ t('post.composer.addMention') }}
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
 
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <PopoverTrigger as-child>
+                  <button type="button" :class="toolbarButtonClass" :aria-label="t('post.composer.addTag')">
+                    <Hash class="size-4" aria-hidden="true" />
+                  </button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('post.composer.addTag') }}</TooltipContent>
+            </Tooltip>
+            <PopoverContent
+              class="w-[min(18rem,calc(100vw-1rem))] rounded-2xl border-0 p-3"
+              align="start"
+            >
+              <div class="grid gap-2">
+                <Label
+                  for="post-tag-input"
+                  class="text-xs font-medium"
+                >
+                  {{ t('post.composer.tagLabel') }}
+                </Label>
+                <div class="flex gap-2">
+                  <Input
+                    id="post-tag-input"
+                    v-model="tagInput"
+                    :placeholder="
+                      t('post.composer.tagPlaceholder')
+                    "
+                    maxlength="32"
+                    class="h-9 rounded-xl border-0 bg-secondary/70 shadow-none"
+                    @keydown.enter.prevent="addManualTag"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    class="h-9 w-9 shrink-0 rounded-full shadow-none"
+                    :aria-label="t('post.composer.addTag')"
+                    @click="addManualTag"
+                  >
+                    <Plus class="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <PopoverTrigger as-child>
+                  <button type="button" :class="toolbarButtonClass" :aria-label="t('post.composer.addLocation')">
+                    <MapPin class="size-4" aria-hidden="true" />
+                  </button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('post.composer.addLocation') }}</TooltipContent>
+            </Tooltip>
+            <PopoverContent
+              class="w-[min(20rem,calc(100vw-1rem))] rounded-2xl border-0 p-3"
+              align="start"
+            >
+              <div class="grid gap-2">
+                <Label
+                  for="post-location-input"
+                  class="text-xs font-medium"
+                >
+                  {{ t('post.composer.locationLabel') }}
+                </Label>
+                <Input
+                  id="post-location-input"
+                  v-model="location"
+                  :maxlength="MAX_LOCATION_LENGTH"
+                  :placeholder="
+                    t('post.composer.locationPlaceholder')
+                  "
+                  class="h-9 rounded-xl border-0 bg-secondary/70 shadow-none"
+                />
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <PopoverTrigger as-child>
+                  <button type="button" :class="toolbarButtonClass" :aria-label="t('chat.actions.emoji')">
+                    <SmilePlus class="size-4" />
+                  </button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('chat.actions.emoji') }}</TooltipContent>
+            </Tooltip>
+            <PopoverContent
+              class="w-[min(16rem,calc(100vw-1rem))] rounded-xl border-border/60 p-2"
+              align="start"
+            >
+              <div class="grid grid-cols-4 gap-1">
+                <button
+                  v-for="emoji in quickEmojis"
+                  :key="emoji"
+                  type="button"
+                  class="flex h-9 items-center justify-center rounded-md text-lg transition hover:bg-muted"
+                  @click="insertAtCursor(emoji)"
+                >
+                  {{ emoji }}
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </TooltipProvider>
+      </div>
+
+      <div class="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2 @xl:shrink-0">
         <Select
           :model-value="visibility"
           :disabled="mediaBusy"
           @update:model-value="updateVisibility"
         >
-          <SelectTrigger class="h-8 w-full shadow-xs sm:w-[154px]">
+          <SelectTrigger
+            size="sm"
+            class="h-8 w-auto shrink-0 gap-1.5 rounded-full border-0 bg-secondary px-3 text-xs shadow-none hover:bg-accent dark:bg-secondary dark:hover:bg-accent"
+            :aria-label="t('account.posts.form.visibility')"
+          >
             <component
               :is="selectedVisibility.icon"
-              class="mr-1.5 h-3.5 w-3.5 text-muted-foreground"
+              class="size-3.5 text-muted-foreground"
             />
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent class="rounded-2xl">
             <SelectItem
               v-for="option in visibilityOptions"
               :key="option.value"
               :value="option.value"
+              class="rounded-xl"
             >
               {{ t(option.labelKey) }}
             </SelectItem>
           </SelectContent>
         </Select>
 
-        <Popover>
-          <PopoverTrigger as-child>
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-8 gap-1.5 rounded-md shadow-xs"
-            >
-              <Hash class="h-3.5 w-3.5" />
-              {{ t('post.composer.addTag') }}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            class="w-[min(18rem,calc(100vw-1rem))] rounded-xl border-border/60 p-3"
-            align="start"
-          >
-            <div class="grid gap-2">
-              <Label
-                for="post-tag-input"
-                class="text-xs font-medium"
-              >
-                {{ t('post.composer.tagLabel') }}
-              </Label>
-              <div class="flex gap-2">
-                <Input
-                  id="post-tag-input"
-                  v-model="tagInput"
-                  :placeholder="
-                    t('post.composer.tagPlaceholder')
-                  "
-                  maxlength="32"
-                  class="h-9 shadow-xs"
-                  @keydown.enter.prevent="addManualTag"
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  class="h-9 w-9 shrink-0 rounded-md shadow-xs"
-                  @click="addManualTag"
-                >
-                  <Plus class="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <Popover>
-          <PopoverTrigger as-child>
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-8 gap-1.5 rounded-md shadow-xs"
-            >
-              <MapPin class="h-3.5 w-3.5" />
-              {{ t('post.composer.addLocation') }}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            class="w-[min(20rem,calc(100vw-1rem))] rounded-xl border-border/60 p-3"
-            align="start"
-          >
-            <div class="grid gap-2">
-              <Label
-                for="post-location-input"
-                class="text-xs font-medium"
-              >
-                {{ t('post.composer.locationLabel') }}
-              </Label>
-              <Input
-                id="post-location-input"
-                v-model="location"
-                :maxlength="MAX_LOCATION_LENGTH"
-                :placeholder="
-                  t('post.composer.locationPlaceholder')
-                "
-                class="h-9 shadow-xs"
-              />
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <Popover>
-          <PopoverTrigger as-child>
-            <button
-              type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              :aria-label="t('post.composer.addMention')"
-            >
-              <SmilePlus class="h-4 w-4" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            class="w-[min(16rem,calc(100vw-1rem))] rounded-xl border-border/60 p-2"
-            align="start"
-          >
-            <div class="grid grid-cols-4 gap-1">
-              <button
-                v-for="emoji in quickEmojis"
-                :key="emoji"
-                type="button"
-                class="flex h-9 items-center justify-center rounded-md text-lg transition hover:bg-muted"
-                @click="insertAtCursor(emoji)"
-              >
-                {{ emoji }}
-              </button>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      <div
-        class="flex w-full items-center justify-end gap-3 sm:w-auto"
-      >
-        <div class="relative h-8 w-8">
-          <svg class="h-full w-full" viewBox="0 0 32 32">
+        <div v-if="characterCount > 0" class="relative size-8 shrink-0">
+          <svg class="h-full w-full" viewBox="0 0 32 32" aria-hidden="true">
             <circle
               cx="16"
               cy="16"
@@ -1352,7 +1384,7 @@ defineExpose({
         </div>
 
         <AppSendButton
-          class="h-9 flex-1 rounded-md px-5 font-medium shadow-xs sm:flex-none"
+          class="h-9 shrink-0 rounded-full px-5 font-semibold shadow-none"
           :loading="isSubmitting || preparingMedia"
           :disabled="isTweetDisabled"
           @click="handleSubmit()"

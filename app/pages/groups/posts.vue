@@ -1012,9 +1012,8 @@ async function openRouteTarget() {
       class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
     >
       <span
-        class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+        class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground"
       >
-        <span class="tabular-nums">{{ total }}</span>
         {{ t('groups.posts.total', { count: total }) }}
       </span>
       <span

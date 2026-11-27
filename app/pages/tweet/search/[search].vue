@@ -5,7 +5,7 @@ import type { V2TagAnalytics, V2TagItem } from '@/types/v2';
 import { v2GetTagAnalytics, v2SearchTags } from '@/api/v2/posts';
 import { authQueueFor } from '@/services/auth-request-queue';
 import { usePreferenceStore } from '@/stores/user';
-import { AlertTriangle } from 'lucide-vue-next';
+import { AlertTriangle, ArrowLeft, Hash } from 'lucide-vue-next';
 import {
   v2BookmarkPost,
   v2CreateRetweet,
@@ -274,31 +274,61 @@ async function handleBookmarkTweet(
 </script>
 
 <template>
-  <div class="pt-2">
-    <div class="bg-background p-4 sm:p-10">
-      <section v-if="matchingTags.length" class="mb-4" aria-labelledby="matching-tags-title">
-        <h2 id="matching-tags-title" class="mb-2 text-sm font-medium">{{ t('post.feed.matchingTags') }}</h2>
+  <div class="mx-auto min-h-screen w-full max-w-[640px] bg-transparent px-3 pb-10 sm:px-4">
+    <header class="sticky top-0 z-10 -mx-3 mb-3 bg-background/85 px-4 py-3 backdrop-blur-md sm:-mx-4">
+      <div class="flex items-center gap-3">
+        <NuxtLink
+          :to="localePath('/feed')"
+          class="pressable inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-foreground shadow-[0_1px_3px_rgba(15,23,42,0.03)] transition-colors hover:bg-secondary dark:shadow-none"
+          :aria-label="t('common.back')"
+        >
+          <ArrowLeft class="h-4.5 w-4.5" />
+        </NuxtLink>
+        <div class="min-w-0 flex-1">
+          <h1 class="truncate text-lg font-semibold tracking-tight text-foreground">
+            {{ tagName ? `#${tagName}` : currentSearchQuery() }}
+          </h1>
+          <p v-if="!feed.loading && feed.total > 0" class="text-xs text-[var(--ink-tertiary)] tabular-nums">
+            {{ feed.total }}
+          </p>
+        </div>
+      </div>
+
+      <section v-if="matchingTags.length" class="mt-3" aria-labelledby="matching-tags-title">
+        <h2 id="matching-tags-title" class="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
+          {{ t('post.feed.matchingTags') }}
+        </h2>
         <ul class="flex flex-wrap gap-2">
           <li v-for="tag in matchingTags" :key="tag.tag_id">
-            <NuxtLink class="inline-block max-w-60 truncate rounded-full border px-3 py-1 text-sm hover:bg-muted" :to="localePath('/tweet/search/' + encodeURIComponent('#' + tag.name))">
-              #{{ tag.name }}
+            <NuxtLink
+              class="inline-flex max-w-60 items-center gap-1 truncate rounded-full bg-card px-3 py-1 text-xs font-medium text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-colors hover:bg-[var(--primary-soft)] hover:text-primary dark:shadow-none"
+              :to="localePath('/tweet/search/' + encodeURIComponent('#' + tag.name))"
+            >
+              <Hash class="h-3 w-3 shrink-0 text-primary" />
+              <span class="truncate">{{ tag.name }}</span>
             </NuxtLink>
           </li>
         </ul>
       </section>
-      <section v-if="tagStats" class="mb-4 rounded-lg border p-4" aria-labelledby="tag-analytics-title">
-        <h2 id="tag-analytics-title" class="mb-3 text-sm font-medium">{{ t('post.tagAnalytics.title') }}</h2>
-        <dl class="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+    </header>
+
+    <div class="space-y-3">
+      <section v-if="tagStats" class="rounded-[20px] bg-card p-4 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none" aria-labelledby="tag-analytics-title">
+        <h2 id="tag-analytics-title" class="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
+          {{ t('post.tagAnalytics.title') }}
+        </h2>
+        <dl class="grid grid-cols-2 gap-3 text-sm sm:flex sm:flex-wrap sm:gap-x-6">
           <div v-for="metric in tagMetrics" :key="metric.key">
-            <dt class="text-muted-foreground">{{ t(`post.tagAnalytics.${metric.key}`) }}</dt>
-            <dd class="font-medium tabular-nums">{{ metric.value }}</dd>
+            <dt class="text-xs text-muted-foreground">{{ t(`post.tagAnalytics.${metric.key}`) }}</dt>
+            <dd class="text-base font-semibold tabular-nums text-foreground">{{ metric.value }}</dd>
           </div>
         </dl>
       </section>
-      <button v-else-if="tagStatsFailed" type="button" class="mb-4 text-sm text-muted-foreground underline" @click="tagStatsRetry++">
+      <button v-else-if="tagStatsFailed" type="button" class="text-sm text-muted-foreground underline" @click="tagStatsRetry++">
         {{ t('post.tagAnalytics.retry') }}
       </button>
-      <div v-if="!hasMounted || feed.loading" class="space-y-4">
+
+      <div v-if="!hasMounted || feed.loading" class="space-y-3">
         <TweetCardSkeleton
           v-for="i in 5"
           :key="`skeleton-${i}`"
@@ -307,14 +337,14 @@ async function handleBookmarkTweet(
 
       <div
         v-else-if="feed.error"
-        class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-rose-500/30 bg-rose-50/30 py-12 text-center dark:bg-rose-950/20"
+        class="flex flex-col items-center justify-center gap-3 rounded-[20px] bg-card py-12 text-center shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none"
       >
         <span
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 ring-1 ring-rose-500/20"
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-500"
         >
-          <AlertTriangle class="h-5 w-5 text-rose-500" />
+          <AlertTriangle class="h-5 w-5" />
         </span>
-        <div class="grid gap-1">
+        <div class="grid gap-1 px-4">
           <p class="text-sm font-medium">
             {{ t('post.feed.loadProblem') }}
           </p>
@@ -354,7 +384,7 @@ async function handleBookmarkTweet(
       v-model:page="feed.page"
       :items-per-page="feed.pageSize"
       :total="feed.total"
-      class="mb-8 flex justify-center"
+      class="py-6 flex justify-center"
     >
       <PaginationContent v-slot="{ items }">
         <PaginationPrevious />

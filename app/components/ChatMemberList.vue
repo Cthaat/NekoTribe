@@ -252,7 +252,8 @@ const getRoleColor = (role: ChatMember['role']) => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="mr-1 h-6 w-6 rounded opacity-0 transition-opacity group-hover/mem:opacity-100"
+                      class="mr-1 size-7 text-muted-foreground"
+                      :aria-label="t('common.more')"
                       @click.stop
                     >
                       <MoreHorizontal class="h-3.5 w-3.5" />
@@ -369,7 +370,8 @@ const getRoleColor = (role: ChatMember['role']) => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="mr-1 h-6 w-6 rounded opacity-0 transition-opacity group-hover/mem:opacity-100"
+                      class="mr-1 size-7 text-muted-foreground"
+                      :aria-label="t('common.more')"
                       @click.stop
                     >
                       <MoreHorizontal class="h-3.5 w-3.5" />

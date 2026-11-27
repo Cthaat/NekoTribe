@@ -37,11 +37,11 @@ const props = withDefaults(defineProps<Props>(), {
     :aria-label="props.iconOnly ? props.ariaLabel : undefined"
     :class="
       cn(
-        'shadow-sm disabled:opacity-100 disabled:bg-muted/60 disabled:text-muted-foreground',
+        'shadow-none disabled:opacity-100 disabled:bg-secondary disabled:text-muted-foreground/85',
         'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
         props.iconOnly
-          ? 'size-11 rounded-lg disabled:border disabled:border-border'
-          : 'rounded-md font-medium',
+          ? 'size-11 rounded-full'
+          : 'font-medium',
         props.class
       )
     "
@@ -52,8 +52,8 @@ const props = withDefaults(defineProps<Props>(), {
       aria-hidden="true"
     />
     <Send
-      v-else
-      class="size-4 translate-x-px"
+      v-else-if="props.iconOnly"
+      class="size-4"
       aria-hidden="true"
     />
     <span v-if="!props.iconOnly">

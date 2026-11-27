@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Mail from '@/components/Mail.vue';
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { toast } from 'vue-sonner';
 import {
@@ -14,6 +14,7 @@ import type { NotificationVM } from '@/types/notifications';
 import type { V2Json } from '@/types/v2';
 import { groupNotificationQuery, isGroupCommentNotice, isGroupPostNotice } from '@/utils/group-notification-target';
 import { notificationTargetId, postNotificationTarget } from '@/utils/post-notification-target';
+import { formatSecurityMessage, parseUserAgent } from '@/utils/userAgent';
 import type {
   MailDetailItem,
   MailItem,
@@ -39,6 +40,10 @@ const mailbox = useNotificationMailbox({
   pageSize: 10
 });
 
+onMounted(() => {
+  mailbox.refresh();
+});
+
 watch([type, unreadOnly, showDeleted], () => {
   mailbox.resetAndRefresh();
 });
@@ -48,7 +53,7 @@ watch(
   () => {
     mailbox.refresh();
   },
-  { immediate: true }
+  { immediate: false }
 );
 
 async function updateMailbox(change: () => Promise<unknown>, success?: string, failure?: string) {
@@ -375,7 +380,7 @@ function detailsForNotification(
   if (userAgent) {
     details.push({
       label: t('mail.details.userAgent'),
-      value: userAgent
+      value: parseUserAgent(userAgent)?.summary ?? userAgent
     });
   }
   if (notification.resourceType) {
@@ -418,7 +423,7 @@ function mapNotificationToMail(
       notification.actor?.username ||
       t('notifications.mail.systemEmail'),
     subject: notification.title || label,
-    text: notification.message,
+    text: formatSecurityMessage(notification.message).text,
     date: notification.createdAt,
     read: notification.read,
     labels: [label],
@@ -431,7 +436,9 @@ function mapNotificationToMail(
     primaryActionLabel: primaryActionLabel(notification),
     details: detailsForNotification(notification, metadata),
     primaryPreview: previews.primaryPreview,
-    secondaryPreview: previews.secondaryPreview
+    secondaryPreview: previews.secondaryPreview,
+    rawUserAgent: formatSecurityMessage(notification.message).rawUserAgent ?? metadataString(metadata, 'user_agent'),
+    actorId: notification.actor?.id ?? null
   };
 }
 

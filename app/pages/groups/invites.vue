@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Inbox
 } from 'lucide-vue-next';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import {
   Avatar,
   AvatarFallback,
@@ -172,17 +173,17 @@ onBeforeUnmount(() => {
       class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <span
-        class="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground"
+        class="inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none"
       >
         <Inbox class="h-3 w-3" />
         {{ t('groups.invites.pendingCount', { count: total }) }}
       </span>
-      <Button v-if="inviteId !== undefined" as-child variant="ghost" size="sm">
+      <Button v-if="inviteId !== undefined" as-child variant="ghost" size="sm" class="rounded-full">
         <NuxtLink :to="localePath('/groups/invites')">{{ t('groups.invites.viewAll') }}</NuxtLink>
       </Button>
       <Button
-        variant="outline"
-        class="h-9 w-full rounded-md shadow-xs sm:w-auto"
+        variant="ghost"
+        class="h-9 w-full rounded-full bg-card px-4 shadow-[0_1px_3px_rgba(15,23,42,0.03)] hover:bg-secondary dark:shadow-none sm:w-auto"
         :disabled="isRefreshing || responding || expired"
         @click="refreshInvites()"
       >
@@ -196,9 +197,9 @@ onBeforeUnmount(() => {
       </Button>
     </div>
 
-    <div v-if="acceptedGroup" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3">
-      <span class="break-words text-sm" role="status">{{ acceptedGroup.name }}</span>
-      <Button as-child variant="outline" size="sm">
+    <div v-if="acceptedGroup" class="flex flex-wrap items-center justify-between gap-2 rounded-[20px] bg-card px-4 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none">
+      <span class="break-words text-sm font-medium" role="status">{{ acceptedGroup.name }}</span>
+      <Button as-child variant="secondary" size="sm" class="rounded-full">
         <NuxtLink :to="localePath({ path: '/groups/posts', query: { group: String(acceptedGroup.id) } })">
           {{ t('groups.invites.openGroup') }}
         </NuxtLink>
@@ -206,39 +207,28 @@ onBeforeUnmount(() => {
     </div>
     <p v-if="expired" role="status">{{ t('visibility.sessionChanged') }}</p>
     <p v-else-if="failed" role="alert">{{ t('groups.feedback.loadInvitesFailed') }}</p>
-    <div
+    <AppEmptyState
       v-else-if="!isRefreshing && invites.length === 0 && (inviteId === undefined || !acceptedGroup)"
-      class="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/10 py-16 text-center"
-    >
-      <span
-        class="flex h-14 w-14 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
-      >
-        <Inbox class="h-6 w-6 text-muted-foreground" />
-      </span>
-      <div class="grid gap-1">
-        <h3 class="text-sm font-semibold tracking-tight">
-          {{ t(inviteId === undefined ? 'groups.invites.emptyTitle' : 'groups.invites.unavailable') }}
-        </h3>
-        <p v-if="inviteId === undefined" class="max-w-sm text-xs text-muted-foreground">
-          {{ t('groups.invites.emptyDescription') }}
-        </p>
-      </div>
-    </div>
+      :title="t(inviteId === undefined ? 'groups.invites.emptyTitle' : 'groups.invites.unavailable')"
+      :description="inviteId === undefined ? t('groups.invites.emptyDescription') : undefined"
+      class="max-w-none py-16"
+    />
 
-    <div v-if="invites.length" class="grid gap-3">
+    <div v-if="invites.length" class="grid gap-2.5">
       <article
         v-for="invite in invites"
         :key="invite.id"
-        class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none transition-all hover:border-border hover:shadow-md"
+        class="grid gap-4 rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] transition-all hover:shadow-[0_2px_10px_rgba(15,23,42,0.05)] dark:shadow-none"
       >
         <div class="flex items-start gap-3 sm:gap-4">
-          <Avatar class="h-12 w-12 shrink-0 ring-1 ring-border sm:h-14 sm:w-14">
+          <Avatar class="h-12 w-12 shrink-0 rounded-[14px] bg-secondary sm:h-14 sm:w-14">
             <AvatarImage
               :src="invite.group.avatar"
               :alt="invite.group.name"
+              class="rounded-[14px] object-cover"
             />
             <AvatarFallback
-              class="bg-primary/10 text-base font-semibold text-primary"
+              class="rounded-[14px] bg-secondary text-base font-semibold text-muted-foreground"
             >
               {{ invite.group.name.charAt(0) }}
             </AvatarFallback>
@@ -246,25 +236,25 @@ onBeforeUnmount(() => {
 
           <div class="min-w-0 flex-1 grid gap-2">
             <div class="flex min-w-0 flex-wrap items-center gap-2">
-              <h3 class="min-w-0 truncate text-base font-semibold tracking-tight">
+              <h3 class="min-w-0 truncate text-[15px] font-semibold tracking-tight">
                 {{ invite.group.name }}
               </h3>
               <span
-                class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                class="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
               >
                 <Users class="h-3 w-3" />
                 <span class="tabular-nums">{{ invite.group.memberCount }}</span>
               </span>
             </div>
-            <p class="line-clamp-2 text-sm text-muted-foreground">
+            <p class="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
               {{ invite.group.description }}
             </p>
 
             <div class="flex items-center gap-2 text-xs">
-              <Avatar class="h-6 w-6 ring-1 ring-border">
+              <Avatar class="h-6 w-6 bg-secondary">
                 <AvatarImage :src="invite.inviter.avatar" />
                 <AvatarFallback
-                  class="bg-primary/10 text-[10px] font-semibold text-primary"
+                  class="bg-secondary text-[10px] font-semibold text-muted-foreground"
                 >
                   {{ invite.inviter.nickname.charAt(0) }}
                 </AvatarFallback>
@@ -279,7 +269,7 @@ onBeforeUnmount(() => {
 
             <blockquote
               v-if="invite.message"
-              class="rounded-lg border-l-2 border-primary/40 bg-muted/30 px-3 py-2 text-sm italic text-muted-foreground"
+              class="rounded-xl bg-secondary/70 px-3 py-2 text-sm leading-relaxed text-muted-foreground"
             >
               {{ invite.message }}
             </blockquote>
@@ -287,10 +277,10 @@ onBeforeUnmount(() => {
         </div>
 
         <div
-          class="flex flex-col gap-3 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between"
+          class="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between"
         >
           <div
-            class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground"
+            class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-[var(--ink-tertiary)]"
           >
             <span class="inline-flex items-center gap-1">
               <Clock class="h-3 w-3" />
@@ -298,7 +288,7 @@ onBeforeUnmount(() => {
             </span>
             <span
               v-if="invite.expiresAt"
-              class="inline-flex items-center gap-1 rounded-full border border-amber-200/60 bg-amber-100/60 px-2 py-0.5 font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300"
+              class="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-medium text-muted-foreground"
             >
               <Clock class="h-3 w-3" />
               {{ getRemainingTime(invite.expiresAt) }}
@@ -309,8 +299,8 @@ onBeforeUnmount(() => {
             class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center"
           >
             <Button
-              variant="outline"
-              class="h-8 rounded-md shadow-xs"
+              variant="secondary"
+              class="h-8 rounded-full px-4 font-medium"
               :disabled="responding || isRefreshing"
               @click="handleResponse(invite, false)"
             >
@@ -318,7 +308,7 @@ onBeforeUnmount(() => {
               {{ t('groups.invites.reject') }}
             </Button>
             <Button
-              class="h-8 rounded-md shadow-xs"
+              class="h-8 rounded-full px-4 font-semibold"
               :disabled="responding || isRefreshing"
               @click="handleResponse(invite, true)"
             >
@@ -329,7 +319,7 @@ onBeforeUnmount(() => {
         </div>
       </article>
     </div>
-    <Button v-if="hasNext" variant="outline" class="justify-self-center"
+    <Button v-if="hasNext" variant="ghost" class="justify-self-center rounded-full bg-card px-5"
       :disabled="responding || isRefreshing" @click="refreshInvites(true)">
       {{ t(failed ? 'common.retry' : 'common.loadMore') }}
     </Button>

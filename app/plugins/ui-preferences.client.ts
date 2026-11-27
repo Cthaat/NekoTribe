@@ -65,6 +65,14 @@ export default defineNuxtPlugin(() => {
   };
 
   /**
+   * 液态玻璃强度：在 <html> 上写入 data-glass-intensity（standard/subtle）
+   */
+  const applyGlassIntensity = () => {
+    html.dataset.glassIntensity =
+      pref.preferences.glass_intensity === 'subtle' ? 'subtle' : 'standard';
+  };
+
+  /**
    * 将字号偏好写入 data-font-size（small/normal/large）
    * 对应全局 CSS 中基于 data 属性的 font-size 映射
    */
@@ -96,6 +104,7 @@ export default defineNuxtPlugin(() => {
 
   // initial apply
   applyTheme();
+  applyGlassIntensity();
   applyFontSize();
   applyCompact();
   applyLanguage();
@@ -105,11 +114,13 @@ export default defineNuxtPlugin(() => {
   watch(
     () => [
       pref.preferences.theme_mode,
+      pref.preferences.glass_intensity,
       pref.preferences.font_size,
       pref.preferences.compact_mode
     ],
     () => {
       applyTheme();
+      applyGlassIntensity();
       applyFontSize();
       applyCompact();
       applyLanguage();

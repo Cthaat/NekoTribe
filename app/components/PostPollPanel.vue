@@ -104,7 +104,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section ref="panel" v-show="!missing"
-    :class="poll ? 'space-y-2.5 rounded-xl border border-border/70 bg-card p-3' : 'h-px'" @click.stop>
+    :class="poll ? 'bento-tile space-y-2.5 p-3.5' : 'h-px'" @click.stop>
     <template v-if="poll">
       <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <p class="text-sm font-semibold">{{ t(poll.multiple ? 'post.poll.multiple' : 'post.poll.single') }}</p>
@@ -114,7 +114,7 @@ onBeforeUnmount(() => {
       </div>
       <div v-for="option in poll.options" :key="option.option_id" class="space-y-1">
         <button v-if="canChoose" type="button" :aria-pressed="selected.includes(option.option_id)" :disabled="busy"
-          class="flex w-full items-center justify-between gap-2 rounded-md border bg-background px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+          class="flex w-full items-center justify-between gap-2 rounded-[12px] border border-transparent bg-card px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
           :class="{ 'border-primary text-primary':selected.includes(option.option_id) }" @click="select(option.option_id)">
           <span class="break-words">{{ option.text }}</span><span class="shrink-0 text-xs tabular-nums">{{ option.percent }}%</span>
         </button>

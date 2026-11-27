@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { Search, Calendar, X } from 'lucide-vue-next';
+import { Search, X } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -193,16 +193,17 @@ const getOptionLabel = (
 </script>
 
 <template>
-  <div class="rounded-xl border border-border/60 bg-card p-3 shadow-none">
-    <div class="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
-      <div class="relative min-w-0 sm:min-w-[220px] sm:flex-1">
+  <div class="rounded-[18px] bg-card p-3">
+    <div class="grid grid-cols-2 items-center gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(11.25rem,1fr)_repeat(5,minmax(0,7.5rem))_auto]">
+      <div class="relative col-span-2 min-w-0 sm:col-span-1">
         <Search
-          class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           :model-value="localFilters.search"
           :placeholder="t('moderation.filters.searchPlaceholder')"
-          class="h-9 pl-8 shadow-xs"
+          :aria-label="t('moderation.filters.searchPlaceholder')"
+          class="h-8 rounded-full border-0 bg-secondary/75 pl-9 text-xs shadow-none"
           @update:model-value="updateSearch"
         />
       </div>
@@ -211,18 +212,19 @@ const getOptionLabel = (
         :model-value="localFilters.status"
         @update:model-value="updateStatus"
       >
-        <SelectTrigger class="h-9 w-full shadow-xs sm:w-[150px]">
+        <SelectTrigger class="h-8 w-full min-w-0 rounded-full border-0 bg-secondary/75 text-xs shadow-none">
           <SelectValue
             :placeholder="
               t('moderation.filters.statusPlaceholder')
             "
           />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent class="rounded-2xl">
           <SelectItem
             v-for="option in statusOptions"
             :key="option.value"
             :value="option.value"
+            class="rounded-xl"
           >
             {{ t(option.labelKey) }}
           </SelectItem>
@@ -230,12 +232,12 @@ const getOptionLabel = (
       </Select>
 
       <Select :model-value="localFilters.priority" @update:model-value="updatePriority">
-        <SelectTrigger class="h-9 w-full shadow-xs sm:w-[150px]">
+        <SelectTrigger class="h-8 w-full min-w-0 rounded-full border-0 bg-secondary/75 text-xs shadow-none">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{{ t('moderation.filters.priorityAll') }}</SelectItem>
-          <SelectItem v-for="priority in ['low', 'normal', 'high', 'urgent']" :key="priority" :value="priority">
+        <SelectContent class="rounded-2xl">
+          <SelectItem value="all" class="rounded-xl">{{ t('moderation.filters.priorityAll') }}</SelectItem>
+          <SelectItem v-for="priority in ['low', 'normal', 'high', 'urgent']" :key="priority" :value="priority" class="rounded-xl">
             {{ t(`moderation.priority.${priority}`) }}
           </SelectItem>
         </SelectContent>
@@ -245,18 +247,19 @@ const getOptionLabel = (
         :model-value="localFilters.reportReason"
         @update:model-value="updateReportReason"
       >
-        <SelectTrigger class="h-9 w-full shadow-xs sm:w-[160px]">
+        <SelectTrigger class="h-8 w-full min-w-0 rounded-full border-0 bg-secondary/75 text-xs shadow-none">
           <SelectValue
             :placeholder="
               t('moderation.filters.reportReasonPlaceholder')
             "
           />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent class="rounded-2xl">
           <SelectItem
             v-for="option in reportReasonOptions"
             :key="option.value"
             :value="option.value"
+            class="rounded-xl"
           >
             {{ t(option.labelKey) }}
           </SelectItem>
@@ -267,19 +270,19 @@ const getOptionLabel = (
         :model-value="localFilters.dateRange"
         @update:model-value="updateDateRange"
       >
-        <SelectTrigger class="h-9 w-full shadow-xs sm:w-[150px]">
-          <Calendar class="size-4 text-muted-foreground" />
+        <SelectTrigger class="h-8 w-full min-w-0 rounded-full border-0 bg-secondary/75 text-xs shadow-none" :aria-label="t('moderation.filters.dateRangePlaceholder')">
           <SelectValue
             :placeholder="
               t('moderation.filters.dateRangePlaceholder')
             "
           />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent class="rounded-2xl">
           <SelectItem
             v-for="option in dateRangeOptions"
             :key="option.value"
             :value="option.value"
+            class="rounded-xl"
           >
             {{ t(option.labelKey) }}
           </SelectItem>
@@ -290,16 +293,17 @@ const getOptionLabel = (
         :model-value="localFilters.sortBy"
         @update:model-value="updateSortBy"
       >
-        <SelectTrigger class="h-9 w-full shadow-xs sm:w-[170px]">
+        <SelectTrigger class="h-8 w-full min-w-0 rounded-full border-0 bg-secondary/75 text-xs shadow-none">
           <SelectValue
             :placeholder="t('moderation.filters.sortPlaceholder')"
           />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent class="rounded-2xl">
           <SelectItem
             v-for="option in sortOptions"
             :key="option.value"
             :value="option.value"
+            class="rounded-xl"
           >
             {{ t(option.labelKey) }}
           </SelectItem>
@@ -310,7 +314,7 @@ const getOptionLabel = (
         v-if="hasActiveFilters"
         variant="ghost"
         size="sm"
-        class="h-9 w-full text-muted-foreground sm:w-auto"
+        class="h-8 justify-self-start rounded-full text-muted-foreground"
         @click="resetFilters"
       >
         <X class="h-4 w-4" />
@@ -320,7 +324,7 @@ const getOptionLabel = (
 
     <div
       v-if="hasActiveFilters"
-      class="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3"
+      class="mt-2 flex flex-wrap items-center gap-1.5"
     >
       <span class="text-xs text-muted-foreground">
         {{ t('moderation.filters.current') }}
@@ -329,7 +333,7 @@ const getOptionLabel = (
       <button
         v-if="localFilters.search"
         type="button"
-        class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+        class="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         @click="updateSearch('')"
       >
         {{
@@ -343,7 +347,7 @@ const getOptionLabel = (
       <button
         v-if="localFilters.status !== 'all'"
         type="button"
-        class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+        class="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         @click="updateStatus('all')"
       >
         {{
@@ -360,7 +364,7 @@ const getOptionLabel = (
       <button
         v-if="localFilters.reportReason !== 'all'"
         type="button"
-        class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+        class="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         @click="updateReportReason('all')"
       >
         {{
@@ -377,7 +381,7 @@ const getOptionLabel = (
       <button
         v-if="localFilters.dateRange !== 'all'"
         type="button"
-        class="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+        class="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         @click="updateDateRange('all')"
       >
         {{

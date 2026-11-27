@@ -6,14 +6,19 @@ import type {
   NestedCommentVM
 } from '@/types/posts';
 import { toast } from 'vue-sonner';
-import { MessageSquare } from 'lucide-vue-next';
 import CommentCard from './CommentCard.vue';
-import { Card, CardContent } from '@/components/ui/card';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { Textarea } from '@/components/ui/textarea';
 import AppSendButton from '@/components/app/AppSendButton.vue';
 import { Button } from '@/components/ui/button';
+import { usePreferenceStore } from '@/stores/user';
 
 const { t } = useAppLocale();
+const preferenceStore = usePreferenceStore();
+const viewerAvatar = computed(() => preferenceStore.preferences.user.avatarUrl);
+const viewerName = computed(() => preferenceStore.preferences.user.name || preferenceStore.preferences.user.username);
+const viewerSeed = computed(() => preferenceStore.preferences.user.id || 1);
 
 const props = defineProps({
   comments: {
@@ -41,6 +46,10 @@ const props = defineProps({
     default: undefined
   },
   allowComment: {
+    type: Boolean,
+    default: true
+  },
+  showHeader: {
     type: Boolean,
     default: true
   },
@@ -167,45 +176,42 @@ function handleCommentInputBlur() {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-3xl px-3 py-6 sm:p-6">
-    <div class="mb-5 flex items-center gap-2">
-      <h2 class="text-lg font-semibold tracking-tight">
-        {{ t('comment.title') }}
-      </h2>
-      <span
-        class="tabular-nums rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
-      >
-        {{ comments.length }}
-      </span>
-    </div>
-
-    <Card
+  <div class="w-full min-w-0 space-y-3">
+    <div
       v-if="allowComment"
-      class="mb-6 gap-0 overflow-hidden border-border/60 py-0 shadow-none transition-colors"
-      :class="{ 'border-ring/60 ring-2 ring-ring/20': isCommentInputFocused }"
+      class="flex items-start gap-3 rounded-[20px] bg-card p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] transition-all duration-200 dark:shadow-none"
+      :class="{ 'ring-1 ring-primary/25': isCommentInputFocused }"
     >
-      <CardContent class="p-3">
+      <UserAvatar
+        :src="viewerAvatar"
+        :name="viewerName"
+        :seed="viewerSeed"
+        size="md"
+      />
+      <div class="min-w-0 flex-1">
         <Textarea
           v-model="newCommentContent"
           :placeholder="t('comment.placeholder')"
           :maxlength="commentByteLimit === undefined ? MAX_LENGTH : undefined"
           :disabled="isSubmitting"
-          class="min-h-[80px] resize-none border-none bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+          :rows="isCommentInputFocused || newCommentContent.length > 0 ? 3 : 1"
+          class="min-h-[40px] resize-none border-none bg-transparent px-0 py-1.5 text-[15px] leading-[1.6] shadow-none transition-all focus-visible:ring-0"
           @focus="isCommentInputFocused = true"
           @blur="handleCommentInputBlur"
         />
         <div
-          class="mt-3 flex items-center justify-between gap-2 border-t border-border/40 pt-2"
+          v-if="isCommentInputFocused || newCommentContent.length > 0"
+          class="mt-2 flex items-center justify-between gap-2 border-t border-[var(--divider)] pt-2.5"
         >
-          <span class="text-xs tabular-nums text-muted-foreground">
+          <span class="text-xs tabular-nums text-[var(--ink-tertiary)]">
             {{ commentLength }} / {{ commentLimit }}
           </span>
           <div class="flex items-center gap-2">
             <Button
-              v-if="isCommentInputFocused && newCommentContent.length > 0"
+              v-if="newCommentContent.length > 0"
               variant="ghost"
               size="sm"
-              class="h-8"
+              class="h-8 rounded-full"
               :disabled="isSubmitting"
               @click="newCommentContent = ''"
             >
@@ -213,7 +219,7 @@ function handleCommentInputBlur() {
             </Button>
             <AppSendButton
               size="sm"
-              class="h-8"
+              class="h-8 rounded-full px-4 font-semibold"
               :disabled="isSubmitting || !newCommentContent.trim() || commentLength > commentLimit"
               @click="handleSubmitTweetReply"
             >
@@ -221,10 +227,15 @@ function handleCommentInputBlur() {
             </AppSendButton>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
 
-    <div v-if="nestedComments.length > 0" class="space-y-0.5">
+    <div v-if="showHeader" class="flex items-center justify-between px-1 pt-2 text-[13px] font-semibold text-muted-foreground">
+      <span>{{ t('comment.title') }}</span>
+      <span v-if="comments.length > 0" class="tabular-nums text-[var(--ink-tertiary)]">{{ comments.length }}</span>
+    </div>
+
+    <div v-if="nestedComments.length > 0" class="space-y-2.5">
       <CommentCard
         v-for="comment in nestedComments"
         :key="comment.id"
@@ -239,21 +250,11 @@ function handleCommentInputBlur() {
         @delete-comment="handleDeleteComment"
       />
     </div>
-    <div
+    <AppEmptyState
       v-else
-      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-6 py-12 text-center"
-    >
-      <div
-        class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
-      >
-        <MessageSquare class="h-5 w-5 text-muted-foreground" />
-      </div>
-      <p class="text-base font-semibold tracking-tight">
-        {{ t('comment.emptyTitle') }}
-      </p>
-      <p class="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-        {{ t('comment.emptyDescription') }}
-      </p>
-    </div>
+      :title="t('comment.emptyTitle')"
+      :description="t('comment.emptyDescription')"
+      compact
+    />
   </div>
 </template>

@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, useId, watch } from 'vue';
-import { Bot, Copy, History, Loader2, Plus, Send, Trash2 } from 'lucide-vue-next';
+import { Bot, Copy, Hash, History, Loader2, Plus, Send, Trash2 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { writingApi } from '@/api/v2/ai-writing';
 import { knowledgeApi, scopedKnowledgeApi, type KnowledgeScope } from '@/api/v2/ai-knowledge';
 import { aiMessageBytes, aiMessageContent, aiMessageMaxBytes, citationTarget, createWritingController, initialWritingState } from '@/services/ai-writing-controller';
@@ -14,6 +18,7 @@ import { authQueueFor } from '@/services/auth-request-queue';
 import { stageAiPostDraft } from '@/utils/ai-post-draft';
 import { takeDiscussionDraft } from '@/utils/ai-discussion-draft';
 import AiSkillStatus from '@/components/AiSkillStatus.vue';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
 
 const props = defineProps<{ purpose: 'writing' | 'knowledge'; composerDraft?: string; knowledgeScope?: KnowledgeScope; knowledgeGroupId?: number }>();
 const emit = defineEmits<{ applyDraft: [text: string] }>();
@@ -44,6 +49,11 @@ const inputLabel = computed(() => props.purpose === 'writing' && writingMode.val
   ? label('sourcePlaceholder')
   : label('placeholder'));
 const deleteOpen = ref(false);
+const historyOpen = ref(false);
+const titleExpanded = ref(false);
+const searchExpanded = ref(false);
+const showTitleField = computed(() => !state.id && (titleExpanded.value || state.titleDraft.trim().length > 0));
+const showSearchField = computed(() => props.purpose === 'knowledge' && (searchExpanded.value || state.searchPhrase.trim().length > 0));
 const closed = ref(false);
 const app = useNuxtApp();
 const auth = authQueueFor(app);
@@ -200,123 +210,225 @@ async function submit() {
 </script>
 
 <template>
-  <p v-if="closed" role="status" class="mx-auto max-w-7xl px-4 py-5 text-muted-foreground">{{ t('visibility.sessionChanged') }}</p>
-  <div v-else class="mx-auto flex max-w-7xl flex-col gap-5 px-3 py-5 sm:px-6 sm:py-8">
+  <p v-if="closed" role="status" class="mx-auto max-w-[760px] px-4 py-5 text-muted-foreground">{{ t('visibility.sessionChanged') }}</p>
+  <div v-else class="mx-auto flex max-w-[760px] flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
     <header class="flex flex-wrap items-start justify-between gap-3" :class="{ 'pr-7': embedded }">
       <div>
-        <div class="flex items-center gap-2 text-primary"><Bot class="h-5 w-5" /><span class="text-sm font-medium">{{ label('eyebrow') }}</span></div>
-        <h1 class="mt-1 text-2xl font-semibold tracking-tight">{{ label('title') }}</h1>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"><Bot class="size-3.5" />{{ label('eyebrow') }}</span>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ label('title') }}</h1>
         <p class="mt-1 text-sm text-muted-foreground">{{ label('description') }}</p>
         <p v-if="embedded" class="mt-1 text-sm text-muted-foreground">{{ t('aiWriting.composerSource') }}</p>
       </div>
-      <div class="flex gap-2">
-        <Button variant="outline" :disabled="state.busy" @click="startNew"><Plus class="mr-2 h-4 w-4" />{{ label('new') }}</Button>
-        <Button v-if="state.id" variant="outline" :disabled="state.busy" @click="deleteOpen = true"><Trash2 class="mr-2 h-4 w-4" />{{ t('common.delete') }}</Button>
+      <div class="flex flex-wrap items-center gap-2">
+        <Button variant="secondary" size="icon" class="size-9 rounded-full" :aria-label="label('history')" :title="label('history')" :disabled="state.busy" @click="historyOpen = true">
+          <History class="size-4" aria-hidden="true" />
+        </Button>
+        <Button variant="secondary" size="icon" class="size-9 rounded-full" :aria-label="label('new')" :title="label('new')" :disabled="state.busy" @click="startNew">
+          <Plus class="size-4" aria-hidden="true" />
+        </Button>
+        <Button v-if="state.id" variant="secondary" size="icon" class="size-9 rounded-full text-muted-foreground hover:text-destructive" :aria-label="t('common.delete')" :title="t('common.delete')" :disabled="state.busy" @click="deleteOpen = true">
+          <Trash2 class="size-4" aria-hidden="true" />
+        </Button>
       </div>
     </header>
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-4 py-3">
+    <div class="bento-tile flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <AiSkillStatus :availability="state.availability" :skill="state.skill" :model-config-revision="state.modelConfigRevision" />
-      <label v-if="state.skill?.explicitSelection && state.skill.enabled" class="flex items-center gap-2 text-sm">
-        <input v-model="state.explicitSkill" type="checkbox" :disabled="state.busy || state.availability !== 'enabled'" />
-        {{ t('aiAvailability.selectExplicitly') }}
-      </label>
-      <Button variant="outline" size="sm" :disabled="state.busy || state.availability === 'loading'" @click="controller.loadAvailability()">{{ t('aiAvailability.refresh') }}</Button>
+      <Button variant="secondary" size="sm" class="rounded-full border-0 bg-card/85 hover:bg-card" :disabled="state.busy || state.availability === 'loading'" @click="controller.loadAvailability()">{{ t('aiAvailability.refresh') }}</Button>
     </div>
-    <div class="grid min-w-0 gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside class="min-w-0 rounded-xl border bg-card p-4">
-        <div class="flex items-center justify-between gap-2"><h2 class="flex items-center gap-2 text-sm font-semibold"><History class="h-4 w-4" />{{ label('history') }}</h2><Button variant="ghost" size="sm" :disabled="state.historyBusy" @click="controller.loadHistory()">{{ t('common.refresh') }}</Button></div>
-        <p v-if="!state.history.length && !state.historyBusy" class="py-5 text-sm text-muted-foreground">{{ label('historyEmpty') }}</p>
-        <ul class="mt-3 max-h-64 space-y-1 overflow-y-auto lg:max-h-[55vh]">
+    <section class="bento-card flex min-h-[19rem] min-w-0 flex-col overflow-hidden max-sm:max-h-[max(19rem,calc(100dvh-30rem))] sm:min-h-[28rem]" :aria-label="label('title')">
+      <div ref="messageList" class="min-h-0 max-h-[40dvh] flex-1 space-y-5 overflow-y-auto p-3 sm:max-h-[60vh] sm:p-6" aria-live="polite">
+        <Button v-if="state.hasOlderMessages" variant="ghost" size="sm" class="w-full rounded-full text-xs text-muted-foreground" :disabled="state.busy || state.savedReplyPending" @click="controller.loadOlderMessages()">
+          {{ t('chat.directMessage.loadOlder') }}
+        </Button>
+        <div v-if="!state.messages.length && !state.preview" class="py-2 md:py-6">
+          <AppEmptyState
+            :title="label('empty')"
+            class="bg-transparent! shadow-none! max-sm:py-2 max-sm:[&>div:first-child]:mb-2 max-sm:[&>div:first-child]:size-12 max-sm:[&_svg]:size-8"
+          />
+        </div>
+        <div v-for="message in state.messages" :key="message.message_id" class="flex gap-3" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
+          <div v-if="message.role !== 'user'" class="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Bot class="size-4" />
+          </div>
+          <div
+            class="max-w-[85%] px-4 py-3 sm:max-w-[75%]"
+            :class="message.role === 'user'
+              ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground dark:bg-primary/20 dark:text-foreground'
+              : 'rounded-2xl rounded-bl-md bg-secondary/65'"
+          >
+            <div class="mb-1 text-xs font-medium opacity-70">{{ message.role === 'user' ? label('you') : label('assistant') }}</div>
+            <p class="whitespace-pre-wrap break-words text-sm leading-relaxed">{{ message.content }}</p>
+            <div v-if="message.role === 'assistant' && message.content.trim()" class="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <Button variant="ghost" size="icon" class="size-8 text-muted-foreground hover:text-foreground" :aria-label="t('aiWriting.copyReply')" :title="t('aiWriting.copyReply')" @click="copyReply(message.content)">
+                <Copy class="size-4" aria-hidden="true" />
+              </Button>
+              <Button
+                v-if="purpose === 'writing' && message.content.length <= 280"
+                variant="secondary"
+                size="sm"
+                class="h-7 rounded-full border-0 px-2.5 text-xs"
+                :disabled="openingComposer"
+                @click="useAsPost(message.content)"
+              >{{ t(embedded ? 'aiWriting.applyToComposer' : 'aiWriting.useAsPost') }}</Button>
+              <span v-if="purpose === 'writing' && message.content.length > 280" class="self-center text-xs text-muted-foreground">
+                {{ t('aiWriting.postTooLong') }}
+              </span>
+            </div>
+            <p v-if="aiModelVersion(message.role, message.model_version)" class="mt-2 break-all text-[11px] text-muted-foreground">
+              {{ t('aiModelVersion') }} · {{ message.model_version }}
+            </p>
+            <p v-if="isAiReplyConfigRevision(message.role, message.config_revision)" class="text-[11px] text-muted-foreground">
+              {{ t('aiReplyConfigRevision', { revision: message.config_revision }) }}
+            </p>
+            <div v-if="message.citations?.length" class="mt-3 pt-2 text-xs">
+              <p class="mb-1.5 font-medium text-muted-foreground">{{ label('sources') }}</p>
+              <ul class="flex flex-wrap gap-1.5">
+                <li v-for="source in message.citations" :key="`${source.kind}-${source.id}`">
+                  <NuxtLink v-if="citationHref(source)" class="inline-flex rounded-full bg-card px-2.5 py-0.5 text-xs transition-colors hover:bg-accent" :to="citationHref(source) || ''">{{ label(source.kind) }} #{{ source.id }}</NuxtLink>
+                  <span v-else class="inline-flex rounded-full bg-card px-2.5 py-0.5 text-xs text-muted-foreground">{{ label(source.kind) }} #{{ source.id }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p v-if="state.preview" class="max-h-40 overflow-y-auto whitespace-pre-wrap break-words bg-secondary/40 px-4 py-3 text-sm leading-relaxed sm:px-6">{{ state.preview }}</p>
+      <div class="shrink-0 p-4 sm:p-5">
+        <p v-if="state.insufficientEvidence" role="status" class="mb-3 text-sm text-muted-foreground">{{ label('insufficientEvidence') }}</p>
+        <p v-if="state.error === 'generation-stopped'" role="status" class="mb-3 text-sm text-muted-foreground">{{ errorText }}</p>
+        <p v-else-if="state.error && !(state.error === 'history' && state.availability !== 'enabled' && state.availability !== 'loading')" role="alert" class="mb-3 text-sm text-destructive">{{ errorText }}</p>
+        <div v-if="state.refreshRequired || lastUser || (purpose === 'knowledge' && state.id)" class="mb-3 flex flex-wrap gap-2">
+          <Button v-if="state.refreshRequired || (purpose === 'knowledge' && state.id)" variant="secondary" size="sm" class="rounded-full border-0" :disabled="state.busy" @click="controller.retry(false)">{{ label(purpose === 'knowledge' ? 'recheckSources' : 'refreshState') }}</Button>
+          <Button v-if="lastUser && !state.savedReplyPending" variant="secondary" size="sm" class="rounded-full border-0" :disabled="state.busy || state.availability !== 'enabled'" @click="controller.retry()">{{ label('retry') }}</Button>
+        </div>
+        <div class="liquid-glass-island rounded-[26px] p-3.5">
+          <form class="space-y-2.5" @submit.prevent="submit">
+            <div v-if="showTitleField" class="grid gap-1.5">
+              <Label :for="`${messageCounterId}-title`" class="text-xs text-muted-foreground">
+                {{ t('aiWriting.conversationTitle') }}
+              </Label>
+              <Input
+                :id="`${messageCounterId}-title`"
+                v-model="state.titleDraft"
+                type="text"
+                maxlength="200"
+                :disabled="state.busy"
+                class="h-9 rounded-xl border-0 bg-card/80 shadow-none"
+              />
+            </div>
+            <div v-if="showSearchField" class="space-y-1.5">
+              <label for="knowledge-search-phrase" class="text-xs font-medium text-muted-foreground">{{ label('searchLabel') }}</label>
+              <Textarea id="knowledge-search-phrase" v-model="state.searchPhrase" :disabled="state.busy" :placeholder="label('searchPlaceholder')" :aria-describedby="'knowledge-search-hint'" rows="1" class="min-h-9 rounded-xl border-0 bg-card/80 shadow-none" />
+              <p id="knowledge-search-hint" class="text-xs text-muted-foreground">{{ label('searchHint') }}</p>
+            </div>
+            <p v-if="discussionPrefilled && !state.id && state.draft && writingMode === 'summary'" class="text-xs text-muted-foreground">
+              {{ t('aiWriting.discussionPrefilled') }}
+            </p>
+            <Textarea
+              v-model="state.draft"
+              :disabled="state.busy"
+              :placeholder="inputLabel"
+              :aria-label="inputLabel"
+              :aria-invalid="messageTooLong"
+              :aria-describedby="messageCounterId"
+              rows="2"
+              class="min-h-[48px] resize-none border-0 bg-transparent px-1 py-1 shadow-none focus-visible:ring-0 dark:bg-transparent"
+            />
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <Select v-if="purpose !== 'knowledge'" v-model="writingMode" :disabled="state.busy">
+                  <SelectTrigger :id="`${messageCounterId}-writing-mode`" class="h-8 w-auto gap-1.5 rounded-full border-0 bg-card/85 px-3 text-xs shadow-none">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent class="rounded-2xl">
+                    <SelectItem v-for="mode in writingModes" :key="mode" :value="mode" class="rounded-xl">
+                      {{ label(`modes.${mode}`) }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <button
+                  v-if="purpose === 'knowledge'"
+                  type="button"
+                  :disabled="state.busy"
+                  :aria-expanded="showSearchField"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors"
+                  :class="showSearchField ? 'bg-primary/15 text-primary' : 'bg-card/85 text-muted-foreground hover:text-foreground'"
+                  @click="searchExpanded = !searchExpanded"
+                >
+                  <Hash class="h-3.5 w-3.5" />{{ label('searchLabel') }}
+                </button>
+                <button
+                  v-if="!state.id"
+                  type="button"
+                  :disabled="state.busy"
+                  :aria-expanded="showTitleField"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors"
+                  :class="showTitleField ? 'bg-primary/15 text-primary' : 'bg-card/85 text-muted-foreground hover:text-foreground'"
+                  @click="titleExpanded = !titleExpanded"
+                >
+                  <Plus class="h-3.5 w-3.5" />{{ t('aiWriting.conversationTitle') }}
+                </button>
+                <label
+                  v-if="state.skill?.explicitSelection && state.skill.enabled"
+                  :for="`${messageCounterId}-explicit-skill`"
+                  class="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors"
+                  :class="state.explicitSkill ? 'bg-primary/15 text-primary' : 'bg-card/85 text-muted-foreground hover:text-foreground'"
+                >
+                  <Checkbox
+                    :id="`${messageCounterId}-explicit-skill`"
+                    :model-value="state.explicitSkill"
+                    :disabled="state.busy || state.availability !== 'enabled'"
+                    @update:model-value="v => state.explicitSkill = v === true"
+                  />
+                  <span>{{ t('aiAvailability.selectExplicitly') }}</span>
+                </label>
+              </div>
+              <div class="flex items-center gap-2">
+                <p :id="messageCounterId" class="text-xs tabular-nums" :class="messageTooLong ? 'text-destructive' : 'text-muted-foreground'">
+                  {{ t('aiWriting.messageBytes', { bytes: messageBytes, limit: aiMessageMaxBytes }) }}
+                </p>
+                <Button v-if="state.generating" type="button" variant="secondary" size="sm" class="h-9 rounded-full border-0 px-3" @click="controller.stopGeneration()">{{ label('stopGeneration') }}</Button>
+                <Button type="submit" size="icon" class="size-9 rounded-full" :disabled="state.busy || state.refreshRequired || state.availability !== 'enabled' || messageBytes === 0 || messageTooLong"><Loader2 v-if="state.busy" class="h-4 w-4 animate-spin" /><Send v-else class="h-4 w-4" /><span class="sr-only">{{ label('send') }}</span></Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <Dialog v-model:open="historyOpen">
+      <DialogContent class="max-w-md">
+        <DialogHeader>
+          <div class="flex items-center justify-between gap-2 pr-6">
+            <DialogTitle class="flex items-center gap-2 text-base font-semibold">
+              <History class="h-4 w-4 text-muted-foreground" />{{ label('history') }}
+            </DialogTitle>
+            <Button variant="ghost" size="sm" class="h-7 rounded-full px-2.5 text-xs" :disabled="state.historyBusy" @click="controller.loadHistory()">{{ t('common.refresh') }}</Button>
+          </div>
+        </DialogHeader>
+        <div v-if="!state.history.length && !state.historyBusy" class="py-4">
+          <AppEmptyState :title="label('historyEmpty')" compact />
+        </div>
+        <ul v-else class="max-h-[55vh] space-y-1 overflow-y-auto pr-1">
           <li v-for="item in state.history" :key="item.conversation_id">
-            <button type="button" :disabled="state.busy" :aria-current="state.id === item.conversation_id ? 'true' : undefined" class="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted aria-[current=true]:bg-primary/10" @click="selectHistory(item.conversation_id)">
+            <button
+              type="button"
+              :disabled="state.busy"
+              :aria-current="state.id === item.conversation_id ? 'true' : undefined"
+              class="w-full rounded-2xl px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-secondary aria-[current=true]:bg-primary/10 aria-[current=true]:font-medium"
+              @click="selectHistory(item.conversation_id); historyOpen = false"
+            >
               <span class="block truncate font-medium">{{ item.title || label('untitled') }}</span>
               <span class="block truncate text-xs text-muted-foreground">{{ item.updated_at || item.conversation_id }}</span>
             </button>
           </li>
         </ul>
-        <Button v-if="state.historyCursor" variant="ghost" size="sm" class="mt-2 w-full" :disabled="state.historyBusy" @click="controller.loadHistory(false)">{{ t('common.loadMore') }}</Button>
-      </aside>
-      <section class="flex min-h-[32rem] min-w-0 flex-col rounded-xl border bg-card" :aria-label="label('title')">
-        <div ref="messageList" class="max-h-[65vh] flex-1 space-y-4 overflow-y-auto p-4 sm:p-6" aria-live="polite">
-          <Button v-if="state.hasOlderMessages" variant="ghost" size="sm" class="w-full" :disabled="state.busy || state.savedReplyPending" @click="controller.loadOlderMessages()">
-            {{ t('chat.directMessage.loadOlder') }}
-          </Button>
-          <div v-if="!state.messages.length && !state.preview" class="flex min-h-48 items-center justify-center text-center text-sm text-muted-foreground">{{ label('empty') }}</div>
-          <div v-for="message in state.messages" :key="message.message_id" class="flex" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
-            <div class="max-w-[90%] rounded-2xl px-4 py-3 sm:max-w-[80%]" :class="message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'">
-              <div class="mb-1 text-xs font-medium opacity-70">{{ message.role === 'user' ? label('you') : label('assistant') }}</div>
-              <p class="whitespace-pre-wrap break-words text-sm leading-relaxed">{{ message.content }}</p>
-              <div v-if="message.role === 'assistant' && message.content.trim()" class="mt-2 flex flex-wrap gap-2">
-                <Button variant="ghost" size="sm" @click="copyReply(message.content)">
-                  <Copy class="h-3.5 w-3.5" />{{ t('aiWriting.copyReply') }}
-                </Button>
-                <Button v-if="purpose === 'writing' && message.content.length <= 280" variant="outline" size="sm"
-                  :disabled="openingComposer" @click="useAsPost(message.content)">{{ t(embedded ? 'aiWriting.applyToComposer' : 'aiWriting.useAsPost') }}</Button>
-                <span v-if="purpose === 'writing' && message.content.length > 280" class="self-center text-xs text-muted-foreground">
-                  {{ t('aiWriting.postTooLong') }}
-                </span>
-              </div>
-              <p v-if="aiModelVersion(message.role, message.model_version)" class="mt-2 break-all text-xs text-muted-foreground">
-                {{ t('aiModelVersion') }} · {{ message.model_version }}
-              </p>
-              <p v-if="isAiReplyConfigRevision(message.role, message.config_revision)" class="text-xs text-muted-foreground">
-                {{ t('aiReplyConfigRevision', { revision: message.config_revision }) }}
-              </p>
-              <div v-if="message.citations?.length" class="mt-3 border-t pt-2 text-xs">
-                <p class="mb-1 font-medium">{{ label('sources') }}</p>
-                <ul class="space-y-1">
-                  <li v-for="source in message.citations" :key="`${source.kind}-${source.id}`">
-                    <NuxtLink v-if="citationHref(source)" class="underline underline-offset-2" :to="citationHref(source) || ''">{{ label(source.kind) }} #{{ source.id }}</NuxtLink>
-                    <span v-else>{{ label(source.kind) }} #{{ source.id }}</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-        <p v-if="state.preview" class="max-h-40 overflow-y-auto whitespace-pre-wrap break-words border-t bg-muted px-4 py-3 text-sm">{{ state.preview }}</p>
-        <div class="border-t p-4 sm:p-6">
-          <p v-if="state.insufficientEvidence" role="status" class="mb-3 text-sm text-muted-foreground">{{ label('insufficientEvidence') }}</p>
-          <p v-if="state.error === 'generation-stopped'" role="status" class="mb-3 text-sm text-muted-foreground">{{ errorText }}</p>
-          <p v-else-if="state.error" role="alert" class="mb-3 text-sm text-destructive">{{ errorText }}</p>
-          <div v-if="state.refreshRequired || lastUser || (purpose === 'knowledge' && state.id)" class="mb-3 flex flex-wrap gap-2">
-            <Button v-if="state.refreshRequired || (purpose === 'knowledge' && state.id)" variant="outline" size="sm" :disabled="state.busy" @click="controller.retry(false)">{{ label(purpose === 'knowledge' ? 'recheckSources' : 'refreshState') }}</Button>
-            <Button v-if="lastUser && !state.savedReplyPending" variant="outline" size="sm" :disabled="state.busy || state.availability !== 'enabled'" @click="controller.retry()">{{ label('retry') }}</Button>
-          </div>
-          <form class="space-y-3" @submit.prevent="submit">
-            <label v-if="!state.id" class="grid gap-1 text-sm font-medium">
-              {{ t('aiWriting.conversationTitle') }}
-              <input v-model="state.titleDraft" type="text" maxlength="200" :disabled="state.busy"
-                class="h-9 rounded-md border bg-background px-3 font-normal" />
-            </label>
-            <div v-if="purpose === 'knowledge'" class="space-y-1">
-              <label for="knowledge-search-phrase" class="text-sm font-medium">{{ label('searchLabel') }}</label>
-              <Textarea id="knowledge-search-phrase" v-model="state.searchPhrase" :disabled="state.busy" :placeholder="label('searchPlaceholder')" :aria-describedby="'knowledge-search-hint'" rows="1" />
-              <p id="knowledge-search-hint" class="text-xs text-muted-foreground">{{ label('searchHint') }}</p>
-            </div>
-            <label v-else class="flex flex-wrap items-center gap-2 text-sm font-medium">
-              {{ label('modeLabel') }}
-              <select v-model="writingMode" :disabled="state.busy" class="rounded-md border bg-background px-2 py-1">
-                <option v-for="mode in writingModes" :key="mode" :value="mode">{{ label(`modes.${mode}`) }}</option>
-              </select>
-            </label>
-            <p v-if="discussionPrefilled && !state.id && state.draft && writingMode === 'summary'" class="text-xs text-muted-foreground">
-              {{ t('aiWriting.discussionPrefilled') }}
-            </p>
-            <div class="flex items-end gap-2">
-              <Textarea v-model="state.draft" :disabled="state.busy" :placeholder="inputLabel" :aria-label="inputLabel" :aria-invalid="messageTooLong" :aria-describedby="messageCounterId" rows="2" />
-              <Button type="submit" :disabled="state.busy || state.refreshRequired || state.availability !== 'enabled' || messageBytes === 0 || messageTooLong"><Loader2 v-if="state.busy" class="h-4 w-4 animate-spin" /><Send v-else class="h-4 w-4" /><span class="sr-only">{{ label('send') }}</span></Button>
-              <Button v-if="state.generating" type="button" variant="outline" @click="controller.stopGeneration()">{{ label('stopGeneration') }}</Button>
-            </div>
-            <p :id="messageCounterId" class="text-xs tabular-nums" :class="messageTooLong ? 'text-destructive' : 'text-muted-foreground'">
-              {{ t('aiWriting.messageBytes', { bytes: messageBytes, limit: aiMessageMaxBytes }) }}
-            </p>
-          </form>
-        </div>
-      </section>
-    </div>
+        <Button v-if="state.historyCursor" variant="secondary" size="sm" class="w-full rounded-full border-0 text-xs" :disabled="state.historyBusy" @click="controller.loadHistory(false)">{{ t('common.loadMore') }}</Button>
+      </DialogContent>
+    </Dialog>
+
     <Dialog v-model:open="deleteOpen">
-      <DialogContent><DialogHeader><DialogTitle>{{ label('deleteTitle') }}</DialogTitle><DialogDescription>{{ label('deleteDescription') }}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" @click="deleteOpen = false">{{ t('common.cancel') }}</Button><Button variant="destructive" @click="confirmDelete">{{ t('common.delete') }}</Button></DialogFooter></DialogContent>
+      <DialogContent><DialogHeader><DialogTitle>{{ label('deleteTitle') }}</DialogTitle><DialogDescription>{{ label('deleteDescription') }}</DialogDescription></DialogHeader><DialogFooter><Button variant="secondary" class="rounded-full border-0" @click="deleteOpen = false">{{ t('common.cancel') }}</Button><Button variant="destructive" class="rounded-full" @click="confirmDelete">{{ t('common.delete') }}</Button></DialogFooter></DialogContent>
     </Dialog>
   </div>
 </template>

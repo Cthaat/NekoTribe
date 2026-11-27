@@ -93,6 +93,7 @@ function normalizeStoredLanguage(
 const defaultPreferences: UserPreference = {
   // 主题相关
   theme_mode: 'system',
+  glass_intensity: 'standard',
   font_size: 'normal',
   language: 'zh',
   // 隐私和安全
@@ -309,6 +310,12 @@ export const usePreferenceStore = defineStore(
     preferences.value.language = normalizeStoredLanguage(
       preferences.value.language
     );
+    if (
+      preferences.value.glass_intensity !== 'standard' &&
+      preferences.value.glass_intensity !== 'subtle'
+    ) {
+      preferences.value.glass_intensity = 'standard';
+    }
 
     // 4. 返回: 暴露出新增的 getters 和 actions
     return {

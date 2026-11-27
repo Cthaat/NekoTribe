@@ -4,9 +4,22 @@ import { v2RequestData } from './client';
 const ownPin = '/api/v2/users/me/pinned-post';
 
 export async function v2GetProfilePin(profileId: number, signal?: AbortSignal): Promise<V2Post | null> {
-  const data = await v2RequestData<{post: V2Post | null}>(`/api/v2/users/${profileId}/pinned-post`, {signal});
-  if (!data || (data.post !== null && data.post?.author?.user_id !== profileId)) throw new Error('Invalid profile pin');
-  return data.post;
+  try {
+    const data = await v2RequestData<{post: V2Post | null}>(`/api/v2/users/${profileId}/pinned-post`, {signal});
+    if (!data || (data.post !== null && data.post?.author?.user_id !== profileId)) throw new Error('Invalid profile pin');
+    return data.post;
+  } catch (error) {
+    const err = error as { statusCode?: number; status?: number; response?: { status?: number }; data?: { statusCode?: number } };
+    if (
+      err?.statusCode === 503 ||
+      err?.status === 503 ||
+      err?.response?.status === 503 ||
+      err?.data?.statusCode === 503
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function v2SetProfilePin(postId: number, signal?: AbortSignal) {

@@ -55,6 +55,12 @@ export function v2SearchTags(q: string, signal: AbortSignal): Promise<V2TagItem[
   );
 }
 
+export function v2ListTrendingTags(limit = 6, signal?: AbortSignal): Promise<V2TagItem[]> {
+  return v2RequestData<V2TagItem[], undefined, { limit: number }>(
+    '/api/v2/tags/trending', { query: { limit }, signal }
+  );
+}
+
 export async function v2ListTagPosts(name: string, query: V2PageQuery) {
   return toV2PagedResult(await v2Request<V2Post[], undefined, V2PageQuery>(
     `/api/v2/tags/${encodeURIComponent(name)}/posts`, { query }

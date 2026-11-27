@@ -165,20 +165,18 @@ onMounted(() => {
 
 <template>
   <div class="grid gap-4">
-    <section
-      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
-    >
+    <section class="grid gap-4 rounded-2xl bg-[var(--hover)]/80 p-5 sm:p-6">
       <header
-        class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
       >
         <div class="flex items-start gap-3">
           <span
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
           >
             <SettingsIcon class="h-4 w-4" />
           </span>
           <div class="min-w-0 grid gap-0.5">
-            <h2 class="text-lg font-semibold tracking-tight">
+            <h2 class="text-lg font-bold tracking-tight">
               {{ t('account.settings.title') }}
             </h2>
             <p class="text-xs text-muted-foreground">
@@ -189,16 +187,19 @@ onMounted(() => {
         <div class="flex flex-col gap-2 sm:flex-row">
           <Button
             variant="outline"
-            class="h-9 rounded-md shadow-xs"
+              size="icon"
+              class="size-9 border-[var(--divider)]"
+              :aria-label="t('common.refresh')"
+              :title="t('common.refresh')"
             :disabled="loading || saving"
             @click="loadSettings()"
           >
             <Loader2 v-if="loading" class="h-3.5 w-3.5 animate-spin" />
             <RefreshCw v-else class="h-3.5 w-3.5" />
-            {{ t('common.refresh') }}
           </Button>
           <Button
-            class="h-9 rounded-md shadow-xs"
+            :variant="canSave ? 'default' : 'secondary'"
+            class="pressable h-9 rounded-full disabled:opacity-70"
             :disabled="!canSave"
             @click="saveSettings()"
           >
@@ -215,12 +216,10 @@ onMounted(() => {
     <p v-else-if="saveUncertain" role="alert" class="text-sm text-destructive">{{ t('account.settings.feedback.saveUncertain') }}</p>
     <template v-if="snapshot">
 
-    <section
-      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
-    >
-      <header class="flex items-start gap-3">
+    <section class="grid gap-3 rounded-2xl bg-[var(--hover)]/80 p-5 sm:p-6">
+      <header class="flex items-center gap-3 pb-1">
         <span
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-500/12 text-sky-600 dark:text-sky-400"
         >
           <Eye class="h-4 w-4" />
         </span>
@@ -231,9 +230,9 @@ onMounted(() => {
         </div>
       </header>
 
-      <div class="grid gap-3">
+      <div class="divide-y divide-[var(--divider)] rounded-xl bg-background/70 px-4">
         <div
-          class="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"
+          class="flex min-h-[56px] flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between"
         >
           <div class="min-w-0">
             <div class="text-sm font-medium">
@@ -244,7 +243,7 @@ onMounted(() => {
             </div>
           </div>
           <Select v-model="profileVisibility" :disabled="loading || saving">
-            <SelectTrigger class="h-9 w-full rounded-md shadow-xs sm:w-[160px]">
+            <SelectTrigger class="h-9 w-full rounded-full sm:w-[160px]">
               <SelectValue placeholder="-" />
             </SelectTrigger>
             <SelectContent>
@@ -258,9 +257,7 @@ onMounted(() => {
           </Select>
         </div>
 
-        <div
-          class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-4"
-        >
+        <div class="flex min-h-[56px] items-center justify-between gap-4 py-3.5">
           <div class="min-w-0">
             <div class="text-sm font-medium">
               {{ t('account.settings.showOnline') }}
@@ -272,9 +269,7 @@ onMounted(() => {
           <Switch v-model:checked="showOnlineStatus" :disabled="loading || saving" />
         </div>
 
-        <div
-          class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-4"
-        >
+        <div class="flex min-h-[56px] items-center justify-between gap-4 py-3.5">
           <div class="min-w-0">
             <div class="text-sm font-medium">
               {{ t('account.settings.allowDM') }}
@@ -288,12 +283,10 @@ onMounted(() => {
       </div>
     </section>
 
-    <section
-      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
-    >
-      <header class="flex items-start gap-3">
+    <section class="grid gap-3 rounded-2xl bg-[var(--hover)]/80 p-5 sm:p-6">
+      <header class="flex items-center gap-3 pb-1">
         <span
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-500/12 text-violet-600 dark:text-violet-400"
         >
           <Bell class="h-4 w-4" />
         </span>
@@ -304,10 +297,8 @@ onMounted(() => {
         </div>
       </header>
 
-      <div class="grid gap-3">
-        <div
-          class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-4"
-        >
+      <div class="divide-y divide-[var(--divider)] rounded-xl bg-background/70 px-4">
+        <div class="flex min-h-[56px] items-center justify-between gap-4 py-3.5">
           <div class="min-w-0">
             <div class="text-sm font-medium">
               {{ t('account.settings.push') }}
@@ -318,7 +309,7 @@ onMounted(() => {
           </div>
           <Switch v-model:checked="pushNotificationEnabled" :disabled="loading || saving" />
         </div>
-        <div class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+        <div class="flex min-h-[56px] items-center justify-between gap-4 py-3.5">
           <div class="min-w-0">
             <div class="text-sm font-medium">{{ t('notifications.desktop.setting') }}</div>
             <p class="mt-0.5 text-xs text-muted-foreground" role="status">
@@ -327,16 +318,14 @@ onMounted(() => {
             </p>
           </div>
           <Button
-            type="button" size="sm" variant="outline" :aria-pressed="desktopEnabled"
+            type="button" size="sm" variant="outline" class="rounded-full" :aria-pressed="desktopEnabled"
             :disabled="desktopChanging || desktopPermission === null || desktopPermission === 'unsupported' || (!desktopEnabled && desktopPermission === 'denied')"
             @click="toggleDesktopNotifications"
           >
             {{ t(desktopEnabled ? 'notifications.desktop.disable' : 'notifications.desktop.enable') }}
           </Button>
         </div>
-        <div
-          class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-4"
-        >
+        <div class="flex min-h-[56px] items-center justify-between gap-4 py-3.5">
           <div class="min-w-0">
             <div class="text-sm font-medium">
               {{ t('account.settings.email') }}
@@ -350,12 +339,10 @@ onMounted(() => {
       </div>
     </section>
 
-    <section
-      class="grid gap-4 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
-    >
-      <header class="flex items-start gap-3">
+    <section class="grid gap-3 rounded-2xl bg-[var(--hover)]/80 p-5 sm:p-6">
+      <header class="flex items-center gap-3 pb-1">
         <span
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
         >
           <ShieldCheck class="h-4 w-4" />
         </span>
@@ -366,10 +353,8 @@ onMounted(() => {
         </div>
       </header>
 
-      <div class="grid gap-3">
-        <div
-          class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 p-4"
-        >
+      <div class="divide-y divide-[var(--divider)] rounded-xl bg-background/70 px-4">
+        <div class="flex min-h-[56px] items-center justify-between gap-4 py-3.5">
           <div class="min-w-0">
             <div class="text-sm font-medium">
               {{ t('account.settings.loginAlerts') }}

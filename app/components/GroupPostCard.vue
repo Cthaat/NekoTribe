@@ -224,7 +224,8 @@ const openAuthorProfile = () => {
             <Button
               variant="ghost"
               size="icon"
-              class="h-8 w-8 shrink-0 rounded-full text-muted-foreground opacity-70 transition-opacity hover:bg-accent hover:opacity-100"
+              class="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+              :aria-label="t('common.more')"
             >
               <MoreHorizontal class="h-4 w-4" />
             </Button>
@@ -343,7 +344,8 @@ const openAuthorProfile = () => {
       <Button
         variant="ghost"
         size="sm"
-        class="flex h-9 flex-1 items-center justify-center gap-2 rounded-md text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400"
+        class="h-9 flex-1 rounded-full text-muted-foreground"
+        :aria-label="t('groups.post.actions.share')"
         @click="handleShare"
       >
         <Share2 class="h-4 w-4" />

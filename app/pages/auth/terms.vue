@@ -16,6 +16,8 @@ import {
   AccordionTrigger
 } from '@/components/ui/accordion';
 import { AlertTriangle, FileText } from 'lucide-vue-next';
+import ColorModeIcon from '@/components/ColorModeIcon.vue';
+import LanguageTriggerIcon from '@/components/LanguageTriggerIcon.vue';
 import { resolvePublicTermsReference } from '@/utils/public-terms-reference';
 
 const { t, locale } = useAppLocale();
@@ -87,19 +89,25 @@ const faqItems = [
       class="rounded-xl border border-border/60 bg-card shadow-none"
     >
       <header class="px-4 py-5 sm:px-8 sm:py-6">
-        <div class="flex items-center gap-3">
-          <span
-            class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20"
-          >
-            <FileText class="h-5 w-5" />
-          </span>
-          <div class="min-w-0">
-            <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
-              {{ t('auth.terms.title') }}
-            </h1>
-            <p class="mt-1 text-sm text-muted-foreground">
-              {{ t('auth.terms.description') }}
-            </p>
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-3">
+            <span
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20"
+            >
+              <FileText class="h-5 w-5" />
+            </span>
+            <div class="min-w-0">
+              <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
+                {{ t('auth.terms.title') }}
+              </h1>
+              <p class="mt-1 text-sm text-muted-foreground">
+                {{ t('auth.terms.description') }}
+              </p>
+            </div>
+          </div>
+          <div class="flex shrink-0 items-center gap-1.5">
+            <LanguageTriggerIcon />
+            <ColorModeIcon />
           </div>
         </div>
         <p class="mt-3 text-[11px] text-muted-foreground">
@@ -134,7 +142,7 @@ const faqItems = [
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              1. {{ t('auth.terms.sections.acceptance.title') }}
+              {{ t('auth.terms.sections.acceptance.title') }}
             </h2>
             <p class="text-sm leading-relaxed text-muted-foreground">
               {{ t('auth.terms.sections.acceptance.content') }}
@@ -145,7 +153,7 @@ const faqItems = [
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              2. {{ t('auth.terms.sections.accounts.title') }}
+              {{ t('auth.terms.sections.accounts.title') }}
             </h2>
             <p class="text-sm leading-relaxed text-muted-foreground">
               {{ t('auth.terms.sections.accounts.content') }}
@@ -156,7 +164,7 @@ const faqItems = [
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              3. {{ t('auth.terms.sections.conduct.title') }}
+              {{ t('auth.terms.sections.conduct.title') }}
             </h2>
             <p class="mb-4 text-sm leading-relaxed text-muted-foreground">
               {{ t('auth.terms.sections.conduct.content') }}
@@ -187,7 +195,7 @@ const faqItems = [
             <h2
               class="mb-4 border-b border-border/60 pb-2 text-xl font-semibold tracking-tight sm:text-2xl"
             >
-              4. {{ t('auth.terms.sections.termination.title') }}
+              {{ t('auth.terms.sections.termination.title') }}
             </h2>
             <p class="text-sm leading-relaxed text-muted-foreground">
               {{ t('auth.terms.sections.termination.content') }}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Inbox, RefreshCw, Plus } from 'lucide-vue-next';
+import { RefreshCw } from 'lucide-vue-next';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import GroupCard from './GroupCard.vue';
@@ -45,32 +46,28 @@ const handleSettings = (id: number) => emit('settings', id);
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="text-sm text-muted-foreground">
         <span class="tabular-nums font-medium text-foreground">
-          {{ groups.length }}
-        </span>
-        <span class="ml-1">
           {{ t('groups.list.count', { count: groups.length }) }}
         </span>
       </div>
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div class="flex items-center gap-2">
         <Button
-          variant="outline"
-          size="sm"
-          class="w-full sm:w-auto"
+          variant="secondary"
+          size="icon"
+          class="size-9"
+          :aria-label="t('common.refresh')"
+          :title="t('common.refresh')"
           :disabled="isRefreshing"
           @click="handleRefresh"
         >
           <RefreshCw
             :class="['h-4 w-4', { 'animate-spin': isRefreshing }]"
           />
-          {{ t('common.refresh') }}
         </Button>
         <Button
           v-if="showCreateButton"
-          size="sm"
-          class="w-full sm:w-auto"
+            class="rounded-full px-4 font-semibold"
           @click="emit('create')"
         >
-          <Plus class="h-4 w-4" />
           {{ t('groups.actions.create') }}
         </Button>
       </div>
@@ -78,49 +75,39 @@ const handleSettings = (id: number) => emit('settings', id);
 
     <div
       v-if="loading"
-      class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+      class="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3"
     >
       <Skeleton
         v-for="i in 6"
         :key="i"
-        class="h-64 rounded-xl"
+        class="h-64 rounded-[20px]"
       />
     </div>
 
-    <div
+    <AppEmptyState
       v-else-if="groups.length === 0"
-      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-6 py-16 text-center"
+      :title="t('groups.empty.title')"
+      :description="t('groups.empty.description')"
+      class="max-w-none py-16"
     >
-      <div
-        class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
-      >
-        <Inbox class="h-5 w-5 text-muted-foreground" />
-      </div>
-      <h3 class="text-base font-semibold tracking-tight">
-        {{ t('groups.empty.title') }}
-      </h3>
-      <p class="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-        {{ t('groups.empty.description') }}
-      </p>
-      <div class="mt-5 flex flex-col gap-2 sm:flex-row">
-        <Button variant="outline" size="sm" @click="handleRefresh">
-          <RefreshCw class="h-4 w-4" />
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <Button variant="ghost" size="sm" class="rounded-full bg-secondary" @click="handleRefresh">
           {{ t('groups.actions.refreshList') }}
         </Button>
         <Button
           v-if="showCreateButton"
           size="sm"
+          class="rounded-full font-semibold"
           @click="emit('create')"
         >
-          <Plus class="h-4 w-4" />
           {{ t('groups.actions.create') }}
         </Button>
       </div>
-    </div>
+    </AppEmptyState>
 
     <div
       v-else
-      class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+      class="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3"
     >
       <GroupCard
         v-for="group in groups"
@@ -137,7 +124,7 @@ const handleSettings = (id: number) => emit('settings', id);
       v-if="groups.length > 0 && hasNext !== false"
       class="flex justify-center pt-2"
     >
-      <Button variant="outline" size="sm" @click="emit('load-more')">
+      <Button variant="ghost" size="sm" class="rounded-full bg-card px-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none" @click="emit('load-more')">
         {{ t('common.loadMore') }}
       </Button>
     </div>

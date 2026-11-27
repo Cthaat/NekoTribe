@@ -9,7 +9,6 @@ import {
   v2ListPostPreviews
 } from '@/services';
 import { toast } from 'vue-sonner';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Avatar,
@@ -172,37 +171,8 @@ async function finishPublication() {
     我们将移除外层的 `hidden md:block`，让页面在所有设备上都可见。
     并调整一些间距，让布局更和谐。
   -->
-    <div class="space-y-6 p-3 sm:p-6 lg:p-8">
-      <!-- 让标题与输入框左侧对齐：使用与编辑器相同的容器 -->
-      <div class="mx-auto max-w-3xl">
-        <div
-          class="flex min-w-0 items-start justify-between gap-3 padding-bottom-4"
-        >
-          <div>
-            <h2 class="text-2xl font-bold tracking-tight">
-              {{ t('post.composePage.title') }}
-            </h2>
-            <p class="text-muted-foreground text-sm mt-1">
-              {{ t('post.composePage.description') }}
-            </p>
-          </div>
-        </div>
-
-        <!-- 分割线（也放入相同容器中以保持对齐） -->
-        <Separator class="my-6" />
-      </div>
-
-      <!-- 
-      3. 【核心修改】在分割线下方，直接放置我们的推文编辑器组件。
-         我们将移除编辑器内部的 Card 样式，让它直接融入当前页面。
-         为此，我们需要给它传递一个 prop。
-    -->
-      <div class="mx-auto max-w-3xl">
-        <!-- 
-         为了让 TweetComposer 更好地融入页面，
-         我们可以给它传递一个 prop 来控制是否显示 Card 样式。
-         这需要对 TweetComposer 做一个小小的修改。
-       -->
+    <div class="mx-auto max-w-[640px] px-3 py-5 sm:px-6 sm:py-8">
+      <div>
         <TweetComposer
           @open-quote-dialog="isQuoteDialogOpen = true"
           @open-reply-dialog="isReplyDialogOpen = true"

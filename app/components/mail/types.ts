@@ -29,4 +29,6 @@ export interface MailItem {
   details: MailDetailItem[];
   primaryPreview: MailPreview | null;
   secondaryPreview: MailPreview | null;
+  rawUserAgent?: string | null;
+  actorId?: number | null;
 }

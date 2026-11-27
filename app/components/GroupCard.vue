@@ -50,6 +50,11 @@ const emit = defineEmits<{
   (e: 'settings', id: number): void;
 }>();
 
+const groupInitial = computed(() => {
+  const trimmed = (props.group.name || '').trim();
+  return trimmed ? Array.from(trimmed)[0]!.toUpperCase() : 'G';
+});
+
 const privacyIcon = computed(() => {
   switch (props.group.privacy) {
     case 'public':
@@ -108,85 +113,129 @@ const handleSettings = () => {
 
 <template>
   <Card
-    class="group/card relative cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card py-0 shadow-none transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-border hover:shadow-md"
+    class="group/card relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] border-0 bg-card py-0 shadow-[0_1px_3px_rgba(15,23,42,0.03)] transition-all duration-200 ease-out hover:shadow-[0_2px_10px_rgba(15,23,42,0.05)] dark:shadow-none dark:hover:bg-[#171B21]"
     @click="handleViewDetail"
   >
-    <!-- Cover image with overlay -->
+    <!-- Cover image (rendered only when coverImage is present) -->
     <div
-      class="relative h-28 overflow-hidden bg-gradient-to-br from-primary/15 via-primary/5 to-muted/40"
+      v-if="group.coverImage"
+      class="relative h-[96px] overflow-hidden bg-secondary"
     >
       <img
-        v-if="group.coverImage"
         :src="group.coverImage"
         :alt="group.name"
-        class="h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105"
-      />
-      <div
-        class="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/40 to-transparent"
+        class="h-full w-full object-cover transition-transform duration-300 group-hover/card:scale-[1.03]"
       />
 
-      <!-- Top right badges -->
       <div class="absolute right-2.5 top-2.5 flex items-center gap-1.5">
         <Badge
           variant="secondary"
-          class="gap-1 border border-border/60 bg-background/90 px-2 text-[11px] font-medium backdrop-blur"
+          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur-sm"
         >
           <component :is="privacyIcon" class="h-3 w-3" />
           {{ privacyText }}
         </Badge>
       </div>
 
-      <!-- Owner/Admin badge top left -->
       <div
         v-if="group.isOwner || group.isAdmin"
         class="absolute left-2.5 top-2.5"
       >
         <Badge
           v-if="group.isOwner"
-          class="gap-1 border-amber-200/60 bg-amber-100/90 px-2 text-[11px] font-medium text-amber-700 backdrop-blur dark:border-amber-900/40 dark:bg-amber-950/70 dark:text-amber-300"
+          variant="secondary"
+          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-foreground backdrop-blur-sm"
         >
-          <Crown class="h-3 w-3" />
+          <Crown class="h-3 w-3 text-primary" />
           {{ t('groups.actions.manage') }}
         </Badge>
         <Badge
           v-else-if="group.isAdmin"
-          class="gap-1 border border-sky-200/60 bg-sky-100/90 px-2 text-[11px] font-medium text-sky-700 backdrop-blur dark:border-sky-900/40 dark:bg-sky-950/70 dark:text-sky-300"
+          variant="secondary"
+          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-foreground backdrop-blur-sm"
         >
-          <ShieldCheck class="h-3 w-3" />
+          <ShieldCheck class="h-3 w-3 text-primary" />
           Admin
         </Badge>
       </div>
     </div>
 
-    <CardContent class="relative px-5 pb-3 pt-0">
-      <!-- Avatar - half overlapping with cover -->
-      <div class="relative -mt-9 mb-3 flex items-start justify-between">
+    <CardContent class="relative flex-1 px-4 pt-4 pb-3">
+      <div
+        v-if="!group.coverImage"
+        class="mb-2.5 flex flex-wrap items-center justify-between gap-1.5"
+      >
+        <div class="flex items-center gap-1.5">
+          <Badge
+            v-if="group.isOwner"
+            variant="secondary"
+            class="gap-1 border-0 bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground"
+          >
+            <Crown class="h-3 w-3 text-primary" />
+            {{ t('groups.actions.manage') }}
+          </Badge>
+          <Badge
+            v-else-if="group.isAdmin"
+            variant="secondary"
+            class="gap-1 border-0 bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground"
+          >
+            <ShieldCheck class="h-3 w-3 text-primary" />
+            Admin
+          </Badge>
+        </div>
+        <Badge
+          variant="secondary"
+          class="ml-auto gap-1 border-0 bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+        >
+          <component :is="privacyIcon" class="h-3 w-3" />
+          {{ privacyText }}
+        </Badge>
+      </div>
+      <div class="mb-2.5 flex items-center gap-3">
         <Avatar
-          class="h-16 w-16 shrink-0 rounded-xl border-4 border-card shadow-sm"
+          class="h-12 w-12 shrink-0 rounded-[14px] border-0 bg-secondary"
         >
           <AvatarImage
             :src="group.avatar"
             :alt="group.name"
-            class="rounded-lg"
+            class="rounded-[14px] object-cover"
           />
           <AvatarFallback
-            class="rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 text-lg font-semibold uppercase text-primary"
+            class="rounded-[14px] bg-secondary text-base font-semibold uppercase text-muted-foreground"
           >
-            {{ group.name.charAt(0) }}
+            {{ groupInitial }}
           </AvatarFallback>
         </Avatar>
+
+        <div class="min-w-0 flex-1">
+          <h3 class="line-clamp-1 text-[15px] font-semibold leading-snug tracking-tight text-foreground">
+            {{ group.name }}
+          </h3>
+          <div class="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--ink-tertiary)]">
+            <Users class="h-3.5 w-3.5 shrink-0" />
+            <span class="tabular-nums font-medium">
+              {{ formatMemberCount(group.memberCount) }}
+            </span>
+            <span>{{ t('groups.stats.members') }}</span>
+            <span>·</span>
+            <span class="tabular-nums font-medium">
+              {{ t('groups.stats.posts', { count: group.postCount }) }}
+            </span>
+          </div>
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child @click.stop>
             <Button
               variant="ghost"
               size="icon"
-              class="mt-9 h-8 w-8 rounded-full opacity-70 transition-opacity hover:opacity-100"
+              class="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+              :aria-label="t('common.more')"
             >
               <MoreHorizontal class="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-48">
+          <DropdownMenuContent align="end" class="w-48 rounded-2xl border-0 shadow-md">
             <DropdownMenuItem @click.stop="handleViewDetail">
               <Eye class="mr-2 h-4 w-4" />
               {{ t('groups.actions.viewDetail') }}
@@ -205,28 +254,18 @@ const handleSettings = () => {
         </DropdownMenu>
       </div>
 
-      <!-- Name + description -->
-      <div class="space-y-1">
-        <h3 class="line-clamp-1 text-base font-semibold leading-tight tracking-tight">
-          {{ group.name }}
-        </h3>
-        <p class="line-clamp-2 min-h-[2.5rem] text-sm leading-relaxed text-muted-foreground">
-          {{ group.description }}
-        </p>
-      </div>
+      <p v-if="group.description?.trim()" class="line-clamp-2 text-[13.5px] leading-relaxed text-muted-foreground">
+        {{ group.description }}
+      </p>
 
-      <!-- Tags -->
       <div
-        v-if="
-          group.category ||
-          (group.tags && group.tags.length > 0)
-        "
-        class="mt-3 flex flex-wrap gap-1"
+        v-if="group.category || (group.tags && group.tags.length > 0)"
+        class="mt-3 flex flex-wrap gap-1.5"
       >
         <Badge
           v-if="group.category"
-          variant="outline"
-          class="rounded-full border-border/60 px-2 py-0 text-[11px] font-normal"
+          variant="secondary"
+          class="rounded-full border-0 bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
         >
           {{ group.category }}
         </Badge>
@@ -234,55 +273,44 @@ const handleSettings = () => {
           v-for="tag in group.tags?.slice(0, 3)"
           :key="tag"
           variant="secondary"
-          class="rounded-full px-2 py-0 text-[11px] font-normal"
+          class="rounded-full border-0 bg-[var(--primary-soft)] px-2.5 py-0.5 text-[11px] font-medium text-primary"
         >
           #{{ tag }}
         </Badge>
       </div>
-
-      <!-- Stats row -->
-      <div
-        class="mt-3 flex items-center gap-3 text-xs text-muted-foreground"
-      >
-        <div class="flex items-center gap-1.5">
-          <Users class="h-3.5 w-3.5" />
-          <span class="tabular-nums font-medium text-foreground/70">
-            {{ formatMemberCount(group.memberCount) }}
-          </span>
-          <span>{{ t('groups.stats.members') }}</span>
-        </div>
-        <span class="text-border">·</span>
-        <div class="flex items-center gap-1">
-          <span class="tabular-nums font-medium text-foreground/70">
-            {{ group.postCount }}
-          </span>
-          <span>{{ t('groups.stats.posts', { count: group.postCount }) }}</span>
-        </div>
-      </div>
     </CardContent>
 
     <CardFooter
-      class="border-t border-border/60 bg-muted/30 px-5 py-3"
+      class="border-0 bg-transparent px-4 pt-0 pb-4"
       @click.stop
     >
       <Button
         v-if="membershipAction"
-        :variant="membershipAction.event === 'leave' ? 'outline' : 'default'"
+        variant="ghost"
         size="sm"
-        class="h-9 w-full rounded-md shadow-xs"
+        class="pressable h-9 w-full rounded-full font-semibold transition-colors"
+        :class="
+          membershipAction.event === 'leave'
+            ? 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+            : 'bg-[var(--primary-soft)] text-primary hover:bg-primary hover:text-primary-foreground'
+        "
         @click="handleJoinLeave"
       >
         <component
           :is="membershipAction.event === 'leave' ? LogOut : UserPlus"
           class="h-3.5 w-3.5"
         />
-        {{ t(`groups.actions.${membershipAction.label}`) }}
+        {{
+          membershipAction.event === 'leave' && group.membershipStatus === 'active'
+            ? t('groups.joinedBadge')
+            : t(`groups.actions.${membershipAction.label}`)
+        }}
       </Button>
       <Button
         v-else-if="group.isOwner"
-        variant="outline"
+        variant="ghost"
         size="sm"
-        class="h-9 w-full rounded-md shadow-xs"
+        class="pressable h-9 w-full rounded-full bg-secondary font-semibold text-secondary-foreground hover:bg-secondary/80"
         @click="handleSettings"
       >
         <Settings class="h-3.5 w-3.5" />

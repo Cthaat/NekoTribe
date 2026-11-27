@@ -8,20 +8,13 @@ import {
 import { v2CreateReport } from '@/api/v2/moderation';
 import { v2SendRecommendationFeedback, type RecommendationAction } from '@/api/v2/posts';
 import type { V2ModerationReportReason } from '@/types/v2';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader
-} from '@/components/ui/card';
+import UserAvatar from '@/components/UserAvatar.vue';
+import AnimatedNumber from '@/components/motion/AnimatedNumber.vue';
+import LikeButton from '@/components/motion/LikeButton.vue';
+import { formatFullTime, formatRelativeTime } from '@/utils/relativeTime';
 import AppButton from '@/components/app/AppButton.vue';
 import Lightbox from '@/components/Lightbox.vue';
 import PrivateMediaDownload from '@/components/PrivateMediaDownload.vue';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -51,10 +44,10 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   MessageCircle,
   Repeat,
-  Heart,
   MoreHorizontal,
   Trash2,
   BadgeCheck,
+  Bookmark,
   BookmarkCheck,
   BookmarkPlus,
   MessageSquareQuote,
@@ -68,7 +61,8 @@ import {
   MapPin,
   Pin,
   PinOff,
-  Pencil
+  Pencil,
+  Share
 } from 'lucide-vue-next';
 import { useTweetStore } from '@/stores/tweetStore'; // 1. 引入 store
 import TweetContent from '@/components/TweetContent.vue';
@@ -97,9 +91,11 @@ const props = withDefaults(
     pinnedOnProfile?: boolean;
     canManageProfilePin?: boolean;
     profilePinPending?: boolean;
+    focused?: boolean;
   }>(),
   {
-    showRelationContext: true
+    showRelationContext: true,
+    focused: false
   }
 );
 
@@ -138,20 +134,15 @@ const hasPostLabels = computed(
 );
 
 // 格式化时间戳
-const formattedDate = computed(() => {
-  const dateLocale =
-    locale.value === 'zh' ? 'zh-CN' : 'en-US';
-  return new Date(props.tweet.createdAt).toLocaleString(
-    dateLocale,
-    {
-      hour: '2-digit',
-      minute: '2-digit',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }
-  );
+const formattedDate = computed(() => formatFullTime(props.tweet.createdAt, locale.value));
+const relativeDate = computed(() => formatRelativeTime(props.tweet.createdAt, locale.value));
+
+const isLongPlainText = computed(() => {
+  if (props.tweet.markdown) return false;
+  const content = props.tweet.content || '';
+  return content.length > 320 || content.split('\n').length > 8;
 });
+const isTextExpanded = ref(false);
 
 const localLiked = ref(
   props.tweet.viewer.hasLiked
@@ -163,6 +154,13 @@ watch(
   () => props.tweet.viewer.hasLiked,
   newValue => {
     localLiked.value = newValue;
+  }
+);
+
+watch(
+  () => props.tweet.counts.likes,
+  newValue => {
+    likeCount.value = newValue;
   }
 );
 
@@ -233,6 +231,17 @@ function handleReport() {
 function confirmDelete() {
   isDeleteDialogOpen.value = false;
   emit('delete-tweet', props.tweet.id);
+}
+
+async function handleShare(): Promise<void> {
+  const path = localePath(`/tweet/${props.tweet.id}`);
+  const url = import.meta.client ? new URL(path, window.location.origin).href : path;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success(t('post.actionsExtra.linkCopied'));
+  } catch {
+    toast.info(url);
+  }
 }
 
 function handleBookmark() {
@@ -426,376 +435,528 @@ const relatedExcerpt = computed(() => {
 </script>
 
 <template>
-  <Card
-    @click.stop="toTweetDetail(String(tweet.id))"
-    class="group relative mx-auto my-3 max-w-2xl cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-card py-0 shadow-none transition-all duration-200 ease-out hover:border-border hover:shadow-md focus-within:ring-2 focus-within:ring-ring/40"
+  <article
+    @click.stop="!focused && toTweetDetail(String(tweet.id))"
+    class="bento-card group relative transition-colors duration-200"
+    :class="
+      focused
+        ? 'p-5 cursor-default'
+        : 'px-4 pt-4 pb-3 hover:shadow-[0_4px_16px_rgba(15,23,42,0.06)] dark:hover:bg-[#191C22] cursor-pointer'
+    "
   >
-    <p v-if="pinnedOnProfile" class="flex items-center gap-1.5 px-5 pt-3 text-xs font-medium text-muted-foreground">
+    <p
+      v-if="pinnedOnProfile"
+      class="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"
+      :class="focused ? '' : 'pl-11 sm:pl-14'"
+    >
       <Pin class="size-3.5" />{{ t('post.profilePin.label') }}
     </p>
-    <CardHeader class="flex flex-row items-start gap-3 px-5 pb-2 pt-5 sm:gap-4">
-      <Avatar
-        class="h-10 w-10 shrink-0 ring-1 ring-border transition-transform group-hover:scale-[1.02] sm:h-11 sm:w-11"
-        @click.stop="
-          () =>
-            navigateTo(
-              localePath(`/user/${tweet.author.id}/profile`)
-            )
-        "
+
+    <div
+      class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3"
+      :class="focused ? 'items-center' : 'items-start'"
+    >
+      <!-- Avatar -->
+      <div
+        class="pressable shrink-0"
+        :class="focused ? 'col-start-1 row-start-1' : 'col-start-1 row-start-1 row-span-2 pt-0.5'"
+        @click.stop="navigateTo(localePath(`/user/${tweet.author.id}/profile`))"
       >
-        <AvatarImage
+        <UserAvatar
           :src="tweet.author.avatarUrl"
-          :alt="tweet.author.username"
+          :name="tweet.author.name"
+          :username="tweet.author.username"
+          :seed="tweet.author.id"
+          :size="focused ? 'lg' : 'md'"
         />
-        <AvatarFallback class="bg-muted text-xs font-medium uppercase">
-          {{ tweet.author.username.substring(0, 2).toUpperCase() }}
-        </AvatarFallback>
-      </Avatar>
-      <div class="min-w-0 flex-1">
-        <div class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <span class="truncate text-sm font-semibold leading-tight">
-            {{ tweet.author.name }}
+      </div>
+
+      <!-- Header Row -->
+      <div
+        class="col-start-2 row-start-1 flex min-w-0 justify-between gap-2"
+        :class="focused ? 'items-center' : 'items-start'"
+      >
+        <div
+          v-if="focused"
+          class="flex min-w-0 flex-col"
+        >
+          <div class="flex items-center gap-1">
+            <span
+              class="cursor-pointer truncate text-[16px] font-semibold leading-tight text-foreground hover:underline"
+              @click.stop="navigateTo(localePath(`/user/${tweet.author.id}/profile`))"
+            >
+              {{ tweet.author.name || tweet.author.username }}
+            </span>
+            <BadgeCheck
+              v-if="tweet.author.verified"
+              class="size-4 shrink-0 text-primary"
+            />
+          </div>
+          <span
+            class="cursor-pointer truncate text-[13px] text-[var(--ink-tertiary)] hover:underline"
+            @click.stop="navigateTo(localePath(`/user/${tweet.author.id}/profile`))"
+          >
+            @{{ tweet.author.username }}
+          </span>
+        </div>
+
+        <div
+          v-else
+          class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 pt-0.5"
+        >
+          <span
+            class="truncate text-[15px] font-semibold leading-tight text-foreground hover:underline"
+            @click.stop="navigateTo(localePath(`/user/${tweet.author.id}/profile`))"
+          >
+            {{ tweet.author.name || tweet.author.username }}
           </span>
           <BadgeCheck
             v-if="tweet.author.verified"
-            class="h-4 w-4 shrink-0 text-sky-500"
+            class="size-4 shrink-0 text-primary"
           />
-          <span class="truncate text-xs text-muted-foreground">
+          <span class="truncate text-[13px] text-[var(--ink-tertiary)]">
             @{{ tweet.author.username }}
           </span>
-          <span class="text-xs text-muted-foreground">·</span>
-          <span class="text-xs text-muted-foreground">{{ formattedDate }}</span>
-        </div>
-      </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-8 w-8 shrink-0 rounded-full text-muted-foreground opacity-70 transition-opacity hover:bg-accent hover:opacity-100"
-            @click.stop="() => {}"
+          <span class="text-xs text-[var(--ink-tertiary)]">·</span>
+          <time
+            :datetime="tweet.createdAt"
+            :title="formattedDate"
+            class="text-[13px] text-[var(--ink-tertiary)] hover:underline"
           >
-            <MoreHorizontal class="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-52">
-          <DropdownMenuItem
-            v-if="!localIsBookmarked"
-            @click.stop="handleBookmark"
-          >
-            <BookmarkPlus class="mr-2 h-4 w-4" />
-            <span>{{ t('post.actions.addBookmark') }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            v-else
-            @click.stop="handleBookmark"
-          >
-            <BookmarkCheck class="mr-2 h-4 w-4 text-sky-500" />
-            <span>{{ t('post.actions.removeBookmark') }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem @select="navigateTo(localePath('/ai/knowledge'))">
-            <BrainCircuit class="mr-2 h-4 w-4" />
-            <span>{{ t('aiKnowledge.title') }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem v-if="isOwnTweet && canManageProfilePin" :disabled="profilePinPending"
-            @select="emit('toggle-profile-pin',tweet)">
-            <component :is="pinnedOnProfile ? PinOff : Pin" class="mr-2 size-4" />
-            <span>{{ t(pinnedOnProfile ? 'post.profilePin.clear' : 'post.profilePin.set') }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            v-if="isOwnTweet"
-            @select="navigateTo(localePath({ path: '/account/posts', query: { edit: String(tweet.id) } }))"
-          >
-            <Pencil class="mr-2 h-4 w-4" />
-            <span>{{ t('post.actions.edit') }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            v-if="isOwnTweet"
-            @click.stop="handleDelete"
-            class="text-destructive focus:text-destructive"
-          >
-            <Trash2 class="mr-2 h-4 w-4" />
-            <span>{{ t('post.actions.delete') }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator v-if="!isOwnTweet" />
-
-          <DropdownMenuItem v-if="!isOwnTweet && preferenceStore.preferences.user.id > 0" :disabled="feedbackBusy"
-            @select="sendRecommendationFeedback('not_interested')">
-            <EyeOff class="mr-2 h-4 w-4" />
-            <span>{{ t('post.feedback.notInterested') }}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem v-if="!isOwnTweet && preferenceStore.preferences.user.id > 0" :disabled="feedbackBusy"
-            @select="sendRecommendationFeedback('show_less')">
-            <ListFilter class="mr-2 h-4 w-4" />
-            <span>{{ t('post.feedback.showLess') }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            v-if="!isOwnTweet"
-            @click.stop="handleReport"
-            class="text-destructive focus:text-destructive"
-          >
-            <Flag class="mr-2 h-4 w-4" />
-            <span>{{ t('post.actions.report') }}</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </CardHeader>
-
-    <CardContent class="space-y-3 px-5 pb-3">
-      <div
-        v-if="relatedTweetId"
-        class="space-y-2"
-      >
-        <div class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <component
-            :is="relatedTweetIcon"
-            class="h-3.5 w-3.5"
-          />
-          <template
-            v-if="relatedTweet && !relatedLoading"
-          >
-            <span>{{ relatedTweetLabel }}</span>
-            <NuxtLink
-              :to="
-                localePath(
-                  `/user/${relatedTweet.author.id}/profile`
-                )
-              "
-              @click.stop
-              class="font-medium text-foreground hover:underline"
-            >
-              {{
-                relatedAuthorHandle ||
-                t('post.relation.unknownUserHandle')
-              }}
-            </NuxtLink>
-            <span>·</span>
-            <NuxtLink
-              :to="
-                localePath(
-                  `/tweet/${relatedTweet.id}`
-                )
-              "
-              @click.stop
-              class="text-primary hover:underline"
-            >
-              {{ t('post.relation.viewOriginal') }}
-            </NuxtLink>
-          </template>
-          <template v-else-if="relatedLoading">
-            <span>{{ t('post.relation.loadingOriginal') }}</span>
-          </template>
-          <template v-else>
-            <span>{{ relatedTweetLabel }}</span>
-            <NuxtLink
-              :to="
-                localePath(
-                  `/tweet/${relatedTweetId}`
-                )
-              "
-              @click.stop
-              class="text-primary hover:underline"
-            >
-              {{ t('post.relation.viewOriginal') }}
-            </NuxtLink>
-          </template>
+            {{ relativeDate }}
+          </time>
         </div>
 
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="-mr-2 -mt-1 size-8 shrink-0 rounded-full text-muted-foreground opacity-70 transition-opacity hover:bg-primary/10 hover:text-primary hover:opacity-100"
+                :aria-label="t('common.more')"
+                @click.stop
+              >
+                <MoreHorizontal class="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-52 rounded-2xl p-1.5">
+              <DropdownMenuItem
+                v-if="!localIsBookmarked"
+                @click.stop="handleBookmark"
+              >
+                <BookmarkPlus class="mr-2 h-4 w-4" />
+                <span>{{ t('post.actions.addBookmark') }}</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                v-else
+                @click.stop="handleBookmark"
+              >
+                <BookmarkCheck class="mr-2 h-4 w-4 text-primary" />
+                <span>{{ t('post.actions.removeBookmark') }}</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem @select="navigateTo(localePath('/ai/knowledge'))">
+                <BrainCircuit class="mr-2 h-4 w-4" />
+                <span>{{ t('aiKnowledge.title') }}</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem v-if="isOwnTweet && canManageProfilePin" :disabled="profilePinPending"
+                @select="emit('toggle-profile-pin',tweet)">
+                <component :is="pinnedOnProfile ? PinOff : Pin" class="mr-2 size-4" />
+                <span>{{ t(pinnedOnProfile ? 'post.profilePin.clear' : 'post.profilePin.set') }}</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                v-if="isOwnTweet"
+                @select="navigateTo(localePath({ path: '/account/posts', query: { edit: String(tweet.id) } }))"
+              >
+                <Pencil class="mr-2 h-4 w-4" />
+                <span>{{ t('post.actions.edit') }}</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                v-if="isOwnTweet"
+                @click.stop="handleDelete"
+                class="text-destructive focus:text-destructive"
+              >
+                <Trash2 class="mr-2 h-4 w-4" />
+                <span>{{ t('post.actions.delete') }}</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator v-if="!isOwnTweet" />
+
+              <DropdownMenuItem v-if="!isOwnTweet && preferenceStore.preferences.user.id > 0" :disabled="feedbackBusy"
+                @select="sendRecommendationFeedback('not_interested')">
+                <EyeOff class="mr-2 h-4 w-4" />
+                <span>{{ t('post.feedback.notInterested') }}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem v-if="!isOwnTweet && preferenceStore.preferences.user.id > 0" :disabled="feedbackBusy"
+                @select="sendRecommendationFeedback('show_less')">
+                <ListFilter class="mr-2 h-4 w-4" />
+                <span>{{ t('post.feedback.showLess') }}</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                v-if="!isOwnTweet"
+                @click.stop="handleReport"
+                class="text-destructive focus:text-destructive"
+              >
+                <Flag class="mr-2 h-4 w-4" />
+                <span>{{ t('post.actions.report') }}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+      <!-- Content + Actions (indented under header in feed; full-width when focused) -->
+      <div :class="focused ? 'col-span-2 row-start-2 mt-3 min-w-0' : 'col-start-2 row-start-2 min-w-0'">
+
+        <!-- Relation context (Reply / Quote / Repost) -->
         <div
-          v-if="relatedTweet && !relatedLoading"
-          class="rounded-lg border border-border/60 bg-muted/30 p-3 transition-colors hover:border-border hover:bg-muted/50"
-          @click.stop="
-            toTweetDetail(
-              String(relatedTweet.id),
-              relatedTweet
-            )
-          "
+          v-if="relatedTweetId"
+          class="mt-1.5 space-y-2"
         >
-          <div class="mb-1.5 flex min-w-0 items-center gap-2 text-sm">
-            <Avatar class="h-5 w-5 ring-1 ring-border">
-              <AvatarImage
-                :src="relatedTweet.author.avatarUrl"
-                :alt="relatedTweet.author.username"
-              />
-              <AvatarFallback class="text-[10px] uppercase">
-                {{
-                  (relatedTweet.author.username || '')
-                    .substring(0, 2)
-                    .toUpperCase()
-                }}
-              </AvatarFallback>
-            </Avatar>
-            <span class="truncate font-medium">
-              {{
-                relatedTweet.author.name ||
-                t('post.relation.unknownUser')
-              }}
-            </span>
-            <span class="truncate text-xs text-muted-foreground">
-              {{
-                relatedAuthorHandle ||
-                t('post.relation.unknownUserHandle')
-              }}
-            </span>
+          <div class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <component :is="relatedTweetIcon" class="size-3.5" />
+            <template v-if="relatedTweet && !relatedLoading">
+              <span>{{ relatedTweetLabel }}</span>
+              <NuxtLink
+                :to="localePath(`/user/${relatedTweet.author.id}/profile`)"
+                @click.stop
+                class="font-medium text-foreground hover:underline"
+              >
+                {{ relatedAuthorHandle || t('post.relation.unknownUserHandle') }}
+              </NuxtLink>
+              <span>·</span>
+              <NuxtLink
+                :to="localePath(`/tweet/${relatedTweet.id}`)"
+                @click.stop
+                class="text-primary hover:underline"
+              >
+                {{ t('post.relation.viewOriginal') }}
+              </NuxtLink>
+            </template>
+            <template v-else-if="relatedLoading">
+              <span>{{ t('post.relation.loadingOriginal') }}</span>
+            </template>
+            <template v-else>
+              <span>{{ relatedTweetLabel }}</span>
+              <NuxtLink
+                :to="localePath(`/tweet/${relatedTweetId}`)"
+                @click.stop
+                class="text-primary hover:underline"
+              >
+                {{ t('post.relation.viewOriginal') }}
+              </NuxtLink>
+            </template>
           </div>
-          <p class="text-sm leading-relaxed text-foreground/85">
-            {{ relatedExcerpt || t('post.relation.emptyContent') }}
-          </p>
-        </div>
 
-        <div
-          v-else-if="relatedError && !relatedLoading"
-          class="rounded-lg border border-dashed border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground"
-        >
-          {{ t('post.relation.originalUnavailable') }}
-          <NuxtLink
-            :to="
-              localePath(`/tweet/${relatedTweetId}`)
-            "
-            @click.stop
-            class="text-primary hover:underline"
-          >
-            {{ t('post.relation.tryOpenOriginal') }}
-          </NuxtLink>
-        </div>
-      </div>
-
-      <div class="text-[15px] leading-relaxed text-foreground/95">
-        <PostMarkdown v-if="tweet.markdown" :source="tweet.markdown" />
-        <TweetContent v-else :content="tweet.content" />
-      </div>
-      <LinkPreviewCard :text="tweet.content" :markdown="tweet.markdown" />
-      <PostPollPanel v-if="tweet.poll" :key="tweet.poll.poll_id" :poll="tweet.poll" :post-id="tweet.id"
-        :can-vote="preferenceStore.isLoggedIn" />
-
-      <div
-        v-if="hasPostLabels"
-        class="flex flex-wrap gap-1.5"
-      >
-        <button
-          v-if="visibleLocation"
-          type="button"
-          class="inline-flex h-6 items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
-          @click.stop="searchPosts(visibleLocation)"
-        >
-          <MapPin class="h-3 w-3" />
-          <span class="max-w-[12rem] truncate">
-            {{ visibleLocation }}
-          </span>
-        </button>
-        <button
-          v-for="tag in visibleTags"
-          :key="`tag-${tweet.id}-${tag}`"
-          type="button"
-          class="inline-flex h-6 items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
-          @click.stop="searchPosts(`#${tag}`)"
-        >
-          <Hash class="h-3 w-3" />
-          <span>{{ tag }}</span>
-        </button>
-      </div>
-
-      <!-- 媒体展示区 -->
-      <div v-if="privateAttachments.length" class="flex flex-wrap gap-2">
-        <PrivateMediaDownload
-          v-for="item in privateAttachments"
-          :key="item.id"
-          :media-id="item.id"
-          :file-name="item.privateFileName ?? ''"
-        />
-      </div>
-      <div
-        v-if="mediaItems.length > 0"
-        class="overflow-hidden rounded-xl border border-border/60"
-      >
-        <div
-          class="grid gap-px bg-border"
-          :class="{
-            'grid-cols-1': mediaItems.length === 1,
-            'grid-cols-2': mediaItems.length >= 2,
-            'grid-rows-2 h-64 sm:h-80':
-              mediaItems.length > 2
-          }"
-        >
           <div
-            v-for="(item, index) in mediaItems.slice(0, 4)"
-            :key="item.originalUrl"
-            class="group/media relative cursor-pointer overflow-hidden bg-muted"
-            @click.stop="openLightbox(index)"
+            v-if="relatedTweet && !relatedLoading"
+            class="bento-tile mt-2 p-3 transition-colors hover:bg-accent/70"
+            @click.stop="toTweetDetail(String(relatedTweet.id), relatedTweet)"
           >
-            <img
-              :src="item.thumbnailUrl"
-              class="h-full w-full object-cover transition-transform duration-300 ease-out group-hover/media:scale-105"
-              :alt="item.altText || t('post.media.thumbnailAlt')"
-            />
-
-            <div
-              v-if="item.type === 'video'"
-              class="absolute inset-0 flex items-center justify-center bg-black/30 transition-colors group-hover/media:bg-black/40"
-            >
-              <PlayCircle class="h-12 w-12 text-white/90 drop-shadow-lg" />
-            </div>
-
-            <div
-              v-if="mediaItems.length > 4 && index === 3"
-              class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            >
-              <span class="text-2xl font-semibold text-white">
-                +{{ mediaItems.length - 4 }}
+            <div class="mb-1 flex min-w-0 items-center gap-2 text-sm">
+              <UserAvatar
+                :src="relatedTweet.author.avatarUrl"
+                :name="relatedTweet.author.name || relatedTweet.author.username"
+                :username="relatedTweet.author.username"
+                :seed="relatedTweet.author.id"
+                size="xs"
+              />
+              <span class="truncate font-semibold">
+                {{ relatedTweet.author.name || t('post.relation.unknownUser') }}
+              </span>
+              <span class="truncate text-xs text-[var(--ink-tertiary)]">
+                {{ relatedAuthorHandle || t('post.relation.unknownUserHandle') }}
               </span>
             </div>
+            <p class="text-sm leading-[1.6] text-foreground/85">
+              {{ relatedExcerpt || t('post.relation.emptyContent') }}
+            </p>
+          </div>
+
+          <div
+            v-else-if="relatedError && !relatedLoading"
+            class="bento-tile mt-2 p-3 text-xs text-muted-foreground"
+          >
+            {{ t('post.relation.originalUnavailable') }}
+            <NuxtLink
+              :to="localePath(`/tweet/${relatedTweetId}`)"
+              @click.stop
+              class="text-primary hover:underline"
+            >
+              {{ t('post.relation.tryOpenOriginal') }}
+            </NuxtLink>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div
+          class="text-foreground"
+          :class="focused ? 'text-[17px] leading-[1.65]' : 'mt-1.5 text-[15.5px] leading-[1.62]'"
+        >
+          <PostMarkdown v-if="tweet.markdown" :source="tweet.markdown" />
+          <div v-else :class="!focused && isLongPlainText && !isTextExpanded ? 'line-clamp-8' : ''">
+            <TweetContent :content="tweet.content" />
+          </div>
+          <button
+            v-if="!focused && isLongPlainText"
+            type="button"
+            class="mt-1 text-xs font-semibold text-primary hover:underline"
+            @click.stop="isTextExpanded = !isTextExpanded"
+          >
+            {{ t(isTextExpanded ? 'post.actionsExtra.showLess' : 'post.actionsExtra.showMore') }}
+          </button>
+        </div>
+
+        <LinkPreviewCard :text="tweet.content" :markdown="tweet.markdown" />
+        <PostPollPanel v-if="tweet.poll" :key="tweet.poll.poll_id" :poll="tweet.poll" :post-id="tweet.id"
+          :can-vote="preferenceStore.isLoggedIn" />
+
+        <div
+          v-if="hasPostLabels"
+          class="mt-2.5 flex flex-wrap gap-1.5"
+        >
+          <button
+            v-if="visibleLocation"
+            type="button"
+            class="inline-flex h-6 items-center gap-1 rounded-[6px] bg-secondary px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            @click.stop="searchPosts(visibleLocation)"
+          >
+            <MapPin class="h-3 w-3" />
+            <span class="max-w-[12rem] truncate">{{ visibleLocation }}</span>
+          </button>
+          <button
+            v-for="tag in visibleTags"
+            :key="`tag-${tweet.id}-${tag}`"
+            type="button"
+            class="inline-flex h-6 items-center gap-1 rounded-[6px] bg-[var(--primary-soft)] px-2 text-xs font-medium text-primary transition-colors hover:opacity-85"
+            @click.stop="searchPosts(`#${tag}`)"
+          >
+            <Hash class="h-3 w-3" />
+            <span>{{ tag }}</span>
+          </button>
+        </div>
+
+        <!-- 媒体展示区 -->
+        <div v-if="privateAttachments.length" class="mt-2.5 flex flex-wrap gap-2">
+          <PrivateMediaDownload
+            v-for="item in privateAttachments"
+            :key="item.id"
+            :media-id="item.id"
+            :file-name="item.privateFileName ?? ''"
+          />
+        </div>
+        <div
+          v-if="mediaItems.length > 0"
+          class="mt-3 overflow-hidden rounded-[18px]"
+        >
+          <div
+            class="grid gap-[3px] bg-background"
+            :class="{
+              'grid-cols-1': mediaItems.length === 1,
+              'grid-cols-2': mediaItems.length >= 2,
+              'h-72 sm:h-80': mediaItems.length === 2 || mediaItems.length === 3,
+              'grid-rows-2 h-72 sm:h-80': mediaItems.length >= 4
+            }"
+          >
+            <div
+              v-for="(item, index) in mediaItems.slice(0, 4)"
+              :key="item.originalUrl"
+              class="group/media relative cursor-pointer overflow-hidden bg-muted"
+              :class="{
+                'max-h-[420px]': mediaItems.length === 1,
+                'row-span-2': mediaItems.length === 3 && index === 0
+              }"
+              @click.stop="openLightbox(index)"
+            >
+              <img
+                :src="item.thumbnailUrl"
+                class="h-full w-full object-cover transition-transform duration-300 ease-out group-hover/media:scale-[1.03]"
+                :alt="item.altText || t('post.media.thumbnailAlt')"
+              />
+
+              <div
+                v-if="item.type === 'video'"
+                class="absolute inset-0 flex items-center justify-center bg-black/30 transition-colors group-hover/media:bg-black/40"
+              >
+                <PlayCircle class="h-12 w-12 text-white/90 drop-shadow-lg" />
+              </div>
+
+              <div
+                v-if="mediaItems.length > 4 && index === 3"
+                class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              >
+                <span class="text-2xl font-semibold text-white">
+                  +{{ mediaItems.length - 4 }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Focused Detail Mode: Timestamp + Stats Bar + Spaced Action Bar -->
+        <template v-if="focused">
+          <div class="mt-3 text-sm text-[var(--ink-tertiary)]">
+            <time :datetime="tweet.createdAt">{{ formattedDate }}</time>
+          </div>
+
+          <div
+            class="mt-3 flex flex-wrap items-center gap-5 border-y border-[var(--divider)] py-3 text-sm"
+          >
+            <span class="inline-flex items-center gap-1">
+              <strong class="font-semibold tabular-nums text-foreground">
+                <AnimatedNumber :value="tweet.counts.comments" />
+              </strong>
+              <span class="text-muted-foreground">{{ t('post.detail.commentsLabel') }}</span>
+            </span>
+            <span class="inline-flex items-center gap-1">
+              <strong class="font-semibold tabular-nums text-foreground">
+                <AnimatedNumber :value="tweet.counts.retweets" />
+              </strong>
+              <span class="text-muted-foreground">{{ t('post.detail.repostsLabel') }}</span>
+            </span>
+            <slot name="likers-stat">
+              <span class="inline-flex items-center gap-1">
+                <strong class="font-semibold tabular-nums text-foreground">
+                  <AnimatedNumber :value="likeCount" />
+                </strong>
+                <span class="text-muted-foreground">{{ t('post.detail.likesLabel') }}</span>
+              </span>
+            </slot>
+          </div>
+
+          <div class="mt-1 flex items-center justify-around pt-1">
+            <button
+              type="button"
+              class="group/btn pressable inline-flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :aria-label="t('comment.reply')"
+              @click.stop="handleReply"
+            >
+              <MessageCircle class="size-5" :stroke-width="1.75" />
+            </button>
+
+            <button
+              type="button"
+              class="group/btn pressable inline-flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-[var(--repost)]/10 hover:text-[var(--repost)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :aria-label="t('post.retweet.submit')"
+              @click.stop="handleRetweet"
+            >
+              <Repeat
+                class="size-5"
+                :stroke-width="1.75"
+              />
+            </button>
+
+            <LikeButton
+              :liked="localLiked"
+              :count="likeCount"
+              hide-count
+              icon-class="size-5"
+              @toggle="handleLike"
+            />
+
+            <button
+              type="button"
+              class="group/btn pressable inline-flex size-10 items-center justify-center rounded-full transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :class="localIsBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-primary'"
+              :aria-label="t(localIsBookmarked ? 'post.actions.removeBookmark' : 'post.actions.addBookmark')"
+              @click.stop="handleBookmark"
+            >
+              <component
+                :is="localIsBookmarked ? BookmarkCheck : Bookmark"
+                class="size-5 transition-transform duration-150"
+                :class="{ 'scale-110 fill-primary/15': localIsBookmarked }"
+                :stroke-width="1.75"
+              />
+            </button>
+
+            <button
+              type="button"
+              class="group/btn pressable inline-flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :aria-label="t('post.actionsExtra.share')"
+              @click.stop="handleShare"
+            >
+              <Share class="size-5" :stroke-width="1.75" />
+            </button>
+          </div>
+        </template>
+
+        <!-- Bento Quiet Feed Action Bar -->
+        <div
+          v-else
+          class="mt-2.5 -ml-2 flex items-center gap-5 text-[13px]"
+        >
+          <button
+            type="button"
+            class="group/btn pressable inline-flex items-center gap-1 rounded-full py-1 pr-2 text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            :aria-label="t('comment.reply')"
+            @click.stop="handleReply"
+          >
+            <span class="inline-flex size-8 items-center justify-center rounded-full transition-colors group-hover/btn:bg-primary/10">
+              <MessageCircle class="size-[18px]" :stroke-width="1.75" />
+            </span>
+            <AnimatedNumber :value="tweet.counts.comments" hide-zero />
+          </button>
+
+          <button
+            type="button"
+            class="group/btn pressable inline-flex items-center gap-1 rounded-full py-1 pr-2 text-muted-foreground transition-colors hover:text-[var(--repost)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            :aria-label="t('post.retweet.submit')"
+            @click.stop="handleRetweet"
+          >
+            <span class="inline-flex size-8 items-center justify-center rounded-full transition-colors group-hover/btn:bg-[var(--repost)]/10">
+              <Repeat
+                class="size-[18px]"
+                :stroke-width="1.75"
+              />
+            </span>
+            <AnimatedNumber :value="tweet.counts.retweets" hide-zero />
+          </button>
+
+          <LikeButton
+            :liked="localLiked"
+            :count="likeCount"
+            @toggle="handleLike"
+          />
+
+          <div class="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              class="group/btn pressable inline-flex size-8 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :class="localIsBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-primary'"
+              :aria-label="t(localIsBookmarked ? 'post.actions.removeBookmark' : 'post.actions.addBookmark')"
+              @click.stop="handleBookmark"
+            >
+              <span class="inline-flex size-8 items-center justify-center rounded-full transition-colors group-hover/btn:bg-primary/10">
+                <component
+                  :is="localIsBookmarked ? BookmarkCheck : Bookmark"
+                  class="size-[18px] transition-transform duration-150"
+                  :class="{ 'fill-primary/15': localIsBookmarked }"
+                  :stroke-width="1.75"
+                />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="group/btn pressable inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :aria-label="t('post.actionsExtra.share')"
+              @click.stop="handleShare"
+            >
+              <span class="inline-flex size-8 items-center justify-center rounded-full transition-colors group-hover/btn:bg-primary/10">
+                <Share class="size-[17px]" :stroke-width="1.75" />
+              </span>
+            </button>
           </div>
         </div>
       </div>
-    </CardContent>
-
-    <CardFooter class="flex items-center justify-between gap-1 border-t border-border/40 bg-muted/20 px-2 py-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        class="group/btn flex h-9 flex-1 items-center justify-center gap-2 rounded-md text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400"
-        @click.stop="handleRetweet"
-      >
-        <Repeat class="h-4 w-4 transition-transform group-hover/btn:scale-110" />
-        <span class="text-xs font-medium tabular-nums">{{ tweet.counts.retweets }}</span>
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        class="group/btn flex h-9 flex-1 items-center justify-center gap-2 rounded-md text-muted-foreground transition-colors hover:bg-sky-500/10 hover:text-sky-600 dark:hover:text-sky-400"
-        @click.stop="handleReply"
-      >
-        <MessageCircle class="h-4 w-4 transition-transform group-hover/btn:scale-110" />
-        <span class="text-xs font-medium tabular-nums">{{ tweet.counts.comments }}</span>
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        class="group/btn flex h-9 flex-1 items-center justify-center gap-2 rounded-md text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
-        :class="{ 'text-rose-600 dark:text-rose-400': localLiked }"
-        @click.stop="handleLike"
-      >
-        <Heart
-          class="h-4 w-4 transition-all group-hover/btn:scale-110"
-          :class="{
-            'fill-rose-600 dark:fill-rose-400': localLiked
-          }"
-        />
-        <span class="text-xs font-medium tabular-nums">{{ likeCount }}</span>
-      </Button>
-    </CardFooter>
-  </Card>
+    </div>
+  </article>
   <Lightbox
     v-if="mediaItems.length > 0"
     v-model:open="isLightboxOpen"
@@ -805,14 +966,14 @@ const relatedExcerpt = computed(() => {
 
   <Dialog v-model:open="isDeleteDialogOpen">
     <DialogContent
-      class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-md"
+      class="overflow-hidden p-0 sm:max-w-md"
     >
       <DialogHeader
-        class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        class="border-b border-[var(--divider)] px-5 py-3.5"
       >
         <DialogTitle class="flex items-center gap-2 text-base">
           <span
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            class="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400"
           >
             <Trash2 class="h-4 w-4" />
           </span>
@@ -823,12 +984,12 @@ const relatedExcerpt = computed(() => {
         </DialogDescription>
       </DialogHeader>
       <DialogFooter
-        class="border-t border-border/60 bg-background/60 px-5 py-3"
+        class="border-t border-[var(--divider)] px-5 py-3.5"
       >
         <AppButton
-          variant="outline"
+          variant="secondary"
           size="sm"
-          class="h-9 rounded-md shadow-xs"
+          class="h-9 rounded-full"
           @click="isDeleteDialogOpen = false"
         >
           {{ t('common.cancel') }}
@@ -836,7 +997,7 @@ const relatedExcerpt = computed(() => {
         <AppButton
           variant="destructive"
           size="sm"
-          class="h-9 rounded-md shadow-xs"
+          class="h-9 rounded-full"
           @click="confirmDelete"
         >
           <Trash2 class="h-3.5 w-3.5" />
@@ -848,14 +1009,14 @@ const relatedExcerpt = computed(() => {
 
   <Dialog v-model:open="isReportDialogOpen">
     <DialogContent
-      class="overflow-hidden rounded-xl border-border/60 p-0 sm:max-w-md"
+      class="overflow-hidden p-0 sm:max-w-md"
     >
       <DialogHeader
-        class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        class="border-b border-[var(--divider)] px-5 py-3.5"
       >
         <DialogTitle class="flex items-center gap-2 text-base">
           <span
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            class="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400"
           >
             <Flag class="h-4 w-4" />
           </span>
@@ -877,7 +1038,7 @@ const relatedExcerpt = computed(() => {
           <Select v-model="reportReason">
             <SelectTrigger
               id="post-report-reason"
-              class="h-9 w-full shadow-xs"
+              class="h-10 w-full rounded-[14px] border-0 bg-secondary dark:bg-secondary shadow-none"
             >
               <SelectValue
                 :placeholder="t('post.report.reasonPlaceholder')"
@@ -908,7 +1069,7 @@ const relatedExcerpt = computed(() => {
             id="post-report-description"
             v-model="reportDescription"
             :placeholder="t('post.report.descriptionPlaceholder')"
-            class="min-h-24 resize-none shadow-xs"
+            class="min-h-24 resize-none rounded-[14px] border-0 bg-secondary dark:bg-secondary shadow-none"
             maxlength="1000"
           />
           <p class="text-[11px] text-muted-foreground">
@@ -922,12 +1083,12 @@ const relatedExcerpt = computed(() => {
       </div>
 
       <DialogFooter
-        class="border-t border-border/60 bg-background/60 px-5 py-3"
+        class="border-t border-[var(--divider)] px-5 py-3.5"
       >
         <AppButton
-          variant="outline"
+          variant="secondary"
           size="sm"
-          class="h-9 rounded-md shadow-xs"
+          class="h-9 rounded-full"
           :disabled="isSubmittingReport"
           @click="isReportDialogOpen = false"
         >
@@ -936,7 +1097,7 @@ const relatedExcerpt = computed(() => {
         <AppButton
           variant="destructive"
           size="sm"
-          class="h-9 rounded-md shadow-xs"
+          class="h-9 rounded-full"
           :disabled="isSubmittingReport"
           @click="submitReport"
         >

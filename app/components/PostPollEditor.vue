@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useId } from 'vue';
-import { ChartNoAxesColumn, Plus, Trash2 } from 'lucide-vue-next';
+import { Trash2 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { newPostPollDraft, postPollLimits, postPollPayload, type PostPollDraft } from '@/utils/post-poll-draft';
@@ -13,8 +13,8 @@ const editorId = useId();
 
 <template>
   <div class="space-y-3">
-    <Button v-if="!draft" type="button" size="sm" variant="outline" :disabled="disabled" @click="draft = newPostPollDraft()">
-      <ChartNoAxesColumn class="h-4 w-4" />{{ t('post.poll.add') }}
+    <Button v-if="!draft" type="button" size="sm" variant="outline" class="rounded-full text-xs shadow-none" :disabled="disabled" @click="draft = newPostPollDraft()">
+      {{ t('post.poll.add') }}
     </Button>
     <fieldset v-else :disabled="disabled" class="space-y-3 rounded-xl border border-border/80 bg-muted/20 p-3 sm:p-4">
       <legend class="px-1 text-sm font-semibold">{{ t('post.poll.title') }}</legend>
@@ -25,7 +25,7 @@ const editorId = useId();
           :aria-label="t('post.poll.removeOption')" @click="draft.options.splice(index,1)"><Trash2 class="h-4 w-4" /></Button>
       </div>
       <Button v-if="draft.options.length < postPollLimits.max" type="button" variant="outline" size="sm"
-        @click="draft.options.push('')"><Plus class="h-4 w-4" />{{ t('post.poll.addOption') }}</Button>
+        @click="draft.options.push('')">{{ t('post.poll.addOption') }}</Button>
       <div class="flex flex-wrap items-end gap-3 sm:gap-5">
         <label class="flex flex-1 flex-col gap-1 text-xs font-medium">
           {{ t('post.poll.cutoff') }}

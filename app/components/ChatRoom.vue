@@ -27,11 +27,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -52,6 +47,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import UserAvatar from '@/components/UserAvatar.vue';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
 import ChatSearchFilters from './ChatSearchFilters.vue';
@@ -65,7 +61,7 @@ import type { V2DirectMessage } from '@/types/v2';
 import type { ChatMessageFilters } from '@/api/v2/chat';
 import type { CallMode } from '@/api/v2/webrtc';
 import { toast } from 'vue-sonner';
-const { t } = useAppLocale();
+const { t, locale } = useAppLocale();
 
 const props = defineProps<{
   channel: Channel;
@@ -204,13 +200,85 @@ const isFirstInGroup = (index: number) => {
   ).getTime();
   const prevTime = new Date(prevMsg.createdAt).getTime();
   if (currentTime - prevTime > 5 * 60 * 1000) return true;
+  if (dayKey(currentMsg.createdAt) !== dayKey(prevMsg.createdAt)) return true;
 
   return false;
 };
 
+const isLastInGroup = (index: number) => {
+  const currentMsg = props.messages[index];
+  const nextMsg = props.messages[index + 1];
+  if (!currentMsg || !nextMsg) return true;
+  if (currentMsg.type === 'system' || nextMsg.type === 'system') return true;
+  if (currentMsg.author.id !== nextMsg.author.id) return true;
+  const currentTime = new Date(currentMsg.createdAt).getTime();
+  const nextTime = new Date(nextMsg.createdAt).getTime();
+  if (nextTime - currentTime > 5 * 60 * 1000) return true;
+  return dayKey(currentMsg.createdAt) !== dayKey(nextMsg.createdAt);
+};
+
+function dayKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function shouldShowDateSeparator(index: number): boolean {
+  const msg = props.messages[index];
+  if (!msg) return false;
+  if (index === 0) return true;
+  const prev = props.messages[index - 1];
+  return !prev || dayKey(msg.createdAt) !== dayKey(prev.createdAt);
+}
+
+function formatDateSeparator(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((today - target) / 86400000);
+  if (diffDays === 0) return t('chat.dateToday');
+  if (diffDays === 1) return t('chat.dateYesterday');
+  return d.toLocaleDateString(locale.value === 'en' ? 'en-US' : 'zh-CN', {
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+function isDmFirstInGroup(index: number): boolean {
+  const list = props.directMessages ?? [];
+  if (index === 0) return true;
+  const curr = list[index];
+  const prev = list[index - 1];
+  if (!curr || !prev) return true;
+  if (curr.author.user_id !== prev.author.user_id) return true;
+  const diff = new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime();
+  return diff > 5 * 60 * 1000 || dayKey(curr.created_at) !== dayKey(prev.created_at);
+}
+
+function isDmLastInGroup(index: number): boolean {
+  const list = props.directMessages ?? [];
+  const curr = list[index];
+  const next = list[index + 1];
+  if (!curr || !next) return true;
+  if (curr.author.user_id !== next.author.user_id) return true;
+  const diff = new Date(next.created_at).getTime() - new Date(curr.created_at).getTime();
+  return diff > 5 * 60 * 1000 || dayKey(curr.created_at) !== dayKey(next.created_at);
+}
+
+function shouldShowDmDateSeparator(index: number): boolean {
+  const list = props.directMessages ?? [];
+  const msg = list[index];
+  if (!msg) return false;
+  if (index === 0) return true;
+  const prev = list[index - 1];
+  return !prev || dayKey(msg.created_at) !== dayKey(prev.created_at);
+}
+
 // 是否显示头像
 const shouldShowAvatar = (index: number) => {
-  return isFirstInGroup(index);
+  return isLastInGroup(index);
 };
 
 // 是否是自己的消息
@@ -393,7 +461,7 @@ onBeforeUnmount(() => {
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden min-w-0">
       <!-- 频道头部 -->
       <div
-        class="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/60 px-3 backdrop-blur sm:px-4"
+        class="flex h-13 shrink-0 items-center justify-between gap-2 bg-[var(--glass-bg)] px-3 backdrop-blur-md sm:px-4"
       >
         <div class="flex min-w-0 items-center gap-2">
           <Button
@@ -431,7 +499,8 @@ onBeforeUnmount(() => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+                    class="size-8 text-muted-foreground hover:text-foreground"
+                    :aria-label="t('chat.actions.startVoiceCall')"
                   @click="openCallDialog('voice')"
                 >
                   <Phone class="h-4 w-4" />
@@ -448,7 +517,8 @@ onBeforeUnmount(() => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+                    class="size-8 text-muted-foreground hover:text-foreground"
+                    :aria-label="t('chat.actions.startVideoCall')"
                   @click="openCallDialog('video')"
                 >
                   <Video class="h-4 w-4" />
@@ -492,9 +562,9 @@ onBeforeUnmount(() => {
                 <div class="mt-4 space-y-2 px-2">
                   <div
                     v-if="!pinnedMessages?.length"
-                    class="mx-auto flex max-w-xs flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center"
+                    class="mx-auto flex max-w-xs flex-col items-center justify-center rounded-[18px] bg-secondary/50 px-4 py-8 text-center"
                   >
-                    <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60">
+                    <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-card">
                       <Pin class="h-4 w-4 text-muted-foreground" />
                     </div>
                     <p class="text-xs text-muted-foreground">
@@ -504,7 +574,7 @@ onBeforeUnmount(() => {
                   <div
                     v-for="msg in pinnedMessages"
                     :key="msg.id"
-                    class="rounded-lg border border-border/60 bg-card p-3 transition-colors hover:border-border hover:bg-muted/20"
+                    class="rounded-[18px] bg-secondary/50 p-3 transition-colors hover:bg-secondary"
                   >
                     <div class="mb-1 flex items-center gap-2">
                       <span class="truncate text-sm font-medium">
@@ -530,7 +600,8 @@ onBeforeUnmount(() => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+                        class="size-8 text-muted-foreground hover:text-foreground"
+                        :aria-label="t('chat.actions.notificationSettings')"
                     >
                       <component
                         :is="channel.isMuted ? BellOff : Bell"
@@ -597,7 +668,9 @@ onBeforeUnmount(() => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground lg:hidden"
+                    class="size-8 text-muted-foreground hover:text-foreground lg:hidden"
+                    :aria-label="t('chat.actions.showMembers')"
+                    :aria-expanded="mobileMemberListOpen"
                   @click="mobileMemberListOpen = true"
                 >
                   <PanelRightOpen class="h-4 w-4" />
@@ -612,7 +685,9 @@ onBeforeUnmount(() => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="hidden h-8 w-8 rounded-md text-muted-foreground hover:text-foreground lg:inline-flex"
+                    class="hidden size-8 text-muted-foreground hover:text-foreground lg:inline-flex"
+                    :aria-label="t(showMemberList ? 'chat.actions.hideMembers' : 'chat.actions.showMembers')"
+                    :aria-expanded="showMemberList"
                   :class="{ 'bg-accent text-accent-foreground': showMemberList }"
                   @click="showMemberList = !showMemberList"
                 >
@@ -664,26 +739,38 @@ onBeforeUnmount(() => {
 
             <!-- 消息列表 -->
             <div class="py-3">
-              <ChatMessage
+              <template
                 v-for="(message, index) in messages"
                 :key="message.id"
-                :message="message"
-                :is-own="isOwnMessage(message)"
-                :allow-edit="!channelSearchActive"
-                :hide-reply="channelSearchActive"
-                :show-avatar="shouldShowAvatar(index)"
-                :is-first-in-group="isFirstInGroup(index)"
-                @reply="handleReply"
-                @edit="emit('edit', $event)"
-                @delete="emit('delete', $event)"
-                @pin="emit('pin', $event)"
-                @react="
-                  (id: number, emoji: string) =>
-                    emit('react', id, emoji)
-                "
-                @copy="handleCopy"
-                @view-profile="emit('view-profile', $event)"
-              />
+              >
+                <div
+                  v-if="shouldShowDateSeparator(index)"
+                  class="my-3 flex justify-center"
+                >
+                  <span class="rounded-full bg-[var(--hover)] px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+                    {{ formatDateSeparator(message.createdAt) }}
+                  </span>
+                </div>
+                <ChatMessage
+                  :message="message"
+                  :is-own="isOwnMessage(message)"
+                  :allow-edit="!channelSearchActive"
+                  :hide-reply="channelSearchActive"
+                  :show-avatar="shouldShowAvatar(index)"
+                  :is-first-in-group="isFirstInGroup(index)"
+                  :is-last-in-group="isLastInGroup(index)"
+                  @reply="handleReply"
+                  @edit="emit('edit', $event)"
+                  @delete="emit('delete', $event)"
+                  @pin="emit('pin', $event)"
+                  @react="
+                    (id: number, emoji: string) =>
+                      emit('react', id, emoji)
+                  "
+                  @copy="handleCopy"
+                  @view-profile="emit('view-profile', $event)"
+                />
+              </template>
             </div>
 
             <!-- 空状态 -->
@@ -725,9 +812,20 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 输入区域 -->
-      <p v-if="!channelSearchActive && channelTypingCount" class="px-4 py-1 text-xs text-muted-foreground" role="status">
-        {{ channelTypingCount === 1 ? t('chat.channelTyping.one') : t('chat.channelTyping.many', {count:channelTypingCount}) }}
-      </p>
+      <div
+        v-if="!channelSearchActive && channelTypingCount"
+        class="flex items-center gap-2 px-4 py-1 text-xs text-muted-foreground"
+        role="status"
+      >
+        <span class="inline-flex items-center gap-0.5" aria-hidden="true">
+          <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 0ms" />
+          <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 150ms" />
+          <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 300ms" />
+        </span>
+        <span>
+          {{ channelTypingCount === 1 ? t('chat.channelTyping.one') : t('chat.channelTyping.many', {count:channelTypingCount}) }}
+        </span>
+      </div>
       <ChatInput
         v-show="!channelSearchActive"
         :key="composerRevision"
@@ -756,7 +854,7 @@ onBeforeUnmount(() => {
 
     <Sheet v-model:open="mobileMemberListOpen">
       <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-80">
-        <SheetHeader class="border-b border-border/60 px-4 py-3">
+        <SheetHeader class="px-4 py-3">
           <SheetTitle class="text-sm font-semibold tracking-tight">
             {{ t('chat.actions.showMembers') }}
           </SheetTitle>
@@ -809,7 +907,7 @@ onBeforeUnmount(() => {
 
     <Sheet v-model:open="directMessageOpen">
       <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-96">
-        <div class="border-b border-border/60 bg-background/60 px-5 py-4 backdrop-blur">
+        <div class="border-b border-[var(--divider)] px-5 py-4">
           <div class="flex items-start gap-3 pr-16">
             <button
               type="button"
@@ -820,16 +918,14 @@ onBeforeUnmount(() => {
                 emit('view-profile', directMessageTarget.id)
               "
             >
-              <Avatar class="h-11 w-11 ring-1 ring-border">
-                <AvatarImage
-                  v-if="directMessageTarget"
-                  :src="directMessageTarget.avatar"
-                  :alt="directMessageTarget?.nickname"
-                />
-                <AvatarFallback v-if="directMessageTarget" class="text-sm font-medium">
-                  {{ directMessageTarget.nickname.slice(0, 2) }}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                v-if="directMessageTarget"
+                :src="directMessageTarget.avatar"
+                :name="directMessageTarget.nickname"
+                :username="directMessageTarget.username"
+                :seed="directMessageTarget.id"
+                size="md"
+              />
             </button>
             <div class="min-w-0 flex-1">
               <div
@@ -878,8 +974,8 @@ onBeforeUnmount(() => {
           { id: directMessageTarget.id, label: directMessageTarget.nickname },
         ]" @search="emit('direct-search', $event)" />
 
-        <div v-if="directMessageTarget" class="flex min-h-0 flex-1 flex-col gap-3 p-4">
-          <ScrollArea class="flex-1 rounded-xl border border-border/60 bg-muted/20 p-3">
+        <div v-if="directMessageTarget" class="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+          <ScrollArea class="flex-1 rounded-[20px] bg-secondary/35 p-3">
             <div class="flex min-h-full flex-col justify-end gap-3">
               <Button v-if="hasOlderDirectMessages && !isLoadingDirectMessages" variant="outline" size="sm" :disabled="loadingOlderDirectMessages" @click="emit('load-older-direct-messages')">
                 {{ t('chat.directMessage.loadOlder') }}
@@ -901,12 +997,20 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div v-else ref="directList" class="flex flex-col gap-2.5">
+              <div v-else ref="directList" class="flex flex-col">
                 <div
-                  v-for="message in directMessages"
+                  v-for="(message, index) in directMessages"
                   :key="message.message_id"
                   :data-incoming-direct-message-id="message.author.user_id !== currentUserId ? message.message_id : undefined"
                 >
+                  <div
+                    v-if="shouldShowDmDateSeparator(index)"
+                    class="my-2.5 flex justify-center"
+                  >
+                    <span class="rounded-full bg-background/80 px-3 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                      {{ formatDateSeparator(message.created_at) }}
+                    </span>
+                  </div>
                   <ChatMessage
                     :message="mapV2DirectMessage(message)"
                     :is-own="message.author.user_id === currentUserId"
@@ -914,7 +1018,8 @@ onBeforeUnmount(() => {
                     :hide-reply="directSearchActive"
                     :allow-delete="message.can_delete && !message.is_deleted && message.author.user_id === currentUserId"
                     show-avatar
-                    is-first-in-group
+                    :is-first-in-group="isDmFirstInGroup(index)"
+                    :is-last-in-group="isDmLastInGroup(index)"
                     @reply="directReplyId = $event.id"
                     @react="(id, emoji) => emit('react-direct-message', id, emoji)"
                     @delete="emit('delete-direct-message', message)"
@@ -928,9 +1033,20 @@ onBeforeUnmount(() => {
             </div>
           </ScrollArea>
 
-          <p v-if="!directSearchActive && directTyping" class="px-1 text-xs text-muted-foreground" role="status">
-            {{ t('chat.directMessage.typing', { user: directMessageTarget.nickname }) }}
-          </p>
+          <div
+            v-if="!directSearchActive && directTyping"
+            class="flex items-center gap-2 px-1 text-xs text-muted-foreground"
+            role="status"
+          >
+            <span class="inline-flex items-center gap-0.5" aria-hidden="true">
+              <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 0ms" />
+              <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 150ms" />
+              <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 300ms" />
+            </span>
+            <span>
+              {{ t('chat.directMessage.typing', { user: directMessageTarget.nickname }) }}
+            </span>
+          </div>
           <ChatInput
             v-show="!directSearchActive"
             :key="directDraftRevision"

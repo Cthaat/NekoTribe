@@ -361,14 +361,14 @@ watch(
 </script>
 
 <template>
-  <div class="shrink-0 border-t border-border/60 bg-background/60 p-3 backdrop-blur sm:p-4">
+  <div class="shrink-0 bg-transparent p-3 sm:p-4">
     <p v-if="attachmentError" role="alert" class="mb-2 text-xs text-destructive">
       {{ t(attachmentError) }}
     </p>
     <!-- 回复预览 -->
     <div
       v-if="replyTo"
-      class="mb-2 flex items-center gap-2 rounded-md border-l-2 border-primary/40 bg-muted/40 px-2.5 py-1.5 text-xs"
+      class="bento-tile mb-2 flex items-center gap-2 px-3.5 py-2 text-xs"
     >
       <Reply class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <div class="min-w-0 flex-1 truncate">
@@ -453,7 +453,7 @@ watch(
 
     <!-- 输入卡片 -->
     <div
-      class="rounded-xl border border-border/60 bg-card shadow-xs transition-colors focus-within:border-ring/60 focus-within:ring-2 focus-within:ring-ring/20"
+      class="liquid-glass-island flex flex-col rounded-[26px] px-3 py-2 transition-all focus-within:ring-2 focus-within:ring-ring/30"
       :class="{ 'opacity-60': disabled }"
     >
       <!-- 文本区 -->
@@ -462,14 +462,14 @@ watch(
         v-model="message"
         :placeholder="inputPlaceholder"
         :disabled="disabled"
-        class="max-h-32 min-h-[2.5rem] resize-none border-0 bg-transparent px-3 py-2.5 text-sm leading-5 shadow-none focus-visible:ring-0"
+        class="max-h-32 min-h-[2.4rem] resize-none border-0 bg-transparent px-3 py-2 text-sm leading-5 shadow-none focus-visible:ring-0"
         rows="1"
         @keydown="handleKeydown"
         @input="handleInput"
       />
 
       <!-- 工具栏 -->
-      <div class="flex items-center gap-1 px-1.5 py-1.5">
+      <div class="flex items-center gap-1 px-1 pb-1">
         <input
           ref="attachmentInputRef"
           type="file"
@@ -495,9 +495,10 @@ watch(
               <Button
                 variant="ghost"
                 size="icon"
-                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                class="size-8 text-muted-foreground hover:text-foreground"
                 type="button"
                 :disabled="disabled"
+                :aria-label="t('chat.actions.uploadAttachment')"
                 @click="openAttachmentPicker"
               >
                 <Paperclip class="h-4 w-4" />
@@ -514,9 +515,10 @@ watch(
               <Button
                 variant="ghost"
                 size="icon"
-                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                class="size-8 text-muted-foreground hover:text-foreground"
                 type="button"
                 :disabled="disabled"
+                :aria-label="t('chat.actions.uploadImage')"
                 @click="openImagePicker"
               >
                 <ImageIcon class="h-4 w-4" />
@@ -731,16 +733,12 @@ watch(
         <!-- 发送按钮 -->
         <div class="ml-auto flex items-center">
           <AppSendButton
+            icon-only
             :aria-label="t('chat.actions.sendMessage')"
             :disabled="!canSend || disabled"
-            size="sm"
-            class="h-8 rounded-md px-3"
+            class="size-9"
             @click="handleSend"
-          >
-            <span class="hidden sm:inline">
-              {{ t('chat.actions.sendMessage') }}
-            </span>
-          </AppSendButton>
+          />
         </div>
       </div>
     </div>

@@ -6,11 +6,8 @@ import {
   Repeat,
   MoreHorizontal,
   Flag,
-  CheckCircle,
-  XCircle,
-  Eye,
-  Clock,
-  AlertTriangle,
+  Check,
+  X,
   Play,
   Sparkles
 } from 'lucide-vue-next';
@@ -27,6 +24,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
 import type {
   ModerationReportReasonVM,
   ModerationTweetVM
@@ -66,43 +69,43 @@ const statusBadge = computed(() => {
       return {
         label: t('moderation.status.pending'),
         class:
-          'border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300'
+          'bg-amber-500/10 text-amber-700 dark:text-amber-300'
       };
     case 'approved':
       return {
         label: t('moderation.status.approved'),
         class:
-          'border-emerald-200/60 bg-emerald-100/60 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300'
+          'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
       };
     case 'rejected':
       return {
         label: t('moderation.status.rejected'),
         class:
-          'border-border/60 bg-muted/40 text-muted-foreground'
+          'bg-secondary text-muted-foreground'
       };
     case 'flagged':
       return {
         label: t('moderation.status.flagged'),
         class:
-          'border-orange-200/60 bg-orange-100/60 text-orange-700 dark:border-orange-900/40 dark:bg-orange-950/40 dark:text-orange-300'
+          'bg-orange-500/10 text-orange-700 dark:text-orange-300'
       };
     case 'removed':
       return {
         label: t('moderation.status.removed'),
         class:
-          'border-rose-200/60 bg-rose-100/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300'
+          'bg-rose-500/10 text-rose-700 dark:text-rose-300'
       };
     case 'restored':
       return {
         label: t('moderation.status.restored'),
         class:
-          'border-sky-200/60 bg-sky-100/60 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300'
+          'bg-sky-500/10 text-sky-700 dark:text-sky-300'
       };
     default:
       return {
         label: t('moderation.status.unknown'),
         class:
-          'border-border/60 bg-muted/40 text-muted-foreground'
+          'bg-secondary text-muted-foreground'
       };
   }
 });
@@ -110,12 +113,12 @@ const statusBadge = computed(() => {
 const priorityBadge = computed(() => {
   const priority = props.tweet.priority?.toLowerCase();
   if (priority === 'urgent' || priority === 'high') {
-    return 'border-rose-200/60 bg-rose-100/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300';
+    return 'bg-rose-500/10 text-rose-700 dark:text-rose-300';
   }
   if (priority === 'medium') {
-    return 'border-amber-200/60 bg-amber-100/60 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300';
+    return 'bg-amber-500/10 text-amber-700 dark:text-amber-300';
   }
-  return 'border-border/60 bg-muted/40 text-muted-foreground';
+  return 'bg-secondary text-muted-foreground';
 });
 
 const formatTime = (dateStr: string): string => {
@@ -144,17 +147,23 @@ const handleReject = () => emit('reject', props.tweet.id);
 const handleFlag = () => emit('flag', props.tweet.id);
 const handleViewDetail = () =>
   emit('view-detail', props.tweet);
+
+const reviewActions = [
+  { label: 'moderation.actions.flag', icon: Flag, run: handleFlag },
+  { label: 'moderation.actions.reject', icon: X, run: handleReject },
+  { label: 'moderation.actions.approve', icon: Check, run: handleApprove }
+];
 </script>
 
 <template>
   <div
-    class="overflow-hidden rounded-xl border border-border/60 bg-card shadow-none transition-shadow hover:shadow-md"
+    class="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none"
   >
     <div
-      class="flex flex-col items-start justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-3 sm:flex-row sm:items-center"
+      class="flex flex-col items-start justify-between gap-3 px-4 pt-4 pb-2 sm:flex-row sm:items-center"
     >
       <div class="flex min-w-0 items-center gap-3">
-        <Avatar class="h-10 w-10 shrink-0 ring-1 ring-border">
+        <Avatar class="h-10 w-10 shrink-0">
           <AvatarImage
             :src="tweet.author.avatar"
             :alt="tweet.author.nickname"
@@ -184,7 +193,7 @@ const handleViewDetail = () =>
       >
         <span
           :class="[
-            'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize',
+            'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize',
             priorityBadge
           ]"
         >
@@ -192,7 +201,7 @@ const handleViewDetail = () =>
         </span>
         <span
           :class="[
-            'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium',
+            'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium',
             statusBadge.class
           ]"
         >
@@ -203,30 +212,24 @@ const handleViewDetail = () =>
             <Button
               variant="ghost"
               size="icon"
-              class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+              class="size-8 text-muted-foreground hover:text-foreground"
+              :aria-label="t('common.more')"
             >
               <MoreHorizontal class="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-48">
             <DropdownMenuItem @click="handleViewDetail">
-              <Eye class="h-4 w-4" />
               {{ t('moderation.actions.viewDetail') }}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem @click="handleApprove">
-              <CheckCircle class="h-4 w-4" />
               {{ t('moderation.actions.approveFull') }}
             </DropdownMenuItem>
             <DropdownMenuItem @click="handleReject">
-              <XCircle class="h-4 w-4" />
               {{ t('moderation.actions.rejectPost') }}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              class="text-amber-600 focus:text-amber-600 dark:text-amber-400 dark:focus:text-amber-400"
-              @click="handleFlag"
-            >
-              <Flag class="h-4 w-4" />
+            <DropdownMenuItem @click="handleFlag">
               {{ t('moderation.actions.flag') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -234,8 +237,8 @@ const handleViewDetail = () =>
       </div>
     </div>
 
-    <div class="p-4">
-      <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+    <div class="px-4 py-2">
+      <div class="grid items-start gap-2.5">
         <div class="min-w-0 space-y-3">
           <p
             class="whitespace-pre-wrap text-sm leading-6 text-foreground"
@@ -250,7 +253,7 @@ const handleViewDetail = () =>
             <div
               v-for="(media, index) in tweet.media.slice(0, 3)"
               :key="index"
-              class="relative h-24 w-32 shrink-0 overflow-hidden rounded-md border border-border/60 bg-background"
+              class="relative h-24 w-32 shrink-0 overflow-hidden rounded-xl bg-secondary"
             >
               <img
                 :src="media.thumbnail || media.url"
@@ -279,66 +282,46 @@ const handleViewDetail = () =>
               </div>
             </div>
           </div>
+
+          <p v-if="tweet.sentimentSignal" class="text-xs text-muted-foreground">
+            {{ t('moderation.card.sentimentSignal', {
+              label: t(`moderation.card.sentimentLabels.${tweet.sentimentSignal.label}`),
+              confidence: Math.round(tweet.sentimentSignal.confidence * 100),
+            }) }}
+          </p>
         </div>
 
-        <p v-if="tweet.sentimentSignal" class="text-xs text-muted-foreground">
-          {{ t('moderation.card.sentimentSignal', {
-            label: t(`moderation.card.sentimentLabels.${tweet.sentimentSignal.label}`),
-            confidence: Math.round(tweet.sentimentSignal.confidence * 100),
-          }) }}
-        </p>
-        <div
-          class="rounded-lg border border-rose-200/60 bg-rose-50/60 p-3 dark:border-rose-900/40 dark:bg-rose-950/30"
-        >
-          <div class="flex items-center gap-2">
-            <AlertTriangle
-              class="h-4 w-4 text-rose-600 dark:text-rose-400"
-            />
-            <span
-              class="text-sm font-medium text-rose-700 dark:text-rose-300"
-            >
-              {{
-                t('moderation.card.reportCount', {
-                  count: tweet.reportCount
-                })
-              }}
-            </span>
-          </div>
-          <div class="mt-2 flex flex-wrap gap-1">
+        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-xl bg-secondary/70 px-3 py-2">
+          <span class="rounded-full bg-rose-500/12 px-2 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-300">
+            {{ t('moderation.card.reportCount', { count: tweet.reportCount }) }}
+          </span>
+          <div v-if="tweet.reportReasons.length" class="flex flex-wrap gap-1.5">
             <span
               v-for="reason in tweet.reportReasons"
               :key="reason"
-              class="inline-flex items-center rounded-full border border-rose-200/60 bg-white/60 px-1.5 py-0 text-[10px] font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300"
+              class="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-foreground"
             >
               {{ getReasonLabel(reason) }}
             </span>
           </div>
-          <div
-            class="mt-3 space-y-1.5 border-t border-rose-200/40 pt-2.5 text-[11px] text-rose-700/80 dark:border-rose-900/30 dark:text-rose-300/80"
-          >
-            <div class="flex items-center gap-1.5">
-              <Clock class="h-3 w-3" />
-              <span>{{
+          <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground sm:ml-auto">
+            <span>{{
                 t('moderation.card.publishedAt', {
                   time: formatTime(tweet.createdAt)
                 })
-              }}</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <Flag class="h-3 w-3" />
-              <span>{{
+            }}</span>
+            <span>{{
                 t('moderation.card.reportedAt', {
                   time: formatTime(tweet.reportedAt)
                 })
-              }}</span>
-            </div>
+            }}</span>
           </div>
         </div>
       </div>
     </div>
 
     <div
-      class="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/10 px-4 py-2.5"
+      class="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-1"
     >
       <div
         class="flex items-center gap-4 text-xs text-muted-foreground"
@@ -357,33 +340,26 @@ const handleViewDetail = () =>
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-1.5">
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-8 rounded-md text-amber-600 shadow-xs hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
-          @click="handleFlag"
-        >
-          <Flag class="h-3.5 w-3.5" />
-          {{ t('moderation.actions.flag') }}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-8 rounded-md shadow-xs"
-          @click="handleReject"
-        >
-          <XCircle class="h-3.5 w-3.5" />
-          {{ t('moderation.actions.reject') }}
-        </Button>
-        <Button
-          size="sm"
-          class="h-8 rounded-md shadow-xs"
-          @click="handleApprove"
-        >
-          <CheckCircle class="h-3.5 w-3.5" />
-          {{ t('moderation.actions.approve') }}
-        </Button>
+      <div class="ml-auto flex items-center gap-0.5 rounded-full bg-secondary/70 p-0.5">
+        <TooltipProvider :delay-duration="250">
+          <Tooltip v-for="action in reviewActions" :key="action.label">
+            <TooltipTrigger as-child>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
+                :aria-label="t(action.label)"
+                @click="action.run"
+              >
+                <component :is="action.icon" class="size-4" :stroke-width="1.75" aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent class="rounded-lg bg-popover text-popover-foreground shadow-sm [&_svg]:hidden">
+              {{ t(action.label) }}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </div>
   </div>

@@ -8,12 +8,8 @@ import {
 } from 'vue';
 import { useRoute } from 'vue-router';
 import { useNuxtApp } from '#app';
-import { CheckCircle2, Search, UserRound } from 'lucide-vue-next';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
+import { CheckCircle2, Clock, Search, UserRound, X } from 'lucide-vue-next';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +43,7 @@ const searchError = ref('');
 const isSyncingRouteSearch = ref(false);
 const showingRecommendations = ref(false);
 const resultList = ref<HTMLElement | null>(null);
+const anchorContainerRef = ref<HTMLElement | null>(null);
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let searchRequestId = 0;
@@ -62,15 +59,66 @@ const numberFormatter = computed(
     )
 );
 
+const RECENT_SEARCHES_KEY = 'nekotribe.recentSearches';
+const recentSearches = ref<string[]>([]);
+
+function loadRecentSearches(): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (!raw) {
+      recentSearches.value = [];
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    recentSearches.value = Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string').slice(0, 6)
+      : [];
+  } catch {
+    recentSearches.value = [];
+  }
+}
+
+function saveRecentSearch(query: string): void {
+  const q = query.trim();
+  if (!q) return;
+  const next = [q, ...recentSearches.value.filter(item => item !== q)].slice(0, 6);
+  recentSearches.value = next;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+    }
+  } catch {}
+}
+
+function removeRecentSearch(query: string): void {
+  const next = recentSearches.value.filter(item => item !== query);
+  recentSearches.value = next;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+    }
+  } catch {}
+}
+
+function clearRecentSearches(): void {
+  recentSearches.value = [];
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(RECENT_SEARCHES_KEY);
+    }
+  } catch {}
+}
+
+function selectRecentSearch(query: string): void {
+  searchQuery.value = query;
+  submitPostSearch();
+}
+
 function clearSearchTimer(): void {
   if (!searchTimer) return;
   clearTimeout(searchTimer);
   searchTimer = null;
-}
-
-function avatarFallback(user: PublicUserVM): string {
-  const source = user.name || user.username || '?';
-  return source.slice(0, 2).toUpperCase();
 }
 
 function formatCount(value: number): string {
@@ -115,6 +163,7 @@ function resetUserResults(): void {
 
 function showRecommendations(): void {
   if (!signedIn.value || queue.isIdentityChanging || trimmedQuery.value) return;
+  loadRecentSearches();
   if (isPopoverOpen.value && showingRecommendations.value) {
     closeSearch();
     return;
@@ -134,6 +183,7 @@ function closeSearch(): void {
 function submitPostSearch(): void {
   const query = trimmedQuery.value;
   if (!query) return;
+  saveRecentSearch(query);
   closeSearch();
   void navigateTo(
     localePath(`/tweet/search/${encodeURIComponent(query)}`)
@@ -155,7 +205,19 @@ function focusFirstUser(event: KeyboardEvent): void {
 }
 
 function handleFocus(): void {
-  if (!trimmedQuery.value || isPopoverOpen.value) return;
+  loadRecentSearches();
+  if (!trimmedQuery.value) {
+    if (recentSearches.value.length > 0 && !isPopoverOpen.value) {
+      showingRecommendations.value = true;
+      isPopoverOpen.value = true;
+      if (signedIn.value && !queue.isIdentityChanging && !isSearchingUsers.value && users.value.length === 0) {
+        isSearchingUsers.value = true;
+        void runUserSearch(null, ++searchRequestId, queue.revision);
+      }
+    }
+    return;
+  }
+  if (isPopoverOpen.value) return;
   isPopoverOpen.value = true;
   if (canSearchUsers.value && signedIn.value && !isSearchingUsers.value && users.value.length === 0) {
     searchError.value = '';
@@ -166,6 +228,20 @@ function handleFocus(): void {
 
 function handlePopoverOpenChange(open: boolean): void {
   if (!open) closeSearch();
+}
+
+function handlePopoverInteractOutside(event: {
+  target: EventTarget | null;
+  preventDefault: () => void;
+}): void {
+  const target = event.target;
+  if (
+    typeof Node !== 'undefined' &&
+    target instanceof Node &&
+    anchorContainerRef.value?.contains(target)
+  ) {
+    event.preventDefault();
+  }
 }
 
 function routeSearchQuery(): string {
@@ -240,7 +316,7 @@ onBeforeUnmount(() => {
     @update:open="handlePopoverOpenChange"
   >
     <PopoverAnchor as-child>
-      <div class="relative w-full min-w-0">
+      <div ref="anchorContainerRef" class="@container relative w-full min-w-0">
         <Search
           class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
         />
@@ -249,8 +325,12 @@ onBeforeUnmount(() => {
           type="search"
           :placeholder="t('globalSearch.placeholder')"
           autocomplete="off"
-          class="h-9 rounded-md pl-9 pr-11 shadow-xs focus-visible:ring-2 focus-visible:ring-ring/40 sm:pr-24"
+          :class="[
+            'h-10 rounded-full border-transparent bg-[var(--hover)] pl-9 shadow-none transition-colors focus-visible:border-primary/40 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-ring/30',
+            trimmedQuery ? 'pr-16' : 'pr-10 @xs:pr-24'
+          ]"
           @focus="handleFocus"
+          @click="handleFocus"
           @keydown.enter.prevent="submitPostSearch"
           @keydown.down="focusFirstUser"
           @keydown.esc="closeSearch"
@@ -260,7 +340,7 @@ onBeforeUnmount(() => {
           type="button"
           variant="secondary"
           size="sm"
-          class="absolute right-1 top-1/2 hidden h-7 -translate-y-1/2 rounded-md px-2.5 text-xs sm:inline-flex"
+          class="absolute right-1 top-1/2 hidden h-7 -translate-y-1/2 rounded-full px-2.5 text-xs @xs:inline-flex"
           @click="submitPostSearch"
         >
           {{ t('globalSearch.postsAction') }}
@@ -278,18 +358,58 @@ onBeforeUnmount(() => {
           @keydown.down="focusFirstUser"
         >
           <UserRound class="h-4 w-4" aria-hidden="true" />
-          <span class="hidden text-xs sm:inline">{{ t('globalSearch.recommended') }}</span>
+          <span class="hidden text-xs @xs:inline">{{ t('globalSearch.recommended') }}</span>
         </Button>
       </div>
     </PopoverAnchor>
 
     <PopoverContent
       align="start"
-      class="w-[min(32rem,calc(100vw-2rem))] overflow-hidden p-0 shadow-lg"
+      class="w-[min(32rem,calc(100vw-2rem))] overflow-hidden rounded-[20px] border-0 p-0"
       :side-offset="6"
       @open-auto-focus.prevent
+      @pointer-down-outside="handlePopoverInteractOutside"
+      @focus-outside="handlePopoverInteractOutside"
     >
-      <div class="flex items-center justify-between gap-3 border-b px-3 py-2.5">
+      <div
+        v-if="showingRecommendations && recentSearches.length > 0"
+        class="bg-secondary/40 px-3.5 py-2.5"
+      >
+        <div class="mb-2 flex items-center justify-between">
+          <div class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Clock class="h-3.5 w-3.5" />
+            <span>{{ t('globalSearch.recentSearches') }}</span>
+          </div>
+          <button
+            type="button"
+            class="text-xs font-medium text-primary hover:underline"
+            @click="clearRecentSearches"
+          >
+            {{ t('globalSearch.clearRecent') }}
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <div
+            v-for="item in recentSearches"
+            :key="item"
+            class="inline-flex items-center gap-1 rounded-full bg-[var(--hover)] py-1 pl-2.5 pr-1.5 text-xs font-medium text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            <button type="button" class="truncate max-w-44" @click="selectRecentSearch(item)">
+              {{ item }}
+            </button>
+            <button
+              type="button"
+              class="rounded-full p-0.5 text-muted-foreground hover:bg-background/60 hover:text-foreground"
+              :aria-label="t('common.delete')"
+              @click.stop="removeRecentSearch(item)"
+            >
+              <X class="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 px-3.5 pt-2.5 pb-1.5">
         <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <UserRound class="h-3.5 w-3.5" />
           <span>{{ t(showingRecommendations ? 'globalSearch.recommended' : 'globalSearch.usersTitle') }}</span>
@@ -356,26 +476,24 @@ onBeforeUnmount(() => {
             v-for="user in users"
             :key="user.id"
             type="button"
-            class="flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+            class="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[var(--hover)]"
             @click="openUserProfile(user)"
           >
-            <Avatar class="h-9 w-9 shrink-0 ring-1 ring-border">
-              <AvatarImage
-                :src="user.avatarUrl"
-                :alt="user.name"
-              />
-              <AvatarFallback class="text-xs">
-                {{ avatarFallback(user) }}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              :src="user.avatarUrl"
+              :name="user.name"
+              :username="user.username"
+              :seed="user.id"
+              size="sm"
+            />
             <div class="min-w-0 flex-1">
               <div class="flex min-w-0 items-center gap-1.5">
-                <span class="truncate text-sm font-medium">
+                <span class="truncate text-sm font-semibold">
                   {{ user.name }}
                 </span>
                 <CheckCircle2
                   v-if="user.verified"
-                  class="h-3.5 w-3.5 shrink-0 text-sky-500"
+                  class="h-3.5 w-3.5 shrink-0 text-primary"
                 />
               </div>
               <div class="truncate text-xs text-muted-foreground">

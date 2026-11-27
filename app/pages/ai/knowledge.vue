@@ -3,6 +3,13 @@ import { v2ListMyGroups } from '@/api/v2/groups';
 import type { KnowledgeScope } from '@/api/v2/ai-knowledge';
 import type { V2Group } from '@/types/v2';
 import { authQueueFor } from '@/services/auth-request-queue';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 definePageMeta({ layout: 'default' });
 const { t } = useAppLocale();
@@ -64,27 +71,48 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="space-y-3">
-    <div class="flex flex-wrap gap-3 px-3 pt-3">
-      <label class="grid gap-1 text-sm">
-        {{ t('aiKnowledge.scope.label') }}
-        <select :value="scope" class="rounded-md border bg-background px-3 py-2"
-          @change="changeScope(($event.target as HTMLSelectElement).value as KnowledgeScope)">
-          <option value="public">{{ t('aiKnowledge.scope.public') }}</option>
-          <option value="group">{{ t('aiKnowledge.scope.group') }}</option>
-          <option value="personal">{{ t('aiKnowledge.scope.personal') }}</option>
-        </select>
-      </label>
-      <label v-if="scope === 'group'" class="grid gap-1 text-sm">
-        {{ t('aiKnowledge.scope.chooseGroup') }}
-        <select :value="groupId ?? ''" class="rounded-md border bg-background px-3 py-2"
-          @change="changeScope('group', Number(($event.target as HTMLSelectElement).value) || undefined)">
-          <option value="">{{ t('aiKnowledge.scope.chooseGroup') }}</option>
-          <option v-for="group in groups" :key="group.group_id" :value="group.group_id">{{ group.name }}</option>
-        </select>
-      </label>
+    <div class="mx-auto flex max-w-[760px] flex-wrap items-center justify-between gap-3 px-3 pt-4 sm:px-6">
+      <div
+        role="tablist"
+        :aria-label="t('aiKnowledge.scope.label')"
+        class="inline-flex items-center gap-1 rounded-full bg-secondary p-1"
+      >
+        <button
+          v-for="item in (['public', 'group', 'personal'] as const)"
+          :key="item"
+          type="button"
+          role="tab"
+          :aria-selected="scope === item"
+          class="rounded-full px-3.5 py-1.5 text-[13px] transition-all duration-200"
+          :class="scope === item ? 'bg-card font-semibold text-foreground shadow-xs dark:shadow-none' : 'font-medium text-muted-foreground hover:text-foreground'"
+          @click="changeScope(item)"
+        >
+          {{ t(`aiKnowledge.scope.${item}`) }}
+        </button>
+      </div>
+      <div v-if="scope === 'group'" class="min-w-[180px]">
+        <Select
+          :model-value="groupId ? String(groupId) : undefined"
+          @update:model-value="v => changeScope('group', Number(v) || undefined)"
+        >
+          <SelectTrigger class="h-9 w-full rounded-full border-0 bg-secondary px-3.5 text-sm shadow-none">
+            <SelectValue :placeholder="t('aiKnowledge.scope.chooseGroup')" />
+          </SelectTrigger>
+          <SelectContent class="rounded-2xl">
+            <SelectItem
+              v-for="group in groups"
+              :key="group.group_id"
+              :value="String(group.group_id)"
+              class="rounded-xl"
+            >
+              {{ group.name }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
     <AiConversation v-if="groupReady" :key="`${scope}:${groupId ?? ''}`" purpose="knowledge"
       :knowledge-scope="scope" :knowledge-group-id="groupId" />
-    <p v-else class="px-3 text-sm text-muted-foreground">{{ t('aiKnowledge.scope.groupRequired') }}</p>
+    <p v-else class="mx-auto max-w-[760px] px-4 text-sm text-muted-foreground sm:px-6">{{ t('aiKnowledge.scope.groupRequired') }}</p>
   </div>
 </template>

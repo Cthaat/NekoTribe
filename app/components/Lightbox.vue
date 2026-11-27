@@ -107,7 +107,7 @@ function onKeydown(e: KeyboardEvent) {
             type="button"
             class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
             @click="emit('update:open', false)"
-            aria-label="Close"
+            :aria-label="t('common.close')"
           >
             <X class="h-4 w-4" />
           </button>
@@ -154,7 +154,7 @@ function onKeydown(e: KeyboardEvent) {
               type="button"
               class="absolute left-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 md:left-6"
               @click="prev"
-              aria-label="Previous"
+              :aria-label="t('common.previousMedia')"
             >
               <ChevronLeft class="h-5 w-5" />
             </button>
@@ -162,7 +162,7 @@ function onKeydown(e: KeyboardEvent) {
               type="button"
               class="absolute right-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 md:right-6"
               @click="next"
-              aria-label="Next"
+              :aria-label="t('common.nextMedia')"
             >
               <ChevronRight class="h-5 w-5" />
             </button>
@@ -187,7 +187,8 @@ function onKeydown(e: KeyboardEvent) {
                     : 'w-2'
                 "
                 @click="currentIndex = idx"
-                :aria-label="`Go to slide ${idx + 1}`"
+                :aria-label="t('common.viewMedia', { index: idx + 1 })"
+                :aria-pressed="currentIndex === idx"
               />
               <span
                 v-if="items.length > 8"

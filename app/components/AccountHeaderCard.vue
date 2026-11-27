@@ -39,10 +39,12 @@ import {
 } from '@/components/ui/tabs';
 import {
   AlertTriangle,
+  BadgeCheck,
   Copy,
   ExternalLink,
   Heart,
   Inbox,
+  Link2,
   Loader2,
   Mail,
   MapPin,
@@ -55,6 +57,8 @@ import {
   UserRound,
   Users
 } from 'lucide-vue-next';
+import UserAvatar from '@/components/UserAvatar.vue';
+import AnimatedNumber from '@/components/motion/AnimatedNumber.vue';
 import type { PropType } from 'vue';
 import { toast } from 'vue-sonner';
 import { usePreferenceStore } from '~/stores/user';
@@ -84,6 +88,10 @@ interface UserData {
   email: string;
   avatar: string;
   follow: string;
+  bio?: string;
+  website?: string;
+  verified?: boolean;
+  postsCount?: number;
   stats: {
     followersCount: number;
     followingCount: number;
@@ -112,8 +120,11 @@ const props = defineProps({
   relationshipBusy: Boolean,
   visibilityActions: Boolean,
   blockedByViewer: Boolean,
-  analyticsAvailable: { type: Boolean, default: true }
+  analyticsAvailable: { type: Boolean, default: true },
+  socialMode: { type: Boolean, default: false }
 });
+
+const followHovered = ref(false);
 
 const emit = defineEmits<{
   (e: 'update:user', user: UserData): void;
@@ -296,7 +307,7 @@ function onlineStatusClass(
   status: UserData['onlineStatus']
 ): string {
   return status === 'online'
-    ? 'bg-emerald-500'
+    ? 'bg-[var(--status-online-fg)]'
     : 'bg-muted-foreground';
 }
 
@@ -482,52 +493,242 @@ function followUser() {
 </script>
 
 <template>
+  <!-- Quiet Tonal Bento profile card -->
   <section
-    class="mobile-scroll-safe rounded-xl border border-border/60 bg-card p-4 shadow-none sm:p-6"
+    v-if="socialMode"
+    class="bento-card overflow-hidden"
+  >
+    <div class="h-[116px] w-full bg-secondary bg-subtle-grid" />
+
+    <div class="px-4 pb-5">
+      <div class="-mt-10 mb-3 flex items-end justify-between gap-3">
+        <div class="relative inline-flex shrink-0 rounded-full bg-card ring-4 ring-card">
+          <UserAvatar
+            :src="user.avatar"
+            :name="user.name"
+            :username="user.title"
+            :seed="user.id"
+            size="xl"
+          />
+          <span
+            v-if="user.onlineStatus === 'online'"
+            :title="onlineStatusLabel(user.onlineStatus)"
+            class="absolute right-1 bottom-1 size-3.5 rounded-full bg-[var(--status-online-fg)] ring-2 ring-card"
+          />
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 pt-12">
+          <NuxtLink
+            v-if="isSelfProfile"
+            :to="localePath('/account/profile')"
+            class="pressable inline-flex h-9 items-center rounded-full bg-secondary px-4 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+          >
+            {{ t('account.profileTabs.editProfile') }}
+          </NuxtLink>
+          <template v-else-if="showFollowAction">
+            <Button
+              variant="secondary"
+              size="icon"
+              class="pressable size-9 rounded-full border-0 bg-secondary text-foreground hover:bg-accent"
+              :title="t('account.actions.directMessage')"
+              :aria-label="t('account.actions.directMessage')"
+              :disabled="relationshipBusy"
+              @click="openDirectMessage"
+            >
+              <MessageCircle class="size-4" />
+            </Button>
+            <Button
+              v-if="!isFollowing"
+              size="sm"
+              class="pressable h-9 rounded-full px-5 font-semibold"
+              :disabled="relationshipBusy"
+              @click="followUser"
+            >
+              {{ t('account.header.follow') }}
+            </Button>
+            <Button
+              v-else
+              variant="secondary"
+              size="sm"
+              class="pressable h-9 rounded-full border-0 px-5 font-semibold transition-colors"
+              :class="followHovered ? 'bg-destructive/10 text-destructive hover:bg-destructive/15' : 'bg-secondary text-foreground hover:bg-accent'"
+              :disabled="relationshipBusy"
+              @mouseenter="followHovered = true"
+              @mouseleave="followHovered = false"
+              @click="followUser"
+            >
+              {{ t(followHovered ? 'account.profileTabs.unfollowHover' : 'account.profileTabs.followingLabel') }}
+            </Button>
+          </template>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="secondary"
+                size="icon"
+                class="size-9 shrink-0 rounded-full border-0 bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <MoreHorizontal class="size-4" />
+                <span class="sr-only">
+                  {{ t('account.header.moreActions') }}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-52 rounded-2xl p-1.5">
+              <DropdownMenuItem @click="copyProfileLink">
+                <Copy class="h-4 w-4" />
+                {{ t('account.actions.copyProfileLink') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                v-if="showFollowAction"
+                :disabled="relationshipBusy"
+                @click="openDirectMessage"
+              >
+                <MessageCircle class="h-4 w-4" />
+                {{ t('account.actions.directMessage') }}
+              </DropdownMenuItem>
+              <template v-if="visibilityActions">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem :disabled="relationshipBusy" @select="emit('visibility', 'muteDay')">
+                  {{ t('visibility.muteDay') }}
+                </DropdownMenuItem>
+                <DropdownMenuItem :disabled="relationshipBusy" @select="emit('visibility', 'mute')">
+                  {{ t('visibility.mute') }}
+                </DropdownMenuItem>
+                <DropdownMenuItem v-if="!blockedByViewer" :disabled="relationshipBusy" @select="emit('visibility', 'block')">
+                  {{ t('visibility.block') }}
+                </DropdownMenuItem>
+              </template>
+              <DropdownMenuItem @click="refreshProfile">
+                <RefreshCw class="h-4 w-4" />
+                {{ t('account.actions.refreshProfile') }}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator v-if="isSelfProfile" />
+              <DropdownMenuItem
+                v-if="isSelfProfile"
+                @click="goToAccountSettings"
+              >
+                <Settings class="h-4 w-4" />
+                {{ t('account.actions.accountSettings') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                v-if="isSelfProfile"
+                @click="goToAccountSecurity"
+              >
+                <Shield class="h-4 w-4" />
+                {{ t('account.actions.securitySettings') }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <div class="space-y-2.5">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="truncate text-[18px] font-semibold leading-tight tracking-tight text-foreground">
+              {{ user.name || user.title }}
+            </h2>
+            <BadgeCheck v-if="user.verified" class="size-[18px] shrink-0 text-primary" />
+            <span
+              v-if="user.onlineStatus === 'online'"
+              class="status-pill-online inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold"
+            >
+              <span class="size-1.5 rounded-full bg-[var(--status-online-fg)]" />
+              {{ onlineStatusLabel(user.onlineStatus) }}
+            </span>
+          </div>
+          <p v-if="user.title" class="mt-0.5 text-[13.5px] text-[var(--ink-tertiary)]">
+            @{{ user.title }}
+          </p>
+        </div>
+
+        <p v-if="user.bio" class="whitespace-pre-wrap text-[15px] leading-[1.6] text-foreground">
+          {{ user.bio }}
+        </p>
+
+        <div
+          v-if="user.location || user.website"
+          class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground"
+        >
+          <span v-if="user.location" class="inline-flex items-center gap-1">
+            <MapPin class="size-3.5" />
+            <span>{{ user.location }}</span>
+          </span>
+          <span v-if="user.website" class="inline-flex items-center gap-1">
+            <Link2 class="size-3.5" />
+            <span class="max-w-[260px] truncate">{{ user.website }}</span>
+          </span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-5 pt-0.5 text-sm">
+          <button
+            type="button"
+            class="inline-flex items-baseline gap-1 hover:underline"
+            @click="openStatsDialog('following')"
+          >
+            <strong class="font-semibold text-foreground">
+              <AnimatedNumber :value="user.stats.followingCount" />
+            </strong>
+            <span class="text-muted-foreground">{{ t('account.header.following') }}</span>
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-baseline gap-1 hover:underline"
+            @click="openStatsDialog('followers')"
+          >
+            <strong class="font-semibold text-foreground">
+              <AnimatedNumber :value="user.stats.followersCount" />
+            </strong>
+            <span class="text-muted-foreground">{{ t('account.header.followers') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Account management bento card (used by /account/*) -->
+  <section
+    v-else
+    class="bento-card mobile-scroll-safe p-5 sm:p-6"
   >
     <div class="flex flex-col items-stretch gap-5 sm:flex-row sm:items-start sm:gap-6">
-      <AvatarUploader
-        :user="avatarUploaderProps"
-        class="shrink-0 self-start"
-        @update:avatar="handleAvatarUpdate"
-      />
+      <div class="relative shrink-0 self-start">
+        <AvatarUploader
+          :user="avatarUploaderProps"
+          @update:avatar="handleAvatarUpdate"
+        />
+        <span
+          :title="onlineStatusLabel(user.onlineStatus)"
+          class="absolute right-0.5 bottom-0.5 size-3.5 rounded-full ring-2 ring-card"
+          :class="onlineStatusClass(user.onlineStatus)"
+        />
+      </div>
 
       <div class="w-full min-w-0 flex-1 space-y-4">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0 space-y-1.5">
               <div class="flex min-w-0 flex-wrap items-center gap-2">
-                <h2 class="min-w-0 truncate text-xl font-semibold tracking-tight">
+                <h2 class="min-w-0 truncate text-lg font-semibold tracking-tight">
                   {{ user.name }}
                 </h2>
                 <span
-                  class="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                  v-if="user.onlineStatus === 'online'"
+                  class="status-pill-online inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold"
                 >
-                  <span
-                    class="h-1.5 w-1.5 rounded-full"
-                    :class="onlineStatusClass(user.onlineStatus)"
-                  />
+                  <span class="size-1.5 rounded-full bg-[var(--status-online-fg)]" />
                   {{ onlineStatusLabel(user.onlineStatus) }}
-                </span>
-                <span
-                  v-if="user.onlineStatus !== 'online' && user.lastSeenAt"
-                  class="text-xs text-muted-foreground"
-                >
-                  {{
-                    t('account.header.lastSeen', {
-                      time: formatLastSeen(user.lastSeenAt)
-                    })
-                  }}
                 </span>
               </div>
               <div
-                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground"
+                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--ink-tertiary)]"
               >
                 <span
                   v-if="user.title"
                   class="flex min-w-0 items-center gap-1.5"
                 >
                   <User class="h-3.5 w-3.5" />
-                  <span class="min-w-0 truncate">{{ user.title }}</span>
+                  <span class="min-w-0 truncate">@{{ user.title }}</span>
                 </span>
                 <span
                   v-if="user.location"
@@ -550,7 +751,7 @@ function followUser() {
                 v-if="showFollowAction"
                 variant="secondary"
                 size="sm"
-                class="w-full sm:w-auto"
+                class="w-full rounded-full sm:w-auto"
                 :disabled="relationshipBusy"
                 @click="openDirectMessage"
               >
@@ -561,7 +762,7 @@ function followUser() {
                 v-if="showFollowAction && !isFollowing"
                 variant="default"
                 size="sm"
-                class="w-full sm:w-auto"
+                class="w-full rounded-full sm:w-auto"
                 :disabled="relationshipBusy"
                 @click="followUser"
               >
@@ -571,7 +772,7 @@ function followUser() {
                 v-else-if="showFollowAction"
                 variant="outline"
                 size="sm"
-                class="w-full sm:w-auto"
+                class="w-full rounded-full sm:w-auto"
                 :disabled="relationshipBusy"
                 @click="followUser"
               >
@@ -643,13 +844,13 @@ function followUser() {
             </div>
           </div>
 
-          <div class="border-t border-border/60" />
+          <div class="border-t border-[var(--divider)]" />
 
           <div class="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center">
-            <div class="grid flex-1 grid-cols-3 gap-1 sm:gap-2">
+            <div class="grid flex-1 grid-cols-3 gap-2">
               <button
                 type="button"
-                class="flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
+                class="bento-tile flex flex-col items-center gap-0.5 px-2 py-2.5 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
                 @click="openStatsDialog('followers')"
               >
                 <span class="tabular-nums text-lg font-semibold leading-tight">
@@ -661,7 +862,7 @@ function followUser() {
               </button>
               <button
                 type="button"
-                class="flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
+                class="bento-tile flex flex-col items-center gap-0.5 px-2 py-2.5 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
                 @click="openStatsDialog('following')"
               >
                 <span class="tabular-nums text-lg font-semibold leading-tight">
@@ -674,7 +875,7 @@ function followUser() {
               <button
                 v-if="analyticsAvailable"
                 type="button"
-                class="flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
+                class="bento-tile flex flex-col items-center gap-0.5 px-2 py-2.5 text-center transition-colors hover:bg-accent hover:text-accent-foreground"
                 @click="openStatsDialog('likes')"
               >
                 <span class="tabular-nums text-lg font-semibold leading-tight">
@@ -707,17 +908,17 @@ function followUser() {
     </div>
   </section>
   <Tabs
-    v-if="accountTabs.length > 0"
+    v-if="!socialMode && accountTabs.length > 0"
     :model-value="tabValue"
-    class="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain"
+    class="mt-3 w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain py-1"
     @update:model-value="handleTabChange"
   >
-    <TabsList class="inline-flex h-auto min-w-full justify-start sm:min-w-0">
+    <TabsList class="inline-flex h-auto min-w-full justify-start gap-1 rounded-full bg-secondary p-1 sm:min-w-0">
       <TabsTrigger
         v-for="tab in accountTabs"
         :key="tab.to"
         :value="tab.name"
-        class="flex-none px-3"
+        class="flex-none rounded-full border-0 px-3.5 py-1.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:font-semibold data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_2px_8px_rgba(0,122,255,0.28)] dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:shadow-none"
       >
         {{ tab.name }}
       </TabsTrigger>
@@ -729,25 +930,19 @@ function followUser() {
     @update:open="statsDialogOpen = $event"
   >
     <DialogContent
-      class="flex max-h-[88vh] max-w-xl flex-col overflow-hidden rounded-xl border-border/60 p-0"
+      class="flex max-h-[88vh] max-w-xl flex-col overflow-hidden p-0"
     >
       <DialogHeader
-        class="border-b border-border/60 bg-background/60 px-5 py-3 backdrop-blur"
+        class="border-b border-[var(--divider)] px-5 py-3.5"
       >
         <DialogTitle
           class="flex items-center gap-2 text-base font-semibold tracking-tight"
         >
           <span
-            v-if="activeStatsType === 'likes'"
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            class="flex h-7 w-7 items-center justify-center rounded-xl bg-secondary text-foreground"
           >
-            <Heart class="h-4 w-4" />
-          </span>
-          <span
-            v-else
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
-          >
-            <Users class="h-4 w-4" />
+            <Heart v-if="activeStatsType === 'likes'" class="h-4 w-4" />
+            <Users v-else class="h-4 w-4" />
           </span>
           {{ statsDialogTitle }}
         </DialogTitle>
@@ -767,15 +962,15 @@ function followUser() {
           <Skeleton
             v-for="item in 6"
             :key="item"
-            class="h-20 rounded-lg"
+            class="h-20 rounded-xl"
           />
         </div>
         <div
           v-else-if="likesError"
-          class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200/70 bg-rose-50/40 py-10 text-center dark:border-rose-500/30 dark:bg-rose-500/10"
+          class="flex flex-col items-center justify-center gap-2 rounded-xl bg-secondary py-10 text-center"
         >
           <span
-            class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 ring-1 ring-rose-500/30 dark:text-rose-400"
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-500"
           >
             <AlertTriangle class="h-5 w-5" />
           </span>
@@ -783,9 +978,9 @@ function followUser() {
             {{ likesError }}
           </p>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            class="h-8 rounded-md shadow-xs"
+            class="h-8 rounded-full"
             @click="loadLikesAnalytics"
           >
             <RefreshCw class="h-3.5 w-3.5" />
@@ -796,7 +991,7 @@ function followUser() {
           <div
             v-for="item in likesStatItems"
             :key="item.label"
-            class="rounded-lg border border-border/60 bg-muted/20 p-3"
+            class="bento-tile p-3.5"
           >
             <div
               class="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
@@ -813,7 +1008,7 @@ function followUser() {
 
       <div v-else class="flex min-h-0 flex-col gap-3 px-5 py-4">
         <div
-          class="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs"
+          class="bento-tile flex items-center justify-between px-3.5 py-2.5 text-xs"
         >
           <span class="text-muted-foreground">
             {{
@@ -825,7 +1020,7 @@ function followUser() {
           <span
             :class="[
               PILL_BASE,
-              'border-sky-200/70 bg-sky-500/10 text-sky-700 dark:border-sky-500/30 dark:text-sky-300'
+              'border-0 bg-[var(--primary-soft)] text-primary'
             ]"
           >
             <Users class="h-3 w-3" />
@@ -838,7 +1033,7 @@ function followUser() {
         </div>
 
         <ScrollArea
-          class="min-h-[280px] flex-1 rounded-lg border border-border/60"
+          class="min-h-[280px] flex-1 rounded-xl bg-secondary/60"
         >
           <div class="space-y-1 p-2">
             <template
@@ -847,7 +1042,7 @@ function followUser() {
               <div
                 v-for="item in 6"
                 :key="item"
-                class="flex items-center gap-3 rounded-lg p-2"
+                class="flex items-center gap-3 rounded-xl p-2"
               >
                 <Skeleton class="h-10 w-10 rounded-full" />
                 <div class="flex-1 space-y-2">
@@ -862,7 +1057,7 @@ function followUser() {
               class="flex flex-col items-center justify-center gap-2 py-10 text-center"
             >
               <span
-                class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 ring-1 ring-rose-500/30 dark:text-rose-400"
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-500"
               >
                 <AlertTriangle class="h-5 w-5" />
               </span>
@@ -870,9 +1065,9 @@ function followUser() {
                 {{ relationshipError }}
               </p>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
-                class="h-8 rounded-md shadow-xs"
+                class="h-8 rounded-full"
                 @click="loadRelationshipUsers(true)"
               >
                 <RefreshCw class="h-3.5 w-3.5" />
@@ -885,7 +1080,7 @@ function followUser() {
               class="flex flex-col items-center justify-center gap-2 py-10 text-center"
             >
               <span
-                class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground ring-1 ring-border/60"
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-muted-foreground"
               >
                 <Inbox class="h-5 w-5" />
               </span>
@@ -903,12 +1098,12 @@ function followUser() {
                 v-for="item in relationshipUsers"
                 :key="item.id"
                 type="button"
-                class="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted/40"
+                class="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-accent"
                 @click="openUserProfile(item.id)"
               >
-                <Avatar class="h-10 w-10 shrink-0 ring-1 ring-border/60">
+                <Avatar class="h-10 w-10 shrink-0">
                   <AvatarImage :src="item.avatarUrl" />
-                  <AvatarFallback class="bg-primary/10 text-xs font-semibold text-primary">
+                  <AvatarFallback class="bg-secondary text-xs font-semibold text-foreground">
                     {{ getUserInitials(item) }}
                   </AvatarFallback>
                 </Avatar>
@@ -924,7 +1119,7 @@ function followUser() {
                   v-if="item.relationship.isFollowing"
                   :class="[
                     PILL_BASE,
-                    'border-emerald-200/70 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-300'
+                    'border-0 bg-[var(--primary-soft)] text-primary'
                   ]"
                 >
                   {{ t('account.stats.followingBadge') }}
@@ -943,9 +1138,9 @@ function followUser() {
           class="flex justify-center"
         >
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            class="h-8 rounded-md shadow-xs"
+            class="h-8 rounded-full"
             :disabled="relationshipLoading"
             @click="loadRelationshipUsers(false)"
           >

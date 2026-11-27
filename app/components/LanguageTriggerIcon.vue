@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
+import LiquidGlassIconButton from '@/components/glass/LiquidGlassIconButton.vue';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,15 +16,15 @@ const { t, locale, localeOptions, setAppLocale } =
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button variant="ghost" size="icon">
+      <LiquidGlassIconButton :aria-label="t('preferences.language.toggle')">
         <Icon
           icon="lucide:languages"
-          class="h-[1.2rem] w-[1.2rem]"
+          class="h-[1.15rem] w-[1.15rem]"
         />
         <span class="sr-only">{{
           t('preferences.language.toggle')
         }}</span>
-      </Button>
+      </LiquidGlassIconButton>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" class="w-40">
       <DropdownMenuItem

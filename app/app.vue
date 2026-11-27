@@ -1,7 +1,8 @@
 <template>
   <div>
+    <LiquidGlassFilterDefs />
     <ClientOnly>
-      <Toaster richColors position="bottom-right" />
+      <Toaster position="bottom-right" />
       <WebRtcCallDialog />
     </ClientOnly>
     <NuxtLayout>
@@ -11,6 +12,7 @@
 </template>
 
 <script setup lang="ts">
+import LiquidGlassFilterDefs from '@/components/glass/LiquidGlassFilterDefs.vue'
 import WebRtcCallDialog from '@/components/WebRtcCallDialog.vue'
 import { Toaster } from "@/components/ui/sonner"
 const { t, locale } = useAppLocale()

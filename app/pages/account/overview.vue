@@ -5,12 +5,30 @@ import {
   v2GetUserDailyAnalytics
 } from '@/services';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { BarChart3 } from 'lucide-vue-next';
+import {
+  BarChart3,
+  Bot,
+  CreditCard,
+  FileText,
+  Settings,
+  Shield,
+  Smartphone,
+  Sparkles
+} from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { authQueueFor } from '@/services/auth-request-queue';
 import type { UserDailyAnalyticsVM } from '@/types/users';
 
 const { t } = useAppLocale();
+const localePath = useLocalePath();
 const app = useNuxtApp();
 const auth = authQueueFor(app);
 
@@ -112,12 +130,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <div class="space-y-5">
   <section
-    class="grid gap-5 rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6"
+    class="grid gap-5 rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none sm:p-6"
   >
     <header class="flex items-start gap-3">
       <span
-        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground"
       >
         <BarChart3 class="h-4 w-4" />
       </span>
@@ -134,30 +153,64 @@ onBeforeUnmount(() => {
     <p v-else-if="overviewLoading" role="status">{{ t('common.loading') }}</p>
     <div v-else-if="overviewFailed" class="flex flex-wrap items-center gap-2">
       <p role="alert">{{ t('account.errors.loadAnalytics') }}</p>
-      <Button variant="outline" size="sm" @click="loadOverview">{{ t('common.retry') }}</Button>
+      <Button variant="secondary" size="sm" class="rounded-full" @click="loadOverview">{{ t('common.retry') }}</Button>
     </div>
-    <OverAllPanel v-else-if="userAnalytics"
-      :userAnalytics="userAnalytics"
-      :dailyAnalytics="dailyAnalytics"
-      :daily-ready="dailyState === 'ready'"
-    >
-      <template #daily-controls>
-        <div class="flex flex-wrap items-center gap-3 md:col-span-2 lg:col-span-3">
-          <label class="flex items-center gap-2 text-sm">
-            {{ t('account.overview.overallPanel.dailyRange') }}
-            <select v-model.number="days" class="rounded-md border bg-background px-2 py-1.5">
-              <option v-for="period in periods" :key="period" :value="period">
-                {{ t('account.overview.overallPanel.rangeDays', { days: period }) }}
-              </option>
-            </select>
-          </label>
-          <p v-if="dailyState === 'loading'" role="status">{{ t('common.loading') }}</p>
-          <template v-if="dailyState === 'failed'">
-            <p role="alert">{{ t('account.overview.overallPanel.dailyFailed') }}</p>
-            <Button variant="outline" size="sm" @click="loadDaily">{{ t('common.retry') }}</Button>
-          </template>
-        </div>
-      </template>
-    </OverAllPanel>
+      <OverAllPanel v-else-if="userAnalytics"
+        :userAnalytics="userAnalytics"
+        :dailyAnalytics="dailyAnalytics"
+        :daily-ready="dailyState === 'ready'"
+      >
+        <template #daily-controls>
+          <div class="flex flex-wrap items-center gap-3 md:col-span-2 lg:col-span-3">
+            <div class="flex items-center gap-2.5">
+              <Label for="overview-daily-range" class="font-normal">
+                {{ t('account.overview.overallPanel.dailyRange') }}
+              </Label>
+              <Select :model-value="String(days)" @update:model-value="v => days = Number(v)">
+                <SelectTrigger id="overview-daily-range" class="h-9 w-36 rounded-xl border-0 bg-secondary">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent class="rounded-xl">
+                  <SelectItem v-for="period in periods" :key="period" :value="String(period)" class="rounded-lg">
+                    {{ t('account.overview.overallPanel.rangeDays', { days: period }) }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p v-if="dailyState === 'loading'" role="status">{{ t('common.loading') }}</p>
+            <template v-if="dailyState === 'failed'">
+              <p role="alert">{{ t('account.overview.overallPanel.dailyFailed') }}</p>
+              <Button variant="secondary" size="sm" class="rounded-full" @click="loadDaily">{{ t('common.retry') }}</Button>
+            </template>
+          </div>
+        </template>
+      </OverAllPanel>
   </section>
+
+  <section class="grid gap-3 rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none sm:p-6">
+    <h2 class="text-[15px] font-semibold tracking-tight text-foreground">
+      {{ t('account.tabs.settings') }}
+    </h2>
+    <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      <NuxtLink
+        v-for="item in [
+          { to: 'account-settings', label: t('account.tabs.settings'), icon: Settings },
+          { to: 'account-security', label: t('account.tabs.security'), icon: Shield },
+          { to: 'account-active', label: t('account.tabs.active'), icon: Smartphone },
+          { to: 'account-billing', label: t('account.tabs.billing'), icon: CreditCard },
+          { to: 'account-pro', label: t('account.tabs.pro'), icon: Sparkles },
+          { to: 'account-statements', label: t('account.tabs.statements'), icon: FileText },
+          { to: 'account-analytics', label: t('account.analytics.title'), icon: BarChart3 },
+          { to: 'account-ai-provider', label: t('aiUserProvider.title'), icon: Bot }
+        ]"
+        :key="item.to"
+        :to="localePath(item.to)"
+        class="flex items-center gap-2.5 rounded-2xl bg-secondary/60 px-3.5 py-3 text-[13px] font-medium text-foreground transition-colors hover:bg-secondary"
+      >
+        <component :is="item.icon" class="size-4 shrink-0 text-primary" />
+        <span class="truncate">{{ item.label }}</span>
+      </NuxtLink>
+    </div>
+  </section>
+  </div>
 </template>

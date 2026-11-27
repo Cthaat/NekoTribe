@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import {
-  Search,
-  X,
-  SlidersHorizontal
-} from 'lucide-vue-next';
+import { Search, X } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -197,8 +193,7 @@ function getCategoryOptionLabel(value: string): string {
         :model-value="localFilters.sortBy"
         @update:model-value="updateSortBy"
       >
-        <SelectTrigger class="h-9 w-full sm:w-[140px]">
-          <SlidersHorizontal class="h-3.5 w-3.5" />
+      <SelectTrigger class="h-9 w-full sm:w-[140px]" :aria-label="t('groups.filters.sortPlaceholder')">
           <SelectValue :placeholder="t('groups.filters.sortPlaceholder')" />
         </SelectTrigger>
         <SelectContent>

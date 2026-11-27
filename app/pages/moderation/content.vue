@@ -321,7 +321,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="grid gap-6">
+  <div class="grid gap-3.5">
     <ModerationStats :stats="localizedStatsData" />
 
     <ModerationFilters

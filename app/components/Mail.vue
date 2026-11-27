@@ -1,22 +1,31 @@
 <script lang="ts" setup>
 import { refDebounced } from '@vueuse/core';
 import { Icon } from '@iconify/vue';
-import { CheckCheck, ListChecks, RefreshCw, Search } from 'lucide-vue-next';
+import {
+  Bell,
+  CheckCheck,
+  Inbox,
+  ListChecks,
+  MoreHorizontal,
+  RefreshCw,
+  Search,
+  Trash2,
+  X
+} from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@/components/ui/resizable';
+  Dialog,
+  DialogContent
+} from '@/components/ui/dialog';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -25,8 +34,8 @@ import {
 } from '@/components/ui/tooltip';
 import MailDisplay from '@/components/MailDisplay.vue';
 import MailList from '@/components/MailList.vue';
-import Nav from '@/components/MailNav.vue';
-import type { LinkProp } from '@/components/MailNav.vue';
+import AppEmptyState from '@/components/app/AppEmptyState.vue';
+import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
 import type { MailItem } from './mail/types';
 
 type MailView =
@@ -40,6 +49,8 @@ type MailView =
   | 'login_alert'
   | 'system'
   | 'trash';
+
+type PrimaryTab = 'all' | 'unread' | 'mentions' | 'system';
 
 interface MailFilterPayload {
   type: string;
@@ -56,7 +67,7 @@ interface MailProps {
   mails: MailItem[];
   defaultLayout?: number[];
   defaultCollapsed?: boolean;
-  navCollapsedSize: number;
+  navCollapsedSize?: number;
   loadMore?: () => void;
   isTrashView?: boolean;
   loading?: boolean;
@@ -85,22 +96,23 @@ const props = withDefaults(defineProps<MailProps>(), {
   accounts: () => [],
   defaultCollapsed: false,
   defaultLayout: () => [265, 440, 655],
+  navCollapsedSize: 4,
   loadMore: undefined,
   isTrashView: false,
   loading: false
 });
 
 const { t } = useAppLocale();
-const isCollapsed = ref(props.defaultCollapsed);
 const selectedMail = ref<string | undefined>(
-  props.mails[0]?.id
-    ? String(props.mails[0]?.id)
-    : undefined
+  props.mails[0]?.id ? String(props.mails[0]?.id) : undefined
 );
+const isDetailOpen = ref(false);
+const searchOpen = ref(false);
 const searchValue = ref('');
 const debouncedSearch = refDebounced(searchValue, 250);
 const currentView = ref<MailView>('inbox');
 const activeTab = ref<'all' | 'unread'>('all');
+const clientCategory = ref<'all' | 'mentions' | 'system'>('all');
 
 const viewOptions = computed<
   Array<{
@@ -178,9 +190,8 @@ const viewOptions = computed<
 
 const currentViewOption = computed(
   () =>
-    viewOptions.value.find(
-      option => option.value === currentView.value
-    ) ?? viewOptions.value[0]
+    viewOptions.value.find(option => option.value === currentView.value) ??
+    viewOptions.value[0]
 );
 
 const isCurrentTrashView = computed(
@@ -188,57 +199,65 @@ const isCurrentTrashView = computed(
 );
 
 const filteredMailList = computed(() => {
-  let output: MailItem[] = [];
-  const normalizedSearch = debouncedSearch.value
-    ?.trim()
-    .toLowerCase();
-  if (!normalizedSearch) {
-    output = props.mails;
-  } else {
-    output = props.mails.filter(item => {
-      const searchableText = [
-        item.name,
-        item.email,
-        item.subject,
-        item.text,
-        item.typeLabel,
-        item.primaryPreview?.text,
-        item.secondaryPreview?.text
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join(' ')
-        .toLowerCase();
-      return searchableText.includes(normalizedSearch);
-    });
+  let output: MailItem[] = props.mails;
+  if (clientCategory.value === 'mentions') {
+    output = output.filter(item =>
+      ['mention', 'comment', 'reply', 'group_comment'].includes(item.type)
+    );
+  } else if (clientCategory.value === 'system') {
+    output = output.filter(item =>
+      ['system', 'login_alert', 'security'].includes(item.type)
+    );
   }
 
-  return output;
+  const normalizedSearch = debouncedSearch.value?.trim().toLowerCase();
+  if (!normalizedSearch) return output;
+
+  return output.filter(item => {
+    const searchableText = [
+      item.name,
+      item.email,
+      item.subject,
+      item.text,
+      item.typeLabel,
+      item.primaryPreview?.text,
+      item.secondaryPreview?.text
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(' ')
+      .toLowerCase();
+    return searchableText.includes(normalizedSearch);
+  });
 });
 
 const unreadMailList = computed(() =>
   filteredMailList.value.filter(item => !item.read)
 );
-const canMarkListed = computed(() => !props.loading && !props.markingListed &&
-  !isCurrentTrashView.value && unreadMailList.value.length > 0);
+
+const displayList = computed(() =>
+  activeTab.value === 'unread' ? unreadMailList.value : filteredMailList.value
+);
+
+const canMarkListed = computed(
+  () =>
+    !props.loading &&
+    !props.markingListed &&
+    !isCurrentTrashView.value &&
+    unreadMailList.value.length > 0
+);
 
 function markListedRead() {
-  if (canMarkListed.value) emit('mark-listed-read', unreadMailList.value.map(item => item.id));
+  if (canMarkListed.value) {
+    emit(
+      'mark-listed-read',
+      unreadMailList.value.map(item => item.id)
+    );
+  }
 }
 
 const selectedMailData = computed(() =>
   props.mails.find(item => item.id === selectedMail.value)
 );
-
-const links = computed<LinkProp[]>(() => [
-  ...viewOptions.value.map(option => ({
-    value: option.value,
-    title: option.title,
-    icon: option.icon,
-    variant: (
-      currentView.value === option.value ? 'default' : 'ghost'
-    ) as LinkProp['variant']
-  }))
-]);
 
 function emitFilterChange(
   view = currentView.value,
@@ -251,14 +270,9 @@ function emitFilterChange(
 
   emit('filter-change', {
     type: option.type,
-    unreadOnly:
-      Boolean(option.forceUnread) || tab === 'unread',
+    unreadOnly: Boolean(option.forceUnread) || tab === 'unread',
     showDeleted: Boolean(option.showDeleted)
   });
-}
-
-function resetSelectedMail() {
-  selectedMail.value = undefined;
 }
 
 function handleNavClick(value: string) {
@@ -268,34 +282,53 @@ function handleNavClick(value: string) {
   if (!nextView) return;
 
   currentView.value = nextView;
+  clientCategory.value = 'all';
   activeTab.value = nextView === 'unread' ? 'unread' : 'all';
-  resetSelectedMail();
+  selectedMail.value = undefined;
   emitFilterChange(nextView, activeTab.value);
 }
 
-function handleTabChange(value: string | number) {
-  activeTab.value = value === 'unread' ? 'unread' : 'all';
-  if (currentView.value === 'unread' && activeTab.value === 'all') {
-    currentView.value = 'inbox';
+const activePrimaryTab = computed<PrimaryTab>(() => {
+  if (activeTab.value === 'unread' || currentView.value === 'unread') {
+    return 'unread';
   }
-  resetSelectedMail();
-  emitFilterChange();
+  if (clientCategory.value === 'mentions') return 'mentions';
+  if (clientCategory.value === 'system') return 'system';
+  return 'all';
+});
+
+function selectPrimaryTab(tab: PrimaryTab) {
+  selectedMail.value = undefined;
+  if (tab === 'unread') {
+    currentView.value = 'inbox';
+    clientCategory.value = 'all';
+    activeTab.value = 'unread';
+    emitFilterChange('inbox', 'unread');
+    return;
+  }
+
+  const needsServerReset =
+    currentView.value !== 'inbox' || activeTab.value !== 'all';
+  currentView.value = 'inbox';
+  activeTab.value = 'all';
+  clientCategory.value =
+    tab === 'mentions' ? 'mentions' : tab === 'system' ? 'system' : 'all';
+  if (needsServerReset) {
+    emitFilterChange('inbox', 'all');
+  }
 }
 
 defineExpose({
   currentView
 });
 
-function onCollapse() {
-  isCollapsed.value = true;
-}
-
-function onExpand() {
-  isCollapsed.value = false;
-}
-
 function handleReadMail(mailId: string) {
   emit('read-mail', mailId);
+}
+
+function handleOpenDetails(mailId: string) {
+  selectedMail.value = mailId;
+  isDetailOpen.value = true;
 }
 
 watch(
@@ -315,267 +348,208 @@ watch(
 
 <template>
   <TooltipProvider :delay-duration="0">
-    <div class="flex min-h-[calc(100dvh-4rem)] flex-col md:hidden">
-      <div
-        class="space-y-3 border-b border-border/60 bg-background/60 p-3 backdrop-blur"
+    <div class="flex min-h-dvh flex-col bg-background">
+      <!-- Sticky Frosted Header + Capsule Tabs -->
+      <header
+        class="sticky top-0 z-20 bg-[var(--glass-bg)] backdrop-blur-md"
       >
-        <div class="grid grid-cols-2 gap-1.5">
-          <button
-            v-for="link in links"
-            :key="link.value"
-            type="button"
-            :class="
-              cn(
-                'group/nav relative flex h-9 items-center gap-2 rounded-md px-2.5 text-left text-sm transition-colors',
-                link.variant === 'default'
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-              )
-            "
-            @click="handleNavClick(link.value)"
-          >
+        <div class="flex items-center justify-between gap-2 px-4 py-2.5">
+          <div class="flex min-w-0 items-center gap-2">
+            <h1 class="truncate text-lg font-bold tracking-tight text-foreground">
+              {{
+                isCurrentTrashView
+                  ? t('mail.folders.trash')
+                  : currentView !== 'inbox' && currentView !== 'unread'
+                    ? currentViewOption?.title
+                    : t('nav.main.notifications')
+              }}
+            </h1>
             <span
-              v-if="link.variant === 'default'"
-              class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
-              aria-hidden="true"
-            />
-            <Icon :icon="link.icon" class="size-4 shrink-0" />
-            <span
-              class="min-w-0 flex-1 truncate"
-              :class="link.variant === 'default' ? 'font-medium text-foreground' : ''"
+              v-if="unreadMailList.length > 0 && !isCurrentTrashView"
+              class="inline-flex h-5 items-center rounded-full bg-primary/12 px-2 text-xs font-bold tabular-nums text-primary"
             >
-              {{ link.title }}
+              {{ unreadMailList.length }}
             </span>
-          </button>
+          </div>
+
+          <div class="flex shrink-0 items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="size-9 rounded-full text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
+                  :aria-label="t(searchOpen ? 'common.close' : 'common.search')"
+                  :aria-expanded="searchOpen"
+                  @click="searchOpen = !searchOpen"
+                >
+                  <X v-if="searchOpen" class="size-4" />
+                  <Search v-else class="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('mail.searchPlaceholder') }}</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="size-9 rounded-full transition-colors"
+                  :class="
+                    isCurrentTrashView
+                      ? 'bg-primary/12 text-primary'
+                      : 'text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground'
+                  "
+                  :aria-label="t(isCurrentTrashView ? 'mail.folders.inbox' : 'mail.folders.trash')"
+                  @click="handleNavClick(isCurrentTrashView ? 'inbox' : 'trash')"
+                >
+                  <Inbox v-if="isCurrentTrashView" class="size-4" />
+                  <Trash2 v-else class="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {{ isCurrentTrashView ? t('mail.folders.inbox') : t('mail.folders.trash') }}
+              </TooltipContent>
+            </Tooltip>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-9 gap-1.5 rounded-full px-3 text-xs font-semibold text-primary hover:bg-primary/10"
+              :disabled="props.loading || isCurrentTrashView"
+              @click="emit('mark-all-read')"
+            >
+              <CheckCheck class="size-4" />
+              <span class="hidden sm:inline">{{ t('mail.actions.markAllRead') }}</span>
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="size-9 rounded-full text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
+                  :aria-label="t('mail.display.more')"
+                >
+                  <MoreHorizontal class="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" class="w-52 rounded-2xl p-1.5">
+                <DropdownMenuItem
+                  :disabled="props.loading"
+                  @select="emit('refresh')"
+                >
+                  <RefreshCw class="mr-2 size-4" :class="{ 'animate-spin': props.loading }" />
+                  <span>{{ t('mail.actions.refresh') }}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  :disabled="!canMarkListed"
+                  @select="markListedRead"
+                >
+                  <ListChecks class="mr-2 size-4" />
+                  <span>{{ t('notifications.mail.markListedRead') }}</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  v-for="option in viewOptions"
+                  :key="option.value"
+                  @select="handleNavClick(option.value)"
+                >
+                  <Icon :icon="option.icon" class="mr-2 size-4" />
+                  <span :class="currentView === option.value ? 'font-bold text-primary' : ''">
+                    {{ option.title }}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-        <div class="grid grid-cols-2 gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-8 justify-start shadow-xs"
-            :disabled="props.loading"
-            @click="emit('refresh')"
-          >
-            <RefreshCw class="size-3.5" />
-            {{ t('mail.actions.refresh') }}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-8 justify-start shadow-xs"
-            :disabled="props.loading || isCurrentTrashView"
-            @click="emit('mark-all-read')"
-          >
-            <CheckCheck class="size-3.5" />
-            {{ t('mail.actions.markAllRead') }}
-          </Button>
-          <Button variant="outline" size="sm" class="col-span-2 h-8 justify-start shadow-xs"
-            :disabled="!canMarkListed" @click="markListedRead">
-            <ListChecks class="size-3.5" />
-            {{ t('notifications.mail.markListedRead') }}
-          </Button>
-        </div>
-        <form>
+
+        <div v-if="searchOpen || searchValue" class="px-4 pb-2.5">
           <div class="relative">
             <Search
-              class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               v-model="searchValue"
               :placeholder="t('mail.searchPlaceholder')"
-              class="h-9 pl-8 shadow-xs"
+              class="h-9 rounded-full border-[var(--divider)] bg-secondary/50 pl-9 pr-4 text-sm shadow-none"
             />
           </div>
-        </form>
-      </div>
+        </div>
 
-      <Tabs
-        :model-value="activeTab"
-        class="min-h-0 flex-1"
-        @update:model-value="handleTabChange"
-      >
-        <TabsList class="mx-3 mt-3 grid grid-cols-2">
-          <TabsTrigger value="all">
-            {{ t('mail.tabs.all') }}
-          </TabsTrigger>
-          <TabsTrigger value="unread">
-            {{ t('mail.tabs.unread') }}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="all" class="m-0">
-          <MailList
-            v-model:selected-mail="selectedMail"
-            :items="filteredMailList"
-            :load-more="props.loadMore"
-            @read-mail="handleReadMail"
-          />
-        </TabsContent>
-        <TabsContent value="unread" class="m-0">
-          <MailList
-            v-model:selected-mail="selectedMail"
-            :items="unreadMailList"
-            :load-more="props.loadMore"
-            @read-mail="handleReadMail"
-          />
-        </TabsContent>
-      </Tabs>
-
-      <MailDisplay
-        class="min-h-72 border-t border-border/60"
-        :mail="selectedMailData"
-        :is-trash-view="isCurrentTrashView"
-        @delete-mail="emit('delete-mail', $event)"
-        @restore-mail="emit('restore-mail', $event)"
-        @set-read-status="emit('set-read-status', $event)"
-      />
-    </div>
-
-    <ResizablePanelGroup
-      id="resize-panel-group-1"
-      direction="horizontal"
-      class="hidden h-dvh items-stretch md:flex"
-    >
-      <ResizablePanel
-        id="resize-panel-1"
-        :default-size="defaultLayout[0]"
-        :collapsed-size="navCollapsedSize"
-        collapsible
-        :min-size="15"
-        :max-size="20"
-        :class="
-          cn(
-            isCollapsed &&
-              'min-w-[50px] transition-all duration-300 ease-in-out'
-          )
-        "
-        @expand="onExpand"
-        @collapse="onCollapse"
-      >
-        <Nav
-          :is-collapsed="isCollapsed"
-          :links="links"
-          @nav-click="handleNavClick"
-        />
-      </ResizablePanel>
-      <ResizableHandle id="resize-handle-1" with-handle />
-      <ResizablePanel
-        id="resize-panel-2"
-        :default-size="defaultLayout[1]"
-        :min-size="30"
-      >
-        <Tabs
-          :model-value="activeTab"
-          class="flex h-full flex-col"
-          @update:model-value="handleTabChange"
+        <!-- 4 Capsule Filter Tabs -->
+        <div
+          v-if="!isCurrentTrashView"
+          class="px-3 pb-2.5 sm:px-4"
         >
           <div
-            class="flex h-12 shrink-0 flex-wrap items-center gap-2 border-b border-border/60 bg-background/60 px-4 backdrop-blur"
+            role="tablist"
+            class="flex items-center gap-1 rounded-full bg-secondary p-1"
           >
-            <h1 class="text-base font-semibold tracking-tight">
-              {{ currentViewOption?.title }}
-            </h1>
-            <div class="ml-auto flex items-center gap-1">
-              <TabsList class="h-8">
-                <TabsTrigger value="all" class="h-6 text-xs">
-                  {{ t('mail.tabs.all') }}
-                </TabsTrigger>
-                <TabsTrigger value="unread" class="h-6 text-xs">
-                  {{ t('mail.tabs.unread') }}
-                </TabsTrigger>
-              </TabsList>
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
-                    :disabled="props.loading"
-                    @click="emit('refresh')"
-                  >
-                    <RefreshCw class="size-4" :class="{ 'animate-spin': props.loading }" />
-                    <span class="sr-only">{{
-                      t('mail.actions.refresh')
-                    }}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{{ t('mail.actions.refresh') }}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
-                    :disabled="props.loading || isCurrentTrashView"
-                    @click="emit('mark-all-read')"
-                  >
-                    <CheckCheck class="size-4" />
-                    <span class="sr-only">{{
-                      t('mail.actions.markAllRead')
-                    }}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{{ t('mail.actions.markAllRead') }}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button variant="ghost" size="icon" class="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
-                    :disabled="!canMarkListed" @click="markListedRead">
-                    <ListChecks class="size-4" />
-                    <span class="sr-only">{{ t('notifications.mail.markListedRead') }}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{{ t('notifications.mail.markListedRead') }}</TooltipContent>
-              </Tooltip>
-            </div>
+            <button
+              v-for="tab in ([
+                { key: 'all', label: t('mail.tabs.all') },
+                { key: 'unread', label: t('mail.tabs.unread') },
+                { key: 'mentions', label: t('mail.tabs.mentions') },
+                { key: 'system', label: t('mail.tabs.system') }
+              ] as const)"
+              :key="tab.key"
+              type="button"
+              role="tab"
+              :aria-selected="activePrimaryTab === tab.key"
+              class="flex-1 rounded-full py-1.5 text-center text-[13px] transition-all duration-200"
+              :class="
+                activePrimaryTab === tab.key && (currentView === 'inbox' || currentView === 'unread')
+                  ? 'bg-card font-semibold text-foreground shadow-xs dark:shadow-none'
+                  : 'font-medium text-muted-foreground hover:text-foreground'
+              "
+              @click="selectPrimaryTab(tab.key)"
+            >
+              <span>{{ tab.label }}</span>
+            </button>
           </div>
-          <div
-            class="shrink-0 border-b border-border/60 bg-muted/20 p-3"
-          >
-            <form>
-              <div class="relative">
-                <Search
-                  class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  v-model="searchValue"
-                  :placeholder="t('mail.searchPlaceholder')"
-                  class="h-9 pl-8 shadow-xs"
-                />
-              </div>
-            </form>
-          </div>
-          <TabsContent value="all" class="m-0 min-h-0 flex-1">
-            <MailList
-              v-model:selected-mail="selectedMail"
-              :items="filteredMailList"
-              :load-more="props.loadMore"
-              @read-mail="handleReadMail"
-            />
-          </TabsContent>
-          <TabsContent value="unread" class="m-0 min-h-0 flex-1">
-            <MailList
-              v-model:selected-mail="selectedMail"
-              :items="unreadMailList"
-              :load-more="props.loadMore"
-              @read-mail="handleReadMail"
-            />
-          </TabsContent>
-        </Tabs>
-      </ResizablePanel>
-      <ResizableHandle id="resiz-handle-2" with-handle />
-      <ResizablePanel
-        id="resize-panel-3"
-        :default-size="defaultLayout[2]"
+        </div>
+      </header>
+
+      <!-- Stream Content -->
+      <div v-if="props.loading && displayList.length === 0" class="space-y-2.5 px-3 py-3 sm:px-4">
+        <TweetCardSkeleton v-for="i in 4" :key="i" />
+      </div>
+
+      <div
+        v-else-if="displayList.length === 0"
+        class="px-3 py-8 sm:px-4"
       >
-        <MailDisplay
-          :mail="selectedMailData"
-          :is-trash-view="isCurrentTrashView"
-          @delete-mail="emit('delete-mail', $event)"
-          @restore-mail="emit('restore-mail', $event)"
-          @set-read-status="emit('set-read-status', $event)"
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+        <AppEmptyState :title="t('mail.display.noSelection')" compact />
+      </div>
+
+      <MailList
+        v-else
+        v-model:selected-mail="selectedMail"
+        :items="displayList"
+        :load-more="props.loadMore"
+        :is-trash-view="isCurrentTrashView"
+        @read-mail="handleReadMail"
+        @open-details="handleOpenDetails"
+        @set-read-status="emit('set-read-status', $event)"
+        @delete-mail="emit('delete-mail', $event)"
+        @restore-mail="emit('restore-mail', $event)"
+      />
+
+      <!-- Detail Modal -->
+      <Dialog v-model:open="isDetailOpen">
+        <DialogContent class="max-h-[85dvh] max-w-xl overflow-hidden rounded-2xl border-[var(--divider)] p-0">
+          <MailDisplay
+            :mail="selectedMailData"
+            :is-trash-view="isCurrentTrashView"
+            @delete-mail="id => { emit('delete-mail', id); isDetailOpen = false; }"
+            @restore-mail="id => { emit('restore-mail', id); isDetailOpen = false; }"
+            @set-read-status="emit('set-read-status', $event)"
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
   </TooltipProvider>
 </template>

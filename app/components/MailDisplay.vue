@@ -5,6 +5,8 @@ import {
   AtSign,
   Bell,
   Check,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   Heart,
   MailOpen,
@@ -17,11 +19,8 @@ import {
   UserPlus,
   UserRound
 } from 'lucide-vue-next';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
+import UserAvatar from '@/components/UserAvatar.vue';
+import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -104,12 +103,14 @@ function toggleReadStatus() {
     read: !props.mail.read
   });
 }
+
+const showDeviceDetails = ref(false);
 </script>
 
 <template>
   <div class="flex h-full flex-col bg-background">
     <div
-      class="flex h-12 shrink-0 items-center gap-1 border-b border-border/60 bg-background/60 px-3 backdrop-blur"
+      class="flex h-12 shrink-0 items-center gap-1 bg-[var(--glass-bg)] px-3 backdrop-blur-md"
     >
       <template v-if="mail">
         <Tooltip v-if="mail.href">
@@ -269,11 +270,14 @@ function toggleReadStatus() {
     </div>
 
     <div v-if="mail" class="min-h-0 flex-1 overflow-auto">
-      <div class="flex items-start gap-4 border-b border-border/60 p-4">
-        <Avatar class="size-11 shrink-0 ring-1 ring-border">
-          <AvatarImage :src="mail.avatar" :alt="mail.name" />
-          <AvatarFallback class="text-sm">{{ initials(mail.name) }}</AvatarFallback>
-        </Avatar>
+      <div class="flex items-start gap-4 p-4">
+        <UserAvatar
+          :src="mail.avatar"
+          :name="mail.name"
+          :username="mail.email"
+          :seed="mail.actorId ?? mail.id"
+          size="md"
+        />
 
         <div class="min-w-0 flex-1 space-y-1.5">
           <div class="flex flex-wrap items-center gap-2">
@@ -320,9 +324,24 @@ function toggleReadStatus() {
           {{ mail.text }}
         </p>
 
+        <div v-if="mail.rawUserAgent" class="space-y-2">
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+            @click="showDeviceDetails = !showDeviceDetails"
+          >
+            <component :is="showDeviceDetails ? ChevronUp : ChevronDown" class="size-3.5" />
+            <span>{{ t('mail.display.deviceDetails') }}</span>
+          </button>
+          <pre
+            v-if="showDeviceDetails"
+            class="whitespace-pre-wrap break-all rounded-2xl bg-secondary/70 p-3 font-mono text-[11px] text-muted-foreground"
+          >{{ mail.rawUserAgent }}</pre>
+        </div>
+
         <div
           v-if="mail.primaryPreview"
-          class="rounded-lg border border-border/60 bg-muted/30 p-3"
+          class="rounded-2xl bg-secondary/50 p-3.5"
         >
           <div
             class="mb-1.5 flex flex-wrap items-center justify-between gap-2"
@@ -352,7 +371,7 @@ function toggleReadStatus() {
 
         <div
           v-if="mail.secondaryPreview"
-          class="rounded-lg border border-border/60 bg-card p-3"
+          class="rounded-2xl bg-secondary/50 p-3.5"
         >
           <div
             class="mb-1.5 flex flex-wrap items-center justify-between gap-2"
@@ -408,7 +427,7 @@ function toggleReadStatus() {
 
         <div
           v-if="mail.details.length > 0"
-          class="rounded-lg border border-border/60 bg-muted/20 p-3"
+          class="rounded-2xl bg-secondary/45 p-3.5"
         >
           <dl class="grid gap-2 text-sm">
             <div
@@ -433,7 +452,7 @@ function toggleReadStatus() {
       class="flex flex-1 items-center justify-center p-8"
     >
       <div
-        class="flex max-w-[18rem] flex-col items-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center"
+        class="flex max-w-[18rem] flex-col items-center gap-3 rounded-[20px] bg-secondary/45 px-4 py-8 text-center"
       >
         <div
           class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"

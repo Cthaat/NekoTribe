@@ -7,6 +7,8 @@ import { ref, watch, onUnmounted } from 'vue';
 import { otpRetryDelay } from '~/utils/otpRetryAfter';
 import { Button } from '@/components/ui/button';
 import AppButton from '@/components/app/AppButton.vue';
+import ColorModeIcon from '@/components/ColorModeIcon.vue';
+import LanguageTriggerIcon from '@/components/LanguageTriggerIcon.vue';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
@@ -305,7 +307,7 @@ watch(agreeToTermsValue, newValue => {
   <div class="relative min-h-svh w-full overflow-x-clip bg-background">
     <!-- Top bar with brand -->
     <header
-      class="sticky top-0 z-20 border-b bg-background/80 backdrop-blur"
+      class="sticky top-0 z-20 bg-background/70 backdrop-blur-xl"
     >
       <div
         class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6"
@@ -315,18 +317,22 @@ watch(agreeToTermsValue, newValue => {
           class="flex items-center gap-2 font-medium"
         >
           <div
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground"
+            class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
           >
             <Cat class="size-4" />
           </div>
-          <span class="text-sm">{{ t('app.brand.name') }}</span>
+          <span class="text-sm font-semibold">{{ t('app.brand.name') }}</span>
         </NuxtLink>
-        <NuxtLink
-          :to="localePath('/auth/login')"
-          class="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          {{ t('auth.signUp.loginPrompt') }}
-        </NuxtLink>
+        <div class="flex shrink-0 items-center gap-2 sm:gap-3">
+          <NuxtLink
+            :to="localePath('/auth/login')"
+            class="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            {{ t('auth.signUp.loginPrompt') }}
+          </NuxtLink>
+          <LanguageTriggerIcon />
+          <ColorModeIcon />
+        </div>
       </div>
     </header>
 
@@ -341,15 +347,15 @@ watch(agreeToTermsValue, newValue => {
       </div>
 
       <div
-        class="overflow-hidden rounded-xl border border-border/60 bg-card shadow-none"
+        class="bento-card overflow-hidden p-6 sm:p-8"
       >
-        <div class="p-5 sm:p-6 md:p-8">
+        <div>
           <form class="grid gap-6" @submit="onSubmit">
             <!-- Section: Account -->
             <section class="grid gap-4">
               <div class="flex items-start gap-3">
                 <span
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400"
                 >
                   <Mail class="h-4 w-4" />
                 </span>
@@ -378,6 +384,7 @@ watch(agreeToTermsValue, newValue => {
                       autocomplete="email"
                       :disabled="isLoading"
                       :placeholder="t('auth.signUp.emailPlaceholder')"
+                      class="h-11 rounded-[14px] border-0 bg-secondary shadow-none dark:bg-secondary"
                       v-bind="componentField"
                     />
                   </FormControl>
@@ -386,13 +393,13 @@ watch(agreeToTermsValue, newValue => {
               </FormField>
             </section>
 
-            <div class="h-px w-full bg-border/60" />
+            <div class="h-px w-full bg-[var(--divider)]" />
 
             <!-- Section: Identity -->
             <section class="grid gap-4">
               <div class="flex items-start gap-3">
                 <span
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400"
                 >
                   <User class="h-4 w-4" />
                 </span>
@@ -423,6 +430,7 @@ watch(agreeToTermsValue, newValue => {
                         :placeholder="
                           t('auth.signUp.usernamePlaceholder')
                         "
+                        class="h-11 rounded-[14px] border-0 bg-secondary shadow-none dark:bg-secondary"
                         v-bind="componentField"
                       />
                     </FormControl>
@@ -446,6 +454,7 @@ watch(agreeToTermsValue, newValue => {
                         :placeholder="
                           t('auth.signUp.displayNamePlaceholder')
                         "
+                        class="h-11 rounded-[14px] border-0 bg-secondary shadow-none dark:bg-secondary"
                         v-bind="componentField"
                       />
                     </FormControl>
@@ -470,6 +479,7 @@ watch(agreeToTermsValue, newValue => {
                         :placeholder="
                           t('auth.signUp.phonePlaceholder')
                         "
+                        class="h-11 rounded-[14px] border-0 bg-secondary shadow-none dark:bg-secondary"
                         v-bind="componentField"
                       />
                     </FormControl>
@@ -489,10 +499,10 @@ watch(agreeToTermsValue, newValue => {
                       <PopoverTrigger as-child>
                         <FormControl>
                           <Button
-                            variant="outline"
+                            variant="secondary"
                             :class="
                               cn(
-                                'h-9 w-full justify-start text-left font-normal',
+                                'h-11 w-full justify-start rounded-[14px] border-0 bg-secondary font-normal hover:bg-accent dark:bg-secondary dark:hover:bg-accent',
                                 !value &&
                                   'text-muted-foreground'
                               )
@@ -542,6 +552,7 @@ watch(agreeToTermsValue, newValue => {
                       :placeholder="
                         t('auth.signUp.locationPlaceholder')
                       "
+                      class="h-11 rounded-[14px] border-0 bg-secondary shadow-none dark:bg-secondary"
                       v-bind="componentField"
                     />
                   </FormControl>
@@ -561,7 +572,7 @@ watch(agreeToTermsValue, newValue => {
                       :placeholder="
                         t('auth.signUp.bioPlaceholder')
                       "
-                      class="min-h-20 resize-none"
+                      class="min-h-20 resize-none rounded-[14px] border-0 bg-secondary shadow-none dark:bg-secondary"
                       v-bind="componentField"
                     />
                   </FormControl>
@@ -570,13 +581,13 @@ watch(agreeToTermsValue, newValue => {
               </FormField>
             </section>
 
-            <div class="h-px w-full bg-border/60" />
+            <div class="h-px w-full bg-[var(--divider)]" />
 
             <!-- Section: Security -->
             <section class="grid gap-4">
               <div class="flex items-start gap-3">
                 <span
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                 >
                   <Lock class="h-4 w-4" />
                 </span>
@@ -609,13 +620,14 @@ watch(agreeToTermsValue, newValue => {
                           :placeholder="
                             t('auth.signUp.passwordPlaceholder')
                           "
-                          class="pr-10"
+                          class="h-11 rounded-[14px] border-0 bg-secondary pr-10 shadow-none dark:bg-secondary"
                           v-bind="componentField"
                         />
                         <button
                           type="button"
-                          tabindex="-1"
-                          class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          :aria-label="t('common.togglePasswordVisibility')"
+                          :aria-pressed="showPassword"
+                          class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                           @click="showPassword = !showPassword"
                         >
                           <component
@@ -649,13 +661,14 @@ watch(agreeToTermsValue, newValue => {
                               'auth.signUp.confirmPasswordPlaceholder'
                             )
                           "
-                          class="pr-10"
+                          class="h-11 rounded-[14px] border-0 bg-secondary pr-10 shadow-none dark:bg-secondary"
                           v-bind="componentField"
                         />
                         <button
                           type="button"
-                          tabindex="-1"
-                          class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          :aria-label="t('common.togglePasswordVisibility')"
+                          :aria-pressed="showConfirmPassword"
+                          class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                           @click="showConfirmPassword = !showConfirmPassword"
                         >
                           <component
@@ -671,13 +684,13 @@ watch(agreeToTermsValue, newValue => {
               </div>
             </section>
 
-            <div class="h-px w-full bg-border/60" />
+            <div class="h-px w-full bg-[var(--divider)]" />
 
             <!-- Section: Verification -->
             <section class="grid gap-4">
               <div class="flex items-start gap-3">
                 <span
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400"
                 >
                   <ShieldCheck class="h-4 w-4" />
                 </span>
@@ -720,11 +733,11 @@ watch(agreeToTermsValue, newValue => {
                     </FormControl>
                     <AppButton
                       type="button"
-                      variant="outline"
+                      variant="secondary"
                       @click="sendCaptcha"
                       :disabled="isCaptchaSending || isLoading"
                       :loading="isCaptchaSending"
-                      class="w-full sm:w-auto"
+                      class="h-11 w-full rounded-full sm:w-auto"
                     >
                       <span v-if="isCaptchaSending">
                         {{
@@ -743,12 +756,12 @@ watch(agreeToTermsValue, newValue => {
               </FormField>
             </section>
 
-            <div class="h-px w-full bg-border/60" />
+            <div class="h-px w-full bg-[var(--divider)]" />
 
             <!-- Terms -->
             <FormField name="agreeToTerms">
               <FormItem
-                class="flex flex-row items-start gap-3 rounded-lg border border-border/60 bg-muted/20 p-4"
+                class="bento-tile flex flex-row items-start gap-3 p-4"
               >
                 <FormControl>
                   <Checkbox
@@ -775,7 +788,7 @@ watch(agreeToTermsValue, newValue => {
 
             <AppButton
               type="submit"
-              class="w-full"
+              class="h-11 w-full rounded-full font-semibold"
               :loading="isLoading"
               :loading-label="t('auth.signUp.signUpButton')"
             >

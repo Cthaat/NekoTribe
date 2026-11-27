@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+import LiquidGlassIconButton from '@/components/glass/LiquidGlassIconButton.vue'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Check } from 'lucide-vue-next'
 
@@ -17,13 +17,13 @@ const modes = [
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button variant="ghost" size="icon" class="relative">
+      <LiquidGlassIconButton class="relative" :aria-label="t('preferences.theme.toggle')">
         <Icon icon="radix-icons:moon"
-          class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          class="h-[1.15rem] w-[1.15rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
         <Icon icon="radix-icons:sun"
-          class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          class="absolute h-[1.15rem] w-[1.15rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
         <span class="sr-only">{{ t('preferences.theme.toggle') }}</span>
-      </Button>
+      </LiquidGlassIconButton>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" class="w-40">
       <DropdownMenuItem

@@ -64,9 +64,11 @@ const handleViewDetail = (tweet: ModerationTweet) =>
       </div>
       <slot name="selection-actions" />
       <Button
-        variant="outline"
-        size="sm"
-        class="h-8 w-full rounded-md shadow-xs sm:w-auto"
+        variant="ghost"
+        size="icon"
+        class="size-9 bg-secondary/70"
+        :aria-label="t('moderation.actions.refresh')"
+        :title="t('moderation.actions.refresh')"
         :disabled="isRefreshing"
         @click="handleRefresh"
       >
@@ -76,7 +78,6 @@ const handleViewDetail = (tweet: ModerationTweet) =>
             { 'animate-spin': isRefreshing }
           ]"
         />
-        {{ t('moderation.actions.refresh') }}
       </Button>
     </div>
 
@@ -106,10 +107,9 @@ const handleViewDetail = (tweet: ModerationTweet) =>
       <Button
         variant="outline"
         size="sm"
-        class="mt-4 h-8 rounded-md shadow-xs"
+        class="mt-4 rounded-full"
         @click="handleRefresh"
       >
-        <RefreshCw class="h-3.5 w-3.5" />
         {{ t('moderation.actions.refreshList') }}
       </Button>
     </div>

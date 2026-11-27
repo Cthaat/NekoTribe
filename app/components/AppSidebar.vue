@@ -1,270 +1,340 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue';
 import {
-  BookOpen,
+  BadgeCheck,
+  Bell,
+  Bookmark,
   Bot,
-  Command,
+  BrainCircuit,
+  Compass,
+  CreditCard,
+  Feather,
+  Home,
   Info,
-  Send,
-  Settings2,
-  SquareTerminal,
-  Award,
-  Cat,
-  Flame,
+  LogOut,
+  MessageCircle,
+  MoreHorizontal,
+  PawPrint,
+  Settings,
   Shield,
-  Users,
-  MessageSquare
+  Sparkles,
+  User,
+  Users
 } from 'lucide-vue-next';
-import NavMain from '@/components/NavMain.vue';
-import NavSecondary from '@/components/NavSecondary.vue';
-import NavUser from '@/components/NavUser.vue';
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  type SidebarProps
-} from '@/components/ui/sidebar';
-import { usePreferenceStore } from '~/stores/user'; // 导入 store
-
-const props = withDefaults(defineProps<SidebarProps>(), {
-  variant: 'inset'
-});
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import UserAvatar from '@/components/UserAvatar.vue';
+import LanguageTriggerIcon from '@/components/LanguageTriggerIcon.vue';
+import ColorModeIcon from '@/components/ColorModeIcon.vue';
+import { usePreferenceStore } from '~/stores/user';
+import { toast } from 'vue-sonner';
 
 const localePath = useLocalePath();
 const route = useRoute();
 const { t } = useAppLocale();
+const preferences = usePreferenceStore();
+const loggingOut = ref(false);
 
-const preferenceStore = usePreferenceStore();
-
-const userId = computed(
-  () => preferenceStore.preferences.user.id
+const user = computed(() => preferences.preferences.user);
+const signedIn = computed(() => preferences.isLoggedIn);
+const userId = computed(() => user.value.id);
+const displayName = computed(
+  () => user.value.name || user.value.username || t('nav.user.fallbackName')
+);
+const subtitle = computed(() =>
+  user.value.username
+    ? `@${user.value.username}`
+    : (user.value.email || t('nav.user.fallbackEmail'))
 );
 
-const baseNavData = computed(() => ({
-  user: {
-    name:
-      preferenceStore.preferences.user.name ||
-      t('nav.user.fallbackName'),
-    email:
-      preferenceStore.preferences.user.email ||
-      t('nav.user.fallbackEmail'),
-    avatar:
-      preferenceStore.preferences.user.avatarUrl ||
-      '/avatars/shadcn.jpg'
+const primaryNav = computed(() => [
+  {
+    key: 'home',
+    title: t('nav.main.home'),
+    to: localePath('/'),
+    icon: Home,
+    active: route.path === localePath('/') && route.query.feed !== 'trending'
   },
-  navMain: [
-    {
-      title: t('nav.main.trending'),
-      url: '/?feed=trending',
-      icon: Flame
-    },
-    {
-      title: t('nav.main.tweet'),
-      url: '/',
-      icon: Cat,
-      items: [
-        {
-          title: t('nav.main.home'),
-          url: '/'
-        },
-        {
-          title: t('nav.main.myTweets'),
-          url: `/tweet/my_tweets/${userId.value}`
-        },
-        {
-          title: t('nav.main.manageTweets'),
-          url: 'account-posts'
-        },
-        {
-          title: t('nav.main.mention'),
-          url: `/tweet/mention/${userId.value}`
-        },
-        {
-          title: t('nav.main.bookmark'),
-          url: `/tweet/bookmark/${userId.value}`
-        }
-      ]
-    },
-    {
-      title: t('nav.main.meow'),
-      url: 'meow',
-      icon: Send
-    },
-    {
-      title: t('nav.main.groups'),
-      url: '/groups/discover',
-      icon: Users,
-      items: [
-        {
-          title: t('nav.main.discoverGroups'),
-          url: '/groups/discover'
-        },
-        { title: t('nav.main.myGroups'), url: '/groups/my' },
-        {
-          title: t('nav.main.groupPosts'),
-          url: '/groups/posts'
-        },
-        { title: t('nav.main.invites'), url: '/groups/invites' }
-      ]
-    },
-    {
-      title: t('nav.main.chat'),
-      url: '/chat',
-      icon: MessageSquare
-    },
-    {
-      title: t('aiWriting.title'),
-      url: '/ai/writing',
-      icon: Bot
-    },
-    {
-      title: t('aiKnowledge.title'),
-      url: '/ai/knowledge',
-      icon: Bot
-    },
-    {
-      title: t('nav.main.account'),
-      url: 'account-overview', // 使用路由名称
-      icon: Settings2,
-      items: [
-        { title: t('account.tabs.overview'), url: 'account-overview' },
-        { title: t('account.tabs.settings'), url: 'account-settings' },
-        { title: t('account.tabs.profile'), url: 'account-profile' },
-        { title: t('account.tabs.posts'), url: 'account-posts' },
-        { title: t('account.tabs.likes'), url: 'account-likes' },
-        { title: t('account.tabs.bookmarks'), url: 'account-bookmarks' },
-        {
-          title: t('account.tabs.appearance'),
-          url: 'account-appearance'
-        },
-        { title: t('account.tabs.security'), url: 'account-security' },
-        { title: t('account.tabs.active'), url: 'account-active' },
-        {
-          title: t('account.tabs.statements'),
-          url: 'account-statements'
-        }
-      ]
-    },
-    {
-      title: t('nav.main.moderation'),
-      url: '/moderation/content',
-      icon: Shield,
-      items: [
-        { title: t('nav.main.content'), url: '/moderation/content' },
-        { title: t('nav.main.users'), url: '/moderation/users' },
-        { title: t('nav.main.reports'), url: '/moderation/reports' },
-        { title: t('nav.main.settings'), url: '/moderation/settings' }
-      ]
-    }
-  ],
-  navSecondary: [
-    { title: t('nav.secondary.about'), url: '/about', icon: Info },
-    {
-      title: t('nav.secondary.feedback'),
-      url: 'https://github.com/Cthaat/NekoTribe/issues',
-      icon: Send
-    }
-  ]
-}));
+  {
+    key: 'discover',
+    title: t('nav.main.discover'),
+    to: localePath('/?feed=trending'),
+    icon: Compass,
+    active:
+      (route.path === localePath('/') && route.query.feed === 'trending') ||
+      route.path.includes('/tweet/search/')
+  },
+  {
+    key: 'notifications',
+    title: t('nav.main.notifications'),
+    to: signedIn.value
+      ? localePath(`/user/${userId.value}/notifications`)
+      : localePath('/auth/login'),
+    icon: Bell,
+    active: route.path.includes('/notifications')
+  },
+  {
+    key: 'chat',
+    title: t('nav.main.chat'),
+    to: localePath('/chat'),
+    icon: MessageCircle,
+    active: route.path.includes('/chat')
+  },
+  {
+    key: 'groups',
+    title: t('nav.main.groups'),
+    to: localePath('/groups/discover'),
+    icon: Users,
+    active: route.path.includes('/groups')
+  },
+  {
+    key: 'bookmarks',
+    title: t('nav.main.bookmark'),
+    to: localePath('/account/bookmarks'),
+    icon: Bookmark,
+    active:
+      route.path.includes('/account/bookmarks') ||
+      route.path.includes('/tweet/bookmark/')
+  },
+  {
+    key: 'profile',
+    title: t('nav.main.profile'),
+    to: signedIn.value
+      ? localePath(`/user/${userId.value}/profile`)
+      : localePath('/account/overview'),
+    icon: User,
+    active: route.path.includes('/profile')
+  }
+]);
 
-interface LocalizedMenuItem {
-  url: string;
+const isMoreActive = computed(() =>
+  route.path.includes('/ai/') ||
+  route.path.includes('/moderation') ||
+  route.path.includes('/account/overview') ||
+  route.path.includes('/account/settings') ||
+  route.path.includes('/account/appearance') ||
+  route.path.includes('/account/posts')
+);
+
+function go(path: string): void {
+  void navigateTo(localePath(path));
 }
 
-// 3. ✨ 创建一个 computed 属性，它会动态地生成包含本地化 URL 的完整导航数据
-const localizedNav = computed(() => {
-  // 一个可复用的辅助函数，用于处理单个菜单项
-  const processMenuItem = (item: LocalizedMenuItem) => {
-    // 如果 url 是 '#' 或外部链接，则不处理，直接返回
-    if (
-      item.url.startsWith('#') ||
-      item.url.startsWith('http')
-    ) {
-      return item.url;
-    }
-    // 否则，使用 localePath 进行本地化
-    return localePath(item.url);
-  };
-
-  return {
-    // 处理 navMain，它有嵌套的 items
-    navMain: baseNavData.value.navMain.map(mainItem => ({
-      ...mainItem,
-      url: processMenuItem(mainItem),
-      items: mainItem.items
-        ? mainItem.items.map(subItem => ({
-            ...subItem,
-            url: processMenuItem(subItem)
-          }))
-        : undefined
-    })),
-
-    // 处理 navSecondary，它没有嵌套
-    navSecondary: baseNavData.value.navSecondary.map(item => ({
-      ...item,
-      url: processMenuItem(item)
-    }))
-  };
-});
-
-const navMainWithActiveState = computed(() => {
-  const currentPath = route.path;
-
-  return localizedNav.value.navMain.map(mainItem => {
-    const selfActive = mainItem.url.includes('?') ? route.fullPath === mainItem.url : currentPath === mainItem.url;
-    const childActive = mainItem.items?.some(
-      subItem => currentPath === subItem.url
-    );
-
-    return {
-      ...mainItem,
-      isActive: selfActive || childActive
-    };
-  });
-});
+async function handleLogout(): Promise<void> {
+  if (loggingOut.value) return;
+  loggingOut.value = true;
+  try {
+    const result = await preferences.logoutCurrentSession();
+    if (!result || !preferences.isAuthCurrent(result.revision)) return;
+    if (!result.ok) throw result.error;
+    toast(t('nav.user.logoutSuccess'));
+    void navigateTo(localePath('/auth/login'));
+  } catch {
+    toast.error(t('nav.user.logoutError'));
+  } finally {
+    loggingOut.value = false;
+  }
+}
 </script>
 
 <template>
-  <Sidebar v-bind="props">
-    <SidebarHeader>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton size="lg" as-child>
-            <NuxtLink :to="localePath('/')">
-              <div
-                class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-              >
-                <Command class="size-4" />
-              </div>
-              <div
-                class="grid flex-1 text-left text-sm leading-tight"
-              >
-                <span class="truncate font-semibold tracking-tight">
-                  {{ t('app.brand.name') }}
-                </span>
-                <span class="truncate text-xs text-muted-foreground">
-                  {{ t('app.brand.tagline') }}
-                </span>
-              </div>
-            </NuxtLink>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    </SidebarHeader>
-    <SidebarContent>
-      <NavMain :items="navMainWithActiveState" />
-      <!-- TODO： 后续可以开发新功能 -->
-      <NavSecondary
-        :items="localizedNav.navSecondary"
-        class="mt-auto"
-      />
-    </SidebarContent>
-    <SidebarFooter>
-      <NavUser :user="baseNavData.user" />
-    </SidebarFooter>
-  </Sidebar>
-</template>
+  <aside
+    class="flex flex-col justify-between bg-transparent px-2 py-3.5 md:w-[72px] lg:w-[220px] lg:px-3"
+    aria-label="Primary navigation"
+  >
+    <div class="flex flex-col gap-1 overflow-y-auto">
+      <!-- Brand -->
+      <NuxtLink
+        :to="localePath('/')"
+        class="pressable mb-3 inline-flex items-center gap-2.5 self-center rounded-full px-2 py-1.5 transition-colors hover:bg-accent/70 lg:self-start lg:px-2.5"
+      >
+        <span class="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <PawPrint class="size-[18px]" />
+        </span>
+        <span class="hidden text-[17px] font-semibold tracking-tight text-foreground lg:inline">
+          {{ t('app.brand.name') }}
+        </span>
+      </NuxtLink>
 
+      <!-- Social primary links -->
+      <nav class="flex flex-col gap-1">
+        <NuxtLink
+          v-for="item in primaryNav"
+          :key="item.key"
+          :to="item.to"
+          class="pressable flex h-[42px] items-center justify-center gap-3 rounded-full px-2.5 text-[14.5px] transition-colors lg:justify-start lg:px-3.5"
+          :class="
+            item.active
+              ? 'bg-[var(--primary-soft)] font-semibold text-primary'
+              : 'font-medium text-muted-foreground hover:bg-accent/65 hover:text-foreground'
+          "
+        >
+          <component
+            :is="item.icon"
+            class="size-5 shrink-0"
+            :stroke-width="item.active ? 2.15 : 1.75"
+          />
+          <span class="hidden truncate lg:inline">{{ item.title }}</span>
+        </NuxtLink>
+
+        <!-- More menu (AI assistants, Moderation, Account Settings, About) -->
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <button
+              type="button"
+              class="pressable flex h-[42px] w-full items-center justify-center gap-3 rounded-full px-2.5 text-[14.5px] transition-colors lg:justify-start lg:px-3.5"
+              :class="
+                isMoreActive
+                  ? 'bg-[var(--primary-soft)] font-semibold text-primary'
+                  : 'font-medium text-muted-foreground hover:bg-accent/65 hover:text-foreground'
+              "
+            >
+              <MoreHorizontal
+                class="size-5 shrink-0"
+                :stroke-width="isMoreActive ? 2.15 : 1.75"
+              />
+              <span class="hidden truncate lg:inline">{{ t('common.more') }}</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start" class="w-56 rounded-[20px] p-1.5">
+            <DropdownMenuGroup>
+              <DropdownMenuItem @select="go('/ai/writing')">
+                <Bot class="mr-2 size-4" />
+                <span>{{ t('aiWriting.title') }}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @select="go('/ai/knowledge')">
+                <BrainCircuit class="mr-2 size-4" />
+                <span>{{ t('aiKnowledge.title') }}</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem @select="go('/account/overview')">
+                <BadgeCheck class="mr-2 size-4" />
+                <span>{{ t('nav.main.account') }}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @select="go('/account/posts')">
+                <Feather class="mr-2 size-4" />
+                <span>{{ t('nav.main.manageTweets') }}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @select="go('/account/settings')">
+                <Settings class="mr-2 size-4" />
+                <span>{{ t('nav.main.settings') }}</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem @select="go('/moderation/content')">
+                <Shield class="mr-2 size-4" />
+                <span>{{ t('nav.main.moderation') }}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @select="go('/about')">
+                <Info class="mr-2 size-4" />
+                <span>{{ t('nav.secondary.about') }}</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </nav>
+
+      <!-- Compose CTA -->
+      <div class="mt-3 px-0.5 lg:px-1">
+        <NuxtLink
+          :to="localePath('/meow')"
+          class="pressable mx-auto flex h-[42px] w-[42px] items-center justify-center rounded-full bg-primary text-[14px] font-semibold text-primary-foreground transition-opacity hover:opacity-92 lg:w-full"
+        >
+          <Feather class="size-4 lg:hidden" />
+          <span class="hidden lg:inline">{{ t('nav.main.post') }}</span>
+        </NuxtLink>
+      </div>
+    </div>
+
+    <!-- Bottom Utilities + Profile Pill -->
+    <div class="mt-2 flex flex-col gap-2">
+      <div class="flex flex-col items-center gap-1.5 lg:flex-row lg:px-2">
+        <LanguageTriggerIcon />
+        <ColorModeIcon />
+      </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <button
+            type="button"
+            class="pressable flex w-full items-center justify-center gap-2.5 rounded-full p-2 text-left transition-colors hover:bg-accent/65 lg:justify-start lg:px-2.5"
+          >
+            <UserAvatar
+              :src="user.avatarUrl"
+              :name="displayName"
+              :username="user.username"
+              :seed="user.id"
+              size="sm"
+            />
+            <div class="hidden min-w-0 flex-1 lg:block">
+              <p class="truncate text-[13.5px] font-semibold leading-tight text-foreground">
+                {{ displayName }}
+              </p>
+              <p class="truncate text-[12px] text-[var(--ink-tertiary)]">
+                {{ subtitle }}
+              </p>
+            </div>
+            <MoreHorizontal class="hidden size-4 shrink-0 text-muted-foreground lg:block" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="top" align="start" class="w-56 rounded-[20px] p-1.5">
+          <DropdownMenuLabel class="px-2.5 py-2 font-normal">
+            <div class="flex items-center gap-2.5">
+              <UserAvatar
+                :src="user.avatarUrl"
+                :name="displayName"
+                :username="user.username"
+                :seed="user.id"
+                size="sm"
+              />
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold">{{ displayName }}</p>
+                <p class="truncate text-xs text-[var(--ink-tertiary)]">{{ subtitle }}</p>
+              </div>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem @select="go('/account/pro')">
+            <Sparkles class="mr-2 size-4" />
+            <span>{{ t('nav.user.upgrade') }}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem @select="go('/account/overview')">
+            <BadgeCheck class="mr-2 size-4" />
+            <span>{{ t('nav.user.account') }}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem @select="go('/account/billing')">
+            <CreditCard class="mr-2 size-4" />
+            <span>{{ t('nav.user.billing') }}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            @select="go(signedIn ? `/user/${userId}/notifications` : '/auth/login')"
+          >
+            <Bell class="mr-2 size-4" />
+            <span>{{ t('nav.user.notifications') }}</span>
+          </DropdownMenuItem>
+          <template v-if="signedIn">
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              class="text-destructive focus:text-destructive"
+              :disabled="loggingOut"
+              @select="handleLogout"
+            >
+              <LogOut class="mr-2 size-4" />
+              <span>{{ t('nav.user.logout') }}</span>
+            </DropdownMenuItem>
+          </template>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  </aside>
+</template>

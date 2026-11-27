@@ -1,15 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import {
-  Clock,
-  CheckCircle,
-  XCircle,
-  Flag,
-  TrendingUp,
-  AlertTriangle,
-  Gauge,
-  ShieldCheck
-} from 'lucide-vue-next';
 
 export interface ModerationStatsData {
   pending: number;
@@ -45,99 +35,54 @@ const { t } = useAppLocale();
 const statsCards = computed(() => [
   {
     title: t('moderation.stats.pending'),
-    value: props.stats.pending,
-    icon: Clock,
-    tone: 'amber'
+    value: props.stats.pending
   },
   {
     title: t('moderation.stats.approved'),
-    value: props.stats.approved,
-    icon: CheckCircle,
-    tone: 'emerald'
+    value: props.stats.approved
   },
   {
     title: t('moderation.stats.rejected'),
-    value: props.stats.rejected,
-    icon: XCircle,
-    tone: 'rose'
+    value: props.stats.rejected
   },
   {
     title: t('moderation.stats.flagged'),
-    value: props.stats.flagged,
-    icon: Flag,
-    tone: 'orange'
+    value: props.stats.flagged
   },
   {
     title: t('moderation.stats.todayProcessed'),
-    value: props.stats.todayProcessed,
-    icon: TrendingUp,
-    tone: 'sky'
+    value: props.stats.todayProcessed
   },
   {
     title: t('moderation.stats.avgProcessTime'),
     value:
       props.stats.avgProcessTime ||
-      t('moderation.stats.zeroMinutes'),
-    icon: Gauge,
-    tone: 'violet',
-    isText: true
+      t('moderation.stats.zeroMinutes')
   },
   {
     title: t('moderation.stats.openReports'),
-    value: props.stats.openReports ?? 0,
-    icon: AlertTriangle,
-    tone: 'red'
+    value: props.stats.openReports ?? 0
   },
   {
     title: t('moderation.stats.appealSuccessRate'),
-    value: `${props.stats.appealSuccessRate ?? 0}%`,
-    icon: ShieldCheck,
-    tone: 'cyan',
-    isText: true
+    value: `${props.stats.appealSuccessRate ?? 0}%`
   }
 ]);
-
-const toneClasses: Record<string, string> = {
-  amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-  orange: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
-  sky: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
-  red: 'bg-red-500/10 text-red-600 dark:text-red-400',
-  cyan: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
-};
 </script>
 
 <template>
-  <div
-    class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
-  >
+  <dl class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
     <div
       v-for="stat in statsCards"
       :key="stat.title"
-      class="rounded-xl border border-border/60 bg-card p-4 shadow-none transition-shadow hover:shadow-md"
+      class="min-w-0 rounded-2xl bg-card px-3.5 py-2.5"
     >
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-xs font-medium text-muted-foreground">
-          {{ stat.title }}
-        </p>
-        <div
-          :class="[
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
-            toneClasses[stat.tone]
-          ]"
-        >
-          <component :is="stat.icon" class="h-4 w-4" />
-        </div>
-      </div>
-      <p class="mt-2 truncate text-2xl font-semibold tracking-tight">
-        {{
-          stat.isText
-            ? stat.value
-            : Number(stat.value).toLocaleString()
-        }}
-      </p>
+      <dt class="text-[11px] font-medium leading-tight text-muted-foreground">
+        {{ stat.title }}
+      </dt>
+      <dd class="mt-0.5 min-w-0 wrap-anywhere text-lg leading-tight font-semibold tabular-nums">
+        {{ typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value }}
+      </dd>
     </div>
-  </div>
+  </dl>
 </template>

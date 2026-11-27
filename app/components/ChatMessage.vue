@@ -3,22 +3,18 @@ import { computed } from 'vue';
 import PrivateMediaDownload from '@/components/PrivateMediaDownload.vue';
 import { isPrivateMediaContent } from '@/utils/private-media';
 import {
-  MoreHorizontal,
-  Reply,
-  Edit3,
-  Trash2,
-  Pin,
-  Smile,
   Copy,
   Crown,
+  Edit3,
+  FileText,
+  MoreHorizontal,
+  Pin,
+  Reply,
   Shield,
-  FileText
+  Smile,
+  Trash2
 } from 'lucide-vue-next';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -81,10 +77,12 @@ const props = withDefaults(defineProps<{
   isOwn?: boolean;
   showAvatar?: boolean;
   isFirstInGroup?: boolean;
+  isLastInGroup?: boolean;
+  animate?: boolean;
   allowEdit?: boolean;
   allowDelete?: boolean;
   hideReply?: boolean;
-}>(), { allowEdit: undefined, allowDelete: undefined });
+}>(), { allowEdit: undefined, allowDelete: undefined, isLastInGroup: true, animate: false });
 
 const showDeleteAction = computed(() => props.allowDelete ?? (props.isOwn || props.message.canDelete));
 const showEditAction = computed(() => props.isOwn && props.message.type === 'text' && props.allowEdit !== false);
@@ -146,12 +144,18 @@ const roleBadge = computed(() => {
   }
 });
 
-const authorInitial = computed(
-  () =>
-    (props.message.author.nickname || props.message.author.username || '?')
-      .slice(0, 2)
-      .toUpperCase()
-);
+const showTailAvatar = computed(() => props.showAvatar && props.isLastInGroup !== false);
+
+const bubbleRadiusClass = computed(() => {
+  if (props.isOwn) {
+    return props.isFirstInGroup
+      ? 'rounded-[18px] rounded-br-[4px]'
+      : 'rounded-[18px] rounded-tr-[4px] rounded-br-[4px]';
+  }
+  return props.isFirstInGroup
+    ? 'rounded-[18px] rounded-bl-[4px]'
+    : 'rounded-[18px] rounded-tl-[4px] rounded-bl-[4px]';
+});
 
 // 格式化时间
 const formatTime = (dateStr: string) => {
@@ -215,191 +219,209 @@ const handleViewProfile = () => {
     </div>
   </div>
 
-  <!-- 普通消息 -->
+  <!-- 普通消息 (Telegram / iMessage Bubble) -->
   <div
     v-else
-    class="group/msg relative px-4 transition-colors hover:bg-muted/30"
+    class="group/msg relative px-3 sm:px-4"
     :class="[
-      isFirstInGroup ? 'mt-3 pt-1.5 pb-0.5' : 'py-0.5'
+      isFirstInGroup ? 'mt-2.5' : 'mt-0.5',
+      animate ? 'animate-bubble-in' : ''
     ]"
   >
-    <div class="flex gap-3">
-      <!-- 头像区域 -->
-      <div class="w-9 shrink-0">
+    <div
+      class="flex items-end gap-2"
+      :class="isOwn ? 'justify-end' : 'justify-start'"
+    >
+      <!-- 他人头像区域（同组最后一条消息底部对齐） -->
+      <div v-if="!isOwn" class="w-8 shrink-0">
         <button
-          v-if="showAvatar && isFirstInGroup"
+          v-if="showTailAvatar"
           type="button"
           class="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           @click="handleViewProfile"
         >
-          <Avatar class="h-9 w-9 ring-1 ring-border">
-            <AvatarImage
-              :src="message.author.avatar"
-              :alt="message.author.nickname"
-            />
-            <AvatarFallback class="text-xs">
-              {{ authorInitial }}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            :src="message.author.avatar"
+            :name="message.author.nickname"
+            :username="message.author.username"
+            :seed="message.author.id"
+            size="sm"
+          />
         </button>
-        <div
-          v-else
-          class="flex h-5 items-center justify-center opacity-0 transition-opacity group-hover/msg:opacity-100"
-        >
-          <span class="text-[10px] tabular-nums text-muted-foreground">
-            {{ formatShortTime(message.createdAt) }}
-          </span>
-        </div>
       </div>
 
-      <!-- 消息内容区域 -->
-      <div class="min-w-0 flex-1">
-        <!-- 用户名和时间 -->
+      <!-- 气泡主体 -->
+      <div class="relative min-w-0 max-w-[78%] sm:max-w-[70%]">
         <div
-          v-if="isFirstInGroup"
-          class="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1"
+          class="relative px-3.5 py-2.5 transition-colors"
+          :class="[
+            bubbleRadiusClass,
+            isOwn
+              ? 'bg-primary text-primary-foreground dark:bg-primary/20 dark:text-foreground'
+              : 'bg-secondary text-foreground'
+          ]"
         >
-          <button
-            type="button"
-            class="text-sm font-semibold hover:underline"
-            @click="handleViewProfile"
+          <!-- 他人组首名称与徽章 -->
+          <div
+            v-if="!isOwn && isFirstInGroup"
+            class="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
           >
-            {{ message.author.nickname }}
-          </button>
-          <span
-            v-if="roleBadge"
-            :class="[
-              'inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium',
-              roleBadge.class
-            ]"
+            <button
+              type="button"
+              class="text-xs font-bold text-primary hover:underline"
+              @click="handleViewProfile"
+            >
+              {{ message.author.nickname }}
+            </button>
+            <span
+              v-if="roleBadge"
+              :class="[
+                'inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium',
+                roleBadge.class
+              ]"
+            >
+              <component
+                v-if="roleIcon"
+                :is="roleIcon"
+                class="h-2.5 w-2.5"
+              />
+              {{ roleBadge.label }}
+            </span>
+            <span
+              v-if="message.isPinned"
+              class="inline-flex shrink-0 items-center gap-1 rounded-full bg-background/60 px-1.5 py-0 text-[10px] font-medium text-muted-foreground"
+            >
+              <Pin class="h-2.5 w-2.5" />
+              {{ t('chat.message.pinned') }}
+            </span>
+          </div>
+
+          <!-- 回复引用 -->
+          <div
+            v-if="message.replyTo"
+            class="mb-1.5 flex items-center gap-1.5 rounded-lg border-l-2 px-2.5 py-1 text-xs"
+            :class="isOwn ? 'border-primary-foreground/60 bg-black/15 text-primary-foreground/95 dark:border-primary/60 dark:bg-background/50 dark:text-foreground' : 'border-primary/50 bg-background/60 text-foreground'"
           >
-            <component
-              v-if="roleIcon"
-              :is="roleIcon"
-              class="h-2.5 w-2.5"
+            <Reply class="h-3 w-3 shrink-0 opacity-75" />
+            <span class="shrink-0 font-semibold">
+              {{ message.replyTo.author.nickname }}
+            </span>
+            <span class="min-w-0 truncate opacity-85">
+              {{ message.replyTo.content }}
+            </span>
+          </div>
+
+          <!-- 消息内容 -->
+          <div
+            v-if="message.content"
+            class="whitespace-pre-wrap break-words text-sm leading-relaxed"
+          >
+            {{ message.content }}
+            <span
+              v-if="message.editedAt"
+              class="ml-1 text-[10px] opacity-75"
+            >
+              ({{ t('chat.message.edited') }})
+            </span>
+          </div>
+
+          <LinkPreviewCard :text="message.content" />
+
+          <!-- 图片附件 -->
+          <div
+            v-if="publicImages.length"
+            class="mt-1.5 flex flex-wrap gap-1.5"
+          >
+            <img
+              v-for="attachment in publicImages"
+              :key="attachment.id"
+              :src="attachment.url"
+              :alt="attachment.name"
+              class="max-h-64 max-w-xs cursor-pointer rounded-xl object-cover transition-opacity hover:opacity-90"
             />
-            {{ roleBadge.label }}
-          </span>
-          <span
-            v-if="message.isPinned"
-            class="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-0 text-[10px] font-medium text-muted-foreground"
+          </div>
+
+          <!-- 文件附件 -->
+          <div
+            v-if="publicFiles.length || privateAttachments.length"
+            class="mt-1.5 space-y-1"
           >
-            <Pin class="h-2.5 w-2.5" />
-            {{ t('chat.message.pinned') }}
-          </span>
-          <span class="text-[11px] tabular-nums text-muted-foreground">
-            {{ formatTime(message.createdAt) }}
-          </span>
-        </div>
-
-        <!-- 回复引用 -->
-        <div
-          v-if="message.replyTo"
-          class="mb-1 flex items-center gap-1.5 rounded-md border-l-2 border-primary/40 bg-muted/40 px-2 py-1 text-xs"
-        >
-          <Reply class="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span class="shrink-0 font-medium text-foreground">
-            {{ message.replyTo.author.nickname }}
-          </span>
-          <span class="min-w-0 truncate text-muted-foreground">
-            {{ message.replyTo.content }}
-          </span>
-        </div>
-
-        <!-- 消息内容 -->
-        <div
-          v-if="message.content"
-          class="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground"
-        >
-          {{ message.content }}
-          <span
-            v-if="message.editedAt"
-            class="ml-1 text-[10px] text-muted-foreground"
-          >
-            ({{ t('chat.message.edited') }})
-          </span>
-        </div>
-
-        <LinkPreviewCard :text="message.content" />
-
-        <!-- 图片附件 -->
-        <div
-          v-if="publicImages.length"
-          class="mt-1.5 flex flex-wrap gap-1.5"
-        >
-          <img
-            v-for="attachment in publicImages"
-            :key="attachment.id"
-            :src="attachment.url"
-            :alt="attachment.name"
-            class="max-h-64 max-w-xs cursor-pointer rounded-lg border border-border/60 object-cover transition-opacity hover:opacity-90"
-          />
-        </div>
-
-        <!-- 文件附件 -->
-        <div
-          v-if="publicFiles.length || privateAttachments.length"
-          class="mt-1.5 space-y-1"
-        >
-          <a
-            v-for="attachment in publicFiles"
-            :key="attachment.id"
-            :href="attachment.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="flex max-w-sm items-center gap-2.5 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-2 transition-colors hover:border-border hover:bg-muted/50"
-          >
-            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background">
-              <FileText class="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-sm font-medium">
-                {{ attachment.name }}
+            <a
+              v-for="attachment in publicFiles"
+              :key="attachment.id"
+              :href="attachment.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex max-w-sm items-center gap-2.5 rounded-xl bg-background/90 px-2.5 py-2 text-foreground transition-colors hover:bg-background"
+            >
+              <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--hover)]">
+                <FileText class="h-4 w-4 text-muted-foreground" />
               </div>
-              <div
-                v-if="attachment.size"
-                class="text-[11px] tabular-nums text-muted-foreground"
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-medium">
+                  {{ attachment.name }}
+                </div>
+                <div
+                  v-if="attachment.size"
+                  class="text-[11px] tabular-nums text-muted-foreground"
+                >
+                  {{ formatFileSize(attachment.size) }}
+                </div>
+              </div>
+            </a>
+            <PrivateMediaDownload
+              v-for="attachment in privateAttachments"
+              :key="attachment.id"
+              :media-id="attachment.id"
+              :file-name="attachment.name"
+              class="max-w-sm"
+            />
+          </div>
+
+          <!-- 表情反应 + 时间戳 -->
+          <div class="mt-1 flex flex-wrap items-center justify-end gap-1.5">
+            <div
+              v-if="message.reactions?.length"
+              class="mr-auto flex flex-wrap gap-1"
+            >
+              <button
+                v-for="reaction in message.reactions"
+                :key="reaction.emoji"
+                type="button"
+                class="inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs tabular-nums transition-colors"
+                :class="[
+                  isOwn
+                    ? (reaction.reacted ? 'bg-primary-foreground text-primary font-semibold' : 'bg-black/15 text-primary-foreground hover:bg-black/25')
+                    : (reaction.reacted ? 'bg-primary/15 text-primary font-semibold' : 'bg-background/70 text-foreground hover:bg-background')
+                ]"
+                @click="handleReaction(reaction.emoji)"
               >
-                {{ formatFileSize(attachment.size) }}
-              </div>
+                <span>{{ reaction.emoji }}</span>
+                <span>{{ reaction.count }}</span>
+              </button>
             </div>
-          </a>
-          <PrivateMediaDownload
-            v-for="attachment in privateAttachments"
-            :key="attachment.id"
-            :media-id="attachment.id"
-            :file-name="attachment.name"
-            class="max-w-sm"
-          />
-        </div>
-
-        <!-- 表情反应 -->
-        <div
-          v-if="message.reactions?.length"
-          class="mt-1.5 flex flex-wrap gap-1"
-        >
-          <button
-            v-for="reaction in message.reactions"
-            :key="reaction.emoji"
-            type="button"
-            class="inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs tabular-nums transition-colors"
-            :class="[
-              reaction.reacted
-                ? 'border-primary/40 bg-primary/10 text-foreground'
-                : 'border-border/60 bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted'
-            ]"
-            @click="handleReaction(reaction.emoji)"
-          >
-            <span>{{ reaction.emoji }}</span>
-            <span class="font-medium">{{ reaction.count }}</span>
-          </button>
+            <span
+              v-if="message.isPinned && isOwn"
+              class="inline-flex items-center gap-0.5 text-[10px] opacity-80"
+            >
+              <Pin class="h-2.5 w-2.5" />
+            </span>
+            <span
+              class="text-[10px] tabular-nums"
+              :class="isOwn ? 'text-primary-foreground/75' : 'text-muted-foreground'"
+              :title="formatTime(message.createdAt)"
+            >
+              {{ formatShortTime(message.createdAt) }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 操作按钮（悬浮显示） -->
     <div
-      class="absolute right-4 top-0 -translate-y-1/2 flex items-center gap-px rounded-md border border-border/60 bg-background p-0.5 opacity-0 shadow-sm transition-opacity group-hover/msg:opacity-100"
+      class="absolute top-0 -translate-y-1/2 z-10 flex items-center gap-px rounded-full border border-[var(--divider)] bg-background/95 p-0.5 opacity-0 shadow-sm backdrop-blur transition-opacity group-hover/msg:opacity-100"
+      :class="isOwn ? 'left-4' : 'right-4'"
     >
       <TooltipProvider>
         <Tooltip
@@ -427,7 +449,8 @@ const handleViewProfile = () => {
             <Button
               variant="ghost"
               size="icon"
-              class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+              class="size-8 text-muted-foreground hover:text-foreground"
+              :aria-label="t('chat.actions.addReaction')"
             >
               <Smile class="h-3.5 w-3.5" />
             </Button>
@@ -442,7 +465,8 @@ const handleViewProfile = () => {
             <Button
               variant="ghost"
               size="icon"
-              class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+              class="size-8 text-muted-foreground hover:text-foreground"
+              :aria-label="t('comment.reply')"
               @click="emit('reply', message)"
             >
               <Reply class="h-3.5 w-3.5" />
@@ -458,7 +482,8 @@ const handleViewProfile = () => {
             <Button
               variant="ghost"
               size="icon"
-              class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+              class="size-8 text-muted-foreground hover:text-foreground"
+              :aria-label="t('common.more')"
             >
               <MoreHorizontal class="h-3.5 w-3.5" />
             </Button>

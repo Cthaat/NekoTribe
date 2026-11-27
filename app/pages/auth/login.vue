@@ -5,6 +5,8 @@ definePageMeta({
 
 import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
 import AppButton from '@/components/app/AppButton.vue';
+import ColorModeIcon from '@/components/ColorModeIcon.vue';
+import LanguageTriggerIcon from '@/components/LanguageTriggerIcon.vue';
 import {
   Card,
   CardContent,
@@ -250,27 +252,31 @@ const onSubmit = form.handleSubmit(onValidSubmit);
 
 <template>
   <div
-    class="relative grid min-h-svh w-full overflow-x-clip lg:grid-cols-2"
+    class="relative grid min-h-svh w-full overflow-x-clip bg-background lg:grid-cols-2"
   >
     <!-- Left: Form column -->
     <div class="flex min-w-0 flex-col gap-4 p-4 sm:p-6 md:p-10">
-      <div class="flex justify-center gap-2 sm:justify-start">
+      <div class="flex items-center justify-between gap-2">
         <NuxtLink
           :to="localePath('/')"
           class="flex items-center gap-2 font-medium"
         >
           <div
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground"
+            class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
           >
             <Cat class="size-4" />
           </div>
-          <span class="text-sm">{{ t('app.brand.name') }}</span>
+          <span class="text-sm font-semibold">{{ t('app.brand.name') }}</span>
         </NuxtLink>
+        <div class="flex shrink-0 items-center gap-1.5">
+          <LanguageTriggerIcon />
+          <ColorModeIcon />
+        </div>
       </div>
 
       <div class="flex min-w-0 flex-1 items-center justify-center">
-        <div class="w-full max-w-sm">
-          <Card class="border-none shadow-none">
+        <div class="w-full max-w-md">
+          <Card class="bento-card p-6 sm:p-8">
             <CardHeader class="space-y-1 px-0 text-center">
               <CardTitle
                 class="text-2xl font-semibold tracking-tight"
@@ -303,6 +309,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                         :placeholder="
                           t('auth.login.accountPlaceholder')
                         "
+                        class="h-11 rounded-[14px] border-0 bg-secondary shadow-none dark:bg-secondary"
                         v-bind="componentField"
                       />
                     </FormControl>
@@ -335,13 +342,14 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                           :placeholder="
                             t('auth.login.passwordPlaceholder')
                           "
-                          class="pr-10"
+                          class="h-11 rounded-[14px] border-0 bg-secondary pr-10 shadow-none dark:bg-secondary"
                           v-bind="componentField"
                         />
                         <button
                           type="button"
-                          tabindex="-1"
-                          class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          :aria-label="t('common.togglePasswordVisibility')"
+                          :aria-pressed="showPassword"
+                          class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                           @click="showPassword = !showPassword"
                         >
                           <component
@@ -358,9 +366,9 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                 <div class="flex items-center gap-2.5">
                   <Checkbox
                     id="trust-device"
-                    :checked="trustDevice"
+                    :model-value="trustDevice"
                     :disabled="isLoading"
-                    @update:checked="trustDevice = $event === true"
+                    @update:model-value="trustDevice = $event === true"
                   />
                   <Label
                     for="trust-device"
@@ -380,7 +388,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                 >
                   <div
                     v-if="twoFactorChallenge"
-                    class="grid gap-2 rounded-lg border bg-muted/30 p-4"
+                    class="bento-tile grid gap-2 p-4"
                   >
                     <div class="flex items-center gap-2 text-sm font-medium">
                       <ShieldCheck class="h-4 w-4 text-primary" />
@@ -393,7 +401,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                       inputmode="numeric"
                       autocomplete="one-time-code"
                       :placeholder="t('auth.login.twoFactorCodePlaceholder')"
-                      class="tracking-widest text-center font-mono"
+                      class="h-11 rounded-[14px] border-0 bg-card text-center font-mono tracking-widest shadow-none dark:bg-card"
                       @keydown.enter.prevent="handleTwoFactorSubmit"
                     />
                     <p class="text-xs text-muted-foreground">
@@ -405,7 +413,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                 <AppButton
                   v-if="!twoFactorChallenge"
                   type="submit"
-                  class="w-full"
+                  class="h-11 w-full rounded-full font-semibold"
                   :loading="isLoading"
                   :loading-label="t('auth.login.loginButton')"
                 >
@@ -414,7 +422,7 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                 <AppButton
                   v-else
                   type="button"
-                  class="w-full"
+                  class="h-11 w-full rounded-full font-semibold"
                   :loading="isLoading"
                   :loading-label="t('auth.login.twoFactorVerify')"
                   @click="handleTwoFactorSubmit"
@@ -422,12 +430,12 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                   {{ t('auth.login.twoFactorVerify') }}
                 </AppButton>
 
-                <AppButton v-if="passkeyAvailable && !twoFactorChallenge" type="button" variant="outline"
-                  class="w-full" :disabled="isLoading" @click="loginWithPasskey">
+                <AppButton v-if="passkeyAvailable && !twoFactorChallenge" type="button" variant="secondary"
+                  class="h-11 w-full rounded-full font-medium" :disabled="isLoading" @click="loginWithPasskey">
                   {{ t('passkeys.signIn') }}
                 </AppButton>
 
-                <AppButton v-if="!twoFactorChallenge" type="button" variant="outline" class="w-full"
+                <AppButton v-if="!twoFactorChallenge" type="button" variant="secondary" class="h-11 w-full rounded-full font-medium"
                   :disabled="isLoading" @click="loginWithGitHub">
                   {{ t('githubOAuth.signIn') }}
                 </AppButton>
@@ -439,14 +447,14 @@ const onSubmit = form.handleSubmit(onValidSubmit);
                 <div
                   class="after:border-border relative text-center text-xs after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t"
                 >
-                  <span class="bg-background text-muted-foreground relative z-10 px-2">
+                  <span class="bg-card text-muted-foreground relative z-10 px-2">
                     {{ t('auth.login.noAccount') }}
                   </span>
                 </div>
 
                 <NuxtLink
                   :to="localePath('/auth/sign-up')"
-                  class="inline-flex h-9 w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+                  class="pressable inline-flex h-11 w-full items-center justify-center rounded-full bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
                   {{ t('auth.login.signUp') }}
                 </NuxtLink>
@@ -457,29 +465,31 @@ const onSubmit = form.handleSubmit(onValidSubmit);
       </div>
     </div>
 
-    <!-- Right: Decorative column -->
-    <div class="bg-muted relative hidden lg:block overflow-hidden">
-      <img
-        src="/placeholder.svg"
-        :alt="t('auth.login.coverImageAlt')"
-        width="1920"
-        height="1080"
-        class="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-      />
-      <!-- Soft overlay gradient -->
+    <!-- Right: Subtle grid quiet brand column -->
+    <div
+      class="relative hidden overflow-hidden bg-secondary/70 bg-subtle-grid p-10 lg:flex lg:items-center lg:justify-center"
+    >
       <div
-        class="pointer-events-none absolute inset-0 bg-gradient-to-tr from-background/60 via-transparent to-background/30"
-      />
+        class="bento-card flex size-40 items-center justify-center"
+      >
+        <div
+          class="flex size-24 items-center justify-center rounded-[20px] bg-[var(--primary-soft)]"
+        >
+          <Cat class="size-12 text-primary" />
+        </div>
+      </div>
       <!-- Brand mark in corner -->
       <div class="absolute bottom-8 left-8 right-8 z-10">
-        <blockquote class="space-y-2">
-          <p class="text-lg font-medium leading-relaxed text-foreground/90">
-            &ldquo;{{ t('app.brand.tagline') }}&rdquo;
-          </p>
-          <footer class="text-sm text-muted-foreground">
-            — {{ t('app.brand.name') }}
-          </footer>
-        </blockquote>
+        <div class="liquid-glass-popover rounded-[26px] p-6">
+          <blockquote class="space-y-2">
+            <p class="text-[17px] font-medium leading-[1.62] text-foreground/90">
+              &ldquo;{{ t('app.brand.tagline') }}&rdquo;
+            </p>
+            <footer class="text-sm text-[var(--ink-tertiary)]">
+              — {{ t('app.brand.name') }}
+            </footer>
+          </blockquote>
+        </div>
       </div>
     </div>
   </div>

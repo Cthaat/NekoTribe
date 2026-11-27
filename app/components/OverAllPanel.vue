@@ -467,12 +467,12 @@ const tableRows = computed(() =>
 <template>
   <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none transition-shadow hover:shadow-md sm:p-6"
+      class="rounded-[20px] bg-secondary/55 p-5 transition-colors hover:bg-secondary/75 sm:p-6"
     >
       <header class="mb-4 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <div
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
           >
             <FileText class="h-4 w-4" />
           </div>
@@ -480,13 +480,13 @@ const tableRows = computed(() =>
             {{ t('account.overview.overallPanel.totalTweets') }}
           </h3>
         </div>
-        <TrendingUp class="h-4 w-4 text-muted-foreground" />
+        <TrendingUp class="h-4 w-4 text-[var(--ink-tertiary)]" />
       </header>
       <div class="text-2xl font-semibold tracking-tight tabular-nums">
         {{ animatedTotalTweets.toFixed(0) }}
       </div>
       <p
-        class="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"
+        class="mt-3 flex items-center gap-1.5 text-[11px] text-[var(--ink-tertiary)]"
       >
         <CalendarDays class="h-3 w-3" />
         <span>
@@ -498,12 +498,12 @@ const tableRows = computed(() =>
     </section>
 
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none transition-shadow hover:shadow-md sm:p-6"
+      class="rounded-[20px] bg-secondary/55 p-5 transition-colors hover:bg-secondary/75 sm:p-6"
     >
       <header class="mb-4 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <div
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-500"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
           >
             <Heart class="h-4 w-4" />
           </div>
@@ -513,7 +513,7 @@ const tableRows = computed(() =>
             }}
           </h3>
         </div>
-        <Sparkles class="h-4 w-4 text-muted-foreground" />
+        <Sparkles class="h-4 w-4 text-[var(--ink-tertiary)]" />
       </header>
       <div class="text-2xl font-semibold tracking-tight tabular-nums">
         {{
@@ -523,7 +523,7 @@ const tableRows = computed(() =>
         }}
       </div>
       <p
-        class="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"
+        class="mt-3 flex items-center gap-1.5 text-[11px] text-[var(--ink-tertiary)]"
       >
         <Sparkles class="h-3 w-3" />
         <span>
@@ -535,12 +535,12 @@ const tableRows = computed(() =>
     </section>
 
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none transition-shadow hover:shadow-md sm:p-6"
+      class="rounded-[20px] bg-secondary/55 p-5 transition-colors hover:bg-secondary/75 sm:p-6"
     >
       <header class="mb-4 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <div
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-500"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
           >
             <Activity class="h-4 w-4" />
           </div>
@@ -550,12 +550,12 @@ const tableRows = computed(() =>
             }}
           </h3>
         </div>
-        <TrendingUp class="h-4 w-4 text-muted-foreground" />
+        <TrendingUp class="h-4 w-4 text-[var(--ink-tertiary)]" />
       </header>
       <div class="text-2xl font-semibold tracking-tight tabular-nums">
         {{ animatedEngagementScore.toFixed(0) }}
       </div>
-      <p class="mt-3 text-[11px] text-muted-foreground">
+      <p class="mt-3 text-[11px] text-[var(--ink-tertiary)]">
         {{
           t(
             'account.overview.overallPanel.engagementScoreDescription'
@@ -566,11 +566,11 @@ const tableRows = computed(() =>
 
     <template v-if="!summaryOnly">
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 lg:col-span-3"
+      class="rounded-[20px] bg-secondary/45 p-5 sm:p-6 lg:col-span-3"
     >
       <header class="mb-4 flex items-start gap-3">
         <div
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-500"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
         >
           <Send class="h-4 w-4" />
         </div>
@@ -586,10 +586,10 @@ const tableRows = computed(() =>
       </header>
       <div class="grid gap-3 sm:grid-cols-2">
         <div
-          class="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
+          class="flex items-center gap-3 rounded-xl bg-card p-3.5"
         >
           <div
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rose-500/10 text-rose-500"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground"
           >
             <Heart class="h-4 w-4" />
           </div>
@@ -605,10 +605,10 @@ const tableRows = computed(() =>
           </div>
         </div>
         <div
-          class="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
+          class="flex items-center gap-3 rounded-xl bg-card p-3.5"
         >
           <div
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-500"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground"
           >
             <MessageSquare class="h-4 w-4" />
           </div>
@@ -631,11 +631,11 @@ const tableRows = computed(() =>
     <slot name="daily-controls" />
     <template v-if="dailyReady">
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
+      class="rounded-[20px] bg-secondary/45 p-5 sm:p-6 md:col-span-2 lg:col-span-3"
     >
       <header class="mb-4 flex items-start gap-3">
         <div
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
         >
           <LineChart class="h-4 w-4" />
         </div>
@@ -654,13 +654,13 @@ const tableRows = computed(() =>
       </header>
       <div
         v-if="!hasChartData"
-        class="flex h-56 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
+        class="flex h-56 items-center justify-center rounded-xl bg-card text-sm text-muted-foreground"
       >
         {{ t('account.overview.overallPanel.noTrendData') }}
       </div>
       <div
         v-else
-        class="overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-3"
+        class="overflow-hidden rounded-xl bg-card p-3"
       >
         <ChartContainer
           :config="chartConfig"
@@ -704,11 +704,11 @@ const tableRows = computed(() =>
     </section>
 
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-2"
+      class="rounded-[20px] bg-secondary/45 p-5 sm:p-6 md:col-span-2 lg:col-span-2"
     >
       <header class="mb-4 flex items-start gap-3">
         <div
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
         >
           <BarChart3 class="h-4 w-4" />
         </div>
@@ -731,13 +731,13 @@ const tableRows = computed(() =>
       </header>
       <div
         v-if="!hasChartData"
-        class="flex h-64 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
+        class="flex h-64 items-center justify-center rounded-xl bg-card text-sm text-muted-foreground"
       >
         {{ t('account.overview.overallPanel.noTrendData') }}
       </div>
       <div
         v-else
-        class="overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-3"
+        class="overflow-hidden rounded-xl bg-card p-3"
       >
         <ChartContainer
           :config="receivedChartConfig"
@@ -782,11 +782,11 @@ const tableRows = computed(() =>
     </section>
 
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-1"
+      class="rounded-[20px] bg-secondary/45 p-5 sm:p-6 md:col-span-2 lg:col-span-1"
     >
       <header class="mb-4 flex items-start gap-3">
         <div
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-500"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
         >
           <Send class="h-4 w-4" />
         </div>
@@ -807,13 +807,13 @@ const tableRows = computed(() =>
       </header>
       <div
         v-if="!hasChartData"
-        class="flex h-64 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
+        class="flex h-64 items-center justify-center rounded-xl bg-card text-sm text-muted-foreground"
       >
         {{ t('account.overview.overallPanel.noTrendData') }}
       </div>
       <div
         v-else
-        class="overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-3"
+        class="overflow-hidden rounded-xl bg-card p-3"
       >
         <ChartContainer
           :config="outgoingChartConfig"
@@ -859,11 +859,11 @@ const tableRows = computed(() =>
     </section>
 
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
+      class="rounded-[20px] bg-secondary/45 p-5 sm:p-6 md:col-span-2 lg:col-span-3"
     >
       <header class="mb-4 flex items-start gap-3">
         <div
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-500"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
         >
           <Activity class="h-4 w-4" />
         </div>
@@ -882,13 +882,13 @@ const tableRows = computed(() =>
       </header>
       <div
         v-if="!hasChartData"
-        class="flex h-64 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
+        class="flex h-64 items-center justify-center rounded-xl bg-card text-sm text-muted-foreground"
       >
         {{ t('account.overview.overallPanel.noTrendData') }}
       </div>
       <div
         v-else
-        class="overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-3"
+        class="overflow-hidden rounded-xl bg-card p-3"
       >
         <ChartContainer
           :config="scoreChartConfig"
@@ -934,11 +934,11 @@ const tableRows = computed(() =>
     </section>
 
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
+      class="rounded-[20px] bg-secondary/45 p-5 sm:p-6 md:col-span-2 lg:col-span-3"
     >
       <header class="mb-4 flex items-start gap-3">
         <div
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-500"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
         >
           <PieChart class="h-4 w-4" />
         </div>
@@ -961,13 +961,13 @@ const tableRows = computed(() =>
       </header>
       <div
         v-if="!hasCompositionData"
-        class="flex h-64 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
+        class="flex h-64 items-center justify-center rounded-xl bg-card text-sm text-muted-foreground"
       >
         {{ t('account.overview.overallPanel.noTrendData') }}
       </div>
       <div
         v-else
-        class="grid gap-4 rounded-lg border border-border/60 bg-muted/20 p-4 lg:grid-cols-[minmax(14rem,18rem)_1fr]"
+        class="grid gap-4 rounded-xl bg-card p-4 lg:grid-cols-[minmax(14rem,18rem)_1fr]"
       >
         <ChartContainer
           :config="compositionChartConfig"
@@ -994,7 +994,7 @@ const tableRows = computed(() =>
           <div
             v-for="item in compositionData"
             :key="item.key"
-            class="rounded-lg border border-border/60 bg-background/70 p-3"
+            class="rounded-xl bg-secondary/60 p-3.5"
           >
             <div class="flex items-center justify-between gap-3">
               <div class="flex min-w-0 items-center gap-2">
@@ -1025,11 +1025,11 @@ const tableRows = computed(() =>
     </section>
 
     <section
-      class="rounded-xl border border-border/60 bg-card p-5 shadow-none sm:p-6 md:col-span-2 lg:col-span-3"
+      class="rounded-[20px] bg-secondary/45 p-5 sm:p-6 md:col-span-2 lg:col-span-3"
     >
       <header class="mb-4 flex items-start gap-3">
         <div
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-foreground"
         >
           <TableIcon class="h-4 w-4" />
         </div>
@@ -1052,13 +1052,13 @@ const tableRows = computed(() =>
       </header>
       <div
         v-if="!hasChartData"
-        class="flex h-40 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/10 text-sm text-muted-foreground"
+        class="flex h-40 items-center justify-center rounded-xl bg-card text-sm text-muted-foreground"
       >
         {{ t('account.overview.overallPanel.noTrendData') }}
       </div>
       <div
         v-else
-        class="overflow-hidden rounded-lg border border-border/60"
+        class="overflow-hidden rounded-xl bg-card"
       >
         <Table>
           <TableHeader>

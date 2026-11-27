@@ -36,7 +36,7 @@ let request = 0;
 const current = (revision: number) => mounted && revision === auth.revision && !auth.isIdentityChanging;
 
 const PILL_BASE =
-  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium';
+  'inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium';
 
 const loading = ref(false);
 const sessions = ref<SessionVM[]>([]);
@@ -208,7 +208,7 @@ onBeforeUnmount(() => { mounted = false; unsubscribe?.(); });
       <Table class="min-w-[760px]">
         <TableHeader>
           <TableRow class="border-border/60 bg-muted/20 hover:bg-muted/30">
-            <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <TableHead class="h-9 whitespace-nowrap text-[11px] uppercase tracking-wider text-muted-foreground">
               {{ t('account.active.thisDevice') }}
             </TableHead>
             <TableHead class="h-9 text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -229,7 +229,7 @@ onBeforeUnmount(() => { mounted = false; unsubscribe?.(); });
             class="border-border/60 align-top"
             :class="s.current ? 'bg-primary/5' : ''"
           >
-            <TableCell>
+            <TableCell class="whitespace-nowrap">
               <span
                 :class="
                   s.current

@@ -8,12 +8,8 @@ import {
   type PropType
 } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import UserAvatar from '@/components/UserAvatar.vue';
 import {
   Dialog,
   DialogContent,
@@ -443,14 +439,12 @@ onBeforeUnmount(() => {
     class="group/avatar relative w-fit cursor-pointer"
     @click="triggerFileUpload"
   >
-    <Avatar class="h-24 w-24 ring-2 ring-border ring-offset-2 ring-offset-background">
-      <AvatarImage :src="displayAvatarUrl" :alt="user.name" />
-      <AvatarFallback
-        class="bg-primary/10 text-lg font-semibold text-primary"
-      >
-        {{ userInitials }}
-      </AvatarFallback>
-    </Avatar>
+    <UserAvatar
+      :src="displayAvatarUrl"
+      :name="user.name"
+      :seed="user.name"
+      class="h-24 w-24 text-2xl ring-2 ring-border ring-offset-2 ring-offset-background"
+    />
 
     <div
       v-if="!isUploading"

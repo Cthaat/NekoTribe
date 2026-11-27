@@ -5,8 +5,6 @@ import {
   MessageCircle,
   Repeat,
   Flag,
-  CheckCircle,
-  XCircle,
   AlertTriangle,
   Calendar,
   Eye,
@@ -336,7 +334,8 @@ const closeDialog = () => {
                 <Button
                   variant="secondary"
                   size="icon"
-                  class="pointer-events-auto h-8 w-8 rounded-full shadow-md"
+                  class="pointer-events-auto size-9"
+                  :aria-label="t('common.previousMedia')"
                   :disabled="selectedImageIndex === 0"
                   @click="prevImage"
                 >
@@ -345,7 +344,8 @@ const closeDialog = () => {
                 <Button
                   variant="secondary"
                   size="icon"
-                  class="pointer-events-auto h-8 w-8 rounded-full shadow-md"
+                  class="pointer-events-auto size-9"
+                  :aria-label="t('common.nextMedia')"
                   :disabled="
                     selectedImageIndex ===
                     tweet.media.length - 1
@@ -371,6 +371,8 @@ const closeDialog = () => {
                       : 'border-border/60 opacity-60 hover:opacity-100'
                   "
                   @click="selectedImageIndex = index"
+                  :aria-label="t('common.viewMedia', { index: index + 1 })"
+                  :aria-pressed="selectedImageIndex === index"
                 >
                   <img
                     :src="media.thumbnail || media.url"
@@ -497,35 +499,32 @@ const closeDialog = () => {
         <Button
           variant="ghost"
           size="sm"
-          class="h-9 rounded-md"
+          class="h-9 rounded-full"
           @click="closeDialog"
         >
           {{ t('common.cancel') }}
         </Button>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
-          class="h-9 rounded-md text-amber-600 shadow-xs hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+          class="h-9 rounded-full"
           @click="handleFlag"
         >
-          <Flag class="h-4 w-4" />
           {{ t('moderation.actions.flag') }}
         </Button>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
-          class="h-9 rounded-md shadow-xs"
+          class="h-9 rounded-full"
           @click="handleReject"
         >
-          <XCircle class="h-4 w-4" />
           {{ t('moderation.actions.reject') }}
         </Button>
         <Button
           size="sm"
-          class="h-9 rounded-md shadow-xs"
+          class="h-9 rounded-full"
           @click="handleApprove"
         >
-          <CheckCircle class="h-4 w-4" />
           {{ t('moderation.actions.approve') }}
         </Button>
       </DialogFooter>

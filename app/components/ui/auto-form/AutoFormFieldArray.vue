@@ -12,6 +12,8 @@ import AutoFormField from './AutoFormField.vue'
 import AutoFormLabel from './AutoFormLabel.vue'
 import { beautifyObjectName, getBaseType } from './utils'
 
+const { t } = useAppLocale()
+
 const props = defineProps<{
   fieldName: string
   required?: boolean
@@ -81,6 +83,7 @@ provide(FieldContextKey, fieldContext)
                       type="button"
                       size="icon"
                       variant="secondary"
+                      :aria-label="t('common.delete')"
                       @click="remove(index)"
                     >
                       <TrashIcon :size="16" />

@@ -25,6 +25,7 @@ import {
 } from 'lucide-vue-next';
 import ChatChannelList from '@/components/ChatChannelList.vue';
 import ChatDirectConversationList from '@/components/ChatDirectConversationList.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { notificationTargetId } from '@/utils/post-notification-target';
 import ChatRoom from '@/components/ChatRoom.vue';
 import ChatInput from '@/components/ChatInput.vue';
@@ -2204,6 +2205,67 @@ watch(
   }
 );
 
+const navTab = ref<'direct' | 'groups'>('direct');
+
+watch(
+  [isDirectMessageStandalone, () => activeChannel.value?.id ?? null],
+  ([dmOpen, channelId]) => {
+    if (dmOpen) {
+      navTab.value = 'direct';
+    } else if (channelId !== null && !dmOpen) {
+      navTab.value = 'groups';
+    }
+  }
+);
+
+function dmDayKey(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function shouldShowDmDatePill(index: number): boolean {
+  const list = directMessages.value ?? [];
+  const msg = list[index];
+  if (!msg) return false;
+  if (index === 0) return true;
+  const prev = list[index - 1];
+  return !prev || dmDayKey(msg.created_at) !== dmDayKey(prev.created_at);
+}
+
+function formatDmDatePill(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((today - target) / 86400000);
+  if (diffDays === 0) return t('chat.dateToday');
+  if (diffDays === 1) return t('chat.dateYesterday');
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function isDmFirstInGroup(index: number): boolean {
+  const list = directMessages.value ?? [];
+  if (index === 0) return true;
+  const curr = list[index];
+  const prev = list[index - 1];
+  if (!curr || !prev) return true;
+  if (curr.author.user_id !== prev.author.user_id) return true;
+  const diff = new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime();
+  return diff > 5 * 60 * 1000 || dmDayKey(curr.created_at) !== dmDayKey(prev.created_at);
+}
+
+function isDmLastInGroup(index: number): boolean {
+  const list = directMessages.value ?? [];
+  const curr = list[index];
+  const next = list[index + 1];
+  if (!curr || !next) return true;
+  if (curr.author.user_id !== next.author.user_id) return true;
+  const diff = new Date(next.created_at).getTime() - new Date(curr.created_at).getTime();
+  return diff > 5 * 60 * 1000 || dmDayKey(curr.created_at) !== dmDayKey(next.created_at);
+}
+
 onBeforeUnmount(() => {
   disposed = true;
   channelAttachmentUpload?.abort();
@@ -2223,7 +2285,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden md:flex-row">
+  <div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden md:flex-row md:gap-3">
     <Dialog :open="directDeleteTarget !== null" @update:open="open => { if (!open && !deletingDirect) closeDirectDelete() }">
       <DialogContent>
         <DialogHeader>
@@ -2238,10 +2300,28 @@ onBeforeUnmount(() => {
     </Dialog>
     <div
       data-chat-nav-panel="true"
-      class="h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden border-b bg-muted/20 md:w-72 md:border-b-0 md:border-r"
+      class="h-full w-full min-w-0 flex-shrink-0 flex-col overflow-hidden bg-card md:w-[330px] md:rounded-[20px]"
       :class="isMobileNavigationOpen ? 'flex' : 'hidden md:flex'"
     >
       <div class="flex h-full min-h-0 flex-col">
+        <div class="m-2.5 grid shrink-0 grid-cols-2 rounded-full bg-secondary p-1">
+          <button
+            type="button"
+            class="flex h-8 items-center justify-center rounded-full text-[13px] transition-all duration-200"
+            :class="navTab === 'direct' ? 'bg-card font-semibold text-foreground shadow-xs dark:shadow-none' : 'font-medium text-muted-foreground hover:text-foreground'"
+            @click="navTab = 'direct'"
+          >
+            {{ t('chat.directConversations.title') }}
+          </button>
+          <button
+            type="button"
+            class="flex h-8 items-center justify-center rounded-full text-[13px] transition-all duration-200"
+            :class="navTab === 'groups' ? 'bg-card font-semibold text-foreground shadow-xs dark:shadow-none' : 'font-medium text-muted-foreground hover:text-foreground'"
+            @click="navTab = 'groups'"
+          >
+            {{ t('nav.main.groups') }}
+          </button>
+        </div>
         <p v-if="directLinkStatus === 'loading'" class="px-3 py-2 text-xs text-muted-foreground" role="status">
           {{ t('common.loading') }}
         </p>
@@ -2252,8 +2332,9 @@ onBeforeUnmount(() => {
             <Button size="sm" variant="ghost" @click="cancelDirectLinkLookup">{{ t('common.cancel') }}</Button>
           </div>
         </div>
-        <div class="h-64 shrink-0 max-md:h-[30dvh] max-md:min-h-44 max-md:max-h-72">
+        <div v-show="navTab === 'direct'" class="min-h-0 flex-1">
           <ChatDirectConversationList
+            class="h-full"
             :conversations="directConversations"
             :active-conversation-id="directConversationId"
             :is-loading="isLoadingDirectConversations"
@@ -2264,7 +2345,7 @@ onBeforeUnmount(() => {
             @view-profile="openMemberProfile"
           />
         </div>
-        <div class="flex min-h-0 flex-1 flex-col border-t">
+        <div v-show="navTab === 'groups'" class="flex min-h-0 flex-1 flex-col">
           <p v-if="loadingGroupChannels" class="px-3 py-2 text-xs text-muted-foreground" role="status">
             {{ t('common.loading') }}
           </p>
@@ -2636,7 +2717,8 @@ onBeforeUnmount(() => {
                 <Button
                   size="icon"
                   variant="outline"
-                  class="h-8 w-8 shrink-0 rounded-md shadow-xs"
+                  class="size-8 shrink-0"
+                  :aria-label="t('common.copy')"
                   @click="copyCreatedInvite"
                 >
                   <Copy class="h-3.5 w-3.5" />
@@ -2780,7 +2862,7 @@ onBeforeUnmount(() => {
 
     <div
       data-chat-content-panel="true"
-      class="h-full min-h-0 flex-1 min-w-0 overflow-hidden"
+      class="h-full min-h-0 flex-1 min-w-0 overflow-hidden bg-card md:rounded-[20px]"
       :class="isMobileNavigationOpen ? 'hidden md:block' : 'block'"
     >
       <div
@@ -2795,20 +2877,20 @@ onBeforeUnmount(() => {
         class="flex h-full items-center justify-center p-6"
       >
         <div
-          class="flex max-w-md flex-col items-center gap-3 rounded-lg border border-dashed border-rose-200/60 bg-rose-50/40 p-8 text-center dark:border-rose-900/40 dark:bg-rose-950/20"
+          class="flex max-w-md flex-col items-center gap-3 rounded-[20px] bg-rose-500/8 p-8 text-center"
         >
           <span
-            class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 ring-1 ring-rose-200/60 dark:text-rose-400 dark:ring-rose-900/40"
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/12 text-rose-600 dark:text-rose-400"
           >
             <AlertTriangle class="h-5 w-5" />
           </span>
-          <p class="text-sm text-rose-800 dark:text-rose-200">
+          <p class="text-sm text-rose-700 dark:text-rose-200">
             {{ errorMessage }}
           </p>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            class="h-8 rounded-md shadow-xs"
+            class="h-8 rounded-full"
             @click="loadChat"
           >
             {{ t('common.refresh') }}
@@ -2820,15 +2902,15 @@ onBeforeUnmount(() => {
         class="flex h-full items-center justify-center p-6"
       >
         <div
-          class="flex max-w-md flex-col items-center gap-3 rounded-lg border border-dashed border-border/60 bg-muted/20 p-8 text-center text-sm text-muted-foreground"
+          class="flex max-w-md flex-col items-center gap-3 rounded-[20px] bg-secondary/45 p-8 text-center text-sm text-muted-foreground"
         >
           <span
-            class="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60"
+            class="flex h-12 w-12 items-center justify-center rounded-full bg-card text-muted-foreground"
           >
             <Inbox class="h-5 w-5" />
           </span>
           {{
-            directConversations.length > 0
+            navTab === 'direct' || directConversations.length > 0
               ? t('chat.empty.selectDirectConversation')
               : t('chat.empty.noGroups')
           }}
@@ -2839,7 +2921,7 @@ onBeforeUnmount(() => {
           v-if="isDirectMessageStandalone && directMessageStandaloneTarget"
           class="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
         >
-          <div class="flex items-center gap-3 border-b bg-background px-4 py-3">
+          <div class="flex items-center gap-3 bg-[var(--glass-bg)] px-4 py-3 backdrop-blur-md">
             <Button
               variant="ghost"
               size="icon"
@@ -2859,15 +2941,13 @@ onBeforeUnmount(() => {
                 openMemberProfile(directMessageStandaloneTarget.id)
               "
             >
-              <Avatar class="h-10 w-10 ring-1 ring-border">
-                <AvatarImage
-                  :src="directMessageStandaloneTarget.avatar"
-                  :alt="directMessageStandaloneTarget.nickname"
-                />
-                <AvatarFallback>
-                  {{ directMessageStandaloneTarget.nickname.slice(0, 2) }}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                :src="directMessageStandaloneTarget.avatar"
+                :name="directMessageStandaloneTarget.nickname"
+                :username="directMessageStandaloneTarget.username"
+                :seed="directMessageStandaloneTarget.id"
+                size="md"
+              />
             </Button>
 
             <div class="min-w-0 flex-1">
@@ -2924,12 +3004,20 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
 
-                <div v-else ref="standaloneDirectList" class="flex flex-col gap-3 pb-4">
+                <div v-else ref="standaloneDirectList" class="flex flex-col pb-4">
                   <div
-                    v-for="message in directMessages"
+                    v-for="(message, index) in directMessages"
                     :key="message.message_id"
                     :data-incoming-direct-message-id="message.author.user_id !== currentUserId ? message.message_id : undefined"
                   >
+                    <div
+                      v-if="shouldShowDmDatePill(index)"
+                      class="my-3 flex justify-center"
+                    >
+                      <span class="rounded-full bg-[var(--hover)] px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+                        {{ formatDmDatePill(message.created_at) }}
+                      </span>
+                    </div>
                     <ChatMessage
                       :message="mapV2DirectMessage(message)"
                       :is-own="message.author.user_id === currentUserId"
@@ -2937,7 +3025,8 @@ onBeforeUnmount(() => {
                       :hide-reply="directSearch !== null"
                       :allow-delete="canDeleteDirectMessage(message)"
                       show-avatar
-                      is-first-in-group
+                      :is-first-in-group="isDmFirstInGroup(index)"
+                      :is-last-in-group="isDmLastInGroup(index)"
                       @reply="standaloneDirectReplyId = $event.id"
                       @react="handleDirectReaction"
                       @delete="requestDirectDelete(message)"
@@ -2952,9 +3041,20 @@ onBeforeUnmount(() => {
             </ScrollArea>
           </div>
 
-          <p v-if="!directSearch && directTyping.typingCount.value" class="px-4 py-1 text-xs text-muted-foreground" role="status">
-            {{ t('chat.directMessage.typing', { user: directMessageStandaloneTarget.nickname }) }}
-          </p>
+          <div
+            v-if="!directSearch && directTyping.typingCount.value"
+            class="flex items-center gap-2 px-4 py-1 text-xs text-muted-foreground"
+            role="status"
+          >
+            <span class="inline-flex items-center gap-0.5" aria-hidden="true">
+              <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 0ms" />
+              <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 150ms" />
+              <span class="animate-typing-dot size-1.5 rounded-full bg-primary" style="animation-delay: 300ms" />
+            </span>
+            <span>
+              {{ t('chat.directMessage.typing', { user: directMessageStandaloneTarget.nickname }) }}
+            </span>
+          </div>
           <ChatInput
             v-show="!directSearch"
             :key="directSelectionRevision"

@@ -57,7 +57,7 @@ watch([url, seen, () => account.isLoggedIn, revision, changing, contentRevision]
   <div v-if="url && account.isLoggedIn" ref="target" :class="preview ? 'mt-2' : 'h-px'">
     <a
       v-if="preview" :href="preview.url" target="_blank" rel="noopener noreferrer"
-      class="group/link-preview flex min-w-0 items-start gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      class="bento-tile group/link-preview flex min-w-0 items-start gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       @click.stop>
       <span class="min-w-0 flex-1">
         <span class="block truncate text-xs text-muted-foreground">{{ preview.site_name }}</span>

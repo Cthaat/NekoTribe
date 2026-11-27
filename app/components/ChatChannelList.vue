@@ -1,22 +1,23 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import {
-  Hash,
-  Volume2,
-  Video,
-  Megaphone,
-  Lock,
-  Plus,
-  Settings,
-  ChevronDown,
-  ChevronRight,
   Bell,
   BellOff,
+  Check,
+  ChevronDown,
+  ChevronRight,
   Edit3,
+  Hash,
+  Lock,
+  Megaphone,
+  Plus,
+  Settings,
   Trash2,
   Users,
-  Check
+  Video,
+  Volume2
 } from 'lucide-vue-next';
+import UserAvatar from '@/components/UserAvatar.vue';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -144,13 +145,13 @@ const currentUserInitials = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-muted/20">
-    <div class="shrink-0 border-b border-border/60 bg-background/60 p-2 backdrop-blur">
+  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
+    <div class="shrink-0 p-2">
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
-            class="h-9 w-full justify-between rounded-md px-2 text-sm font-semibold"
+            class="h-10 w-full justify-between rounded-xl px-2.5 text-sm font-bold hover:bg-[var(--hover)]"
           >
             <span class="truncate">
               {{ groupName || t('chat.groupFallbackName') }}
@@ -246,7 +247,8 @@ const currentUserInitials = computed(() => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="h-5 w-5 rounded opacity-0 transition-opacity group-hover/cat:opacity-100"
+                      class="size-7 text-muted-foreground"
+                      :aria-label="t('chat.actions.createChannel')"
                       @click.stop="emit('create-channel', category.id)"
                     >
                       <Plus class="h-3 w-3" />
@@ -266,19 +268,14 @@ const currentUserInitials = computed(() => {
                   :key="channel.id"
                   type="button"
                   data-chat-channel-button="true"
-                  class="group/ch relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
+                  class="group/ch relative flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-colors"
                   :class="[
                     activeChannelId === channel.id
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                      ? 'bg-secondary font-semibold text-foreground'
+                      : 'text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground'
                   ]"
                   @click="selectChannel(channel)"
                 >
-                  <span
-                    v-if="activeChannelId === channel.id"
-                    class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
-                    aria-hidden="true"
-                  />
                   <component
                     :is="getChannelIcon(channel.type)"
                     class="h-4 w-4 shrink-0"
@@ -300,7 +297,7 @@ const currentUserInitials = computed(() => {
                   />
                   <span
                     v-if="channel.unreadCount && !channel.isMuted"
-                    class="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium tabular-nums text-primary-foreground"
+                    class="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary/14 px-1.5 text-[10px] font-semibold tabular-nums text-primary"
                   >
                     {{ channel.unreadCount > 99 ? '99+' : channel.unreadCount }}
                   </span>
@@ -310,7 +307,8 @@ const currentUserInitials = computed(() => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        class="h-5 w-5 rounded opacity-0 transition-opacity group-hover/ch:opacity-100"
+                        class="size-7 text-muted-foreground"
+                        :aria-label="t('common.more')"
                         @click.stop
                       >
                         <Settings class="h-3 w-3" />
@@ -358,17 +356,16 @@ const currentUserInitials = computed(() => {
     </ScrollArea>
 
     <div
-      class="shrink-0 border-t border-border/60 bg-background/60 p-2 backdrop-blur"
+      class="shrink-0 p-2"
     >
       <div
-        class="flex items-center gap-2 rounded-md p-2 transition-colors hover:bg-accent/50"
+        class="flex items-center gap-2.5 rounded-xl p-2 transition-colors hover:bg-[var(--hover)]"
       >
         <div class="relative shrink-0">
-          <div
-            class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
-          >
-            {{ currentUserInitials.toUpperCase() }}
-          </div>
+          <UserAvatar
+            :name="currentUserName || t('chat.currentUser.name')"
+            size="sm"
+          />
           <span
             class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
           />
@@ -387,7 +384,8 @@ const currentUserInitials = computed(() => {
               <Button
                 variant="ghost"
                 size="icon"
-                class="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                  class="size-7 text-muted-foreground hover:text-foreground"
+                  :aria-label="t('chat.actions.userSettings')"
               >
                 <Settings class="h-4 w-4" />
               </Button>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { SlidersHorizontal } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
-import GroupStats from '@/components/GroupStats.vue';
 import GroupFilters from '@/components/GroupFilters.vue';
 import GroupList from '@/components/GroupList.vue';
 import GroupDetailModal from '@/components/GroupDetailModal.vue';
@@ -38,11 +38,18 @@ const groupList = useGroupList({
 const groupDetail = useGroupDetail();
 
 const createModalOpen = ref(false);
+const filtersOpen = ref(false);
+const hasActiveFilters = computed(
+  () =>
+    filters.value.search.trim().length > 0 ||
+    filters.value.privacy !== 'all' ||
+    filters.value.category !== 'all' ||
+    filters.value.sortBy !== 'popular'
+);
 const manageModalOpen = ref(false);
 const manageGroup = ref<Group | null>(null);
 const groups = groupList.groups;
 const loading = groupList.loading;
-const statsData = groupList.stats;
 const detailModalOpen = groupDetail.open;
 const selectedGroup = groupDetail.selectedGroup;
 const members = groupDetail.members;
@@ -212,28 +219,56 @@ async function handleGroupDeleted(groupId: number): Promise<void> {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-wrap gap-2">
-      <Button
-        :variant="mode === 'discover' ? 'default' : 'outline'"
-        :aria-pressed="mode === 'discover'"
-        @click="mode = 'discover'"
-      >{{ t('groups.tabs.discover') }}</Button>
-      <Button
-        :variant="mode === 'popular' ? 'default' : 'outline'"
-        :aria-pressed="mode === 'popular'"
-        @click="mode = 'popular'"
-      >{{ t('groups.tabs.popular') }}</Button>
-    </div>
-    <!-- 统计面板 -->
-    <GroupStats v-if="mode === 'discover'" :stats="statsData" />
+  <div class="space-y-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="inline-flex rounded-full bg-secondary p-1">
+        <button
+          type="button"
+          class="rounded-full px-4 py-1.5 text-sm transition-colors"
+          :class="mode === 'discover' ? 'bg-card font-semibold text-foreground shadow-xs' : 'font-medium text-muted-foreground hover:text-foreground'"
+          :aria-pressed="mode === 'discover'"
+          @click="mode = 'discover'"
+        >
+          {{ t('groups.tabs.discover') }}
+        </button>
+        <button
+          type="button"
+          class="rounded-full px-4 py-1.5 text-sm transition-colors"
+          :class="mode === 'popular' ? 'bg-card font-semibold text-foreground shadow-xs' : 'font-medium text-muted-foreground hover:text-foreground'"
+          :aria-pressed="mode === 'popular'"
+          @click="mode = 'popular'"
+        >
+          {{ t('groups.tabs.popular') }}
+        </button>
+      </div>
 
-    <!-- 过滤器 -->
-    <GroupFilters
-      v-if="mode === 'discover'"
-      v-model="filters"
-      @reset="handleResetFilters"
-    />
+      <Button
+        v-if="mode === 'discover'"
+        variant="ghost"
+        size="sm"
+        class="pressable relative h-9 rounded-full bg-card px-4 font-medium shadow-[0_1px_3px_rgba(15,23,42,0.03)] hover:bg-secondary dark:shadow-none"
+        :class="filtersOpen || hasActiveFilters ? 'bg-[var(--primary-soft)] text-primary' : ''"
+        @click="filtersOpen = !filtersOpen"
+      >
+        <SlidersHorizontal class="h-3.5 w-3.5" />
+        <span>{{ t('groups.filters.toggle') }}</span>
+        <span
+          v-if="hasActiveFilters"
+          class="size-2 rounded-full bg-primary"
+        />
+      </Button>
+    </div>
+
+    <!-- 过滤器（可收起） -->
+    <div
+      v-if="mode === 'discover' && filtersOpen"
+      class="rounded-[20px] bg-card p-4 shadow-[0_1px_3px_rgba(15,23,42,0.03)] transition-all dark:shadow-none"
+    >
+      <GroupFilters
+        v-model="filters"
+        @reset="handleResetFilters"
+      />
+    </div>
 
     <!-- 群组列表 -->
     <GroupList

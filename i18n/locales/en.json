@@ -66,6 +66,9 @@
     "empty": "No data",
     "prev": "Previous",
     "next": "Next",
+    "previousMedia": "Previous media item",
+    "nextMedia": "Next media item",
+    "viewMedia": "View media item {index}",
     "cancel": "Cancel",
     "delete": "Delete",
     "copy": "Copy",
@@ -102,7 +105,9 @@
     "loading": "Searching users...",
     "empty": "No matching users found.",
     "failed": "Failed to search users",
-    "followers": "{count} followers"
+    "followers": "{count} followers",
+    "recentSearches": "Recent searches",
+    "clearRecent": "Clear"
   },
   "app": {
     "brand": {
@@ -132,6 +137,7 @@
     },
     "main": {
       "trending": "Trending",
+      "discover": "Discover",
       "tweet": "Tweet",
       "home": "Home",
       "myTweets": "My Tweets",
@@ -145,12 +151,26 @@
       "groupPosts": "Group Posts",
       "invites": "Invites",
       "chat": "Chat",
+      "notifications": "Notifications",
+      "profile": "Profile",
+      "me": "Me",
+      "post": "Post",
       "account": "Account",
       "moderation": "Moderation",
       "content": "Content",
       "users": "Users",
       "reports": "Reports",
       "settings": "Settings"
+    },
+    "rightRail": {
+      "trending": "Trending",
+      "whoToFollow": "Who to follow",
+      "signInTrending": "Sign in to discover trending topics & people",
+      "emptyTrending": "No trending topics yet",
+      "postsCount": "{count} posts",
+      "follow": "Follow",
+      "following": "Following",
+      "terms": "Terms"
     },
     "secondary": {
       "about": "About",
@@ -264,6 +284,13 @@
       "previous": "Previous page",
       "next": "Next page"
     },
+    "detail": {
+      "headerTitle": "Post",
+      "repostsLabel": "Reposts",
+      "likesLabel": "Likes",
+      "commentsLabel": "Comments",
+      "writeReplyPost": "Write reply post"
+    },
     "actions": {
       "addBookmark": "Add bookmark",
       "removeBookmark": "Remove bookmark",
@@ -309,6 +336,7 @@
         "trending": "Trending",
         "groups": "Groups"
       },
+      "infoTitle": "About recommendations",
       "rankingExplanation": "Recommendations consider who you follow, tags on posts you liked or saved in the last 30 days, when posts were published and your feedback.",
       "emptyGroupActivity": "No recent posts from the groups you’ve joined.",
       "loadFailed": "Failed to load posts",
@@ -496,6 +524,12 @@
     "markdown": {
       "mode": "Markdown long post",
       "size": "{used} / {limit} bytes"
+    },
+    "actionsExtra": {
+      "showMore": "Show more",
+      "showLess": "Show less",
+      "share": "Share",
+      "linkCopied": "Link copied"
     }
   },
   "comment": {
@@ -984,7 +1018,8 @@
         "newest": "Newest",
         "active": "Most active",
         "members": "Most members"
-      }
+      },
+      "toggle": "Filters"
     },
     "number": {
       "tenThousand": "{value}w",
@@ -1000,7 +1035,8 @@
       "todayPosts": "Today's Posts",
       "activeMembers": "Active Members",
       "newMembers": "New Members"
-    }
+    },
+    "joinedBadge": "Joined ✓"
   },
   "time": {
     "minutesAgo": "{count} minutes ago",
@@ -1285,7 +1321,11 @@
       "user": "User",
       "post": "Post",
       "loading": "Searching..."
-    }
+    },
+    "selectConversation": "Select a conversation to start chatting",
+    "selectConversationHint": "Pick a direct message or group channel from the list",
+    "dateToday": "Today",
+    "dateYesterday": "Yesterday"
   },
   "media": {
     "lightboxAlt": "High resolution media",
@@ -1350,8 +1390,10 @@
       "trash": "Trash"
     },
     "tabs": {
-      "all": "All mail",
-      "unread": "Unread"
+      "all": "All",
+      "unread": "Unread",
+      "mentions": "Mentions",
+      "system": "System"
     },
     "searchPlaceholder": "Search",
     "actions": {
@@ -1404,7 +1446,8 @@
       "markAsUnread": "Mark as unread",
       "viewActor": "View user",
       "openRelated": "Open",
-      "noSelection": "No message selected"
+      "noSelection": "No message selected",
+      "deviceDetails": "Device details"
     }
   },
   "moderation": {
@@ -1534,6 +1577,7 @@
       "emptyDescription": "There are no posts waiting for moderation. New reports will appear here."
     },
     "filters": {
+      "title": "Filters",
       "searchPlaceholder": "Search post content or users...",
       "statusPlaceholder": "Status",
       "priorityAll": "All priorities",
@@ -2074,6 +2118,15 @@
       "active": "Active",
       "statements": "Statements"
     },
+    "profileTabs": {
+      "posts": "Posts",
+      "replies": "Replies",
+      "media": "Media",
+      "editProfile": "Edit profile",
+      "postsCount": "{count} posts",
+      "followingLabel": "Following",
+      "unfollowHover": "Unfollow"
+    },
     "appearance": {
       "title": "Appearance",
       "description": "Customize theme, color mode and layout preferences.",
@@ -2089,7 +2142,14 @@
       "fontLarge": "Large",
       "compactMode": "Compact mode",
       "compactOn": "On",
-      "compactOff": "Off"
+      "compactOff": "Off",
+      "previewTitle": "Live preview",
+      "previewSampleName": "Mikan",
+      "previewSampleMsg": "Theme mode, font size, and density apply right away ✨",
+      "glass": "Liquid glass",
+      "glassDescription": "Adjust refraction and translucency on floating bars and overlays.",
+      "glassStandard": "Lively & clear",
+      "glassSubtle": "Soft & subtle"
     },
     "pro": {
       "badge": "Membership",
@@ -2230,6 +2290,20 @@
       },
       "sessionChanged": "Your session changed. Reopen settings to continue.",
       "reopen": "Reopen settings"
+    },
+    "resources": {
+      "title": "Resources & Data",
+      "aiTitle": "AI Usage",
+      "loadFailed": "Failed to load resource usage. Please try again.",
+      "quota": "AI quota",
+      "quotaValue": "{used} / {limit} units per {seconds} s",
+      "unavailable": "Temporarily unavailable",
+      "media": "Uploaded media",
+      "mediaValue": "{files} files · {bytes} bytes",
+      "history": "AI conversations",
+      "export": "Export personal data",
+      "exportDescription": "Download your posts and currently visible bookmark references.",
+      "exportFailed": "Could not download the export. Please try again."
     },
     "active": {
       "title": "Active Sessions",

@@ -64,7 +64,9 @@ onBeforeUnmount(() => { unsubscribe?.(); clear(); });
 <template>
   <Dialog v-model:open="open">
     <DialogTrigger as-child>
-      <Button variant="ghost" size="sm" class="mt-2">{{ t('post.likers.title') }}</Button>
+      <slot name="trigger">
+        <Button variant="ghost" size="sm">{{ t('post.likers.title') }}</Button>
+      </slot>
     </DialogTrigger>
     <DialogContent class="max-h-[80vh] overflow-y-auto" :aria-describedby="undefined">
       <DialogHeader><DialogTitle>{{ t('post.likers.title') }}</DialogTitle></DialogHeader>

@@ -1,8 +1,11 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { Info } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import LiquidGlassIconButton from '@/components/glass/LiquidGlassIconButton.vue';
+import LiquidGlassSegmented from '@/components/glass/LiquidGlassSegmented.vue';
 import { usePostFeed } from '@/composables/usePostFeed';
 import { useTimelinePostActions } from '@/composables/useTimelinePostActions';
 import { v2ListPosts, v2ListTrendingPosts } from '@/services/posts';
@@ -25,6 +28,12 @@ const app = useNuxtApp();
 const account = usePreferenceStore();
 const auth = authQueueFor(app);
 const tab = computed(() => isTab(route.query.feed) ? route.query.feed : 'recommended');
+const homeSegmentOptions = computed(() =>
+  tabs.map(item => ({
+    value: item,
+    label: t(`post.feed.homeTab.${item}`)
+  }))
+);
 const mounted = ref(false);
 const generation = ref(0);
 const pendingGroupLikes = shallowRef(new Set<number>());
@@ -112,50 +121,82 @@ onBeforeUnmount(() => { unsubscribe?.(); reset(); });
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-2xl px-3 py-4 sm:px-4">
-    <Tabs :model-value="tab" class="gap-4" @update:model-value="selectTab">
-      <TabsList :aria-label="t('post.feed.homeTabs')" class="grid h-auto w-full grid-cols-4 p-1">
-        <TabsTrigger v-for="item in tabs" :key="item" :value="item" class="min-h-9 px-2 text-sm">
-          {{ t(`post.feed.homeTab.${item}`) }}
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent :value="tab" class="min-w-0 space-y-4">
-        <p v-if="tab === 'recommended'" class="text-sm leading-relaxed text-muted-foreground">
-          {{ t('post.feed.rankingExplanation') }}
-        </p>
-        <div v-if="!mounted || active.loading" class="space-y-3" :aria-busy="true">
-          <TweetCardSkeleton v-for="index in 3" :key="index" />
-        </div>
-        <div v-else-if="active.error" role="status" class="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
-          <p class="text-sm">{{ t('post.feed.loadProblem') }}</p>
-          <Button variant="outline" size="sm" @click="refresh">{{ t('common.retry') }}</Button>
-        </div>
-        <p v-else-if="active.posts.length === 0" class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-          {{ t(tab === 'groups' ? 'post.feed.emptyGroupActivity' : 'post.feed.emptyTitle') }}
-        </p>
-        <div v-else-if="tab === 'groups'" class="space-y-4">
-          <article v-for="post in groups.posts" :key="post.id" class="space-y-1.5">
-            <NuxtLink :to="groupPostPath(post)" class="inline-block px-1 text-sm font-medium text-muted-foreground hover:text-foreground hover:underline">
-              {{ post.groupName }}
-            </NuxtLink>
-            <GroupPostCard
-              :post="post" hide-menu :mutation-pending="pendingGroupLikes.has(post.id)"
-              @comment="navigateTo(groupPostPath(post))" @share="shareGroupPost(post)" @like="likeGroupPost(post)" />
-          </article>
-        </div>
-        <TweetList
-          v-else :tweets="posts.posts" @delete-tweet="actions.handleDeleteTweet" @reply-tweet="actions.handleReplyTweet"
-          @retweet-tweet="actions.handleRetweetTweet" @like-tweet="actions.handleLikeTweet" @bookmark-tweet="actions.handleBookmarkTweet" />
+  <div class="min-w-0">
+    <!-- Desktop quiet page header -->
+    <div class="hidden items-center justify-between px-1 pt-4 pb-1 md:flex">
+      <h1 class="text-[18px] font-semibold tracking-tight text-foreground">
+        {{ t('nav.main.home') }}
+      </h1>
+    </div>
 
-        <div v-if="!active.loading && !active.error && active.totalPages > 1" class="flex items-center justify-center gap-3 pb-5">
-          <Button variant="outline" size="sm" :disabled="active.page === 1" @click="goToPage(active.page - 1)">{{ t('common.prev') }}</Button>
-          <span class="text-sm tabular-nums text-muted-foreground">{{ active.page }} / {{ active.totalPages }}</span>
-          <Button variant="outline" size="sm" :disabled="active.page >= active.totalPages" @click="goToPage(active.page + 1)">{{ t('common.next') }}</Button>
-        </div>
-      </TabsContent>
-    </Tabs>
+    <!-- Capsule segmented timeline switcher -->
+    <div class="sticky top-[54px] z-20 flex items-center gap-2 bg-background/75 px-3 pt-2.5 pb-2 backdrop-blur-xl md:top-0 md:px-0">
+      <LiquidGlassSegmented
+        :model-value="tab"
+        :items="homeSegmentOptions"
+        :aria-label="t('post.feed.homeTabs')"
+        tone="primary"
+        @update:model-value="selectTab"
+      />
+
+      <Popover v-if="tab === 'recommended'">
+        <PopoverTrigger as-child>
+          <LiquidGlassIconButton
+            :aria-label="t('post.feed.infoTitle')"
+            :title="t('post.feed.infoTitle')"
+          >
+            <Info class="size-4" />
+          </LiquidGlassIconButton>
+        </PopoverTrigger>
+        <PopoverContent align="end" class="w-72 p-3.5 text-xs leading-[1.6]">
+          <p class="mb-1 font-semibold text-foreground">{{ t('post.feed.infoTitle') }}</p>
+          <p class="text-muted-foreground">{{ t('post.feed.rankingExplanation') }}</p>
+        </PopoverContent>
+      </Popover>
+    </div>
+
+    <div class="min-w-0">
+      <div v-if="!mounted || active.loading" class="space-y-3 px-3 py-2 sm:px-0" :aria-busy="true">
+        <TweetCardSkeleton v-for="index in 5" :key="index" />
+      </div>
+      <div
+        v-else-if="active.error"
+        role="status"
+        class="bento-card mx-3 my-2 flex items-center justify-between gap-3 px-4 py-4 sm:mx-0"
+      >
+        <p class="text-sm">{{ t('post.feed.loadProblem') }}</p>
+        <Button variant="outline" size="sm" class="rounded-full" @click="refresh">{{ t('common.retry') }}</Button>
+      </div>
+      <div v-else-if="active.posts.length === 0" class="px-4 py-12 text-center text-sm text-muted-foreground">
+        {{ t(tab === 'groups' ? 'post.feed.emptyGroupActivity' : 'post.feed.emptyTitle') }}
+      </div>
+      <div v-else-if="tab === 'groups'" class="space-y-3 px-3 py-2 sm:px-0">
+        <article
+          v-for="post in groups.posts"
+          :key="post.id"
+          class="bento-card space-y-2 px-4 pt-4 pb-3"
+        >
+          <NuxtLink :to="groupPostPath(post)" class="inline-block text-xs font-semibold text-primary hover:underline">
+            {{ post.groupName }}
+          </NuxtLink>
+          <GroupPostCard
+            :post="post" hide-menu :mutation-pending="pendingGroupLikes.has(post.id)"
+            @comment="navigateTo(groupPostPath(post))" @share="shareGroupPost(post)" @like="likeGroupPost(post)" />
+        </article>
+      </div>
+      <TweetList
+        v-else :tweets="posts.posts" @delete-tweet="actions.handleDeleteTweet" @reply-tweet="actions.handleReplyTweet"
+        @retweet-tweet="actions.handleRetweetTweet" @like-tweet="actions.handleLikeTweet" @bookmark-tweet="actions.handleBookmarkTweet" />
+
+      <div v-if="!active.loading && !active.error && active.totalPages > 1" class="flex items-center justify-center gap-3 py-5">
+        <Button variant="outline" size="sm" class="rounded-full" :disabled="active.page === 1" @click="goToPage(active.page - 1)">{{ t('common.prev') }}</Button>
+        <span class="text-sm tabular-nums text-muted-foreground">{{ active.page }} / {{ active.totalPages }}</span>
+        <Button variant="outline" size="sm" class="rounded-full" :disabled="active.page >= active.totalPages" @click="goToPage(active.page + 1)">{{ t('common.next') }}</Button>
+      </div>
+    </div>
+
     <RetweetModal
       v-if="selectedTweetForRetweet" v-model:open="isRetweetModalOpen"
       :tweet="selectedTweetForRetweet" :is-submitting="isSubmittingRetweet" @submit-retweet="actions.handleSubmitRetweet" />
-  </main>
+  </div>
 </template>

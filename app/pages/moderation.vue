@@ -97,13 +97,13 @@ watch(currentPath, newPath => {
 
 <template>
   <ScrollArea class="h-[calc(100dvh-4rem)] mobile-scroll-safe">
-    <div class="mx-auto max-w-7xl space-y-5 px-3 py-3 sm:px-4 sm:py-4 lg:px-0 lg:py-0">
+    <div class="mx-auto max-w-7xl space-y-4 px-3 py-3 sm:px-4 sm:py-4 lg:px-0 lg:py-0">
       <section
-        class="flex flex-col gap-4 rounded-xl border border-border/60 bg-card p-4 shadow-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
+        class="flex flex-col gap-4 rounded-[20px] bg-card p-4 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:shadow-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
       >
         <div class="flex items-center gap-3">
           <span
-            class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20"
+            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"
           >
             <Shield class="h-5 w-5" />
           </span>
@@ -122,13 +122,13 @@ watch(currentPath, newPath => {
           @update:model-value="handleTabChange"
           class="w-full overflow-x-auto sm:w-auto"
         >
-          <TabsList class="grid w-full grid-cols-5 sm:inline-flex sm:w-auto sm:min-w-0">
+          <TabsList class="grid w-full grid-cols-5 rounded-full bg-background/85 p-1 sm:inline-flex sm:w-auto sm:min-w-0 dark:bg-background/80">
             <TabsTrigger
               v-for="tab in tabs"
               :key="tab.value"
               :value="tab.value"
               :aria-label="t(tab.labelKey)"
-              class="shrink-0 gap-2"
+              class="shrink-0 gap-2 rounded-full border-0 data-[state=active]:bg-card data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-xs dark:data-[state=active]:bg-accent dark:data-[state=active]:text-foreground"
             >
               <component :is="tab.icon" class="h-4 w-4" />
               <span class="hidden sm:inline">{{ t(tab.labelKey) }}</span>

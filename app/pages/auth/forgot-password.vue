@@ -29,6 +29,8 @@ import {
   PinInputSlot
 } from '@/components/ui/pin-input';
 import AppButton from '@/components/app/AppButton.vue';
+import ColorModeIcon from '@/components/ColorModeIcon.vue';
+import LanguageTriggerIcon from '@/components/LanguageTriggerIcon.vue';
 import {
   Card,
   CardContent,
@@ -265,29 +267,33 @@ const onSubmit = handleSubmit(
 </script>
 
 <template>
-  <div class="relative grid min-h-svh w-full overflow-x-clip lg:grid-cols-2">
+  <div class="relative grid min-h-svh w-full overflow-x-clip bg-background lg:grid-cols-2">
     <!-- Left: Form column -->
     <div class="flex min-w-0 flex-col gap-4 p-4 sm:p-6 md:p-10">
-      <div class="flex justify-center gap-2 sm:justify-start">
+      <div class="flex items-center justify-between gap-2">
         <NuxtLink
           :to="localePath('/')"
           class="flex items-center gap-2 font-medium"
         >
           <div
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground"
+            class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
           >
             <Cat class="size-4" />
           </div>
-          <span class="text-sm">{{ t('app.brand.name') }}</span>
+          <span class="text-sm font-semibold">{{ t('app.brand.name') }}</span>
         </NuxtLink>
+        <div class="flex shrink-0 items-center gap-1.5">
+          <LanguageTriggerIcon />
+          <ColorModeIcon />
+        </div>
       </div>
 
       <div class="flex min-w-0 flex-1 items-center justify-center">
-        <div class="w-full max-w-sm">
-          <Card class="border-none shadow-none">
+        <div class="w-full max-w-md">
+          <Card class="bento-card p-6 sm:p-8">
             <CardHeader class="space-y-1 px-0 text-center">
               <div
-                class="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20"
+                class="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary-soft)]"
               >
                 <KeyRound class="h-5 w-5 text-primary" />
               </div>
@@ -319,6 +325,7 @@ const onSubmit = handleSubmit(
                         :placeholder="
                           t('auth.forgotPassword.emailPlaceholder')
                         "
+                        class="h-11 rounded-[14px] border-0 bg-secondary shadow-none dark:bg-secondary"
                         v-bind="componentField"
                         v-model="email"
                       />
@@ -353,13 +360,14 @@ const onSubmit = handleSubmit(
                               'auth.forgotPassword.newPasswordPlaceholder'
                             )
                           "
-                          class="pr-10"
+                          class="h-11 rounded-[14px] border-0 bg-secondary pr-10 shadow-none dark:bg-secondary"
                           v-bind="componentField"
                         />
                         <button
                           type="button"
-                          tabindex="-1"
-                          class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          :aria-label="t('common.togglePasswordVisibility')"
+                          :aria-pressed="isPasswordVisible"
+                          class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                           @click="
                             isPasswordVisible = !isPasswordVisible
                           "
@@ -398,13 +406,14 @@ const onSubmit = handleSubmit(
                               'auth.forgotPassword.confirmPasswordPlaceholder'
                             )
                           "
-                          class="pr-10"
+                          class="h-11 rounded-[14px] border-0 bg-secondary pr-10 shadow-none dark:bg-secondary"
                           v-bind="componentField"
                         />
                         <button
                           type="button"
-                          tabindex="-1"
-                          class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          :aria-label="t('common.togglePasswordVisibility')"
+                          :aria-pressed="isConfirmPasswordVisible"
+                          class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                           @click="
                             isConfirmPasswordVisible =
                               !isConfirmPasswordVisible
@@ -429,7 +438,7 @@ const onSubmit = handleSubmit(
                 >
                   <FormItem>
                     <div
-                      class="grid gap-2 rounded-lg border border-border/60 bg-muted/30 p-4"
+                      class="bento-tile grid gap-2 p-4"
                     >
                       <FormLabel
                         class="flex items-center gap-2 text-sm font-medium"
@@ -458,11 +467,11 @@ const onSubmit = handleSubmit(
                         </FormControl>
                         <AppButton
                           type="button"
-                          variant="outline"
+                          variant="secondary"
                           @click="sendCaptcha"
                           :disabled="isCaptchaSending || isLoading"
                           :loading="isCaptchaSending"
-                          class="w-full sm:w-auto"
+                          class="h-11 w-full rounded-full bg-card hover:bg-accent sm:w-auto"
                         >
                           <span v-if="isCaptchaSending">
                             {{ countdown }}
@@ -484,7 +493,7 @@ const onSubmit = handleSubmit(
 
                 <AppButton
                   type="submit"
-                  class="w-full"
+                  class="h-11 w-full rounded-full font-semibold"
                   :loading="isLoading"
                   :loading-label="
                     t('auth.forgotPassword.resetPassword')
@@ -497,7 +506,7 @@ const onSubmit = handleSubmit(
                   class="after:border-border relative text-center text-xs after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t"
                 >
                   <span
-                    class="bg-background text-muted-foreground relative z-10 px-2"
+                    class="bg-card text-muted-foreground relative z-10 px-2"
                   >
                     {{ t('auth.forgotPassword.haveAccount') }}
                   </span>
@@ -505,7 +514,7 @@ const onSubmit = handleSubmit(
 
                 <NuxtLink
                   :to="localePath('auth-login')"
-                  class="inline-flex h-9 w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+                  class="pressable inline-flex h-11 w-full items-center justify-center rounded-full bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
                   {{ t('auth.forgotPassword.loginPrompt') }}
                 </NuxtLink>
@@ -516,29 +525,30 @@ const onSubmit = handleSubmit(
       </div>
     </div>
 
-    <!-- Right: Decorative column -->
-    <div class="bg-muted relative hidden lg:block overflow-hidden">
-      <img
-        src="/placeholder.svg"
-        :alt="t('auth.forgotPassword.coverImageAlt')"
-        width="1920"
-        height="1080"
-        class="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-      />
+    <!-- Right: Decorative showcase column -->
+    <div class="relative hidden overflow-hidden bg-secondary/70 bg-subtle-grid p-10 lg:flex lg:items-center lg:justify-center">
       <div
-        class="pointer-events-none absolute inset-0 bg-gradient-to-tr from-background/60 via-transparent to-background/30"
-      />
+        class="bento-card flex size-40 items-center justify-center"
+      >
+        <div
+          class="flex size-24 items-center justify-center rounded-[20px] bg-[var(--primary-soft)]"
+        >
+          <KeyRound class="size-12 text-primary" />
+        </div>
+      </div>
       <div class="absolute bottom-8 left-8 right-8 z-10">
-        <blockquote class="space-y-2">
-          <p
-            class="text-lg font-medium leading-relaxed text-foreground/90"
-          >
-            &ldquo;{{ t('app.brand.tagline') }}&rdquo;
-          </p>
-          <footer class="text-sm text-muted-foreground">
-            — {{ t('app.brand.name') }}
-          </footer>
-        </blockquote>
+        <div class="liquid-glass-popover rounded-[26px] p-6">
+          <blockquote class="space-y-2">
+            <p
+              class="text-[17px] font-medium leading-[1.62] text-foreground/90"
+            >
+              &ldquo;{{ t('app.brand.tagline') }}&rdquo;
+            </p>
+            <footer class="text-sm text-[var(--ink-tertiary)]">
+              — {{ t('app.brand.name') }}
+            </footer>
+          </blockquote>
+        </div>
       </div>
     </div>
   </div>

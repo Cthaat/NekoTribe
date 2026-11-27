@@ -6,6 +6,7 @@ import type {
 // 用户偏好设置类型定义（TypeScript）
 
 export type ThemeMode = 'dark' | 'light' | 'system';
+export type GlassIntensity = 'standard' | 'subtle';
 export type FontSize =
   | 'normal'
   | 'large'
@@ -25,6 +26,7 @@ export type HomeTab =
 export interface UserPreference {
   // 1. 主题相关
   theme_mode: ThemeMode; // 主题模式
+  glass_intensity?: GlassIntensity; // 液态玻璃质感强度
   font_size: FontSize; // 字体大小
   language: LanguageCode; // 界面语言
 

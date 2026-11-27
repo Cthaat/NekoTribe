@@ -53,6 +53,9 @@ export default defineNuxtConfig({
     publicTermsReferences: parseTermsCatalog(publicTermsCatalog).slice()
   },
   compatibilityDate: '2026-04-26',
+  app: {
+    pageTransition: { name: 'page', mode: 'out-in' }
+  },
   debug: false,
   devtools: {
     enabled:
