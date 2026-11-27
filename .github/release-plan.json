@@ -1,0 +1,10 @@
+{
+  "version": "v2.2.0",
+  "previous": "v2.1.0",
+  "sources": {
+    "Nuxt": "24f8cd4c8f2c843897930472ddae0b64cf00d96b",
+    "Go": "9354e246d1db62e83137e2001bccb20aa601d0b9",
+    "Rust": "2cd4d260fd8e495853cb63fd09a44cda39b1c651",
+    "Flutter": "1a2115e291fde1d18c725f08905758426378957e"
+  }
+}
