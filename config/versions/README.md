@@ -3,6 +3,10 @@
 
 # 服务版本管理
 
+## 发布 NekoTribe 版本
+
+在 [Release All Stacks](https://github.com/Cthaat/NekoTribe/actions/workflows/release.yml) 选择 `master`，填写新版本号并运行，或向仓库推送对应的版本标签。每个 `vX.Y.Z` 各有一个 Release 页面、四个平台合集、独立 APK、Windows 安装器和校验清单。带有 `-rc.1` 等后缀的版本进入预发布渠道。四条主分支的推送构建继续更新 [滚动版](https://github.com/Cthaat/NekoTribe/releases/tag/rolling-latest)。
+
 此目录用于管理各个微服务的版本信息。
 
 ## 文件结构
