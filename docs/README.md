@@ -13,8 +13,19 @@
 | `../doc/` | **双轨目录：活跃 v2 契约源 + 历史早期文档归档** | **活跃核心**：`doc/v2.openapi.json`、`doc/runtime-addresses.md`、`doc/contracts.manifest.json` 为四栈唯一权威契约源；`doc/contract-patches/` 为 39 项字段审核与 PATCH 改造的审计留档。<br>**历史归档**：其余 35 个文件（含已标示归档横幅的 `doc/README.md` 及 20 份旧 `.md`、旧 SQL/JSON/图表/Word 文档）均为重组前遗留资料，不再作为现行开发或部署依据。 |
 | `../specifications/` | **语言无关共同需求与一致性台账** | 跨三后端（Nuxt / Go / Rust）与双客户端（Nuxt Web / Flutter）的共同规范基线：含总览 3 份、`requirements/` 206 份（142 `.md` + 64 `.json`）、`scenarios/` 193 份、`evidence/` 3 份，总台账为 `parity.json`。 |
 | 子目录 `README.md` | **特定工具或遗留自动化目录说明** | `scripts/benchmark/README.md` 为现行三后端对拍/压测指南；`config/versions/README.md` 与 `script/github/README.md` 为旧版微服务标签自动化遗留说明（已由 `.github/workflows/` 现行流程替代）。 |
-| 父工作区 `../../README.md` 与 `../../docs/` | **四工作树并排父管理目录（仓库外部）** | 仅存在于四栈同父目录布局（如 `C:\Code\NekoTribe\`），独立克隆本仓库时不存在。存放跨四栈总交付清单（`docs/deployment/`）、AI 交接包（`docs/handoff/`）、Prometheus/Grafana 观测配置（`docs/observability/`）与早期总路线图。注意：父目录的 `docs/startup-safety.md` 与 `docs/contracts/runtime-addresses.md` 为早期快照，已落后于本仓库现行版本。 |
+| 父工作区 `../../README.md` 与 `../../docs/` | **四工作树并排父管理目录（仓库外部）** | 仅存在于四栈同父目录布局（如 `C:\Code\NekoTribe\`），独立克隆本仓库时不存在。存放跨四栈总交付清单（`docs/deployment/`）、AI 交接包（`docs/handoff/`）、Prometheus/Grafana 观测配置（`docs/observability/`）、项目简报（`docs/PROJECT-BRIEF.md`）与早期总路线图。注：父目录的 `docs/startup-safety.md` 与 `docs/contracts/runtime-addresses.md` 已改为指向本仓库现行权威文档的重定向说明。 |
 | 同级工作区 `../../{go,rust,flutter}/contracts/` | **跨端共享契约与规范的只读分发副本** | 由本仓库通过 `node scripts/contracts.mjs sync --workspace-root ..` 与 `node scripts/parity.mjs sync-shared --workspace-root ..` 显式同步；不在各自子分支另立标准。 |
+
+### 四分支文档地图（单一事实源分工）
+
+| 分支 / 位置 | 职责定位 | 文档入口与分工 |
+| --- | --- | --- |
+| `master`（`nuxt`） | 全项目唯一共享文档与契约中心 | [`README.md`](../README.md)、`docs/README.md`（本页）、[`doc/v2.openapi.json`](../doc/v2.openapi.json)、[`specifications/README.md`](../specifications/README.md) |
+| `codex/go`（`go`） | Go 原生后端轻量入口 | [Go README](https://github.com/Cthaat/NekoTribe/blob/codex/go/README.md)、[Go 文档说明](https://github.com/Cthaat/NekoTribe/blob/codex/go/docs/README.md)、`contracts/`（只读同步副本） |
+| `Rust`（`rust`） | Rust 原生后端轻量入口 | [Rust README](https://github.com/Cthaat/NekoTribe/blob/Rust/README.md)、[Rust 文档说明](https://github.com/Cthaat/NekoTribe/blob/Rust/docs/README.md)、`contracts/`（只读同步副本） |
+| `Flutter`（`flutter`） | Flutter 跨端客户端轻量入口 | [Flutter README](https://github.com/Cthaat/NekoTribe/blob/Flutter/README.md)、[Flutter 文档说明](https://github.com/Cthaat/NekoTribe/blob/Flutter/docs/README.md)、`contracts/`（只读同步副本） |
+| 父管理目录（非 Git） | 仅本地并排工作区运维台 | `../../README.md`、`../../docs/README.md`、`../../docs/PROJECT-BRIEF.md`（交付清单、AI 交接档案、观测配置与项目简报） |
+| 独立仓库 `SentimentFlow` | 可选外部情感分析服务 | `github.com/Cthaat/SentimentFlow`（文档独立维护，主项目通过可选配置协同） |
 
 ---
 
