@@ -24,8 +24,9 @@ const linkedSlug = computed(() =>
 );
 const mode = ref<'discover' | 'popular'>('discover');
 
+const linkedQuery = computed(() => typeof route.query.q === 'string' ? route.query.q.trim().slice(0, 100) : '');
 const filters = ref<GroupFiltersData>({
-  search: '',
+  search: linkedQuery.value,
   privacy: 'all',
   category: 'all',
   sortBy: 'popular'
@@ -63,6 +64,11 @@ onMounted(() => {
 watch(linkedSlug, (slug, previous) => {
   if (slug) void groupDetail.openGroupBySlug(slug);
   else if (previous) groupDetail.close();
+});
+
+watch(linkedQuery, search => {
+  mode.value = 'discover';
+  filters.value.search = search;
 });
 
 watch(

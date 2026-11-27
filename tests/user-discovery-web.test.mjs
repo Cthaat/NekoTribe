@@ -9,8 +9,8 @@ const component = readFileSync(new URL('../app/components/AppGlobalSearch.vue', 
 const source = parse(component).descriptor.scriptSetup.content.replace(/^import[\s\S]*? from ['"][^'"]+[''];\r?\n/gm, '');
 const { code } = await transform(source, { loader: 'ts' });
 const fixture = new Function('computed', 'nextTick', 'ref', 'vueWatch', 'ownerQueue',
-  'v2SearchUsers', 'v2RecommendedUsers', `
-  const useRoute = () => ({path: '/feed', params: {}});
+  'v2SearchUsers', 'v2RecommendedUsers', 'routeQuery', `
+  const useRoute = () => ({path: '/feed', params: {}, query: routeQuery});
   const useAppLocale = () => ({t: key => key, locale: ref('en')});
   const useLocalePath = () => value => value;
   const useNuxtApp = () => ({});
@@ -18,16 +18,19 @@ const fixture = new Function('computed', 'nextTick', 'ref', 'vueWatch', 'ownerQu
   const authQueueFor = () => ownerQueue;
   const cleanups = [];
   const watch = (...args) => cleanups.push(vueWatch(...args));
+  const mountCallbacks = [];
+  const onMounted = fn => mountCallbacks.push(fn);
   const onBeforeUnmount = fn => cleanups.push(fn);
   let timer;
   const setTimeout = fn => { timer = fn; return 1; };
   const clearTimeout = () => { timer = undefined; };
   ${code}
+  mountCallbacks.forEach(fn => fn());
   return {close: () => cleanups.forEach(fn => fn()), searchQuery, users, showingRecommendations,
     showRecommendations, isSearchingUsers, isPopoverOpen, fireTimer: () => timer?.()};
 `);
 
-function open({ search, recommendations }) {
+function open({ search, recommendations, people }) {
   let notify;
   const queue = {
     revision: 0,
@@ -37,9 +40,23 @@ function open({ search, recommendations }) {
       return () => { notify = undefined; };
     }
   };
-  const view = fixture(computed, nextTick, ref, watch, queue, search, recommendations);
+  const view = fixture(computed, nextTick, ref, watch, queue, search, recommendations, { people });
   return { view, changeAccount() { queue.revision++; notify(); } };
 }
+
+test('a command palette people search opens the existing user results', async () => {
+  const { view } = open({
+    people: '  example  ',
+    search: async query => { assert.equal(query.q, 'example'); return { items: [{ id: 8 }] }; }
+  });
+  try {
+    assert.equal(view.searchQuery.value, 'example');
+    assert.equal(view.isPopoverOpen.value, true);
+    view.fireTimer();
+    await nextTick();
+    assert.deepEqual(view.users.value, [{ id: 8 }]);
+  } finally { view.close(); }
+});
 
 test('typing switches from recommendations to user search and discards the older list', async () => {
   let finishRecommendation;

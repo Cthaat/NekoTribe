@@ -2,6 +2,7 @@
 import {
   computed,
   nextTick,
+  onMounted,
   onBeforeUnmount,
   ref,
   watch
@@ -288,6 +289,20 @@ watch(
   },
   { immediate: true }
 );
+
+function openPeopleSearch(value: unknown): void {
+  if (typeof value !== 'string') return;
+  const keyword = value.trim().slice(0, 100);
+  if (keyword.length < MIN_QUERY_LENGTH) return;
+  searchQuery.value = keyword;
+  void nextTick(() => {
+    anchorContainerRef.value?.querySelector('input')?.focus();
+    handleFocus();
+  });
+}
+
+onMounted(() => openPeopleSearch(route.query.people));
+watch(() => route.query.people, openPeopleSearch);
 
 let observedOwner = queue.revision;
 const stopObserving = queue.subscribe(() => {

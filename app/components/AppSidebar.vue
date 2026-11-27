@@ -167,6 +167,7 @@ async function handleLogout(): Promise<void> {
 
       <!-- Social primary links -->
       <nav class="flex flex-col gap-1">
+        <slot name="search" />
         <NuxtLink
           v-for="item in primaryNav"
           :key="item.key"
