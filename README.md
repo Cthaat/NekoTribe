@@ -185,6 +185,8 @@ node scripts/contracts.mjs check --workspace-root ..
 node scripts/parity.mjs check --workspace-root ..
 ```
 
+- [全项目文档总索引 (master)](https://github.com/Cthaat/NekoTribe/blob/master/docs/README.md)
+- [Flutter 分支文档说明](docs/README.md)
 - [统一部署手册](https://github.com/Cthaat/NekoTribe/blob/master/docs/deployment.md)
 - [Flutter CI 工作流](.github/workflows/ci-flutter.yml)
 - [客户端契约来源](contracts/source.json)

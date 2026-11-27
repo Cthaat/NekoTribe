@@ -1,5 +1,7 @@
 # T09 standalone Flutter validation
 
+> **历史阶段验证记录（2026-09-10 / 2026-10-25）**：本文记录 Flutter 独立分支迁移与早期启动器静态检查点，不代表当前 v2.0.0 / vNext 全部能力。现行入口见 [Flutter 分支文档说明](README.md) 与 [全项目文档总索引 (master)](https://github.com/Cthaat/NekoTribe/blob/master/docs/README.md)。
+
 Historical migration validation was recorded on Windows on 2026-09-10 with Flutter 3.41.9 and Dart 3.11.5. The results below describe that checkpoint, not a fresh acceptance run of all later changes.
 
 ## Scope
