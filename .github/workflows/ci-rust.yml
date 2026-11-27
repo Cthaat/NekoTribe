@@ -12,7 +12,10 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  automation:
+    uses: Cthaat/NekoTribe/.github/workflows/automation-checks.yml@master
   check:
+    needs: automation
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
