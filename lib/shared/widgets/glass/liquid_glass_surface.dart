@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../theme/tokens.dart';
 import 'liquid_glass_shader.dart';
@@ -19,6 +20,7 @@ class LiquidGlassSurface extends StatelessWidget {
     this.interactive = false,
     this.onTap,
     this.intensityOverride,
+    this.lensProgress = 0,
   });
 
   final LiquidGlassPreset preset;
@@ -30,6 +32,7 @@ class LiquidGlassSurface extends StatelessWidget {
   final bool interactive;
   final VoidCallback? onTap;
   final LiquidGlassIntensity? intensityOverride;
+  final double lensProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -51,8 +54,12 @@ class LiquidGlassSurface extends StatelessWidget {
     final intensity =
         intensityOverride ?? SocialColors.of(context).glassIntensity;
     final spec = LiquidGlassSpec.resolve(preset, scheme, intensity);
+    final lensClarity =
+        preset == LiquidGlassPreset.pillIndicator && !highContrast
+        ? 1 - 0.32 * lensProgress.clamp(0.0, 1.0)
+        : 1.0;
     final tintAlpha =
-        (spec.tintColor.a +
+        (spec.tintColor.a * lensClarity +
                 (AppMotion.reduced(context) ? 0.015 : 0.0) +
                 (highContrast ? 0.22 : 0.0))
             .clamp(0.0, 0.92);
@@ -79,9 +86,7 @@ class LiquidGlassSurface extends StatelessWidget {
             0.32,
           )!.withValues(alpha: rimBottomAlpha),
         ],
-        innerGlowColor: Colors.white.withValues(
-          alpha: dark ? 0.045 : 0.16,
-        ),
+        innerGlowColor: Colors.white.withValues(alpha: dark ? 0.045 : 0.16),
         strokeWidth: rimStrokeWidth,
       ),
       child: ColoredBox(
@@ -121,20 +126,37 @@ class LiquidGlassSurface extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: borderRadius,
-        boxShadow: [
-          if (dark)
-            const BoxShadow(
-              color: Color(0x38000000),
-              blurRadius: 26,
-              offset: Offset(0, 10),
-            )
-          else
-            const BoxShadow(
-              color: Color(0x140F172A),
-              blurRadius: 24,
-              offset: Offset(0, 8),
-            ),
-        ],
+        boxShadow: preset == LiquidGlassPreset.navDock
+            ? [
+                BoxShadow(
+                  color: dark
+                      ? const Color(0x40000000)
+                      : const Color(0x180F172A),
+                  blurRadius: dark ? 24 : 22,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: dark
+                      ? const Color(0x26000000)
+                      : const Color(0x0D0F172A),
+                  blurRadius: dark ? 6 : 5,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : [
+                if (dark)
+                  const BoxShadow(
+                    color: Color(0x38000000),
+                    blurRadius: 26,
+                    offset: Offset(0, 10),
+                  )
+                else
+                  const BoxShadow(
+                    color: Color(0x140F172A),
+                    blurRadius: 24,
+                    offset: Offset(0, 8),
+                  ),
+              ],
       ),
       child: clipped,
     );
@@ -158,7 +180,6 @@ class _GlassBackdrop extends StatefulWidget {
 
 class _GlassBackdropState extends State<_GlassBackdrop> {
   ui.FragmentShader? _shader;
-  (double, double, double, double)? _uniforms;
 
   @override
   void dispose() {
@@ -169,49 +190,116 @@ class _GlassBackdropState extends State<_GlassBackdrop> {
   @override
   Widget build(BuildContext context) {
     final spec = widget.spec;
-    final optics = ui.ImageFilter.compose(
+    final blur = ui.ImageFilter.blur(
+      sigmaX: spec.blurSigma,
+      sigmaY: spec.blurSigma,
+      tileMode: TileMode.clamp,
+    );
+    final fallback = ui.ImageFilter.compose(
       outer: ui.ColorFilter.matrix(saturationColorMatrix(spec.saturation)),
-      inner: ui.ImageFilter.blur(
-        sigmaX: spec.blurSigma,
-        sigmaY: spec.blurSigma,
-        tileMode: TileMode.clamp,
-      ),
+      inner: blur,
     );
     if (!spec.enableRefraction || !LiquidGlassShaderCache.isSupported) {
-      return BackdropFilter(filter: optics, child: widget.child);
+      return BackdropFilter(filter: fallback, child: widget.child);
     }
     return FutureBuilder<ui.FragmentProgram?>(
       future: LiquidGlassShaderCache.load(),
       builder: (context, snapshot) {
         final program = snapshot.data;
         if (program == null) {
-          return BackdropFilter(filter: optics, child: widget.child);
+          return BackdropFilter(filter: fallback, child: widget.child);
         }
         final shader = _shader ??= program.fragmentShader();
-        final dpr = MediaQuery.devicePixelRatioOf(context).clamp(1.0, 4.0);
-        final uniforms = (
-          widget.cornerRadius * dpr,
-          spec.bezelWidth * dpr,
-          spec.refractionPx * dpr,
-          spec.aberrationPx * dpr,
-        );
-        if (uniforms != _uniforms) {
-          shader
-            ..setFloat(2, uniforms.$1)
-            ..setFloat(3, uniforms.$2)
-            ..setFloat(4, uniforms.$3)
-            ..setFloat(5, uniforms.$4);
-          _uniforms = uniforms;
-        }
-        return BackdropFilter(
-          filter: ui.ImageFilter.compose(
-            outer: ui.ImageFilter.shader(shader),
-            inner: optics,
-          ),
+        final view = View.of(context);
+        (Offset, Offset, Offset, Size)? previous;
+        late ui.ImageFilter filter;
+        return _RefractionBackdrop(
+          resolve: (box) {
+            final transform = box.getTransformTo(null);
+            Offset point(Offset local) =>
+                MatrixUtils.transformPoint(transform, local) *
+                view.devicePixelRatio;
+            final origin = point(Offset.zero);
+            final x = point(const Offset(1, 0)) - origin;
+            final y = point(const Offset(0, 1)) - origin;
+            final geometry = (origin, x, y, box.size);
+            if (previous == geometry) return filter;
+            previous = geometry;
+            shader
+              ..setFloat(2, widget.cornerRadius)
+              ..setFloat(3, spec.bezelWidth)
+              ..setFloat(4, spec.refractionPx)
+              ..setFloat(5, spec.aberrationPx)
+              ..setFloat(6, origin.dx)
+              ..setFloat(7, origin.dy)
+              ..setFloat(8, box.size.width)
+              ..setFloat(9, box.size.height)
+              ..setFloat(10, x.dx)
+              ..setFloat(11, x.dy)
+              ..setFloat(12, y.dx)
+              ..setFloat(13, y.dy)
+              ..setFloat(14, spec.saturation);
+            return filter = ui.ImageFilter.compose(
+              outer: ui.ImageFilter.shader(shader),
+              inner: blur,
+            );
+          },
           child: widget.child,
         );
       },
     );
+  }
+}
+
+class _RefractionBackdrop extends SingleChildRenderObjectWidget {
+  const _RefractionBackdrop({required this.resolve, required super.child});
+  final ui.ImageFilter Function(RenderBox) resolve;
+
+  @override
+  _RenderRefractionBackdrop createRenderObject(BuildContext context) =>
+      _RenderRefractionBackdrop(resolve);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderRefractionBackdrop renderObject,
+  ) {
+    renderObject.resolve = resolve;
+    renderObject.markNeedsPaint();
+  }
+}
+
+class _RenderRefractionBackdrop extends RenderProxyBox {
+  _RenderRefractionBackdrop(this.resolve);
+  ui.ImageFilter Function(RenderBox) resolve;
+
+  @override
+  bool get alwaysNeedsCompositing => true;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    layer ??= _RefractionLayer(() => resolve(this));
+    context.pushLayer(layer!, super.paint, offset);
+  }
+}
+
+// A retained subtree can move when an ancestor scrolls or animates, without
+// repainting its child. Resolve the current transform while composing the scene.
+class _RefractionLayer extends ContainerLayer {
+  _RefractionLayer(this.resolve);
+  final ui.ImageFilter Function() resolve;
+
+  @override
+  bool get alwaysNeedsAddToScene => true;
+
+  @override
+  void addToScene(ui.SceneBuilder builder) {
+    engineLayer = builder.pushBackdropFilter(
+      resolve(),
+      oldLayer: engineLayer as ui.BackdropFilterEngineLayer?,
+    );
+    addChildrenToScene(builder);
+    builder.pop();
   }
 }
 
