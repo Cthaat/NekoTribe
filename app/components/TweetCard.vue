@@ -91,6 +91,7 @@ const props = withDefaults(
     pinnedOnProfile?: boolean;
     canManageProfilePin?: boolean;
     profilePinPending?: boolean;
+    keyboardNavigation?: boolean;
     focused?: boolean;
   }>(),
   {
@@ -467,11 +468,13 @@ const relatedExcerpt = computed(() => {
 <template>
   <article
     @click.stop="!focused && toTweetDetail(String(tweet.id))"
+    :data-timeline-post="keyboardNavigation ? '' : undefined"
+    :tabindex="keyboardNavigation ? -1 : undefined"
     class="bento-card group relative transition-colors duration-200"
     :class="
       focused
         ? 'p-5 cursor-default'
-        : 'px-4 pt-4 pb-3 hover:shadow-[0_4px_16px_rgba(15,23,42,0.06)] dark:hover:bg-[#191C22] cursor-pointer'
+        : 'px-4 pt-4 pb-3 hover:shadow-[0_4px_16px_rgba(15,23,42,0.06)] dark:hover:bg-[#191C22] cursor-pointer focus-visible:outline-2 focus-visible:outline-ring'
     "
   >
     <p
@@ -925,6 +928,7 @@ const relatedExcerpt = computed(() => {
             type="button"
             class="group/btn pressable inline-flex items-center gap-1 rounded-full py-1 pr-2 text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :aria-label="t('comment.reply')"
+            data-timeline-action="reply"
             @click.stop="handleReply"
           >
             <span class="inline-flex size-8 items-center justify-center rounded-full transition-colors group-hover/btn:bg-primary/10">
@@ -949,6 +953,7 @@ const relatedExcerpt = computed(() => {
           </button>
 
           <LikeButton
+            data-timeline-action="like"
             :liked="localLiked"
             :count="likeCount"
             @toggle="handleLike"
@@ -960,6 +965,7 @@ const relatedExcerpt = computed(() => {
               class="group/btn pressable inline-flex size-8 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               :class="localIsBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-primary'"
               :aria-label="t(localIsBookmarked ? 'post.actions.removeBookmark' : 'post.actions.addBookmark')"
+              data-timeline-action="bookmark"
               @click.stop="handleBookmark"
             >
               <span class="inline-flex size-8 items-center justify-center rounded-full transition-colors group-hover/btn:bg-primary/10">

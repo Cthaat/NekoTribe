@@ -78,6 +78,8 @@ const props = defineProps<{
   directMessages?: V2DirectMessage[];
   channelSearchActive?: boolean;
   directSearchActive?: boolean;
+  channelSearchKeyword?: string;
+  directSearchKeyword?: string;
   channelTypingCount?: number;
   directTyping?: boolean;
   lastSeenOwnDirectMessage?: number;
@@ -122,6 +124,8 @@ const mobileMemberListOpen = ref(false);
 const showPinnedMessages = ref(false);
 const showSearch = ref(false);
 const showDirectSearch = ref(false);
+watch(() => props.channelSearchActive, active => { if (active) showSearch.value = true; }, { immediate: true });
+watch(() => props.directSearchActive, active => { if (active) showDirectSearch.value = true; }, { immediate: true });
 const notificationSettingsOpen = ref(false);
 const callDialogOpen = ref(false);
 const callDialogType = ref<CallMode>('voice');
@@ -716,7 +720,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 搜索栏 -->
-      <ChatSearchFilters v-if="showSearch" :senders="channelSearchSenders" @search="emit('search', $event)" />
+      <ChatSearchFilters v-if="showSearch" :senders="channelSearchSenders" :initial-keyword="channelSearchKeyword" @search="emit('search', $event)" />
 
       <!-- 消息区域 -->
       <div class="relative min-h-0 flex-1">
@@ -969,7 +973,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <ChatSearchFilters v-if="showDirectSearch && directMessageTarget && currentUserId" :senders="[
+        <ChatSearchFilters v-if="showDirectSearch && directMessageTarget && currentUserId" :initial-keyword="directSearchKeyword" :senders="[
           { id: currentUserId, label: currentUserName || t('chat.currentUser.name') },
           { id: directMessageTarget.id, label: directMessageTarget.nickname },
         ]" @search="emit('direct-search', $event)" />

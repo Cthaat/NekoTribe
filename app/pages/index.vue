@@ -1,8 +1,10 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
-import { Info } from 'lucide-vue-next';
+import { Info, Keyboard } from 'lucide-vue-next';
+import { useStorage } from '@vueuse/core';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import LiquidGlassIconButton from '@/components/glass/LiquidGlassIconButton.vue';
 import LiquidGlassSegmented from '@/components/glass/LiquidGlassSegmented.vue';
@@ -10,6 +12,7 @@ import NewPostsPill from '@/components/motion/NewPostsPill.vue';
 import { useScrollDirection } from '@/composables/useScrollDirection';
 import { usePostFeed } from '@/composables/usePostFeed';
 import { useTimelinePostActions } from '@/composables/useTimelinePostActions';
+import { useTimelineShortcuts } from '@/composables/useTimelineShortcuts';
 import { v2ListPosts, v2ListTrendingPosts } from '@/services/posts';
 import { listHomeGroupActivity, setGroupPostLikeStatus } from '@/services/groups';
 import type { HomeGroupPost } from '@/services/groups';
@@ -40,6 +43,14 @@ const mounted = ref(false);
 const generation = ref(0);
 const pendingGroupLikes = shallowRef(new Set<number>());
 const newPostsCount = ref(0);
+const timeline = ref<HTMLElement | null>(null);
+const shortcutHelpOpen = ref(false);
+const timelineShortcutsEnabled = useStorage('nekotribe.timelineShortcuts', true);
+useTimelineShortcuts(timeline, timelineShortcutsEnabled, {
+  compose: () => { void navigateTo(localePath('/meow')); },
+  help: () => { shortcutHelpOpen.value = true; }
+});
+const shortcutHelp = { J: 'next', K: 'previous', L: 'like', B: 'bookmark', R: 'reply', N: 'compose' };
 const { scrollY, prefersReducedMotion } = useScrollDirection();
 
 const posts = usePostFeed({ debugName: 'home-posts', loadPage: (page, pageSize) => app.runWithContext(() => {
@@ -194,6 +205,14 @@ onBeforeUnmount(() => {
       <h1 class="text-[18px] font-semibold tracking-tight text-foreground">
         {{ t('nav.main.home') }}
       </h1>
+      <LiquidGlassIconButton
+        :aria-label="t('timelineShortcuts.title')"
+        :title="t('timelineShortcuts.title')"
+        aria-haspopup="dialog"
+        @click="shortcutHelpOpen = true"
+      >
+        <Keyboard aria-hidden="true" class="size-4" />
+      </LiquidGlassIconButton>
     </div>
 
     <!-- Capsule segmented timeline switcher -->
@@ -222,7 +241,7 @@ onBeforeUnmount(() => {
       </Popover>
     </div>
 
-    <div class="min-w-0">
+    <div ref="timeline" class="min-w-0">
       <Transition name="skeleton-crossfade" mode="out-in">
         <div v-if="!mounted || active.loading" key="loading" class="space-y-3 px-3 py-2 sm:px-0" :aria-busy="true">
           <TweetCardSkeleton v-for="index in 5" :key="index" />
@@ -243,7 +262,9 @@ onBeforeUnmount(() => {
           <article
             v-for="post in groups.posts"
             :key="post.id"
-            class="bento-card space-y-2 px-4 pt-4 pb-3"
+            data-timeline-post
+            tabindex="-1"
+            class="bento-card space-y-2 px-4 pt-4 pb-3 focus-visible:outline-2 focus-visible:outline-ring"
           >
             <NuxtLink :to="groupPostPath(post)" class="inline-block text-xs font-semibold text-primary hover:underline">
               {{ post.groupName }}
@@ -254,7 +275,8 @@ onBeforeUnmount(() => {
           </article>
         </div>
         <TweetList
-          v-else key="posts" :tweets="posts.posts" @delete-tweet="actions.handleDeleteTweet" @reply-tweet="actions.handleReplyTweet"
+          v-else key="posts" :tweets="posts.posts" keyboard-navigation
+          @delete-tweet="actions.handleDeleteTweet" @reply-tweet="actions.handleReplyTweet"
           @retweet-tweet="actions.handleRetweetTweet" @like-tweet="actions.handleLikeTweet" @bookmark-tweet="actions.handleBookmarkTweet" />
       </Transition>
 
@@ -268,5 +290,21 @@ onBeforeUnmount(() => {
     <RetweetModal
       v-if="selectedTweetForRetweet" v-model:open="isRetweetModalOpen"
       :tweet="selectedTweetForRetweet" :is-submitting="isSubmittingRetweet" @submit-retweet="actions.handleSubmitRetweet" />
+    <Dialog v-model:open="shortcutHelpOpen">
+      <DialogContent>
+        <DialogTitle>{{ t('timelineShortcuts.title') }}</DialogTitle>
+        <DialogDescription>{{ t('timelineShortcuts.description') }}</DialogDescription>
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="timelineShortcutsEnabled" type="checkbox" class="size-4 accent-primary">
+          {{ t('timelineShortcuts.enabled') }}
+        </label>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+          <template v-for="(label, key) in shortcutHelp" :key="key">
+            <dt><kbd class="rounded border bg-muted px-1.5 py-0.5">{{ key }}</kbd></dt>
+            <dd>{{ t(`timelineShortcuts.${label}`) }}</dd>
+          </template>
+        </dl>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

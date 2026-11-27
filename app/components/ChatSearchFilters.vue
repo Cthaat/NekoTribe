@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { ChatMessageFilters } from '@/api/v2/chat';
 
-defineProps<{ senders: { id: number; label: string }[] }>();
+const props = defineProps<{ senders: { id: number; label: string }[]; initialKeyword?: string }>();
 const emit = defineEmits<{ search: [filters: ChatMessageFilters | null] }>();
 const { t } = useAppLocale();
-const keyword = ref('');
+const keyword = ref(props.initialKeyword ?? '');
+watch(() => props.initialKeyword, value => { keyword.value = value ?? ''; });
 const sender = ref<number | ''>('');
 const start = ref('');
 const end = ref('');

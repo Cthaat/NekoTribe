@@ -31,6 +31,8 @@ import ChatRoom from '@/components/ChatRoom.vue';
 import ChatInput from '@/components/ChatInput.vue';
 import ChatMessage from '@/components/ChatMessage.vue';
 import ChatSearchFilters from '@/components/ChatSearchFilters.vue';
+import { useCommandChatSearch } from '@/composables/useCommandChatSearch';
+import { authQueueFor } from '@/services/auth-request-queue';
 import GroupManageModal from '@/components/GroupManageModal.vue';
 import {
   Avatar,
@@ -153,6 +155,8 @@ const preferenceStore = usePreferenceStore();
 const realtime = useRealtimeSocket();
 const calls = useWebRtcCalls();
 const app = useNuxtApp();
+const commandSearch = useCommandChatSearch();
+const commandAuth = authQueueFor(app);
 const groups = ref<ChatGroupVM[]>([]);
 const groupPage = ref(1);
 const hasMoreGroups = ref(false);
@@ -2205,6 +2209,23 @@ watch(
   }
 );
 
+watch([commandSearch, activeChannel, directConversationId, isLoading, realtime.ownerRevision], () => {
+  const request = commandSearch.value;
+  if (!request) return;
+  if (request.owner !== commandAuth.revision || commandAuth.isIdentityChanging) {
+    commandSearch.value = null;
+    return;
+  }
+  if (isLoading.value || (directConversationId.value === null && !activeChannel.value)) return;
+  commandSearch.value = null;
+  if (directConversationId.value !== null) {
+    standaloneDirectSearchOpen.value = true;
+    handleDirectSearch({ q: request.query });
+  } else {
+    handleSearch({ q: request.query });
+  }
+}, { immediate: true, flush: 'post' });
+
 const navTab = ref<'direct' | 'groups'>('direct');
 
 watch(
@@ -2268,6 +2289,7 @@ function isDmLastInGroup(index: number): boolean {
 
 onBeforeUnmount(() => {
   disposed = true;
+  commandSearch.value = null;
   channelAttachmentUpload?.abort();
   directAttachmentUpload?.abort();
   for (const request of directMessageRefreshes.values()) request.abort();
@@ -2331,6 +2353,10 @@ onBeforeUnmount(() => {
             <Button size="sm" variant="outline" @click="retryDirectLinkLookup">{{ t('common.retry') }}</Button>
             <Button size="sm" variant="ghost" @click="cancelDirectLinkLookup">{{ t('common.cancel') }}</Button>
           </div>
+        </div>
+        <div v-if="commandSearch" class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground">
+          <p role="status">{{ t('commandPalette.selectConversation') }}</p>
+          <Button size="sm" variant="ghost" @click="commandSearch = null">{{ t('common.cancel') }}</Button>
         </div>
         <div v-show="navTab === 'direct'" class="min-h-0 flex-1">
           <ChatDirectConversationList
@@ -2974,7 +3000,7 @@ onBeforeUnmount(() => {
               @click="startChatCall(directMessageStandaloneTarget,'video')"><Video class="h-4 w-4" /></Button>
           </div>
 
-          <ChatSearchFilters v-if="standaloneDirectSearchOpen" :senders="[
+          <ChatSearchFilters v-if="standaloneDirectSearchOpen" :initial-keyword="directSearch?.q" :senders="[
             { id: currentUserId, label: currentUserName },
             { id: directMessageStandaloneTarget.id, label: directMessageStandaloneTarget.nickname },
           ]" @search="handleDirectSearch" />
@@ -3082,6 +3108,8 @@ onBeforeUnmount(() => {
           :direct-messages="directMessages"
           :channel-search-active="channelSearch !== null"
           :direct-search-active="directSearch !== null"
+          :channel-search-keyword="channelSearch?.q"
+          :direct-search-keyword="directSearch?.q"
           :current-user-name="currentUserName"
           :channel-typing-count="channelTyping.typingCount.value"
           :direct-typing="directTyping.typingCount.value > 0"

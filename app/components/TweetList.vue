@@ -9,6 +9,7 @@ const props = withDefaults(
     pinnedPostId?: number;
     canManageProfilePin?: boolean;
     profilePinPending?: boolean;
+    keyboardNavigation?: boolean;
   }>(),
   {
     showRelationContext: true
@@ -69,6 +70,7 @@ function handleBookmarkTweet(
       :pinned-on-profile="tweet.id === pinnedPostId"
       :can-manage-profile-pin="canManageProfilePin"
       :profile-pin-pending="profilePinPending"
+      :keyboard-navigation="keyboardNavigation"
     />
   </TransitionGroup>
 </template>
