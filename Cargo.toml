@@ -24,7 +24,7 @@ hmac = "=0.12.1"
 html5ever = "0.35"
 http = "1"
 ipnet = "2"
-jsonwebtoken = { version = "=10.3.0", default-features = false, features = ["rust_crypto"] }
+jsonwebtoken = { version = "=11.1.0", default-features = false, features = ["rust_crypto"] }
 lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
 oracle = { version = "0.6.3", features = ["chrono"] }
 redis = { version = "1.2.1", features = ["tokio-rustls-comp", "connection-manager"] }
