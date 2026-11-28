@@ -1,17 +1,21 @@
-# B1.1 独立服务器增量验收 · revision 2
+# B1.1 独立服务器冻结复测 · revision 2 与启动安全回归
 
 请在独立测试服务器新建目录，用下列四个精确提交验收 B1.1 revision 2，单独出具回执。仓库为 Cthaat/NekoTribe。原轮已发给服务器的四个提交仍按原轮记录，新版运行和证据独立编号。
 
-| 目录／原 PR | 本轮 SHA | 父提交／旧轮 SHA | 本轮差异 |
+| 目录／原 PR | 本轮 SHA | 旧四仓比较基准 SHA | 本轮差异 |
 |---|---|---|---|
-| nuxt [#128](https://github.com/Cthaat/NekoTribe/pull/128) | `da155665593b53aff05b3149261a8b7383f31e5a` | `a4a28398a8a796671f767e106b0ebc08d9dce868` | 共享需求、场景及 parity，+28/−14 |
+| nuxt [#128](https://github.com/Cthaat/NekoTribe/pull/128) | `d1fb57ba766676d0e085846664e334ef9e2314b1` | `a4a28398a8a796671f767e106b0ebc08d9dce868` | 需求、场景、parity 与启动安全测试，+34/−16 |
 | go [#129](https://github.com/Cthaat/NekoTribe/pull/129) | `36f074f21d154e35267b4a35f21bf5d1f0dddcfc` | `cf54c11d75d30d04ebe2ca1a72292a8c671b7da6` | 需求和场景副本，+19/−5 |
 | rust [#130](https://github.com/Cthaat/NekoTribe/pull/130) | `26596e774a0c577d9f4da09fa059346ca7fc5ede` | `eab8951edc901eb7480d7b695198fb93ce3932c1` | 需求和场景副本，+19/−5 |
 | flutter [#131](https://github.com/Cthaat/NekoTribe/pull/131) | `4b3755452ddaa25ede91ceaa80676616cf322e0b` | `d5953ee1c78e4051a0de4bf57d8547d543bb6815` | 需求和场景副本，+19/−5 |
 
+协调者已从 GitHub 逐一回读本表四个 head 并冻结。#128 在互操作提交 da155665593b53aff05b3149261a8b7383f31e5a 后追加 d1fb57ba766676d0e085846664e334ef9e2314b1，仅 tests/startup-safety.test.mjs +6/−2。旧轮 e199 的启动安全测试在全套和单文件均失败，断言误拒绝已在显式初始化基线声明的唯一索引，且基线表数已从 52 增至 53。新断言仅接受该具体索引名、目标表和键列；保留空 schema 守卫及其余 DDL 限制。请另核实不在白名单的唯一索引、CREATE USER、DROP TABLE 仍会被断言识别。
+
+另一处 e199 失败是 tests/ai-model-config.test.mjs:220 的 “active model verification can wait for all instances within one deadline”，全套曾失败，单文件曾 72/72 通过。按下方命令分别回传两个定向、两个整文件及原始 yarn test 全套结果。如再遇 AI 失败，附用例耗时、退出码、脱敏断言实际与期望值，并把结果交 Nuxt 原作者。旧轮的 7 项 Oracle 验收均为 BLOCKED，逐项保留该历史状态，只有本轮实际取得条件及证据才能登记新结果。
+
 ## 现在执行
 
-使用 Ubuntu、Git、Bash、Python 3、Node 22.x（22.6+）及 Yarn 1.22.22。以下命令在同一个 Bash 会话内执行。记录输出、退出码与工具版本。固定提交无法获取或父提交不符时，回报实际结果并停止这一组。
+使用 Ubuntu、Git、Bash、Python 3、Node 22.x（22.6+）及 Yarn 1.22.22。以下命令在同一个 Bash 会话内执行。记录输出、退出码与工具版本。固定提交无法获取或基准祖先不符时，回报实际结果并停止这一组。
 
 ```bash
 set -euo pipefail
@@ -22,15 +26,15 @@ node --version
 yarn --version
 python3 --version
 repo=https://github.com/Cthaat/NekoTribe.git
-while read -r dir head parent; do
+while read -r dir head baseline; do
   git init -q "$dir"
-  git -C "$dir" fetch -q --depth=2 "$repo" "$head"
+  git -C "$dir" fetch -q --depth=3 "$repo" "$head"
   git -C "$dir" checkout -q --detach FETCH_HEAD
   test "$(git -C "$dir" rev-parse HEAD)" = "$head"
-  test "$(git -C "$dir" rev-parse HEAD^)" = "$parent"
-  git -C "$dir" diff --numstat HEAD^ HEAD
+  git -C "$dir" merge-base --is-ancestor "$baseline" HEAD
+  git -C "$dir" diff --numstat "$baseline" HEAD
 done <<'REVISIONS'
-nuxt da155665593b53aff05b3149261a8b7383f31e5a a4a28398a8a796671f767e106b0ebc08d9dce868
+nuxt d1fb57ba766676d0e085846664e334ef9e2314b1 a4a28398a8a796671f767e106b0ebc08d9dce868
 go 36f074f21d154e35267b4a35f21bf5d1f0dddcfc cf54c11d75d30d04ebe2ca1a72292a8c671b7da6
 rust 26596e774a0c577d9f4da09fa059346ca7fc5ede eab8951edc901eb7480d7b695198fb93ce3932c1
 flutter 4b3755452ddaa25ede91ceaa80676616cf322e0b d5953ee1c78e4051a0de4bf57d8547d543bb6815
@@ -50,7 +54,7 @@ for dir in go rust flutter; do
     cmp "specifications/$item" "../$dir/contracts/$item"
   done
 done
-git diff --exit-code HEAD^ HEAD -- doc/ server/ data/ package.json yarn.lock specifications/requirements/global-search-schema-catalog.json
+git diff --exit-code a4a28398a8a796671f767e106b0ebc08d9dce868 HEAD -- doc/ server/ data/ package.json yarn.lock specifications/requirements/global-search-schema-catalog.json
 run_check search-catalog node scripts/global-search-schema-catalog.mjs --check || :
 run_check plan node scripts/migrate-db.mjs --plan || :
 ```
@@ -62,7 +66,7 @@ python3 - <<'PY'
 import base64, hashlib, hmac, json, subprocess
 from pathlib import Path
 p = 'specifications/scenarios/global-search.json'
-old = json.loads(subprocess.check_output(['git', 'show', 'HEAD^:' + p]))
+old = json.loads(subprocess.check_output(['git', 'show', 'a4a28398a8a796671f767e106b0ebc08d9dce868:' + p]))
 new = json.loads(Path(p).read_bytes())
 rows = {c['id']: c for c in new['cases']}
 assert new['revision'] == 2 and new['id'] == 'GLOBAL-SEARCH-V2'
@@ -90,6 +94,10 @@ assert len({a, b, a}) == 2 and json.loads(a)[1:] == json.loads(b)[1:]
 print('R2 reference vectors PASS: 28 retained, 10 added, 3 signatures verified')
 PY
 if run_check install yarn install --frozen-lockfile; then
+  run_check startup-case node --experimental-transform-types --test --test-name-pattern='portable Oracle baseline is owner-scoped DDL with an empty-schema guard' tests/startup-safety.test.mjs || :
+  run_check startup-file node --experimental-transform-types --test tests/startup-safety.test.mjs || :
+  run_check ai-deadline node --experimental-transform-types --test --test-name-pattern='active model verification can wait for all instances within one deadline' tests/ai-model-config.test.mjs || :
+  run_check ai-file node --experimental-transform-types --test tests/ai-model-config.test.mjs || :
   run_check schema-catalog yarn schema-catalog:check || :
   run_check typecheck yarn typecheck --dotenv .env.example || :
   run_check targeted node --experimental-transform-types --test tests/contracts.test.mjs tests/schema-migrations.test.mjs || :
@@ -98,7 +106,7 @@ fi
 cat "$root/results.tsv"
 ```
 
-四端 contracts、parity 应分别覆盖 230 个操作。离线计划应为 67 步（原 64 步及 B1.1 三步）。增量 diff 应仅有表列出的 3/2/2/2 个文件。记录本轮真实输出；依赖安装失败时，依赖该安装的项目记 BLOCKED，其他项目继续。
+四端 contracts、parity 应分别覆盖 230 个操作。离线计划应为 67 步（原 64 步及 B1.1 三步）。增量 diff 应仅有表列出的 4/2/2/2 个文件。记录本轮真实输出；依赖安装失败时，依赖该安装的项目记 BLOCKED，其他项目继续。
 
 ## 独立 Oracle 就绪增量
 
