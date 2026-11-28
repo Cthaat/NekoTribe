@@ -4,7 +4,7 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-11-28-b0-1",
+    "x-contract-revision": "2026-11-28-b1-1-global-search",
     "x-rate-limit-policy": {
       "requirement": "specifications/requirements/b0-1-rate-limit.md",
       "scope": "/api/v2/** except the retired /api/v2/integrations/sentiment-flow/** prefix",
@@ -71,6 +71,283 @@
     }
   ],
   "paths": {
+    "/api/v2/search": {
+      "get": {
+        "operationId": "globalSearch",
+        "summary": "Search visible posts, users, groups and tags in a single ordered page.",
+        "x-contract-first": "GLOBAL-SEARCH",
+        "security": [{}, {"bearerAuth": []}, {"accessTokenCookie": []}],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Trim and NFC-normalize; 1–100 Unicode scalar values.",
+            "schema": {"type": "string", "minLength": 1, "maxLength": 100}
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "Restrict the result type.",
+            "schema": {"type": "string", "enum": ["all", "posts", "users", "groups", "tags"], "default": "all"}
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque, integrity-protected keyset position issued for the same resource, filters, limit and viewer.",
+            "schema": {"type": "string", "minLength": 1, "maxLength": 2048}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size across all selected sections.",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["code", "message", "data", "meta"],
+                  "properties": {
+                    "code": {"type": "integer", "minimum": 200, "maximum": 200},
+                    "message": {"type": "string"},
+                    "data": {"$ref": "#/components/schemas/SearchPage"},
+                    "meta": {"$ref": "#/components/schemas/SearchCursorMeta"}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "429": {"$ref": "#/components/responses/TierRateLimited"},
+          "503": {
+            "description": "Required storage or search dependency unavailable (50301).",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/V2HttpErrorTransport"}}}
+          }
+        }
+      }
+    },
+    "/api/v2/search/suggestions": {
+      "get": {
+        "operationId": "globalSearchSuggestions",
+        "summary": "Suggest distinct visible labels with the requested prefix.",
+        "x-contract-first": "GLOBAL-SEARCH",
+        "security": [{}, {"bearerAuth": []}, {"accessTokenCookie": []}],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Trim and NFC-normalize; 1–100 Unicode scalar values.",
+            "schema": {"type": "string", "minLength": 1, "maxLength": 100}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size across all selected sections.",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["code", "message", "data", "meta"],
+                  "properties": {
+                    "code": {"type": "integer", "minimum": 200, "maximum": 200},
+                    "message": {"type": "string"},
+                    "data": {"type": "array", "items": {"$ref": "#/components/schemas/SearchSuggestion"}},
+                    "meta": {"type": "object", "nullable": true, "enum": [null]}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "429": {"$ref": "#/components/responses/TierRateLimited"},
+          "503": {
+            "description": "Required storage or search dependency unavailable (50301).",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/V2HttpErrorTransport"}}}
+          }
+        }
+      }
+    },
+    "/api/v2/search/trending": {
+      "get": {
+        "operationId": "globalSearchTrending",
+        "summary": "Rank publicly discoverable search terms visible to the caller.",
+        "x-contract-first": "GLOBAL-SEARCH",
+        "security": [{}, {"bearerAuth": []}, {"accessTokenCookie": []}],
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "description": "Rolling UTC time window ending at request time.",
+            "schema": {"type": "string", "enum": ["24h", "7d"], "default": "24h"}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size across all selected sections.",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["code", "message", "data", "meta"],
+                  "properties": {
+                    "code": {"type": "integer", "minimum": 200, "maximum": 200},
+                    "message": {"type": "string"},
+                    "data": {"type": "array", "items": {"$ref": "#/components/schemas/SearchTrend"}},
+                    "meta": {"type": "object", "nullable": true, "enum": [null]}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "429": {"$ref": "#/components/responses/TierRateLimited"},
+          "503": {
+            "description": "Required storage or search dependency unavailable (50301).",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/V2HttpErrorTransport"}}}
+          }
+        }
+      }
+    },
+    "/api/v2/users/me/search-history": {
+      "get": {
+        "operationId": "globalSearchHistory",
+        "summary": "Page through the authenticated account’s recent searches.",
+        "x-contract-first": "GLOBAL-SEARCH",
+        "security": [{"bearerAuth": []}, {"accessTokenCookie": []}],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque, integrity-protected keyset position issued for the same resource, filters, limit and viewer.",
+            "schema": {"type": "string", "minLength": 1, "maxLength": 2048}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size across all selected sections.",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["code", "message", "data", "meta"],
+                  "properties": {
+                    "code": {"type": "integer", "minimum": 200, "maximum": 200},
+                    "message": {"type": "string"},
+                    "data": {"type": "array", "items": {"$ref": "#/components/schemas/SearchHistoryEntry"}},
+                    "meta": {"$ref": "#/components/schemas/SearchCursorMeta"}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "429": {"$ref": "#/components/responses/TierRateLimited"},
+          "503": {
+            "description": "Required storage or search dependency unavailable (50301).",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/V2HttpErrorTransport"}}}
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteGlobalSearchHistory",
+        "summary": "Specify exactly one selector: q for one normalized term or clear=true for all.",
+        "x-contract-first": "GLOBAL-SEARCH",
+        "security": [{"bearerAuth": []}, {"accessTokenCookie": []}],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Delete one normalized term.",
+            "schema": {"type": "string", "minLength": 1, "maxLength": 100}
+          },
+          {
+            "name": "clear",
+            "in": "query",
+            "required": false,
+            "description": "Explicitly clear this account’s history.",
+            "schema": {"type": "string", "enum": ["true"]}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["code", "message", "data", "meta"],
+                  "properties": {
+                    "code": {"type": "integer", "minimum": 200, "maximum": 200},
+                    "message": {"type": "string"},
+                    "data": {
+                      "type": "object",
+                      "required": ["deleted"],
+                      "properties": {"deleted": {"type": "integer", "minimum": 0}},
+                      "additionalProperties": false
+                    },
+                    "meta": {"type": "object", "nullable": true, "enum": [null]}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "429": {"$ref": "#/components/responses/TierRateLimited"},
+          "503": {
+            "description": "Required storage or search dependency unavailable (50301).",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/V2HttpErrorTransport"}}}
+          }
+        }
+      }
+    },
     "/api/v2/auth/otp": {
       "post": {
         "summary": "创建邮箱验证码 OTP",
@@ -39775,6 +40052,84 @@
   },
   "components": {
     "schemas": {
+      "SearchHighlight": {
+        "type": "object",
+        "required": ["start", "end"],
+        "properties": {"start": {"type": "integer", "minimum": 0}, "end": {"type": "integer", "minimum": 1}},
+        "additionalProperties": false
+      },
+      "SearchHit": {
+        "type": "object",
+        "required": ["id", "label", "highlights"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "label": {"type": "string"},
+          "highlights": {"type": "array", "items": {"$ref": "#/components/schemas/SearchHighlight"}}
+        },
+        "additionalProperties": false
+      },
+      "SearchPage": {
+        "type": "object",
+        "required": ["sections", "counts"],
+        "properties": {
+          "sections": {
+            "type": "object",
+            "required": ["posts", "users", "groups", "tags"],
+            "properties": {
+              "posts": {"type": "array", "items": {"$ref": "#/components/schemas/SearchHit"}},
+              "users": {"type": "array", "items": {"$ref": "#/components/schemas/SearchHit"}},
+              "groups": {"type": "array", "items": {"$ref": "#/components/schemas/SearchHit"}},
+              "tags": {"type": "array", "items": {"$ref": "#/components/schemas/SearchHit"}}
+            },
+            "additionalProperties": false
+          },
+          "counts": {
+            "type": "object",
+            "required": ["posts", "users", "groups", "tags"],
+            "properties": {
+              "posts": {"type": "integer", "minimum": 0},
+              "users": {"type": "integer", "minimum": 0},
+              "groups": {"type": "integer", "minimum": 0},
+              "tags": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "SearchCursorMeta": {
+        "type": "object",
+        "required": ["next_cursor", "limit"],
+        "properties": {
+          "next_cursor": {"type": "string", "nullable": true},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 50}
+        },
+        "additionalProperties": false
+      },
+      "SearchSuggestion": {
+        "type": "object",
+        "required": ["text", "highlights"],
+        "properties": {
+          "text": {"type": "string"},
+          "highlights": {"type": "array", "items": {"$ref": "#/components/schemas/SearchHighlight"}}
+        },
+        "additionalProperties": false
+      },
+      "SearchTrend": {
+        "type": "object",
+        "required": ["term", "count"],
+        "properties": {"term": {"type": "string"}, "count": {"type": "integer", "minimum": 1}},
+        "additionalProperties": false
+      },
+      "SearchHistoryEntry": {
+        "type": "object",
+        "required": ["query", "updated_at"],
+        "properties": {
+          "query": {"type": "string", "minLength": 1, "maxLength": 100},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "additionalProperties": false
+      },
       "V2PaginationMeta": {
         "type": "object",
         "required": [

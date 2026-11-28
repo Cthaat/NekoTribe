@@ -74,7 +74,11 @@ test('portable Oracle baseline is owner-scoped DDL with an empty-schema guard', 
     if (!current) {
       if (!text || text.startsWith('--') ||
           /^(?:WHENEVER (?:OSERROR|SQLERROR) EXIT FAILURE ROLLBACK|SET (?:ECHO OFF|VERIFY OFF|DEFINE OFF|SQLBLANKLINES ON))$/.test(text)) continue;
-      assert.match(text, /^(?:DECLARE|CREATE (?:OR REPLACE )?(?:TABLE|SEQUENCE|INDEX|TRIGGER|FUNCTION|PROCEDURE|VIEW|MATERIALIZED VIEW)|ALTER TABLE|COMMENT ON)\b/i);
+      if (/^CREATE UNIQUE INDEX\b/i.test(text)) {
+        assert.match(text, /^CREATE UNIQUE INDEX uk_search_history_term ON n_user_search_history \(user_id, normalized_query\);$/i);
+      } else {
+        assert.match(text, /^(?:DECLARE|CREATE (?:OR REPLACE )?(?:TABLE|SEQUENCE|INDEX|TRIGGER|FUNCTION|PROCEDURE|VIEW|MATERIALIZED VIEW)|ALTER TABLE|COMMENT ON)\b/i);
+      }
       plsql = /^(?:DECLARE|CREATE (?:OR REPLACE )?(?:TRIGGER|FUNCTION|PROCEDURE))\b/i.test(text);
     }
     current += `${line}\n`;
@@ -86,7 +90,7 @@ test('portable Oracle baseline is owner-scoped DDL with an empty-schema guard', 
   assert.equal(current, '');
   assert.match(statements[0], /SESSION_USER[\s\S]+CURRENT_SCHEMA[\s\S]+FROM user_objects[\s\S]+object_count <> 0/i);
   assert.match(statements.at(-1), /FROM user_objects WHERE status = 'INVALID'/i);
-  assert.equal(statements.filter(statement => /^CREATE TABLE /i.test(statement)).length, 52);
+  assert.equal(statements.filter(statement => /^CREATE TABLE /i.test(statement)).length, 53);
   assert.equal(statements.filter(statement => /^CREATE MATERIALIZED VIEW /i.test(statement)).length, 3);
   assert.match(sql, /^CREATE TABLE n_users\s*\(/im);
   assert.doesNotMatch(sql, /\b(?:CREATE USER|IDENTIFIED BY|NEKO_ADMIN|NEKO_READONLY|TABLESPACE NEKO_(?:DATA|INDEX))\b/i);

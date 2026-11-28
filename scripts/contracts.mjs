@@ -126,10 +126,19 @@ function validateRoutes(projectRoot, inventory) {
     requireThat(inventory.operations.has(key), `Undocumented source route: ${key}`);
     routes.set(key, relative(projectRoot, file).split(sep).join('/'));
   }
-  for (const [key, { path, operation }] of inventory.operations) {
+  let plannedFeatures;
+  for (const [key, { path, method, operation }] of inventory.operations) {
     const source = operation['x-implementation-source'];
     requireThat(operation['x-implementation-kind'] !== 'dynamic-proxy', `Shared operation must have a native implementation: ${key}`);
     if (path.startsWith('/api/v2/')) {
+      if (!routes.has(key) && operation['x-contract-first']) {
+        plannedFeatures ??= JSON.parse(read(resolve(projectRoot, 'specifications/parity.json'), true)).features;
+        const planned = plannedFeatures.find(f => f.id === operation['x-contract-first']);
+        requireThat(!source && planned?.review === 'reviewed' &&
+          planned.implementations?.nuxt?.state === 'not-started' &&
+          planned.operations.includes(`${method.toUpperCase()} ${path}`), `Unregistered contract-first operation: ${key}`);
+        continue;
+      }
       requireThat(routes.has(key), `Documented operation has no explicit source route: ${key}`);
       if (source) requireThat(source === routes.get(key), `Wrong implementation source: ${key}`);
     } else if (path === '/metrics') {

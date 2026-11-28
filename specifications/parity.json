@@ -457,7 +457,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "89129e18441d6fb580d6ddf675389d172c7635edd086385c7bf66c4c1f799dac"
+      "sha256": "547f05c11a14f0a4bdce4985f20672a84e591db469ac44b3da21a98faabb37ac"
     },
     "sources": [
       {
@@ -1578,7 +1578,7 @@
       },
       {
         "path": "server/database/schema-definition.mjs",
-        "sha256": "2627ffbd2cc22ee2f798823a675e10454c1b8a59998e3c117875b65d1ecc25a8"
+        "sha256": "6529488bbe9daf2cd25219680c3192ac6dc0a61c8decb0db25e9811af38c5d02"
       },
       {
         "path": "server/database/schema.d.mts",
@@ -1586,7 +1586,7 @@
       },
       {
         "path": "server/database/schema.mjs",
-        "sha256": "9335ded9fb0293c43e44976d36be79b266851e7082f64939666f95e480c7bd3a"
+        "sha256": "5d5339e77aabf1f90de8b7e7a11c5752496665ba38ba0a6bf9ff121faf119161"
       },
       {
         "path": "server/middleware/00-cors.ts",
@@ -20778,6 +20778,90 @@
           "testFiles": []
         }
       }
+    },
+    {
+      "id": "GLOBAL-SEARCH",
+      "title": "B1.1 global search, suggestions, trending and own history",
+      "revision": 2,
+      "review": "reviewed",
+      "definition": "specifications/requirements/global-search.md",
+      "sourceFiles": [
+        "server/database/schema-definition.mjs",
+        "server/database/schema.mjs"
+      ],
+      "operations": [
+        "GET /api/v2/search",
+        "GET /api/v2/search/suggestions",
+        "GET /api/v2/search/trending",
+        "GET /api/v2/users/me/search-history",
+        "DELETE /api/v2/users/me/search-history"
+      ],
+      "scenarios": [
+        {
+          "id": "GLOBAL-SEARCH-V2",
+          "file": "specifications/scenarios/global-search.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "not-started",
+          "targetRevision": 2,
+          "tasks": [
+            "Implement native filtered search, portable cursors, rolling public trends and owner-scoped history; verify shared vectors against Oracle and Redis."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "go": {
+          "state": "not-started",
+          "targetRevision": 2,
+          "tasks": [
+            "Implement native filtered search, portable cursors, rolling public trends and owner-scoped history; verify shared vectors against Oracle and Redis."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "rust": {
+          "state": "not-started",
+          "targetRevision": 2,
+          "tasks": [
+            "Implement native filtered search, portable cursors, rolling public trends and owner-scoped history; verify shared vectors against Oracle and Redis."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/global-search.md",
+        "specifications/scenarios/global-search.json",
+        "specifications/requirements/global-search-schema-catalog.json"
+      ],
+      "clientScope": {
+        "state": "required",
+        "reason": "Both clients consume the same search sections, highlights, pagination and history."
+      },
+      "clients": {
+        "nuxtWeb": {
+          "state": "not-started",
+          "targetRevision": 2,
+          "tasks": [
+            "Exercise search pagination and account-scoped history on all three backends."
+          ],
+          "sourceFiles": [],
+          "evidence": [],
+          "testFiles": []
+        },
+        "flutter": {
+          "state": "not-started",
+          "targetRevision": 2,
+          "tasks": [
+            "Exercise search pagination and account-scoped history on all three backends."
+          ],
+          "sourceFiles": [],
+          "evidence": [],
+          "testFiles": []
+        }
+      }
     }
   ],
   "sourceAudits": [
@@ -21285,9 +21369,11 @@
     {
       "id": "SOURCE-server-database-schema-definition.mjs",
       "source": "server/database/schema-definition.mjs",
-      "disposition": "unreviewed",
-      "featureIds": [],
-      "reason": ""
+      "disposition": "feature",
+      "featureIds": [
+        "GLOBAL-SEARCH"
+      ],
+      "reason": "Includes B1.1 explicit history schema and index readiness checks."
     },
     {
       "id": "SOURCE-server-database-schema.d.mts",
@@ -21299,9 +21385,11 @@
     {
       "id": "SOURCE-server-database-schema.mjs",
       "source": "server/database/schema.mjs",
-      "disposition": "unreviewed",
-      "featureIds": [],
-      "reason": ""
+      "disposition": "feature",
+      "featureIds": [
+        "GLOBAL-SEARCH"
+      ],
+      "reason": "Includes B1.1 explicit history schema and index readiness checks."
     },
     {
       "id": "SOURCE-server-middleware-00-cors.ts",
@@ -22018,7 +22106,7 @@
     {
       "source": {
         "path": "specifications/requirements/two-factor-schema-catalog.json",
-        "sha256": "8abf9dbcd8c304472275f4ac48b3b5d454c8d2d7c1bdce7b7b50b1bc3d86dd4f"
+        "sha256": "bced3089699943a7bc4831393f27c84d873abbd0096f9b3f40e4aa4a4646903a"
       },
       "copies": {
         "rust": "contracts/requirements/two-factor-schema-catalog.json",
@@ -22287,7 +22375,7 @@
     {
       "source": {
         "path": "specifications/requirements/media-schema-catalog.json",
-        "sha256": "7d3a4bf5ef97b7f967b8d6473362333251fe8ac473bf1243e2f25807a7efdb64"
+        "sha256": "490e568856acb9f3964d6637d949f66a6c627c20ac03a02085afeb9029fab76d"
       },
       "copies": {
         "rust": "contracts/requirements/media-schema-catalog.json",
@@ -22297,7 +22385,7 @@
     {
       "source": {
         "path": "specifications/requirements/user-settings-schema-catalog.json",
-        "sha256": "d128b786de40da26ae32cd38a768bd111f91796e2b09464521254dd047d6ab8d"
+        "sha256": "56594bffdb538654fdadf678385bb373b8d36d6b7af6b6d6787797d4dcf9cb1a"
       },
       "copies": {
         "rust": "contracts/requirements/user-settings-schema-catalog.json",
@@ -22318,7 +22406,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-conversation-schema-catalog.json",
-        "sha256": "37720d796a532f5132a9ee69d86785b11f0c05d1025f204c3009f13e07c620bf"
+        "sha256": "9d94e02043f9085b4d13ed09993bc9434b755c70b41d8828c19d86e0b0f8a4d9"
       },
       "copies": {
         "rust": "contracts/requirements/ai-conversation-schema-catalog.json",
@@ -23011,7 +23099,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-skill-schema-catalog.json",
-        "sha256": "1bfe63b00bcf65e72ca89f1da6f44c1c7aeafa23b6f124c454a5c638e71f8684"
+        "sha256": "2e51390d43c23e3451220727853def6c4dde07f0c516834927619163e2ee9894"
       },
       "copies": {
         "rust": "contracts/requirements/ai-skill-schema-catalog.json",
@@ -25527,7 +25615,7 @@
     {
       "source": {
         "path": "specifications/requirements/ai-user-provider-schema-catalog.json",
-        "sha256": "aa44f5a9e6420adc31ff648c25fb9ceaacdd96769ec2b1ff70226305063a3cf0"
+        "sha256": "8b00f8c12d5b9243b0f0578f7a7bd187f6b3c3cba47ec26bcbc426daa102a118"
       },
       "copies": {
         "go": "contracts/requirements/ai-user-provider-schema-catalog.json",
@@ -25571,7 +25659,7 @@
     {
       "source": {
         "path": "specifications/requirements/direct-message-extras-schema-catalog.json",
-        "sha256": "9fc5b3b6243d386883b56398c3b8fef8978a2e22abce3baae08d9136bc000263"
+        "sha256": "93e69447d913f886bad96a095bc5f08b9339ab488b8f86120b51e046800473e4"
       },
       "copies": {
         "go": "contracts/requirements/direct-message-extras-schema-catalog.json",
@@ -25725,7 +25813,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-polls-schema-catalog.json",
-        "sha256": "cc9c514d4086b084ea2c17ac2736314397d5118530fec6d9ea36dc7f6b975967"
+        "sha256": "856dd981bdc8b40ead4341190eecdfd6b62de5320b327c115949d4bd700f9427"
       },
       "copies": {
         "go": "contracts/requirements/post-polls-schema-catalog.json",
@@ -25769,7 +25857,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-drafts-schema-catalog.json",
-        "sha256": "c78ca6b077363d3263267e4fc44884f6c71f6657bd4bfbd77a2283817d67f64d"
+        "sha256": "84f4de6882da83f7841ec54b920b85899b4d3d56db609e22a35b3bd5e744709d"
       },
       "copies": {
         "go": "contracts/requirements/post-drafts-schema-catalog.json",
@@ -25813,7 +25901,7 @@
     {
       "source": {
         "path": "specifications/requirements/profile-pinned-post-schema-catalog.json",
-        "sha256": "64eda1c7312a79e1aaa784b8dbfbeed88c7596bd9c5e1b90152493296b354d4c"
+        "sha256": "d14320cce2141e43a5f5b0c9b3a4c56f76d9b9c59f1934a1461a496098366c76"
       },
       "copies": {
         "go": "contracts/requirements/profile-pinned-post-schema-catalog.json",
@@ -25857,7 +25945,7 @@
     {
       "source": {
         "path": "specifications/requirements/post-markdown-schema-catalog.json",
-        "sha256": "5062d63cce0d95fdaaae4017dfc240bbaf832eb9dc5efbc9d472ea3ded03ca79"
+        "sha256": "79616c5234529b563303858b9eaacee0d5f70a72e8d3639a663dd1cfbd54aef3"
       },
       "copies": {
         "go": "contracts/requirements/post-markdown-schema-catalog.json",
@@ -25989,7 +26077,7 @@
     {
       "source": {
         "path": "specifications/requirements/passkey-auth-schema-catalog.json",
-        "sha256": "13ff05453be2d4b8a96c757dc7d59fec74c8634507d240c7b73a2846e78f12bd"
+        "sha256": "d238b5acd47be46149ad17130e94376b5ae26e90301cd6363b078438de9dc046"
       },
       "copies": {
         "go": "contracts/requirements/passkey-auth-schema-catalog.json",
@@ -26033,7 +26121,7 @@
     {
       "source": {
         "path": "specifications/requirements/github-oauth-schema-catalog.json",
-        "sha256": "f92c4881d253a1662f28686649d896f81f79934eccee94bd8c36dc60c8063ddb"
+        "sha256": "72beb29a78ab8962fe7704503ca7f807a9f141e1e227c26488aeb87da656455a"
       },
       "copies": {
         "go": "contracts/requirements/github-oauth-schema-catalog.json",
@@ -26127,6 +26215,39 @@
         "go": "contracts/scenarios/b0-1-rate-limit.json",
         "rust": "contracts/scenarios/b0-1-rate-limit.json",
         "flutter": "contracts/scenarios/b0-1-rate-limit.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/global-search.md",
+        "sha256": "00df05045be76f68ae64455e7d0ad43aff71a879024bb151049d6813912447e2"
+      },
+      "copies": {
+        "go": "contracts/requirements/global-search.md",
+        "rust": "contracts/requirements/global-search.md",
+        "flutter": "contracts/requirements/global-search.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/global-search.json",
+        "sha256": "d7f36096c974e8304aeded4955a665aa49e6950aaa71bb816b4174f511e4f420"
+      },
+      "copies": {
+        "go": "contracts/scenarios/global-search.json",
+        "rust": "contracts/scenarios/global-search.json",
+        "flutter": "contracts/scenarios/global-search.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/global-search-schema-catalog.json",
+        "sha256": "db3a24a97ecc193a4cc05fd18bd63cecc5032ec31f59e5977dc2268da8db684c"
+      },
+      "copies": {
+        "go": "contracts/requirements/global-search-schema-catalog.json",
+        "rust": "contracts/requirements/global-search-schema-catalog.json",
+        "flutter": "contracts/requirements/global-search-schema-catalog.json"
       }
     }
   ],

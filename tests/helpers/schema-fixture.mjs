@@ -42,6 +42,16 @@ function baselineTable(source, name) {
   }
   throw new Error('Unterminated baseline table');
 }
+function indexRow(step) {
+  const [, table, keys] = step.sql.toUpperCase().match(/ON\s+(\w+)\s*\(([^)]+)\)/);
+  const columns = keys.split(',').map(key => {
+    const [COLUMN_NAME, DESCEND = 'ASC'] = key.trim().split(/\s+/);
+    return { COLUMN_NAME, DESCEND };
+  });
+  return { INDEX_NAME: step.name, TABLE_NAME: table, STATUS: 'VALID', columns,
+    UNIQUENESS: step.sql.startsWith('CREATE UNIQUE INDEX') ? 'UNIQUE' : 'NONUNIQUE' };
+}
+
 export function schemaFixture({ baseline = false } = {}) {
   const state = { tables: new Map(), sequences: new Map(), indexes: new Map(), settings: new Map(), records: new Map(), calls: [], fail: () => false, lockResult: 0 };
   const sqlBaseline = baseline ? readFileSync(new URL('../../data/neko_tribe-oracle-v2.sql', import.meta.url), 'utf8') : '';
@@ -66,8 +76,7 @@ export function schemaFixture({ baseline = false } = {}) {
       }
     } else if (step.kind === 'sequence') state.sequences.set(step.name, { SEQUENCE_NAME: step.name, INCREMENT_BY: 1, CYCLE_FLAG: 'N' });
     else if (step.kind === 'index') {
-      const m = step.sql.match(/ON\s+(\w+)\s*\(([^)]+)\)/);
-      state.indexes.set(step.name, { INDEX_NAME: step.name, TABLE_NAME: m[1].toUpperCase(), UNIQUENESS: 'NONUNIQUE', STATUS: 'VALID', columns: m[2].split(',').map(c => ({ COLUMN_NAME: c.trim().toUpperCase(), DESCEND: 'ASC' })) });
+      state.indexes.set(step.name, indexRow(step));
     } else state.settings.set(step.name, { SETTING_KEY: step.name, VALUE_TYPE: step.setting.value_type, SETTING_VALUE: step.setting.value });
   }
   function query(sql, binds = {}) {
@@ -79,6 +88,7 @@ export function schemaFixture({ baseline = false } = {}) {
     if (upper.includes('FROM USER_CONSTRAINTS C')) return state.tables.get(binds.table_name)?.constraints ?? [];
     if (upper.includes('FROM USER_CONS_COLUMNS C')) return (state.tables.get(binds.table_name)?.constraints ?? []).flatMap(c => c.columns.map((name, i) => ({ CONSTRAINT_NAME: c.CONSTRAINT_NAME, COLUMN_NAME: name, POSITION: i + 1, REFERENCED_COLUMN: c.referencedColumns[i] })));
     if (upper.includes('FROM USER_INDEXES')) return state.indexes.has(binds.name) ? [state.indexes.get(binds.name)] : [];
+    if (upper.includes('FROM USER_IND_EXPRESSIONS')) return state.indexes.get(binds.name)?.expressions ?? [];
     if (upper.includes('FROM USER_IND_COLUMNS')) return state.indexes.get(binds.name)?.columns ?? [];
     if (upper.includes('FROM N_SCHEMA_MIGRATIONS')) return [...state.records].map(([STEP_ID, CHECKSUM]) => ({ STEP_ID, CHECKSUM }));
     if (upper.includes('FROM N_MODERATION_SETTINGS WHERE')) return state.settings.has(binds.setting_key) ? [state.settings.get(binds.setting_key)] : [];
@@ -100,9 +110,9 @@ export function schemaFixture({ baseline = false } = {}) {
       if (sql.startsWith('CREATE SEQUENCE')) {
         const name = sql.match(/CREATE SEQUENCE (\w+)/)[1].toUpperCase(); state.sequences.set(name, { SEQUENCE_NAME: name, INCREMENT_BY: 1, CYCLE_FLAG: 'N' }); return {};
       }
-      if (sql.startsWith('CREATE INDEX')) {
-        const name = sql.match(/CREATE INDEX (\w+)/)[1].toUpperCase(); const raw = all.find(s => s.name === name);
-        const m = sql.match(/ON\s+(\w+)\s*\(([^)]+)\)/); state.indexes.set(raw.name, { INDEX_NAME: name, TABLE_NAME: m[1].toUpperCase(), UNIQUENESS: 'NONUNIQUE', STATUS: 'VALID', columns: m[2].split(',').map(c => ({ COLUMN_NAME: c.trim().toUpperCase(), DESCEND: 'ASC' })) }); return {};
+      if (/^CREATE (?:UNIQUE )?INDEX /.test(sql)) {
+        const name = sql.match(/INDEX (\w+)/)[1].toUpperCase();
+        state.indexes.set(name, indexRow({ name, sql })); return {};
       }
       if (/^ALTER TABLE \w+ ADD \(/.test(sql)) {
         const description = describeStep({ kind: 'column', sql }); const table = state.tables.get(description.table);
