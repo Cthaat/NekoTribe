@@ -1069,11 +1069,12 @@ class _PublicMediaGrid extends StatelessWidget {
     showMediaLightbox(
       context: context,
       items: media
-          .map(
-            (m) => MediaLightboxItem(
-              url: m.publicUrl,
-              altText: m.altText,
-              description: m.description,
+          .indexed.map(
+            (entry) => MediaLightboxItem(
+              heroTag: (context, entry.$1),
+              url: entry.$2.publicUrl,
+              altText: entry.$2.altText,
+              description: entry.$2.description,
             ),
           )
           .toList(growable: false),
@@ -1098,6 +1099,7 @@ class _PublicMediaGrid extends StatelessWidget {
             child: AspectRatio(
               aspectRatio: 16 / 10,
               child: AppMediaImage(
+                heroTag: (context, 0),
                 url: media.first.publicUrl,
                 borderRadius: BorderRadius.zero,
               ),
@@ -1120,6 +1122,7 @@ class _PublicMediaGrid extends StatelessWidget {
                   child: InkWell(
                     onTap: () => _open(context, i),
                     child: AppMediaImage(
+                      heroTag: (context, i),
                       url: media[i].publicUrl,
                       height: double.infinity,
                       borderRadius: cellRadius,
@@ -1144,6 +1147,7 @@ class _PublicMediaGrid extends StatelessWidget {
                 child: InkWell(
                   onTap: () => _open(context, 0),
                   child: AppMediaImage(
+                    heroTag: (context, 0),
                     url: media[0].publicUrl,
                     height: double.infinity,
                     borderRadius: cellRadius,
@@ -1158,6 +1162,7 @@ class _PublicMediaGrid extends StatelessWidget {
                       child: InkWell(
                         onTap: () => _open(context, 1),
                         child: AppMediaImage(
+                          heroTag: (context, 1),
                           url: media[1].publicUrl,
                           width: double.infinity,
                           height: double.infinity,
@@ -1170,6 +1175,7 @@ class _PublicMediaGrid extends StatelessWidget {
                       child: InkWell(
                         onTap: () => _open(context, 2),
                         child: AppMediaImage(
+                          heroTag: (context, 2),
                           url: media[2].publicUrl,
                           width: double.infinity,
                           height: double.infinity,
@@ -1203,6 +1209,7 @@ class _PublicMediaGrid extends StatelessWidget {
               child: InkWell(
                 onTap: () => _open(context, i),
                 child: AppMediaImage(
+                  heroTag: (context, i),
                   url: media[i].publicUrl,
                   borderRadius: cellRadius,
                 ),

@@ -8,6 +8,7 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/glass/liquid_glass_bars.dart';
+import '../../../shared/widgets/glass/liquid_glass_overlays.dart';
 import '../../../shared/widgets/app_avatar.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
@@ -63,7 +64,6 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final social = SocialColors.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final dockInset = MediaQuery.sizeOf(context).width < AppBreakpoints.medium
         ? 80.0
         : 0.0;
@@ -157,15 +157,10 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
       ),
       floatingActionButton: Padding(
         padding: EdgeInsets.only(bottom: dockInset),
-        child: FloatingActionButton.extended(
-          shape: const StadiumBorder(),
-          elevation: isDark ? 0 : 2,
+        child: LiquidGlassFab(
+          label: l10n.t('common.create'),
+          icon: Icons.add,
           onPressed: () => _showCreateGroupDialog(context, ref),
-          icon: const Icon(Icons.add),
-          label: Text(
-            l10n.t('common.create'),
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
         ),
       ),
     );

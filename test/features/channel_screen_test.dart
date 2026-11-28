@@ -20,6 +20,8 @@ import 'package:nekotribe/features/realtime/data/realtime_service.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
+import '../support/media_preview_flight.dart';
+
 void main() {
   testWidgets('channel typing is scoped and cleared when opening the roster', (
     tester,
@@ -101,6 +103,14 @@ void main() {
       expect(chatApi.reads, [(7, 42)]);
     },
   );
+
+  testWidgets('channel public thumbnail shares its Hero with the preview', (tester) async {
+    final photo = _asset(fileName: 'chat.png', mediaType: 'image');
+    final api = _FakeChatApi(initialMessages: [_message(messageId: 42, content: 'photo', media: [photo])]);
+    await tester.pumpWidget(_testApp(chatApi: api, mediaApi: _FakeMediaApi()));
+    await tester.pumpAndSettle();
+    await checkMediaFlight(tester);
+  });
 
   testWidgets('failed read acknowledgement keeps loaded history visible', (
     tester,

@@ -479,7 +479,7 @@ class AppTheme {
         showCheckmark: false,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: social.surfaceCard,
+        backgroundColor: scheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedSuperellipseBorder(
@@ -491,7 +491,8 @@ class AppTheme {
         contentTextStyle: textTheme.bodyMedium,
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: social.surfaceCard,
+        dragHandleSize: const Size(36, 4),
+        backgroundColor: scheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: const RoundedSuperellipseBorder(
@@ -508,7 +509,7 @@ class AppTheme {
           color: scheme.onInverseSurface,
         ),
         shape: RoundedSuperellipseBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
+          borderRadius: BorderRadius.circular(AppRadius.tile),
         ),
         elevation: 0,
       ),
@@ -579,7 +580,7 @@ class AppTheme {
         hoverColor: buttonHover,
         focusColor: buttonFocus,
         splashColor: buttonPress,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: const CircleBorder(),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: scheme.primary,
@@ -597,7 +598,8 @@ class AppTheme {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: social.surfaceCard,
+        color: scheme.surfaceContainerHigh,
+        shadowColor: scheme.shadow.withValues(alpha: 0.18),
         surfaceTintColor: Colors.transparent,
         elevation: isDark ? 0 : 4,
         shape: RoundedSuperellipseBorder(

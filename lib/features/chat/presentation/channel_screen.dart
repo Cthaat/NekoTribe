@@ -2188,6 +2188,7 @@ class _ChannelMessageTile extends StatelessWidget {
                           children: [
                             for (var i = 0; i < message.media.length; i++)
                               _MessageAttachment(
+                                heroOwner: context,
                                 media: message.media[i],
                                 allMedia: message.media,
                                 index: i,
@@ -2252,12 +2253,14 @@ enum _ChannelMessageAction { reply, react, pin, edit, delete }
 
 class _MessageAttachment extends StatelessWidget {
   const _MessageAttachment({
+    required this.heroOwner,
     required this.media,
     this.allMedia = const [],
     this.index = 0,
   });
 
   final V2MediaAsset media;
+  final BuildContext heroOwner;
   final List<V2MediaAsset> allMedia;
   final int index;
 
@@ -2291,12 +2294,13 @@ class _MessageAttachment extends StatelessWidget {
             context: context,
             items: [
               for (final m in images)
-                MediaLightboxItem(url: m.publicUrl, altText: m.fileName),
+                MediaLightboxItem(url: m.publicUrl, altText: m.fileName, heroTag: (heroOwner, m.mediaId)),
             ],
             initialIndex: imageIndex >= 0 ? imageIndex : index,
           );
         },
         child: AppMediaImage(
+          heroTag: (heroOwner, media.mediaId),
           url: media.publicUrl,
           width: 140,
           height: 104,

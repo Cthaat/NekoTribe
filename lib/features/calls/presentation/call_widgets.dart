@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../../shared/widgets/glass/liquid_glass_tokens.dart';
+import '../../../shared/widgets/glass/liquid_glass_surface.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../data/call_media.dart';
@@ -78,7 +80,8 @@ class _CallOverlayState extends ConsumerState<CallOverlay> {
                   padding: const EdgeInsets.all(12),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 400),
-                    child: _CallPanel(call: call),
+                    child: LiquidGlassSurface(preset: LiquidGlassPreset.popover,
+                      borderRadius: BorderRadius.circular(24), child: _CallPanel(call: call)),
                   ),
                 ),
               ),
@@ -113,8 +116,7 @@ class _CallPanel extends StatelessWidget {
       null => _outcomeText(),
     };
     return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      elevation: 8,
+      type: MaterialType.transparency,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(

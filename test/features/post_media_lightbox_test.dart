@@ -7,6 +7,8 @@ import 'package:nekotribe/features/posts/presentation/post_card.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
+import '../support/media_preview_flight.dart';
+
 void main() {
   testWidgets('post media opens a lightbox preview', (tester) async {
     await tester.pumpWidget(
@@ -15,11 +17,21 @@ void main() {
           appConfigBundleProvider.overrideWithValue(_testBundle),
           appConfigInitialProvider.overrideWithValue(_testConfig),
         ],
-        child: MaterialApp(home: Scaffold(body: PostCard(post: _post))),
+        child: MaterialApp(
+          home: HeroControllerScope(
+            controller: MaterialApp.createMaterialHeroController(),
+            child: Navigator(
+              onGenerateRoute: (_) => MaterialPageRoute<void>(
+                builder: (_) => Scaffold(body: PostCard(post: _post)),
+              ),
+            ),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
+    await checkMediaFlight(tester);
     await tester.tap(find.byTooltip('打开媒体').first);
     await tester.pumpAndSettle();
 

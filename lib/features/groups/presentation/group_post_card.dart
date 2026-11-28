@@ -128,11 +128,12 @@ class GroupPostCard extends StatelessWidget {
                         onTap: () => showMediaLightbox(
                           context: context,
                           items: post.mediaUrls
-                              .map((url) => MediaLightboxItem(url: url))
+                              .indexed.map((entry) => MediaLightboxItem(url: entry.$2, heroTag: (context, entry.$1)))
                               .toList(growable: false),
                           initialIndex: i,
                         ),
                         child: AppMediaImage(
+                          heroTag: (context, i),
                           url: post.mediaUrls[i],
                           width: 108,
                           height: 108,

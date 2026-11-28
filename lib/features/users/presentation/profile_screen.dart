@@ -11,6 +11,7 @@ import '../../../shared/providers/providers.dart';
 import '../../../shared/routing/auth_navigation.dart';
 import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/media_lightbox.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/glass/liquid_glass_bars.dart';
 import '../../../shared/widgets/glass/liquid_glass_surface.dart';
@@ -770,12 +771,7 @@ class _ProfileHeader extends StatelessWidget {
                                   width: 4,
                                 ),
                               ),
-                              child: AppAvatar(
-                                url: user.avatarUrl,
-                                size: 80,
-                                name: displayName,
-                                seed: user.userId,
-                              ),
+                              child: _ProfileAvatar(url: user.avatarUrl, id: user.userId, name: displayName),
                             ),
                             if (user.onlineStatus == 'online')
                               Positioned(
@@ -1124,5 +1120,22 @@ class _ProfileStat extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.url, required this.id, required this.name});
+  final String? url;
+  final int id;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = AppAvatar(url: url, seed: id, name: name, size: 80);
+    if (url == null || url!.trim().isEmpty) return avatar;
+    final item = MediaLightboxItem(url: url!, heroTag: (context, id), altText: name);
+    return IconButton(padding: EdgeInsets.zero, tooltip: AppLocalizations.of(context).t('media.open'),
+      onPressed: () => showMediaLightbox(context: context, items: [item]),
+      icon: AppMotion.reduced(context) ? avatar : Hero(tag: item.heroTag!, child: avatar));
   }
 }
