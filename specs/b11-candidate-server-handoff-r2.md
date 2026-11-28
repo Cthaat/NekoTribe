@@ -119,3 +119,85 @@ cat "$root/results.tsv"
 - 就绪。三端分别按有效/错误外键与索引变体验证已登录首屏搜索、本人历史 GET/DELETE。预期正确结构 200，错误结构脱敏 503/50301，请求 DDL 为 0。Flutter 验共享副本与游标原样传递。
 
 请按「提交／端／用例／PASS、FAIL、BLOCKED 或待实现／退出码／首个实际错误／脱敏日志位置」回传，附四个实际 SHA、工具及 Oracle 版本。当前契约轮、Oracle 实库轮和后续实现运行时各自出具结果。
+
+## 同轮安全清单定向复扫
+
+在上述 Bash 会话中保留 `root` 与 `repo`。Go #134 的交叉评审已确认原 76 个精确指纹；Rust #133 的交叉评审结论由协调者单列。请为两端分别出具本轮服务器实测回执。使用 Ubuntu x86_64、Git、curl、sha256sum 和 Python 3。脚本按各自 CI 校验 Gitleaks 8.30.1，私有环境路径检查覆盖目标树和范围内各提交新增、修改、复制或重命名的路径。只回传范围、退出码、计数、集合摘要及结论。
+
+```bash
+set -euo pipefail
+cd "$root"
+mkdir -p security-r2/tool
+tool="$root/security-r2/tool"
+cd "$tool"
+v=8.30.1
+asset="gitleaks_${v}_linux_x64.tar.gz"
+sums="gitleaks_${v}_checksums.txt"
+url="https://github.com/gitleaks/gitleaks/releases/download/v$v"
+curl -fsSL --retry 3 -O "$url/$asset"
+curl -fsSL --retry 3 -O "$url/$sums"
+grep -F " $asset" "$sums" | sha256sum --check
+tar -xzf "$asset" gitleaks
+"$tool/gitleaks" version
+while read -r stack base intro candidate review expected; do
+  dir="$root/security-r2/$stack"
+  git init -q "$dir"
+  cd "$dir"
+  git fetch -q --depth=3 "$repo" "$candidate" "$review"
+  test "$(git rev-parse "$candidate^")" = "$intro"
+  test "$(git rev-parse "$intro^")" = "$base"
+  test "$(git rev-parse "$review^")" = "$base"
+  out="$root/security-r2/$stack-results"
+  mkdir -p "$out"
+  for head in "$intro" "$candidate" "$review"; do
+    git ls-tree -rz --name-only "$head" >"$out/paths"
+    git log --diff-filter=AMCR --name-only --format= -z "$base..$head" >>"$out/paths"
+    python3 - "$out/paths" <<'PATHS'
+import sys
+from pathlib import Path
+names = [p.rsplit(b'/',1)[-1].lower() for p in Path(sys.argv[1]).read_bytes().split(b'\0')]
+if any((n == b'.env' or n.startswith(b'.env.')) and not n.endswith(b'.example') for n in names):
+    raise SystemExit('Private environment path found; report the gate failure only.')
+PATHS
+    printf 'private-env gate PASS %s %s..%s\n' "$stack" "$base" "$head"
+  done
+  scan() {
+    local label=$1 range=$2 count=$3 rc=0
+    "$tool/gitleaks" git --redact=100 --no-banner --log-opts="$range" --report-format json --report-path "$out/$label.json" . >"$out/$label.log" 2>&1 || rc=$?
+    printf '%s %s %s exit=%s\n' "$stack" "$label" "$range" "$rc"
+    if [ "$count" -eq 0 ]; then test "$rc" -eq 0; else test "$rc" -eq 1; fi
+    python3 - "$out" "$label" "$count" <<'SUMMARY'
+import hashlib, json, sys
+from pathlib import Path
+folder, label, count = Path(sys.argv[1]), sys.argv[2], int(sys.argv[3])
+records = json.loads((folder/(label+'.json')).read_bytes())
+fps = sorted({x['Fingerprint'] for x in records})
+assert len(records) == len(fps) == count
+data = ''.join(f+'\n' for f in fps).encode()
+(folder/(label+'.fps')).write_bytes(data)
+print(label, 'count', count, 'set_sha256', hashlib.sha256(data).hexdigest())
+SUMMARY
+  }
+  git checkout -q --detach "$base"
+  scan old-original "$base..$intro" 76
+  scan old-current "$base..$candidate" 79
+  scan introduced "$intro..$candidate" 3
+  git checkout -q --detach "$review"
+  scan reviewed-original "$base..$intro" 0
+  scan reviewed-current "$base..$candidate" 3
+  scan review-itself "$base..$review" 0
+  git diff --unified=0 "$base" "$review" -- .gitleaksignore | sed -n 's/^+\([0-9a-f]\{40\}:.*\)$/\1/p' | LC_ALL=C sort -u >"$out/proposed.fps"
+  cmp "$out/proposed.fps" "$out/old-original.fps"
+  printf '%s  %s\n' "$expected" "$out/proposed.fps" | sha256sum --check
+  LC_ALL=C comm -13 "$out/old-original.fps" "$out/old-current.fps" >"$out/extra.fps"
+  cmp "$out/extra.fps" "$out/introduced.fps"
+  cmp "$out/introduced.fps" "$out/reviewed-current.fps"
+  for n in 33 34 35; do printf '%s:contracts/scenarios/global-search.json:generic-api-key:%s\n' "$candidate" "$n"; done >"$out/expected-three.fps"
+  cmp "$out/expected-three.fps" "$out/reviewed-current.fps"
+done <<'SECURITY_HEADS'
+go 6fcfe153dbf301b5723863d37d0744dd28da36bf cf54c11d75d30d04ebe2ca1a72292a8c671b7da6 36f074f21d154e35267b4a35f21bf5d1f0dddcfc 66c46ce47a40c7001b4b32b2c4fa499b5b43ff8e a5e8c656df9ba03a02a286907a5d3fbdab92bf54a262c0534d733d2ad02a45b3
+rust 6129365b51cace9fe8fed0e07afedc2b84444419 eab8951edc901eb7480d7b695198fb93ce3932c1 26596e774a0c577d9f4da09fa059346ca7fc5ede 0331700a3fdfd5ce0dd0fb26d00f60b1a45eebc3 a26d2ea0db77cb41452165cbac7182757a9b789f27cc30e58da938a85cdc9d35
+SECURITY_HEADS
+```
+
+两端分别预期原范围 76→0、当前候选 79→3、安全 PR 自身 0；三个剩余指纹应与对应端增量集合相同。Go 预期剩余集合 SHA-256 为 `e9d1af3de53ff5cfad594d41fbd45232f37715c0579636492be18d2dc2cc330e`。Rust 的摘要单列。原始扫描 JSON 留在隔离目录，回传不含 Secret、Match 或原始行。
