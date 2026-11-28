@@ -20,6 +20,7 @@ class LiquidGlassSurface extends StatelessWidget {
     this.interactive = false,
     this.onTap,
     this.intensityOverride,
+    this.lensProgress = 0,
   });
 
   final LiquidGlassPreset preset;
@@ -31,6 +32,7 @@ class LiquidGlassSurface extends StatelessWidget {
   final bool interactive;
   final VoidCallback? onTap;
   final LiquidGlassIntensity? intensityOverride;
+  final double lensProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -52,8 +54,12 @@ class LiquidGlassSurface extends StatelessWidget {
     final intensity =
         intensityOverride ?? SocialColors.of(context).glassIntensity;
     final spec = LiquidGlassSpec.resolve(preset, scheme, intensity);
+    final lensClarity =
+        preset == LiquidGlassPreset.pillIndicator && !highContrast
+        ? 1 - 0.32 * lensProgress.clamp(0.0, 1.0)
+        : 1.0;
     final tintAlpha =
-        (spec.tintColor.a +
+        (spec.tintColor.a * lensClarity +
                 (AppMotion.reduced(context) ? 0.015 : 0.0) +
                 (highContrast ? 0.22 : 0.0))
             .clamp(0.0, 0.92);

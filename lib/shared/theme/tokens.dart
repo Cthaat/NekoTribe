@@ -50,6 +50,9 @@ abstract final class AppMotion {
     damping: 36,
   );
 
+  static const liquidSnapSpring = SpringDescription(mass: 1, stiffness: 360, damping: 22);
+  static const liquidLensSpring = SpringDescription(mass: 1, stiffness: 460, damping: 24);
+
   static const SpringDescription springSnappy = dampedSpring;
 
   static const SpringDescription springGentle = SpringDescription(
