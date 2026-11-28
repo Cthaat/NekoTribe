@@ -20782,7 +20782,7 @@
     {
       "id": "GLOBAL-SEARCH",
       "title": "B1.1 global search, suggestions, trending and own history",
-      "revision": 1,
+      "revision": 2,
       "review": "reviewed",
       "definition": "specifications/requirements/global-search.md",
       "sourceFiles": [
@@ -20798,14 +20798,14 @@
       ],
       "scenarios": [
         {
-          "id": "GLOBAL-SEARCH-V1",
+          "id": "GLOBAL-SEARCH-V2",
           "file": "specifications/scenarios/global-search.json"
         }
       ],
       "implementations": {
         "nuxt": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Implement native filtered search, portable cursors, rolling public trends and owner-scoped history; verify shared vectors against Oracle and Redis."
           ],
@@ -20814,7 +20814,7 @@
         },
         "go": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Implement native filtered search, portable cursors, rolling public trends and owner-scoped history; verify shared vectors against Oracle and Redis."
           ],
@@ -20823,7 +20823,7 @@
         },
         "rust": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Implement native filtered search, portable cursors, rolling public trends and owner-scoped history; verify shared vectors against Oracle and Redis."
           ],
@@ -20843,7 +20843,7 @@
       "clients": {
         "nuxtWeb": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Exercise search pagination and account-scoped history on all three backends."
           ],
@@ -20853,7 +20853,7 @@
         },
         "flutter": {
           "state": "not-started",
-          "targetRevision": 1,
+          "targetRevision": 2,
           "tasks": [
             "Exercise search pagination and account-scoped history on all three backends."
           ],
@@ -26220,7 +26220,7 @@
     {
       "source": {
         "path": "specifications/requirements/global-search.md",
-        "sha256": "7362a17103795634411101b15cb5e2c7f1039d4cae4ae897a8ccc7b8298a55bf"
+        "sha256": "00df05045be76f68ae64455e7d0ad43aff71a879024bb151049d6813912447e2"
       },
       "copies": {
         "go": "contracts/requirements/global-search.md",
@@ -26231,7 +26231,7 @@
     {
       "source": {
         "path": "specifications/scenarios/global-search.json",
-        "sha256": "a08b807a92e9e5315dfb77df4c2dc45ba7f699f42f377b10e748b286f84fe462"
+        "sha256": "d7f36096c974e8304aeded4955a665aa49e6950aaa71bb816b4174f511e4f420"
       },
       "copies": {
         "go": "contracts/scenarios/global-search.json",
