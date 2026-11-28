@@ -460,12 +460,9 @@ class AppTheme {
         unselectedLabelStyle: textTheme.titleSmall?.copyWith(
           fontWeight: FontWeight.w500,
         ),
-        indicatorSize: TabBarIndicatorSize.label,
-        indicator: UnderlineTabIndicator(
-          borderRadius: BorderRadius.circular(999),
-          borderSide: BorderSide(color: scheme.primary, width: 2.5),
-          insets: EdgeInsets.zero,
-        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        splashFactory: NoSplash.splashFactory,
+        indicator: ShapeDecoration(color: social.surfaceCard, shape: const StadiumBorder()),
         dividerColor: Colors.transparent,
         overlayColor: buttonOverlay,
       ),

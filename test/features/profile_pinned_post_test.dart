@@ -18,6 +18,7 @@ import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/features/users/presentation/profile_screen.dart';
 import 'package:nekotribe/features/users/presentation/user_posts_screen.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
+import 'package:nekotribe/shared/widgets/glass/liquid_glass_bars.dart';
 
 void main() {
   test('profile pin requests bind the expected paths and receipts', () async {
@@ -108,6 +109,34 @@ void main() {
       expect(posts.reads, [(1, 1)]);
     },
   );
+
+  testWidgets('collapsed profile tabs stay visible above the first post', (
+    tester,
+  ) async {
+    final tokens = _TestTokens();
+    final posts = _PostsApi(tokens)
+      ..pages[1] = List.generate(12, (index) => _post(1, index + 1));
+    await tester.pumpWidget(
+      _app(tokens, _UsersApi(tokens), posts, const ProfileScreen(userId: 1)),
+    );
+    await tester.pumpAndSettle();
+    final outer = tester
+        .state<NestedScrollViewState>(find.byType(NestedScrollView))
+        .outerController;
+    outer.jumpTo(outer.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final tabs = find.byType(LiquidGlassSegmentedControl<int>).hitTestable();
+    expect(tabs, findsOneWidget);
+    final rect = tester.getRect(tabs);
+    expect(rect.top, greaterThanOrEqualTo(kToolbarHeight));
+    final post = find.byWidgetPredicate(
+      (w) => w is PostCard && w.post.postId == 1,
+    );
+    expect(
+      tester.getTopLeft(post.hitTestable()).dy,
+      greaterThanOrEqualTo(rect.bottom),
+    );
+  });
 
   testWidgets(
     'paged profile posts omit a pin repeated on either ordinary page',

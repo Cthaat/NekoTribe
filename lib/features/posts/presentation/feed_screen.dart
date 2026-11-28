@@ -467,19 +467,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
               scrolledUnderElevation: 0,
               backgroundColor: Colors.transparent,
               forceMaterialTransparency: true,
-              flexibleSpace: AnimatedSwitcher(
-                duration: AppMotion.resolve(context, AppMotion.fast),
-                child: innerBoxIsScrolled
-                    ? const LiquidGlassSurface(
-                        key: ValueKey('feed-header-glass'),
-                        preset: LiquidGlassPreset.stickyHeader,
-                        borderRadius: BorderRadius.zero,
-                        child: SizedBox.expand(),
-                      )
-                    : const SizedBox.expand(
-                        key: ValueKey('feed-header-clear'),
-                      ),
-              ),
+              flexibleSpace: const ScrollingGlassHeader(),
               leadingWidth: isWide ? null : 54,
               leading: isWide
                   ? null
@@ -863,6 +851,7 @@ class _CapsuleSegmentedTabs extends StatelessWidget {
       animation: controller,
       builder: (context, _) => LiquidGlassSegmentedControl<int>(
         options: labels.indexed.toList(),
+        tabController: controller,
         selected: controller.index,
         onSelect: (index) {
           if (controller.index != index) controller.animateTo(index);

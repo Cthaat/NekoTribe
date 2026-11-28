@@ -11,6 +11,7 @@ import '../../../shared/motion/skeleton.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/glass/liquid_glass_bars.dart';
 import '../../../shared/widgets/responsive.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../../shared/widgets/ui/surface_card.dart';
@@ -53,6 +54,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    enableTabHaptics(_tabController);
     _realtime = ChatRealtimeBinding(
       tokenStore: ref.read(tokenStoreProvider),
       onEvent: _onRealtime,
@@ -467,11 +469,6 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
             ),
             child: TabBar(
               controller: _tabController,
-              indicator: BoxDecoration(
-                color: social.surfaceCard,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
               labelColor: scheme.onSurface,
               unselectedLabelColor: scheme.onSurfaceVariant,
               labelStyle: theme.textTheme.labelLarge?.copyWith(

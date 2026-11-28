@@ -108,6 +108,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen>
                       for (final (index, tab) in _tabs.indexed)
                         (index, l10n.t(tab.titleKey)),
                     ],
+                    tabController: _tabController,
                     selected: _tabController.index,
                     onSelect: _tabController.animateTo,
                   ),
