@@ -35,7 +35,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTickerProviderStateMixin {
   V2PublicUser? _user;
   List<V2Post> _posts = [];
   bool _loading = true;
@@ -48,7 +48,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   int _scope = 0;
   bool _relationshipBusy = false;
   bool _locallyBlocked = false;
-  int _activeTab = 0;
+  late final _tabs = TabController(length: 3, vsync: this);
+  final _headerScroll = ScrollController();
+
+  void _updateTitle() {
+    final collapsed = _headerScroll.offset > 130;
+    if (collapsed != _showAppBarTitle) setState(() => _showAppBarTitle = collapsed);
+  }
   bool _showAppBarTitle = false;
   late AuthRepository _auth;
   late int _revision;
@@ -58,6 +64,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _headerScroll.addListener(_updateTitle);
     _observe(ref.read(authRepositoryProvider));
     _load();
   }
@@ -115,6 +122,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void dispose() {
     _stopObserving?.call();
+    _tabs.dispose();
+    _headerScroll.dispose();
     super.dispose();
   }
 
@@ -377,11 +386,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final pin = showPin ? ref.watch(pinProvider) : null;
     final pinController = showPin ? ref.read(pinProvider.notifier) : null;
     final visiblePosts = profilePostsWithPin(_posts, pin?.post);
-    final displayedPosts = switch (_activeTab) {
-      1 => visiblePosts.where((post) => post.replyToPostId != null).toList(),
-      2 => visiblePosts.where((post) => post.media.isNotEmpty).toList(),
-      _ => visiblePosts,
-    };
     final canPin =
         _user?.relationship.isSelf == true &&
         pin?.ready == true &&
@@ -441,9 +445,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final displayName = user.displayName.trim().isEmpty
         ? user.username
         : user.displayName;
-    final showPostsErrorFull =
-        _postsError != null && displayedPosts.isEmpty && !_loadingPosts;
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: social.surfaceBase,
@@ -453,36 +454,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           constraints: const BoxConstraints(
             maxWidth: AppBreakpoints.contentMaxWidth,
           ),
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (n) {
-              if (n.metrics.axis == Axis.vertical) {
-                final showCollapsed = n.metrics.pixels > 130;
-                if (showCollapsed != _showAppBarTitle) {
-                  setState(() => _showAppBarTitle = showCollapsed);
-                }
-                if (_activeTab == 0 &&
-                    n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
-                  _loadMore();
-                }
-              }
-              return false;
-            },
-            child: CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  pinned: true,
-                  toolbarHeight: 56,
+          child: _ProfilePages(
+            controller: _tabs,
+            headerScroll: _headerScroll,
+            onLoadMore: _loadMore,
+            toolbar: AppBar(
+                  toolbarHeight: kToolbarHeight,
                   elevation: 0,
                   scrolledUnderElevation: 0,
                   backgroundColor: Colors.transparent,
                   surfaceTintColor: Colors.transparent,
                   forceMaterialTransparency: true,
                   automaticallyImplyLeading: showProfileBack,
-                  flexibleSpace: const LiquidGlassSurface(
-                    preset: LiquidGlassPreset.stickyHeader,
-                    borderRadius: BorderRadius.zero,
-                    child: SizedBox.expand(),
-                  ),
+                  flexibleSpace: const ScrollingGlassHeader(),
                   leading: showProfileBack
                       ? const SafeBackButton(fallbackRoute: '/feed')
                       : null,
@@ -550,7 +534,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                   ],
                 ),
-                SliverToBoxAdapter(
+                summary: SliverToBoxAdapter(
                   child: _ProfileHeader(
                     user: user,
                     onFollow: _relationshipBusy ? null : _toggleFollow,
@@ -559,22 +543,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     restricted: _restricted,
                   ),
                 ),
-                SliverPersistentHeader(
+                tabHeader: SliverPersistentHeader(
                   pinned: true,
                   delegate: _ProfileTabsDelegate(
-                    selectedIndex: _activeTab,
+                    controller: _tabs,
                     labels: [
                       l10n.t('profile.tab.posts'),
                       l10n.t('profile.tab.replies'),
                       l10n.t('profile.tab.media'),
                     ],
-                    onSelect: (index) {
-                      if (_activeTab != index) {
-                        setState(() => _activeTab = index);
-                      }
-                    },
                   ),
                 ),
+            pageSlivers: (index) {
+              final displayedPosts = switch (index) {
+                1 => visiblePosts.where((post) => post.replyToPostId != null).toList(),
+                2 => visiblePosts.where((post) => post.media.isNotEmpty).toList(),
+                _ => visiblePosts,
+              };
+              return [
                 if (_loadingPosts)
                   SliverToBoxAdapter(
                     child: Padding(
@@ -590,7 +576,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                     ),
                   )
-                else if (showPostsErrorFull)
+                else if (_postsError != null && displayedPosts.isEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -618,7 +604,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: PostCard(
                             post: post,
                             avatarHeroTag:
-                                'avatar-${post.postId}-${post.author.userId}',
+                                'profile-${widget.userId}-$index-avatar-${post.postId}-${post.author.userId}',
                             profilePinned: pin?.post?.postId == post.postId,
                             onChangeProfilePin:
                                 canPin &&
@@ -673,7 +659,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       },
                     ),
                   ),
-                  if (_activeTab == 0 && (_hasNext || _postsError != null))
+                  if (index == 0 && (_hasNext || _postsError != null))
                     SliverToBoxAdapter(
                       child: _postsError != null
                           ? ErrorView(error: _postsError!, onRetry: _loadPosts)
@@ -684,8 +670,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                 ],
                 const SliverToBoxAdapter(child: SizedBox(height: 96)),
-              ],
-            ),
+              ];
+            },
           ),
         ),
       ),
@@ -1026,16 +1012,64 @@ class _FollowButtonState extends State<_FollowButton> {
   }
 }
 
+class _ProfilePages extends StatelessWidget {
+  const _ProfilePages({required this.controller, required this.headerScroll,
+    required this.onLoadMore, required this.toolbar, required this.summary, required this.tabHeader,
+    required this.pageSlivers});
+
+  final TabController controller;
+  final ScrollController headerScroll;
+  final VoidCallback onLoadMore;
+  final PreferredSizeWidget toolbar;
+  final Widget summary, tabHeader;
+  final List<Widget> Function(int) pageSlivers;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    SizedBox(height: toolbar.preferredSize.height + MediaQuery.paddingOf(context).top, child: toolbar),
+    Expanded(child: NestedScrollView(
+    controller: headerScroll,
+    headerSliverBuilder: (context, _) => [
+      summary,
+      SliverOverlapAbsorber(
+        handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+        sliver: tabHeader,
+      ),
+    ],
+    body: TabBarView(
+      controller: controller,
+      children: [
+        for (var i = 0; i < controller.length; i++)
+          Builder(builder: (context) => NotificationListener<ScrollUpdateNotification>(
+            onNotification: (event) {
+              if (i == 0 && controller.index == i && event.depth == 0 &&
+                  event.metrics.axis == Axis.vertical && event.metrics.extentAfter < 200) {
+                onLoadMore();
+              }
+              return false;
+            },
+            child: CustomScrollView(
+              key: PageStorageKey(i),
+              slivers: [
+                SliverOverlapInjector(handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context)),
+                ...pageSlivers(i),
+              ],
+            ),
+          )),
+      ],
+    ),
+    )),
+  ]);
+}
+
 class _ProfileTabsDelegate extends SliverPersistentHeaderDelegate {
   const _ProfileTabsDelegate({
-    required this.selectedIndex,
+    required this.controller,
     required this.labels,
-    required this.onSelect,
   });
 
-  final int selectedIndex;
+  final TabController controller;
   final List<String> labels;
-  final ValueChanged<int> onSelect;
 
   @override
   double get minExtent => 54;
@@ -1053,17 +1087,18 @@ class _ProfileTabsDelegate extends SliverPersistentHeaderDelegate {
       preset: LiquidGlassPreset.stickyHeader,
       borderRadius: BorderRadius.zero,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      child: LiquidGlassSegmentedControl<int>(
+      child: AnimatedBuilder(animation: controller, builder: (context, _) => LiquidGlassSegmentedControl<int>(
+        tabController: controller,
         options: labels.indexed.toList(),
-        selected: selectedIndex,
-        onSelect: onSelect,
-      ),
+        selected: controller.index,
+        onSelect: controller.animateTo,
+      )),
     );
   }
 
   @override
   bool shouldRebuild(covariant _ProfileTabsDelegate oldDelegate) =>
-      oldDelegate.selectedIndex != selectedIndex ||
+      oldDelegate.controller != controller ||
       oldDelegate.labels != labels;
 }
 

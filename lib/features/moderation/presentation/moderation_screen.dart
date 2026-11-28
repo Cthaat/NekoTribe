@@ -11,6 +11,7 @@ import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/app_avatar.dart';
+import '../../../shared/widgets/glass/liquid_glass_bars.dart';
 import '../../../shared/widgets/safe_back_button.dart';
 import '../../../shared/widgets/status_views.dart';
 import '../../../shared/widgets/ui/surface_card.dart';
@@ -61,6 +62,7 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
       vsync: this,
       initialIndex: widget.initialTab.clamp(0, 6),
     );
+    enableTabHaptics(_tabController);
     _loadStats();
   }
 
@@ -122,11 +124,6 @@ class _ModerationScreenState extends ConsumerState<ModerationScreen>
                   controller: _tabController,
                   isScrollable: true,
                   tabAlignment: TabAlignment.start,
-                  indicator: BoxDecoration(
-                    color: social.surfaceCard,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                  ),
-                  indicatorSize: TabBarIndicatorSize.tab,
                   labelColor: scheme.onSurface,
                   unselectedLabelColor: scheme.onSurfaceVariant,
                   labelStyle: theme.textTheme.labelMedium?.copyWith(

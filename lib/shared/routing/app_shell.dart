@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -368,19 +369,26 @@ class _SideNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final social = SocialColors.of(context);
     final width = extended ? 220.0 : 72.0;
 
-    return Container(
+    return AnimatedContainer(
+      duration: AppMotion.resolve(context, AppMotion.glide),
+      curve: AppMotion.glideCurve,
       width: width,
-      color: social.shellFrame,
+      color: SocialColors.of(context).shellFrame,
       padding: EdgeInsets.symmetric(
         vertical: 14,
         horizontal: extended ? 12 : 8,
       ),
-      child: Column(
+      child: LayoutBuilder(builder: (context, bounds) =>
+        _buildContents(context, extended && bounds.maxWidth >= 148)),
+    );
+  }
+
+  Widget _buildContents(BuildContext context, bool extended) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
@@ -390,22 +398,29 @@ class _SideNav extends StatelessWidget {
                 children: [
                   _Brand(extended: extended),
                   const SizedBox(height: 14),
-                  for (var i = 0; i < tabs.length; i++)
-                    _NavItem(
-                      icon: tabs[i].$2,
-                      selectedIcon: tabs[i].$3,
-                      label: labelFor(tabs[i].$4),
-                      selected: i == currentIndex,
-                      extended: extended,
-                      badgeCount: _badgeFor(tabs[i].$1),
-                      onTap: () => GoRouter.of(context).go(tabs[i].$1),
-                    ),
-                  _MoreNavMenu(
-                    extended: extended,
-                    selected: moreSelected,
-                    routes: moreRoutes,
-                    labelFor: labelFor,
-                  ),
+                  Stack(children: [
+                    Positioned.fill(child: _RailSelection(
+                      index: moreSelected ? tabs.length : currentIndex,
+                    )),
+                    Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        for (var i = 0; i < tabs.length; i++)
+                          _NavItem(
+                            icon: tabs[i].$2,
+                            selectedIcon: tabs[i].$3,
+                            label: labelFor(tabs[i].$4),
+                            selected: i == currentIndex,
+                            extended: extended,
+                            badgeCount: _badgeFor(tabs[i].$1),
+                            onTap: () => GoRouter.of(context).go(tabs[i].$1),
+                          ),
+                        _MoreNavMenu(
+                          extended: extended,
+                          selected: moreSelected,
+                          routes: moreRoutes,
+                          labelFor: labelFor,
+                        ),
+                    ]),
+                  ]),
                   const SizedBox(height: 14),
                   if (extended)
                     SizedBox(
@@ -460,8 +475,49 @@ class _SideNav extends StatelessWidget {
             onOpenSettings: () => GoRouter.of(context).go('/settings'),
           ),
         ],
-      ),
     );
+  }
+}
+
+class _RailSelection extends StatefulWidget {
+  const _RailSelection({required this.index});
+  final int index;
+  @override
+  State<_RailSelection> createState() => _RailSelectionState();
+}
+
+class _RailSelectionState extends State<_RailSelection> with SingleTickerProviderStateMixin {
+  late final _position = AnimationController.unbounded(vsync: this, value: widget.index.toDouble());
+
+  @override
+  void didUpdateWidget(covariant _RailSelection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index < 0 || oldWidget.index == widget.index) return;
+    if (oldWidget.index < 0 || AppMotion.reduced(context)) {
+      _position.value = widget.index.toDouble();
+    } else {
+      _position.animateWith(SpringSimulation(AppMotion.liquidSnapSpring, _position.value,
+        widget.index.toDouble(), _position.velocity, snapToEnd: true));
+    }
+  }
+
+  @override
+  void dispose() {
+    _position.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.index < 0) return const SizedBox.shrink();
+    final reduced = AppMotion.reduced(context);
+    return Align(alignment: Alignment.topCenter, child: AnimatedBuilder(
+      animation: _position,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, 2.0 + 46.0 * (reduced ? widget.index.toDouble() : _position.value)), child: child),
+      child: Container(height: 42, decoration: ShapeDecoration(
+        shape: const StadiumBorder(), color: SocialColors.of(context).primarySoft)),
+    ));
   }
 }
 
@@ -610,12 +666,12 @@ class _NavItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: selected ? social.primarySoft : Colors.transparent,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadius.pill),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          hoverColor: social.surfaceHover,
+          hoverColor: social.surfaceHover.withValues(alpha: .55),
           child: SizedBox(
             height: 42,
             child: Padding(
@@ -705,11 +761,12 @@ class _MoreNavMenu extends StatelessWidget {
         builder: (context, controller, child) => Tooltip(
           message: moreLabel,
           child: Material(
-            color: selected ? social.primarySoft : Colors.transparent,
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.pill),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               key: const Key('app-shell-more-button'),
+              hoverColor: social.surfaceHover.withValues(alpha: .55),
               onTap: () =>
                   controller.isOpen ? controller.close() : controller.open(),
               child: Ink(

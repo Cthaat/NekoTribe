@@ -43,10 +43,61 @@ class LiquidGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
     elevation: 0,
     scrolledUnderElevation: 0,
     forceMaterialTransparency: true,
-    flexibleSpace: const LiquidGlassSurface(
+    flexibleSpace: const ScrollingGlassHeader(),
+  );
+}
+
+/// Observe the body through Scaffold, since the toolbar is its sibling.
+class ScrollingGlassHeader extends StatefulWidget {
+  const ScrollingGlassHeader({super.key});
+  @override
+  State<ScrollingGlassHeader> createState() => _ScrollingGlassHeaderState();
+}
+
+class _ScrollingGlassHeaderState extends State<ScrollingGlassHeader> {
+  ScrollNotificationObserverState? _observer;
+  double _opacity = 0;
+
+  void _scrolled(ScrollNotification event) {
+    if (event is! ScrollUpdateNotification || event.metrics.axis != Axis.vertical) return;
+    if (event.context != null && !TickerMode.valuesOf(event.context!).enabled) return;
+    final metrics = event.metrics;
+    final offset = metrics.axisDirection == AxisDirection.up ? metrics.extentAfter : metrics.extentBefore;
+    final next = (offset / 48).clamp(0.0, 1.0);
+    if (next != _opacity) setState(() => _opacity = next);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final observer = ScrollNotificationObserver.maybeOf(context);
+    if (observer == _observer) return;
+    _observer?.removeListener(_scrolled);
+    _observer = observer?..addListener(_scrolled);
+  }
+
+  @override
+  void dispose() {
+    _observer?.removeListener(_scrolled);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Opacity(
+    key: const ValueKey('header-glass-opacity'),
+    opacity: _opacity,
+    child: LiquidGlassSurface(
       preset: LiquidGlassPreset.stickyHeader,
       borderRadius: BorderRadius.zero,
-      child: SizedBox.expand(),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          height: 1 / MediaQuery.devicePixelRatioOf(context),
+          color: MediaQuery.highContrastOf(context)
+              ? Theme.of(context).colorScheme.onSurface.withValues(alpha: .42)
+              : Colors.white.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .18 : .76),
+        ),
+      ),
     ),
   );
 }
@@ -528,118 +579,199 @@ class _NavDockItemButton extends StatelessWidget {
   }
 }
 
-class LiquidGlassSegmentedControl<T> extends StatelessWidget {
+/// Owned by the TabController, which drops its listeners when disposed.
+void enableTabHaptics(TabController controller) {
+  var last = controller.index;
+  controller.addListener(() {
+    if (controller.index == last) return;
+    last = controller.index;
+    HapticFeedback.selectionClick();
+  });
+}
+
+class LiquidGlassSegmentedControl<T> extends StatefulWidget {
   const LiquidGlassSegmentedControl({
     super.key,
     required this.options,
     required this.selected,
     required this.onSelect,
     this.height = 40,
+    this.tabController,
   });
 
   final List<(T, String)> options;
   final T selected;
   final ValueChanged<T> onSelect;
   final double height;
+  final TabController? tabController;
+
+  @override
+  State<LiquidGlassSegmentedControl<T>> createState() => _SegmentState<T>();
+}
+
+class _SegmentState<T> extends State<LiquidGlassSegmentedControl<T>> with TickerProviderStateMixin {
+  int get _selected => math.max(0, widget.options.indexWhere((o) => o.$1 == widget.selected));
+  late final _position = AnimationController.unbounded(vsync: this, value: _selected.toDouble());
+  late final _lift = AnimationController.unbounded(vsync: this);
+  late final _speed = AnimationController.unbounded(vsync: this);
+  late final _motion = Listenable.merge([_position, _lift, _speed]);
+  int? _dragIndex;
+  Duration? _lastSample;
+  bool _reduced = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tabController?.animation?.addListener(_pageMoved);
+  }
+
+  bool _followingPage = false;
+  int? _pageIndex;
+
+  void _pageMoved() {
+    final tabs = widget.tabController!;
+    if (_dragIndex != null || tabs.indexIsChanging) return;
+    if (tabs.offset == 0 && !_followingPage) return;
+    final position = tabs.animation!.value;
+    final index = position.round();
+    if (index != (_pageIndex ?? _selected)) HapticFeedback.selectionClick();
+    _pageIndex = tabs.offset == 0 ? null : index;
+    _followingPage = tabs.offset != 0;
+    _position.value = position;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = AppMotion.reduced(context);
+    if (_reduced) {
+      _speed.value = _lift.value = 0;
+      _position.value = _selected.toDouble();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant LiquidGlassSegmentedControl<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tabController != widget.tabController) {
+      oldWidget.tabController?.animation?.removeListener(_pageMoved);
+      widget.tabController?.animation?.addListener(_pageMoved);
+    }
+    if (oldWidget.selected != widget.selected || oldWidget.options.length != widget.options.length ||
+        oldWidget.options.indexWhere((o) => o.$1 == oldWidget.selected) != _selected) {
+      _dragIndex = null;
+      _spring(_lift, 0, AppMotion.liquidLensSpring);
+      _spring(_position, _selected.toDouble(), AppMotion.liquidSnapSpring, _position.velocity);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.tabController?.animation?.removeListener(_pageMoved);
+    _position.dispose();
+    _lift.dispose();
+    _speed.dispose();
+    super.dispose();
+  }
+
+  void _spring(AnimationController c, double target, SpringDescription spring, [double velocity = 0]) {
+    if (_reduced || (c.value == target && velocity == 0)) {
+      c.value = target;
+    } else {
+      c.animateWith(SpringSimulation(spring, c.value, target, velocity, snapToEnd: true));
+    }
+  }
+
+  void _track(double raw, Duration? stamp) {
+    final last = widget.options.length - 1;
+    final edge = raw.clamp(0.0, last.toDouble());
+    final extra = raw - edge;
+    final next = _reduced ? edge : edge + extra.sign * .22 * (1 - math.exp(-extra.abs() / .22));
+    final index = next.round().clamp(0, last);
+    if (index != (_dragIndex ?? _selected)) HapticFeedback.selectionClick();
+    if (!_reduced && stamp != null && _lastSample != null && stamp > _lastSample!) {
+      final seconds = (stamp - _lastSample!).inMicroseconds / Duration.microsecondsPerSecond;
+      _speed.value = ((next - _position.value) / seconds).clamp(-12, 12);
+      _speed.animateTo(0, duration: AppMotion.micro);
+    }
+    _lastSample = stamp;
+    _dragIndex = index;
+    _position.value = next;
+  }
+
+  void _release([double velocity = 0, bool cancel = false]) {
+    if (_dragIndex == null) return;
+    final next = cancel ? _selected :
+        (_position.value + .08 * velocity).round().clamp(0, widget.options.length - 1);
+    if (!cancel && next != _dragIndex) HapticFeedback.selectionClick();
+    _dragIndex = null;
+    _lastSample = null;
+    _speed.value = 0;
+    _spring(_lift, 0, AppMotion.liquidLensSpring);
+    _spring(_position, next.toDouble(), AppMotion.liquidSnapSpring, velocity.clamp(-12, 12));
+    if (!cancel) widget.onSelect(widget.options[next].$1);
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (options.isEmpty) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final rawIndex = options.indexWhere((option) => option.$1 == selected);
-    final active = rawIndex < 0 ? 0 : rawIndex;
-    final radius = BorderRadius.circular(AppRadius.pill);
-    final duration = AppMotion.resolve(context, AppMotion.glide);
+    if (widget.options.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(widget.height / 2);
     return Container(
-      height: height,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.08)
-            : Colors.black.withValues(alpha: 0.06),
-        borderRadius: radius,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth / options.length;
-          return Stack(
-            children: [
-              TweenAnimationBuilder<double>(
-                duration: duration,
-                curve: AppMotion.glideCurve,
-                tween: Tween(end: active.toDouble()),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: scheme.primary,
-                    borderRadius: radius,
-                    boxShadow: isDark
-                        ? const <BoxShadow>[]
-                        : [
-                            BoxShadow(
-                              color: scheme.primary.withValues(alpha: 0.24),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                  ),
-                  child: const SizedBox.expand(),
-                ),
-                builder: (context, position, child) => PositionedDirectional(
-                  start: position * width,
-                  top: 0,
-                  bottom: 0,
-                  width: width,
-                  child: Transform.scale(
-                    scaleX: 1 + 0.03 * math.sin(math.pi * position).abs(),
-                    child: child,
-                  ),
-                ),
+      height: widget.height, padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: SocialColors.of(context).surfaceSubtle, borderRadius: radius),
+      child: LayoutBuilder(builder: (context, bounds) {
+        final width = bounds.maxWidth / widget.options.length;
+        final rtl = Directionality.of(context) == TextDirection.rtl;
+        double slot(double dx) => (rtl ? bounds.maxWidth - dx : dx) / width - .5;
+        if (width <= 0) return const SizedBox.shrink();
+        return Listener(
+          onPointerDown: (_) => _spring(_lift, _reduced ? 0 : 1, AppMotion.liquidLensSpring),
+          onPointerUp: (_) => _spring(_lift, 0, AppMotion.liquidLensSpring),
+          onPointerCancel: (_) => _spring(_lift, 0, AppMotion.liquidLensSpring),
+          child: GestureDetector(
+          excludeFromSemantics: true,
+          onHorizontalDragStart: (e) => _track(slot(e.localPosition.dx), e.sourceTimeStamp),
+          onHorizontalDragUpdate: (e) => _track(slot(e.localPosition.dx), e.sourceTimeStamp),
+          onHorizontalDragEnd: (e) => _release((rtl ? -1 : 1) * (e.primaryVelocity ?? 0) / width),
+          onHorizontalDragCancel: () => _release(0, true),
+          child: AnimatedBuilder(animation: _motion, builder: (context, _) {
+            final speed = _dragIndex == null ? _position.velocity : _speed.value;
+            final stretch = _reduced ? 1.0 : 1 + (.022 * speed.abs()).clamp(0, .16);
+            final lift = 1 + .06 * _lift.value;
+            final progress = _lift.value.clamp(0.0, 1.0);
+            return Stack(clipBehavior: Clip.none, fit: StackFit.expand, children: [
+              PositionedDirectional(start: width * _position.value, top: 0, bottom: 0, width: width,
+                child: Transform.scale(key: const ValueKey('segment-lens'), scaleX: lift * stretch,
+                  scaleY: lift / stretch, child: CustomPaint(
+                    foregroundPainter: _LiquidLensPainter(progress, (speed * .04 * (rtl ? -1 : 1)).clamp(-.35, .35),
+                      MediaQuery.highContrastOf(context)),
+                    child: LiquidGlassSurface(preset: LiquidGlassPreset.pillIndicator, blurEnabled: false,
+                      lensProgress: progress, borderRadius: BorderRadius.circular((widget.height - 6) / 2),
+                      child: const SizedBox.expand()),
+                  )),
               ),
-              Material(
-                type: MaterialType.transparency,
-                child: Row(
-                  children: [
-                    for (final (value, label) in options)
-                      Expanded(
-                        child: Semantics(
-                          selected: value == selected,
-                          child: InkWell(
-                            borderRadius: radius,
-                            onTap: () => onSelect(value),
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                child: Text(
-                                  label,
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    fontSize: 13,
-                                    fontWeight: value == selected
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
-                                    color: value == selected
-                                        ? scheme.onPrimary
-                                        : scheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+              Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                for (final (i, option) in widget.options.indexed)
+                  Expanded(child: Semantics(selected: i == _selected, child: TextButton(
+                    style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: Size.zero, shape: const StadiumBorder(), splashFactory: NoSplash.splashFactory,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    onPressed: () {
+                      if (i != _selected) HapticFeedback.selectionClick();
+                      widget.onSelect(option.$1);
+                    },
+                    child: Text(option.$2, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Color.lerp(scheme.onSurfaceVariant, scheme.primary,
+                          (1 - (_position.value - i).abs()).clamp(0, 1)),
+                      )),
+                  ))),
+              ]),
+            ]);
+          }),
+        ));
+      }),
     );
   }
 }
