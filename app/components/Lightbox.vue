@@ -147,7 +147,13 @@ watch(
   }
 );
 
-watch(currentIndex, () => {
+watch(() => props.items, (items, previous) => {
+  if (!props.open) return;
+  if (!items.length) return emit('update:open', false);
+  const index = items.findIndex(item => item.originalUrl === previous[currentIndex.value]?.originalUrl);
+  currentIndex.value = index >= 0 ? index : Math.min(currentIndex.value, items.length - 1);
+});
+watch(() => props.items[currentIndex.value]?.originalUrl, () => {
   resetTransformState();
   flipActive.value = false;
   flipTransform.value = '';
@@ -220,7 +226,7 @@ function prev(): void {
 }
 
 function setZoom(nextScale: number): void {
-  if (!isImage.value) return;
+  if (!isImage.value || isClosing.value) return;
   const clamped = Math.max(1, Math.min(2.5, Number(nextScale.toFixed(2))));
   zoomScale.value = clamped;
   dragY.value = 0;
@@ -298,7 +304,7 @@ function onPointerUp(event: PointerEvent): void {
 }
 
 function onKeydown(e: KeyboardEvent): void {
-  if (!props.open) return;
+  if (!props.open || isClosing.value) return;
   if (e.key === 'ArrowRight') {
     e.preventDefault();
     next();

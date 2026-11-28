@@ -641,7 +641,6 @@ html.dark[data-glass-intensity='subtle'] {
 .page-leave-active { position: absolute; width: 100%; pointer-events: none; animation: page-out 180ms var(--ease-standard); }
 main:has(> .page-leave-active), main > div:has(> .page-leave-active) { position: relative; }
 [data-page-content] { view-transition-name: page-content; }
-html:active-view-transition .page-enter-active, html:active-view-transition .page-leave-active { animation: none; }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 ::view-transition-old(root) { display: none; }
 ::view-transition-old(page-content) { animation: page-out 180ms var(--ease-standard) both; }

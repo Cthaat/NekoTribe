@@ -16,7 +16,14 @@ export function tabDirection(from: string, to: string) {
 }
 
 export function useTabTransitionDirection(router: Router) {
-  return router.afterEach((to, from, failure) => {
+  const before = router.beforeEach(to => {
+    if (typeof document.startViewTransition === 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      to.meta.pageTransition = false;
+      to.meta.layoutTransition = false;
+    }
+  });
+  const after = router.afterEach((to, from, failure) => {
     if (!failure) document.documentElement.dataset.tabDirection = tabDirection(from.path, to.path);
   });
+  return () => { before(); after(); };
 }
