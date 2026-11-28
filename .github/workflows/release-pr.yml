@@ -23,7 +23,7 @@ jobs:
       group: version-release-proposal
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: master
           fetch-depth: 0
@@ -35,7 +35,7 @@ jobs:
         run: python scripts/propose-release.py
       - name: Open or refresh the version PR
         if: steps.plan.outputs.version != ''
-        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         with:
           token: ${{ secrets.NEKO_TOKEN }}
           base: master
@@ -55,7 +55,7 @@ jobs:
       contents: read
       actions: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
           persist-credentials: false

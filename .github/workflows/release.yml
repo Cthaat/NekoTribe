@@ -88,27 +88,27 @@ jobs:
       rust: ${{ steps.heads.outputs.rust }}
       flutter: ${{ steps.heads.outputs.flutter }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'push' && github.sha || inputs.nuxt_ref }}
           path: nuxt
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.go_ref || 'refs/heads/codex/go' }}
           path: go
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.rust_ref || 'refs/heads/Rust' }}
           path: rust
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.flutter_ref || 'refs/heads/Flutter' }}
           path: flutter
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Verify all four checkouts
@@ -164,18 +164,18 @@ jobs:
       TARGET: ${{ matrix.target }}
       VERSION: ${{ needs.version.outputs.value }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.contracts.outputs[matrix.stack] }}
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: ${{ matrix.target == 'nuxt' && 'yarn' || '' }}
       - name: Enable Yarn Classic via Corepack
         if: matrix.target == 'nuxt'
         run: corepack enable
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: matrix.target == 'go'
         with:
           go-version-file: go.mod
@@ -198,7 +198,7 @@ jobs:
           if [[ ! -f "$ANDROID_HOME/ndk/$ndk/source.properties" ]]; then
             JAVA_HOME="$JAVA_HOME_21_X64" "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk"
           fi
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         if: matrix.target == 'flutter-android'
         with:
           distribution: temurin
@@ -332,7 +332,7 @@ jobs:
               digest = hashlib.file_digest(contents, "sha256").hexdigest()
           archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii", newline="\n")
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.name }}
           path: dist/
@@ -376,7 +376,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.contracts.outputs[matrix.stack] }}
           persist-credentials: false
@@ -400,13 +400,13 @@ jobs:
             fi
             echo 'TAGS'
           } >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         id: build
         with:
           context: .
@@ -456,11 +456,11 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.value }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: "*-${{ needs.version.outputs.value }}"
           merge-multiple: true
@@ -509,7 +509,7 @@ jobs:
           - \`ghcr.io/cthaat/nekotribe-go:$VERSION\`
           - \`ghcr.io/cthaat/nekotribe-rust:$VERSION\`
           EOF
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         id: release
         with:
           tag_name: ${{ needs.version.outputs.tag }}
