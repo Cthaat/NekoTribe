@@ -1356,10 +1356,15 @@
   resolved "https://registry.yarnpkg.com/@intlify/shared/-/shared-10.0.8.tgz#5f8019919dea8695b2e345257fc0cda7665d8ef9"
   integrity sha512-BcmHpb5bQyeVNrptC3UhzpBZB/YHHDoEREOUERrmF2BRxsyOEuRrq+Z96C/D4+2KJb8kuHiouzAei7BXlG0YYw==
 
-"@intlify/shared@11.4.2", "@intlify/shared@^11.1.2":
+"@intlify/shared@11.4.2":
   version "11.4.2"
   resolved "https://registry.yarnpkg.com/@intlify/shared/-/shared-11.4.2.tgz#23c918058160ccb3d68ce876ec62692df3eddbb2"
   integrity sha512-NzpHbguRCsOHDwxmlBa9qu/imc+/QWgsYUaK6FZeNC0wK8QfAbhqrktEp/haVzxU1aikH8IX4ytD+mfFEMi/9A==
+
+"@intlify/shared@11.4.23", "@intlify/shared@^11.1.2":
+  version "11.4.23"
+  resolved "https://registry.yarnpkg.com/@intlify/shared/-/shared-11.4.23.tgz#85b87dfb11b3ab43b78d71b270c89767a73f075c"
+  integrity sha512-1iqGalDCOlHZ8y7LOC3yisSm52K5AmkTmaNO23XGFYWU6Z1oIX8VeAGRq9rn2KrDFb8nMtQaxNyMa1n8EeDm5g==
 
 "@intlify/unplugin-vue-i18n@^6.0.8":
   version "6.0.8"

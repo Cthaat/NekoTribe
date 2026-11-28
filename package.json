@@ -55,7 +55,7 @@
   "dependencies": {
     "@intlify/core": "10.0.8",
     "@intlify/message-compiler": "10.0.8",
-    "@intlify/shared": "10.0.8",
+    "@intlify/shared": "11.4.23",
     "@nuxt/eslint": "1.5.0",
     "@nuxt/fonts": "0.11.4",
     "@nuxt/icon": "1.15.0",
