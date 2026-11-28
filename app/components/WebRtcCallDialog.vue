@@ -5,8 +5,12 @@ import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useWebRtcCalls } from '@/composables/useWebRtcCalls';
+import { isChatPath } from '#shared/utils/chat-document';
 
 const { t } = useAppLocale();
+const chatDocument = useChatDocument();
+const route = useRoute();
+const localePath = useLocalePath();
 const { call, localStream, remoteStream, problem, attach, accept, end } = useWebRtcCalls();
 const localVideo = ref<HTMLVideoElement | null>(null);
 const minimized = ref(false);
@@ -17,6 +21,15 @@ const remoteMedia = ref<HTMLMediaElement | null>(null);
 const needsPlayback = ref(false);
 watch(() => call.value?.id, () => { minimized.value = false; });
 let release: (() => void) | undefined;
+watch([call, () => route.path], ([current, path]) => {
+  if (!current && chatDocument.value && !isChatPath(path)) location.reload();
+});
+
+function openChatForCallback() {
+  const conversation = call.value?.conversationId;
+  end();
+  void navigateTo(localePath({ path: '/chat', query: { conversation } }));
+}
 
 onMounted(() => { release = attach(); });
 onBeforeUnmount(() => { end(); release?.(); });
@@ -72,7 +85,8 @@ watchEffect(() => {
       <DialogFooter>
         <template v-if="call.phase === 'incoming'">
           <Button type="button" variant="outline" @click="end()"><PhoneOff class="h-4 w-4" />{{ t('chat.calls.reject') }}</Button>
-          <Button type="button" @click="accept"><Phone class="h-4 w-4" />{{ t('chat.calls.accept') }}</Button>
+          <Button v-if="chatDocument" type="button" @click="accept"><Phone class="h-4 w-4" />{{ t('chat.calls.accept') }}</Button>
+          <Button v-else type="button" @click="openChatForCallback">{{ t('chat.calls.openForCallback') }}</Button>
         </template>
         <Button v-else type="button" variant="destructive" @click="end()">
           <PhoneOff class="h-4 w-4" />

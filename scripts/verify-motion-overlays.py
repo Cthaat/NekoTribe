@@ -159,14 +159,16 @@ async def pip(browser):
     sockets = {}
     devices = {}
     messages = []
-    contexts = {}
     pages = {}
     captures = []
     ready = {account: asyncio.Event() for account in (42, 43)}
     invited = asyncio.Event()
+    deny = 'camera=(), microphone=(), geolocation=()'
+    allow = 'camera=(self), microphone=(self), geolocation=()'
 
     def wire(id, ws):
         sockets[id] = ws
+        devices.pop(id, None)
 
         def send(msg):
             obj = json.loads(msg)
@@ -187,26 +189,55 @@ async def pip(browser):
         ws.on_message(send)
     for id in [43, 42]:
         ctx = await context(browser, id)
-        contexts[id] = ctx
-        await ctx.add_init_script("""window.callPeers=[]; const Original=window.RTCPeerConnection;window.RTCPeerConnection=class extends Original{constructor(...args){super(...args);window.callPeers.push(this)}};""")
+        await ctx.add_init_script("""window.callPeers = [];
+          window.RTCPeerConnection = class extends RTCPeerConnection {
+            constructor(...args) { super(...args); callPeers.push(this); }
+            close() { super.close(); sessionStorage.setItem('peerClosed', this.connectionState); }
+          };""")
         await ctx.route_web_socket('**/_ws', lambda ws, id=id: wire(id, ws))
         p = await ctx.new_page()
         pages[id] = p
         p.set_default_timeout(15000)
         p.on('pageerror', lambda e: print('pageerror', str(e), flush=True))
-        await p.goto(BASE + ('/en/chat?conversation=7' if id == 42 else '/en/about'), wait_until='domcontentloaded')
-        await p.wait_for_selector('html[data-glass-engine]')
-        await p.wait_for_function("document.querySelector('aside nav') !== null")
+        doc = await p.goto(BASE + ('/en/chat?conversation=7' if id == 42 else '/en/about'), wait_until='domcontentloaded')
+        assert doc.headers.get('permissions-policy') == (allow if id == 42 else deny), doc.url
         await asyncio.wait_for(ready[id].wait(), 15)
-        media = await p.evaluate("""() => ({
-          secure: isSecureContext, capture: typeof navigator.mediaDevices?.getUserMedia === 'function',
-          camera: document.featurePolicy.allowsFeature('camera'),
-          microphone: document.featurePolicy.allowsFeature('microphone')
-        })""")
-        assert all(media.values()), (id, p.url, 'document media prerequisites', media)
+        assert await p.evaluate("isSecureContext && typeof navigator.mediaDevices?.getUserMedia === 'function'"), p.url
+        features = await p.evaluate("['camera','microphone','geolocation'].map(k => document.featurePolicy.allowsFeature(k))")
+        assert features == [id == 42, id == 42, False], (p.url, features)
     (a, b) = (pages[42], pages[43])
+    api = await a.context.request.get(BASE + '/api/health')
+    assert api.ok and 'application/json' in api.headers['content-type'] and api.headers.get('permissions-policy') == deny
+    asset = await a.context.request.get(BASE + '/robots.txt')
+    assert asset.ok and 'text/plain' in asset.headers['content-type'] and asset.headers.get('permissions-policy') == deny
+    chinese = await a.context.request.get(BASE + '/zh/chat', max_redirects=0)
+    assert chinese.ok and chinese.headers.get('permissions-policy') == allow
+    dial = a.get_by_role('button', name='Start video call', exact=True).first
+    cdp = await a.context.new_cdp_session(a)
+    context_id = (await cdp.send('Target.getTargetInfo'))['targetInfo']['browserContextId']
+    permission = dict(permission={'name': 'camera'}, origin=BASE, browserContextId=context_id)
+    await cdp.send('Browser.setPermission', dict(permission, setting='denied'))
+    await dial.click()
+    await a.get_by_text('Allow microphone or camera access to make a call.', exact=True).wait_for()
+    assert not invited.is_set() and not messages, messages
+    await cdp.send('Browser.setPermission', dict(permission, setting='granted'))
+    await dial.click()
+    callback = b.get_by_role('button', name='Decline and open chat to call back')
+    await callback.wait_for()
+    assert await b.get_by_role('button', name='Answer', exact=True).count() == 0
+    ready[43].clear()
+    async with b.expect_response(lambda r: r.request.is_navigation_request() and urlparse(r.url).path == '/en/chat') as entry:
+        await callback.click()
+    doc = await entry.value
+    assert parse_qs(urlparse(doc.url).query).get('conversation') == ['7'] and doc.headers.get('permissions-policy') == allow
+    await b.get_by_role('button', name='Start video call', exact=True).first.wait_for()
+    assert await b.evaluate("['camera','microphone'].every(k => document.featurePolicy.allowsFeature(k))")
+    await asyncio.wait_for(ready[43].wait(), 15)
+    await a.locator('[data-slot=dialog-content]').wait_for(state='hidden')
+    assert {'from': 43, 'type': 'call_reject'} in messages, messages
+    invited.clear()
     async with a.expect_response(lambda r: urlparse(r.url).path == '/api/v2/calls/ice-servers') as ice:
-        await a.get_by_role('button', name='Start video call', exact=True).first.click()
+        await dial.click()
     assert (await ice.value).ok, 'caller ICE configuration failed'
     try:
         await asyncio.wait_for(invited.wait(), 15)
@@ -248,13 +279,15 @@ async def pip(browser):
     await a.get_by_role('button', name='Restore call').click()
     await a.locator('[data-slot=dialog-content] video').first.wait_for()
     await snapshot('restored')
-    await a.get_by_role('button', name='Hang up', exact=True).click()
+    async with a.expect_response(lambda r: r.request.is_navigation_request() and urlparse(r.url).path == '/en/discover') as after_call:
+        await a.get_by_role('button', name='Hang up', exact=True).click()
+    assert (await after_call.value).headers.get('permissions-policy') == deny
     for p in [a, b]:
-        await p.wait_for_function("callPeers[0].connectionState==='closed' && !document.querySelector('audio')")
+        await p.wait_for_function("sessionStorage.getItem('peerClosed')==='closed' && !document.querySelector('audio')")
     assert sum((x['type'] == 'call_hangup' for x in messages)) == 1, messages
     (ROOT / 'pip.json').write_text(json.dumps({'captures': captures, 'signaling': messages, 'bothClosed': True}, indent=2))
-    for ctx in contexts.values():
-        await ctx.close()
+    for p in pages.values():
+        await p.context.close()
 
 
 async def sheets(browser):
@@ -299,7 +332,7 @@ async def sheets(browser):
 
 async def main():
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(executable_path=os.environ.get('CHROMIUM_EXECUTABLE'), headless=True, args=['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'])
+        browser = await pw.chromium.launch(executable_path=os.environ.get('CHROMIUM_EXECUTABLE'), headless=True, args=['--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'])
         try:
             suites = {'matrix': matrix, 'pip': pip, 'sheets': sheets}
             for suite in suites if args.suite == 'all' else [args.suite]:
