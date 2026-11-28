@@ -15,6 +15,8 @@ class Pressable extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.scale = 0.985,
+    this.hoverColor,
+    this.borderRadius,
     this.haptic = HapticKind.light,
   });
 
@@ -22,6 +24,8 @@ class Pressable extends StatefulWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final double scale;
+  final Color? hoverColor;
+  final BorderRadius? borderRadius;
   final HapticKind haptic;
 
   @override
@@ -31,6 +35,7 @@ class Pressable extends StatefulWidget {
 class _PressableState extends State<Pressable>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  bool _hovered = false;
   bool _focusVisible = false;
   bool _pressed = false;
 
@@ -56,7 +61,7 @@ class _PressableState extends State<Pressable>
     final velocity = _controller.velocity;
     _controller.animateWith(
       SpringSimulation(
-        AppMotion.springSnappy,
+        AppMotion.liquidSnapSpring,
         _controller.value,
         pressed ? widget.scale : 1.0,
         velocity,
@@ -100,6 +105,7 @@ class _PressableState extends State<Pressable>
     return FocusableActionDetector(
       enabled: tap != null,
       mouseCursor: SystemMouseCursors.click,
+      onShowHoverHighlight: widget.hoverColor == null ? null : (value) => setState(() => _hovered = value),
       onShowFocusHighlight: (visible) =>
           setState(() => _focusVisible = visible),
       actions: <Type, Action<Intent>>{
@@ -126,11 +132,11 @@ class _PressableState extends State<Pressable>
             decoration: BoxDecoration(
               color: _pressed && AppMotion.reduced(context)
                   ? theme.highlightColor
-                  : null,
+                  : _hovered ? widget.hoverColor : null,
               border: _focusVisible
                   ? Border.all(color: theme.colorScheme.primary, width: 2)
                   : null,
-              borderRadius: BorderRadius.circular(AppRadius.inner),
+              borderRadius: widget.borderRadius ?? BorderRadius.circular(AppRadius.inner),
             ),
             child: widget.child,
           ),

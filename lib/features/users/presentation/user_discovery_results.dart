@@ -142,24 +142,24 @@ class _UserDiscoveryResultsState extends ConsumerState<UserDiscoveryResults> {
     final scheme = theme.colorScheme;
     final social = SocialColors.of(context);
     if (_changing || (_loading && _users.isEmpty)) {
-      return ListView(
+      return SkeletonCrossFade(loading: true, child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [for (var i = 0; i < 4; i++) const ListTileSkeleton()],
-      );
+      ));
     }
     if (_error != null && _users.isEmpty) {
-      return ErrorView(error: _error!, onRetry: _load);
+      return SkeletonCrossFade(loading: false, child: ErrorView(error: _error!, onRetry: _load));
     }
     if (_users.isEmpty) {
-      return EmptyView(
+      return SkeletonCrossFade(loading: false, child: EmptyView(
         message: l10n.t(
           widget.query.isEmpty
               ? 'search.no_recommendations'
               : 'search.no_users',
         ),
-      );
+      ));
     }
-    return ListView(
+    return SkeletonCrossFade(loading: false, child: ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 108),
       children: [
         if (widget.query.isEmpty)
@@ -281,6 +281,6 @@ class _UserDiscoveryResultsState extends ConsumerState<UserDiscoveryResults> {
             ),
           ),
       ],
-    );
+    ));
   }
 }

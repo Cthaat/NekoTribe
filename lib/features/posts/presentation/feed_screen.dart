@@ -746,7 +746,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     if (state.loading && state.items.isEmpty) {
-      return Align(
+      return SkeletonCrossFade(loading: true, child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -762,10 +762,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
             ),
           ),
         ),
-      );
+      ));
     }
     final messageCount = state.items.isEmpty && !state.hasMore ? 1 : 0;
-    return Align(
+    return SkeletonCrossFade(loading: false, child: Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: const BoxConstraints(
@@ -842,7 +842,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
           ),
         ),
       ),
-    );
+    ));
   }
 }
 

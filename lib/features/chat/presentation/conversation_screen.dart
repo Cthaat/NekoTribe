@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/motion/entrance.dart';
+import '../../../shared/motion/skeleton.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/tokens.dart';
@@ -419,6 +421,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measureQueued = false;
       if (!_visibleView || _loading || _error != null) return;
+      // Measure the visible list once the loading dissolve has finished.
+      final viewportContext = _viewport.currentContext;
+      final fade = viewportContext?.findAncestorWidgetOfExactType<FadeTransition>();
+      if (fade?.opacity.status == AnimationStatus.forward) {
+        _observeDisplayedMessages();
+        return;
+      }
       final bounds = _globalBounds(_viewport);
       if (bounds == null) return;
       final viewport = Rect.fromLTRB(
@@ -813,6 +822,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
+  int _quoteRequest = 0;
+  void _revealQuote(int id) {
+    final request = ++_quoteRequest;
+    final scope = _binding.capture();
+    final revision = _readRevision;
+    unawaited(revealChatQuote(id: id, scroll: _scrollController, keys: _bubbleKeys,
+      ids: () => [for (final message in _messages) message.messageId],
+      loadOlder: _loadOlder, hasOlder: () => _hasNext && !_loadingOlder,
+      current: () => scope() && request == _quoteRequest && revision == _readRevision));
+  }
+
   void _scrollToBottom() {
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
@@ -1115,8 +1135,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                     value.text.trim().isNotEmpty || _attachments.isNotEmpty;
                 return AnimatedScale(
                   scale: hasContent ? 1.0 : 0.92,
-                  duration: AppMotion.resolve(context, AppMotion.fast),
-                  curve: AppMotion.emphasizedDecelerate,
+                  duration: AppMotion.resolve(context, const Duration(milliseconds: 480)),
+                  curve: const LiquidSnapCurve(),
                   child: IconButton.filled(
                     key: const Key('dm-send-button'),
                     tooltip: l10n.t('chat.dm.send'),
@@ -1228,8 +1248,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                       ),
                     ),
                   Expanded(
-                    child: _loading
-                        ? const LoadingView()
+                    child: SkeletonCrossFade(loading: _loading, child: _loading
+                        ? LoadingView(layout: SkeletonLayout.conversation,
+                            top: _searchOpen ? 12 : topInset + 12,
+                            bottom: _searchOpen ? 12 : _composerHeight + 12)
                         : _error != null
                         ? ErrorView(error: _error!, onRetry: _reload)
                         : _messages.isEmpty && !_hasNext
@@ -1297,7 +1319,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                       _calendarDay(next.createdAt) == day &&
                                       _withinFiveMinutes(message, next);
                                   final bubble = _MessageBubble(
-                                    key: _bubbleKeys.putIfAbsent(
+                                    key: ValueKey(message.messageId),
+                                    revealQuote: _revealQuote,
+                                    motionKey: _bubbleKeys.putIfAbsent(
                                       message.messageId,
                                       GlobalKey.new,
                                     ),
@@ -1383,7 +1407,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                 },
                               );
                             },
-                          ),
+                          )),
                   ),
                 ],
               ),
@@ -1426,7 +1450,7 @@ class _TypingDots extends StatefulWidget {
 }
 
 class _TypingDotsState extends State<_TypingDots>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   AnimationController? _controller;
 
   @override
@@ -1503,11 +1527,13 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     super.key,
     required this.message,
+    required this.revealQuote,
     required this.formatTime,
     required this.isSelf,
     required this.samePrev,
     required this.sameNext,
     required this.maxWidth,
+    required this.motionKey,
     required this.animateEntrance,
     required this.showReadReceipt,
     this.onDelete,
@@ -1516,11 +1542,13 @@ class _MessageBubble extends StatelessWidget {
   });
 
   final V2DirectMessage message;
+  final ValueChanged<int> revealQuote;
   final String Function(String) formatTime;
   final bool isSelf;
   final bool samePrev;
   final bool sameNext;
   final double maxWidth;
+  final GlobalKey motionKey;
   final bool animateEntrance;
   final bool showReadReceipt;
   final VoidCallback? onDelete;
@@ -1613,7 +1641,7 @@ class _MessageBubble extends StatelessWidget {
                           ),
                         ),
                       if (!message.isDeleted && message.replyTo != null) ...[
-                        ChatReplyQuote(replyTo: message.replyTo!),
+                        ChatReplyQuote(replyTo: message.replyTo!, onTap: () => revealQuote(message.replyTo!.messageId)),
                         const SizedBox(height: 6),
                       ],
                       if (message.isDeleted ||
@@ -1754,19 +1782,10 @@ class _MessageBubble extends StatelessWidget {
         ),
       ),
     );
-    if (!animateEntrance || AppMotion.reduced(context)) return child;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: AppMotion.base,
-      curve: AppMotion.emphasizedDecelerate,
-      builder: (context, t, inner) => Opacity(
-        opacity: t,
-        child: Transform.translate(
-          offset: Offset(0, (1 - t) * 10),
-          child: Transform.scale(scale: 0.92 + 0.08 * t, child: inner),
-        ),
-      ),
-      child: child,
-    );
+    return ChatMessageMotion(key: motionKey, enter: animateEntrance, actions: [
+      (icon: Icons.reply_rounded, label: l10n.t('chat.reply'), run: onReply),
+      (icon: Icons.thumb_up_outlined, label: '👍', run: onReact == null ? null : () => onReact!('👍')),
+      (icon: Icons.delete_outline, label: l10n.t('chat.delete_message'), run: onDelete),
+    ], child: child);
   }
 }

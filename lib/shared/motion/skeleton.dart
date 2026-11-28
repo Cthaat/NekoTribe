@@ -22,7 +22,7 @@ class ShimmerBox extends StatefulWidget {
 }
 
 class _ShimmerBoxState extends State<ShimmerBox>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   AnimationController? _controller;
 
   @override
@@ -46,7 +46,7 @@ class _ShimmerBoxState extends State<ShimmerBox>
       _controller ??= AnimationController(
         vsync: this,
         duration: const Duration(milliseconds: 1100),
-      )..repeat(reverse: true);
+      )..repeat();
     } else {
       _controller?.dispose();
       _controller = null;
@@ -62,24 +62,28 @@ class _ShimmerBoxState extends State<ShimmerBox>
   @override
   Widget build(BuildContext context) {
     final social = SocialColors.of(context);
-    final box = Container(
+    Widget box([Gradient? gradient]) => Container(
       width: widget.width,
       height: widget.height,
       decoration: BoxDecoration(
         color: social.surfaceSubtle,
+        gradient: gradient,
         borderRadius: widget.borderRadius,
       ),
     );
     final controller = _controller;
-    if (controller == null) return box;
+    if (controller == null) return box();
 
     return AnimatedBuilder(
       animation: controller,
-      builder: (context, child) {
-        final t = Curves.easeInOut.transform(controller.value);
-        return Opacity(opacity: 0.55 + 0.45 * t, child: child);
+      builder: (context, _) {
+        final x = controller.value * 4 - 2;
+        return box(LinearGradient(
+          begin: Alignment(x - 0.8, -0.55),
+          end: Alignment(x + 0.8, 0.55),
+          colors: [social.surfaceSubtle, social.surfaceHover, social.surfaceSubtle],
+        ));
       },
-      child: box,
     );
   }
 }
@@ -199,6 +203,37 @@ class ListTileSkeleton extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Keep the outgoing skeleton visible while the next state dissolves in.
+/// Mounted data is discarded immediately when a screen re-enters loading.
+class SkeletonCrossFade extends StatelessWidget {
+  const SkeletonCrossFade({super.key, required this.loading, required this.child});
+  static const _loadingKey = ValueKey<Object>(true);
+  final bool loading;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (AppMotion.reduced(context)) return child;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.topCenter, fit: StackFit.passthrough,
+        children: [...previous, ?current],
+      ),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: AnimatedBuilder(animation: animation, child: child, builder: (_, inner) {
+          if (animation.status == AnimationStatus.reverse && child.key != _loadingKey) {
+            return const SizedBox.shrink();
+          }
+          return IgnorePointer(ignoring: animation.status == AnimationStatus.reverse, child: inner);
+        }),
+      ),
+      child: KeyedSubtree(key: loading ? _loadingKey : ValueKey(child.runtimeType), child: child),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/motion/entrance.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/motion/animated_count.dart';
 import '../../../shared/motion/skeleton.dart';
@@ -405,7 +406,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               : null,
           title: Text(l10n.t('settings.account.profile')),
         ),
-        body: const LoadingView(),
+        body: SkeletonCrossFade(loading: true, child: const LoadingView(layout: SkeletonLayout.profile, top: kToolbarHeight)),
       );
     }
     if (_error != null) {
@@ -419,7 +420,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               : null,
           title: Text(l10n.t('settings.account.profile')),
         ),
-        body: ErrorView(error: _error!, onRetry: _load),
+        body: SkeletonCrossFade(loading: false, child: ErrorView(error: _error!, onRetry: _load)),
       );
     }
     final user = _user;
@@ -434,7 +435,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               : null,
           title: Text(l10n.t('settings.account.profile')),
         ),
-        body: EmptyView(message: l10n.t('feed.empty')),
+        body: SkeletonCrossFade(loading: false, child: EmptyView(message: l10n.t('feed.empty'))),
       );
     }
 
@@ -447,7 +448,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: social.surfaceBase,
-      body: Align(
+      body: SkeletonCrossFade(loading: false, child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -688,7 +689,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ),
         ),
-      ),
+      )),
     );
   }
 }
@@ -981,7 +982,7 @@ class _FollowButtonState extends State<_FollowButton> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedSize(
+      child: SpringPop(value: widget.isFollowing, from: .94, child: AnimatedSize(
         duration: AppMotion.resolve(context, AppMotion.glide),
         curve: AppMotion.glideCurve,
         child: widget.isFollowing
@@ -1021,7 +1022,7 @@ class _FollowButtonState extends State<_FollowButton> {
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
-      ),
+      )),
     );
   }
 }

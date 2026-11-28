@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/motion/skeleton.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/tokens.dart';
@@ -754,7 +755,7 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     }
     final topInset = MediaQuery.paddingOf(context).top;
     if (widget.mode == 'popular') {
-      return _buildResults(context, filtered: false, topInset: topInset);
+      return SkeletonCrossFade(loading: _loading, child: _buildResults(context, filtered: false, topInset: topInset));
     }
     final filtered = _filter != _noGroupFilter;
     final social = SocialColors.of(context);
@@ -762,7 +763,7 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     return Stack(
       fit: StackFit.expand,
       children: [
-        _buildResults(context, filtered: filtered, topInset: topInset + 52),
+        SkeletonCrossFade(loading: _loading, child: _buildResults(context, filtered: filtered, topInset: topInset + 52)),
         Positioned(
           left: 16,
           right: 16,
@@ -828,7 +829,7 @@ class _GroupsListState extends ConsumerState<_GroupsList>
     required double topInset,
   }) {
     final l10n = AppLocalizations.of(context);
-    if (_loading) return const LoadingView();
+    if (_loading) return LoadingView(layout: SkeletonLayout.groups, top: topInset + 8, singleColumn: widget.mode == 'popular');
     if (_error != null) return ErrorView(error: _error!, onRetry: _load);
     if (_items.isEmpty && !_hasNext) {
       if (widget.mode == 'popular') {
