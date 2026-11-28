@@ -64,12 +64,14 @@ async def context(browser, id, theme='light', intensity='standard', mobile=False
 async def matrix(browser):
     rows = []
     for (theme, intensity, mobile) in itertools.product(['light', 'dark'], ['standard', 'subtle'], [False, True]):
-        ctx = await context(browser, 0, theme, intensity, mobile)
+        ctx = await context(browser, 42, theme, intensity, mobile)
+        await ctx.route_web_socket('**/_ws', lambda ws: ws.on_message(lambda _: None))
         page = await ctx.new_page()
         page.set_default_timeout(12000)
         await page.goto(BASE + '/en/about', wait_until='domcontentloaded')
         await page.wait_for_selector('html[data-glass-intensity]')
         await page.wait_for_function("document.querySelector('html').dataset.glassEngine==='blink'")
+        await page.wait_for_url(BASE + '/en/about')
         cdp = await ctx.new_cdp_session(page)
         for mode in ['normal', 'motion', 'transparency', 'both']:
             motion = mode in ['motion', 'both']
@@ -81,6 +83,9 @@ async def matrix(browser):
                 await page.keyboard.press('Control+k')
             panel = page.locator('.glass-command[data-state=open]')
             await panel.wait_for()
+            field = panel.get_by_role('combobox')
+            await field.wait_for()
+            await page.wait_for_function("document.activeElement?.getAttribute('role') === 'combobox'")
             await page.keyboard.press('ArrowDown')
             await page.wait_for_timeout(350)
             box = await panel.bounding_box()
@@ -101,14 +106,18 @@ async def matrix(browser):
                 transparency: matchMedia('(prefers-reduced-transparency: reduce)').matches,
                 glint: panel.hasAttribute('data-glint'), blur: css.backdropFilter, overlayBlur: overlay.backdropFilter,
                 animation: css.animationName, material: css.backgroundColor,
+                selectedIndex: [...list.children].indexOf(selected), selectedTop: selected.offsetTop,
+                railTop: new DOMMatrix(rail.transform).m42,
                 railError: Math.abs(new DOMMatrix(rail.transform).m42 - selected.offsetTop),
+                railHeightError: Math.abs(parseFloat(rail.height) - selected.offsetHeight),
                 focus: document.activeElement?.getAttribute('role'), overflow: root.scrollWidth > innerWidth
               };
             }""")
             assert (r['dark'], r['intensity'], r['motion'], r['transparency']) == (theme == 'dark', intensity, motion, transparency), (key, r)
             assert (r['blur'] == 'none') == transparency and (r['overlayBlur'] == 'none') == transparency, (key, r)
             assert (r['animation'] == 'none') == motion and r['glint'] == (not mobile and (not motion) and (not transparency)), (key, r)
-            assert r['railError'] < 0.5 and (not r['overflow']) and (r['focus'] == 'combobox'), (key, r)
+            assert r['selectedIndex'] == 1 and r['railError'] < 0.5 and r['railHeightError'] < 0.5, (key, r)
+            assert not r['overflow'] and r['focus'] == 'combobox', (key, r)
             await page.screenshot(path=ROOT / (key + '.png'))
             await page.keyboard.press('Escape')
             await panel.wait_for(state='detached')
@@ -153,6 +162,8 @@ async def pip(browser):
     contexts = {}
     pages = {}
     captures = []
+    ready = {account: asyncio.Event() for account in (42, 43)}
+    invited = asyncio.Event()
 
     def wire(id, ws):
         sockets[id] = ws
@@ -162,6 +173,7 @@ async def pip(browser):
             kind = obj['type']
             if kind == 'ping':
                 ws.send(json.dumps({'type': 'system_notification', 'timestamp': int(time.time() * 1000), 'data': {'code': 'realtime_status', 'user_id': id, 'server_id': 'w2-local', 'local_presence': True, 'remote_events': 'connected'}}))
+                ready[id].set()
                 return
             if not kind.startswith('call_'):
                 return
@@ -170,6 +182,8 @@ async def pip(browser):
             devices[id] = data['client_id']
             frame = {'type': kind, 'timestamp': int(time.time() * 1000), 'data': dict(data, caller_id=42, callee_id=43, caller_client_id=devices[42], callee_client_id=devices.get(43))}
             sockets[peer(id)].send(json.dumps(frame))
+            if id == 42 and kind == 'call_invite':
+                invited.set()
         ws.on_message(send)
     for id in [43, 42]:
         ctx = await context(browser, id)
@@ -183,8 +197,22 @@ async def pip(browser):
         await p.goto(BASE + ('/en/chat?conversation=7' if id == 42 else '/en/about'), wait_until='domcontentloaded')
         await p.wait_for_selector('html[data-glass-engine]')
         await p.wait_for_function("document.querySelector('aside nav') !== null")
+        await asyncio.wait_for(ready[id].wait(), 15)
+        media = await p.evaluate("""() => ({
+          secure: isSecureContext, capture: typeof navigator.mediaDevices?.getUserMedia === 'function',
+          camera: document.featurePolicy.allowsFeature('camera'),
+          microphone: document.featurePolicy.allowsFeature('microphone')
+        })""")
+        assert all(media.values()), (id, p.url, 'document media prerequisites', media)
     (a, b) = (pages[42], pages[43])
-    await a.get_by_role('button', name='Start video call', exact=True).first.click()
+    async with a.expect_response(lambda r: urlparse(r.url).path == '/api/v2/calls/ice-servers') as ice:
+        await a.get_by_role('button', name='Start video call', exact=True).first.click()
+    assert (await ice.value).ok, 'caller ICE configuration failed'
+    try:
+        await asyncio.wait_for(invited.wait(), 15)
+    except TimeoutError as error:
+        notice = await a.locator('[data-sonner-toast]').all_text_contents()
+        raise AssertionError(('missing caller invite after ICE configuration', messages, notice)) from error
     await b.get_by_role('button', name='Answer', exact=True).click()
     for p in [a, b]:
         await p.wait_for_function("callPeers[0]?.connectionState==='connected' && document.querySelector('audio')?.srcObject?.active && document.querySelector('video')?.videoWidth>0")
