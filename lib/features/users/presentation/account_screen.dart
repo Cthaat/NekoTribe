@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/motion/entrance.dart';
+import '../../../shared/motion/skeleton.dart';
 import '../../../core/utils/ai_conversation_link.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/motion/animated_count.dart';
@@ -131,8 +133,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const LoadingView()
+      body: SkeletonCrossFade(loading: _loading, child: _loading
+          ? const LoadingView(layout: SkeletonLayout.account)
           : _error != null
           ? ErrorView(error: _error!, onRetry: _load)
           : _user == null
@@ -151,9 +153,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                   children: [
-                    _AccountHeader(user: _user!),
+                    StaggeredEntrance(index: 0, child: _AccountHeader(user: _user!)),
                     const SizedBox(height: 12),
-                    _BentoShortcutGrid(
+                    StaggeredEntrance(index: 1, child: _BentoShortcutGrid(
                       items: [
                         _BentoShortcutItem(
                           icon: Icons.article_outlined,
@@ -182,7 +184,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                           onTap: () => context.push('/account/overview'),
                         ),
                       ],
-                    ),
+                    )),
                     SettingsGroup(
                       title: l10n.t('settings.section.content'),
                       children: [
@@ -326,7 +328,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   ],
                 ),
               ),
-            ),
+            )),
     );
   }
 }

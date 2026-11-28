@@ -493,7 +493,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _postResults(AppLocalizations l10n, ThemeData theme) {
     final social = SocialColors.of(context);
-    return _loading
+    return SkeletonCrossFade(loading: _loading, child: _loading
         ? ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 108),
             children: [
@@ -701,7 +701,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   },
                 ),
             ],
-          );
+          ));
   }
 
   Widget _userResults(AppLocalizations l10n) {

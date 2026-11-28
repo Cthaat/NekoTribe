@@ -11,6 +11,7 @@ import '../../../shared/format/user_agent.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/motion/entrance.dart';
 import '../../../shared/motion/skeleton.dart';
+import '../../../shared/widgets/ui/surface_card.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/tokens.dart';
 import '../../../shared/widgets/glass/liquid_glass_bars.dart';
@@ -44,6 +45,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _markingListed = false;
   String? _type;
   String _clientCategory = 'all';
+  final _collapsing = <int>{};
   final Set<int> _expandedIds = <int>{};
   int? _unreadCount;
   int _loadGen = 0;
@@ -86,6 +88,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   void _resetMailbox() {
+    _collapsing.clear();
     _loadGen++;
     setState(() {
       _items = [];
@@ -250,11 +253,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Future<void> _mutate(
     Future<void> Function(NotificationsApi) change, {
     bool refreshOnFailure = false,
+    int? collapse,
   }) async {
     final sameOwner = _captureMailboxOwner();
     if (!sameOwner()) return;
     try {
       await change(ref.read(notificationsApiProvider));
+      if (!sameOwner()) return;
+      if (collapse != null) {
+        setState(() => _collapsing.add(collapse));
+        final duration = AppMotion.resolve(context, AppMotion.base);
+        if (duration != Duration.zero) await Future<void>.delayed(duration);
+      }
       if (sameOwner()) await _load(soft: true);
     } catch (error) {
       if (!sameOwner()) return;
@@ -262,6 +272,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         SnackBar(content: Text(ErrorView.describe(context, error))),
       );
       if (refreshOnFailure || error is FormatException) await _load(soft: true);
+    } finally {
+      if (sameOwner() && collapse != null) setState(() => _collapsing.remove(collapse));
     }
   }
 
@@ -302,13 +314,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Future<void> _setRead(V2Notification item, bool isRead) => _mutate(
     (api) =>
         api.setReadStatus(notificationId: item.notificationId, isRead: isRead),
+    collapse: _unreadOnly && isRead ? item.notificationId : null,
   );
 
   Future<void> _delete(V2Notification item) =>
-      _mutate((api) => api.deleteNotification(item.notificationId));
+      _mutate((api) => api.deleteNotification(item.notificationId), collapse: item.notificationId);
 
   Future<void> _restore(V2Notification item) =>
-      _mutate((api) => api.restoreNotification(item.notificationId));
+      _mutate((api) => api.restoreNotification(item.notificationId), collapse: item.notificationId);
 
   Map<String, dynamic> _metadataRecord(V2Notification n) {
     final metadata = n.metadata;
@@ -813,12 +826,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _loading
+              SkeletonCrossFade(loading: _loading, child: _loading
                   ? ListView.separated(
                       padding: EdgeInsets.fromLTRB(16, listInset + 8, 16, 108),
                       itemCount: 6,
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (_, _) => const ListTileSkeleton(),
+                      itemBuilder: (_, _) => const SurfaceCard(
+                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        child: ListTileSkeleton(),
+                      ),
                     )
                   : _error != null
                   ? ErrorView(error: _error!, onRetry: _load)
@@ -1203,7 +1219,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                               child: rowContent,
                             );
 
-                            return StaggeredEntrance(
+                            return AnimatedSize(key: ValueKey(n.notificationId),
+                              alignment: Alignment.topCenter,
+                              duration: AppMotion.resolve(context, AppMotion.base),
+                              child: _collapsing.contains(n.notificationId) ? const SizedBox.shrink() : StaggeredEntrance(
                               index: i,
                               child: Padding(
                                 padding: const EdgeInsets.only(bottom: 10),
@@ -1214,11 +1233,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                   child: swipeable,
                                 ),
                               ),
-                            );
+                            ));
                           },
                         ),
                       ),
-                    ),
+                    )),
               if (showRemoteStatus)
                 Positioned(
                   top: topInset,

@@ -167,6 +167,14 @@ void main() {
     expect((api.votes.single.$1, api.votes.single.$2), (13, 71));
     expect(api.votes.single.$3, [1, 2]);
     expect(find.text('1 票 · 100.0%'), findsNWidgets(2));
+    double fraction() => tester.widgetList<LinearProgressIndicator>(
+      find.byType(LinearProgressIndicator),
+    ).first.value!;
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(fraction(), allOf(greaterThan(0), lessThan(1)));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(fraction(), 1);
+
     expect(find.byTooltip('你的选择'), findsNWidgets(2));
   });
 

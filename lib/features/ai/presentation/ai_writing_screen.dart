@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/motion/skeleton.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/tokens.dart';
@@ -518,7 +519,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
             future: groups,
             builder: (context, result) {
               if (result.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
+                return const Padding(padding: EdgeInsets.all(16), child: ListTileSkeleton());
               }
               final active = result.data ?? const [];
               if (active.isEmpty) {
@@ -1186,6 +1187,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
       shape: const StadiumBorder(),
       textStyle: theme.textTheme.labelMedium,
     );
+    final loadingHistory = _busy && _messages.isEmpty && widget.initialConversationId != null;
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: social.surfaceBase,
@@ -1246,7 +1248,10 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _messages.isEmpty
+              SkeletonCrossFade(loading: loadingHistory, child: loadingHistory
+                  ? LoadingView(layout: SkeletonLayout.conversation,
+                      top: topInset + _topControlsHeight, bottom: _composerHeight + 8)
+                  : _messages.isEmpty
                   ? Padding(
                       padding: EdgeInsets.only(
                         top: topInset + _topControlsHeight,
@@ -1461,7 +1466,7 @@ class _AiWritingScreenState extends ConsumerState<AiWritingScreen> {
                           ),
                         );
                       },
-                    ),
+                    )),
               Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
@@ -1999,7 +2004,7 @@ class _HistoryDialogState extends State<_HistoryDialog> {
                       },
                     ),
             ),
-            if (_loading) const CircularProgressIndicator(),
+            if (_loading) const ListTileSkeleton(),
             if (_failed) Text(l10n.t('ai.writing.history_failed')),
             if (!_loading && (_failed || _next != null))
               TextButton(

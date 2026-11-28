@@ -484,7 +484,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
           ),
         ),
         Expanded(
-          child: _loading
+          child: SkeletonCrossFade(loading: _loading, child: _loading
               ? ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
@@ -499,7 +499,7 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
                     _buildDirectList(l10n, theme, scheme, social, isWide),
                     _buildGroupsList(l10n, theme, scheme, social),
                   ],
-                ),
+                )),
         ),
       ],
     );

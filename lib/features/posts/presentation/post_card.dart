@@ -7,6 +7,7 @@ import '../../../core/utils/ai_conversation_link.dart';
 import '../../../shared/format/relative_time.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/motion/animated_count.dart';
+import '../../../shared/motion/entrance.dart';
 import '../../../shared/motion/like_button.dart';
 import '../../../shared/motion/pressable.dart';
 import '../../../shared/providers/providers.dart';
@@ -1266,10 +1267,9 @@ class _ActionButtonState extends State<_ActionButton> {
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          hoverColor: Colors.transparent,
-          splashColor: accent.withValues(alpha: 0.10),
+        child: Pressable(
+          scale: 0.92,
+          haptic: HapticKind.selection,
           onTap: widget.onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -1287,10 +1287,9 @@ class _ActionButtonState extends State<_ActionButton> {
                         : Colors.transparent,
                   ),
                   alignment: Alignment.center,
-                  child: Icon(
-                    widget.icon,
-                    size: widget.iconSize,
-                    color: color,
+                  child: SpringPop(
+                    value: widget.active,
+                    child: Icon(widget.icon, size: widget.iconSize, color: color),
                   ),
                 ),
                 if (showCount) ...[

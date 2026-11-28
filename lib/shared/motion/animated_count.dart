@@ -9,9 +9,11 @@ class AnimatedCount extends StatefulWidget {
     required this.count,
     this.style,
     this.hideZero = false,
+    this.format,
   });
 
   final int count;
+  final String Function(int)? format;
   final TextStyle? style;
   final bool hideZero;
 
@@ -67,7 +69,7 @@ class _AnimatedCountState extends State<AnimatedCount> {
         );
       },
       child: Text(
-        '${widget.count}',
+        widget.format?.call(widget.count) ?? '${widget.count}',
         key: ValueKey<int>(widget.count),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,

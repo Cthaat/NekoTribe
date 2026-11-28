@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/motion/entrance.dart';
+import '../../../shared/motion/skeleton.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/theme/tokens.dart';
@@ -60,6 +62,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   Future<List<V2ChatMember>>? _members;
   var _filters = const ChatMessageFilters();
   final _deletedSearchResults = <int>{};
+  final _bubbleKeys = <int, GlobalKey>{};
+  final _animateIds = <int>{};
   final _scroll = ScrollController();
   late final ChatRealtimeBinding _binding;
   late final ChatTyping _typing;
@@ -160,6 +164,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       _deletedSearchResults.clear();
       _attachments.clear();
       _uploadedAttachments.clear();
+      _bubbleKeys.clear();
+      _animateIds.clear();
       _replyTo = null;
       _page = 1;
       _error = null;
@@ -322,6 +328,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       if (_filters.active) _deletedSearchResults.add(messageId);
       _liveChannelChanges?[messageId] = null;
       _messages.removeWhere((message) => message.messageId == messageId);
+      _bubbleKeys.remove(messageId);
+      _animateIds.remove(messageId);
       if (_replyTo?.messageId == messageId) {
         _replyTo = null;
       }
@@ -340,6 +348,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
       _messages[index] = message;
     } else {
       // reverse:true list expects newest-first.
+      if (!_loading) _animateIds.add(message.messageId);
       _messages.insert(0, message);
     }
   }
@@ -669,6 +678,17 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   void _closeMessageSearch() {
     setState(() => _searchOpen = false);
     _searchMessages(const ChatMessageFilters());
+  }
+
+  int _quoteRequest = 0;
+  void _revealQuote(int id) {
+    final request = ++_quoteRequest;
+    final scope = _binding.capture();
+    final revision = _readRevision;
+    unawaited(revealChatQuote(id: id, scroll: _scroll, keys: _bubbleKeys,
+      ids: () => [for (final message in _messages) message.messageId],
+      loadOlder: _loadOlder, hasOlder: () => _hasNext && !_loadingOlder,
+      current: () => scope() && request == _quoteRequest && revision == _readRevision));
   }
 
   void _scrollToBottom() {
@@ -1181,8 +1201,10 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                       ),
                     ),
                   Expanded(
-                    child: _loading
-                        ? const LoadingView()
+                    child: SkeletonCrossFade(loading: _loading, child: _loading
+                        ? LoadingView(layout: SkeletonLayout.conversation,
+                            top: _searchOpen ? 12 : topInset + 12,
+                            bottom: _searchOpen ? 12 : _composerHeight + 12)
                         : _error != null
                         ? ErrorView(error: _error!, onRetry: _load)
                         : _messages.isEmpty
@@ -1263,6 +1285,10 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                                       _currentUserId != null &&
                                       message.author.userId == _currentUserId;
                                   final tile = _ChannelMessageTile(
+                                    key: ValueKey(message.messageId),
+                                    revealQuote: _revealQuote,
+                                    motionKey: _bubbleKeys.putIfAbsent(message.messageId, GlobalKey.new),
+                                    enter: _animateIds.remove(message.messageId),
                                     message: message,
                                     isSelf: isSelf,
                                     samePrev: samePrev,
@@ -1327,7 +1353,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                                 },
                               );
                             },
-                          ),
+                          )),
                   ),
                   if (_filters.active &&
                       _hasNext &&
@@ -1609,9 +1635,9 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                                       scale: hasContent ? 1.0 : 0.92,
                                       duration: AppMotion.resolve(
                                         context,
-                                        AppMotion.fast,
+                                        const Duration(milliseconds: 480),
                                       ),
-                                      curve: AppMotion.emphasizedDecelerate,
+                                      curve: const LiquidSnapCurve(),
                                       child: IconButton.filled(
                                         key: const Key(
                                           'chat-channel-send-button',
@@ -1865,7 +1891,7 @@ class _ChannelTypingDots extends StatefulWidget {
 }
 
 class _ChannelTypingDotsState extends State<_ChannelTypingDots>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   AnimationController? _controller;
 
   @override
@@ -1940,7 +1966,11 @@ class _ChannelTypingDotsState extends State<_ChannelTypingDots>
 
 class _ChannelMessageTile extends StatelessWidget {
   const _ChannelMessageTile({
+    super.key,
+    required this.motionKey,
+    required this.enter,
     required this.message,
+    required this.revealQuote,
     required this.timeLabel,
     required this.onReply,
     required this.onReact,
@@ -1955,7 +1985,10 @@ class _ChannelMessageTile extends StatelessWidget {
     this.readOnly = false,
   });
 
+  final GlobalKey motionKey;
+  final bool enter;
   final V2ChatMessage message;
+  final ValueChanged<int> revealQuote;
   final String timeLabel;
   final VoidCallback onReply;
   final VoidCallback onReact;
@@ -2088,7 +2121,13 @@ class _ChannelMessageTile extends StatelessWidget {
           )
         : null;
 
-    return Align(
+    return ChatMessageMotion(key: motionKey, enter: enter, actions: readOnly || message.isDeleted ? [] : [
+      (icon: Icons.reply_rounded, label: l10n.t('chat.reply'), run: onReply),
+      (icon: Icons.thumb_up_outlined, label: '👍', run: onReact),
+      (icon: Icons.push_pin, label: l10n.t(message.isPinned ? 'chat.unpin' : 'chat.pin'), run: onPin),
+      (icon: Icons.edit_outlined, label: l10n.t('common.edit'), run: onEdit),
+      (icon: Icons.delete_outline, label: l10n.t('common.delete'), run: onDelete),
+    ], child: Align(
       alignment: isSelf ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
         padding: EdgeInsets.only(
@@ -2141,7 +2180,7 @@ class _ChannelMessageTile extends StatelessWidget {
                           ),
                         ),
                       if (message.replyTo != null) ...[
-                        ChatReplyQuote(replyTo: message.replyTo!),
+                        ChatReplyQuote(replyTo: message.replyTo!, onTap: () => revealQuote(message.replyTo!.messageId)),
                         const SizedBox(height: 6),
                       ],
                       if (message.isDeleted)
@@ -2245,7 +2284,7 @@ class _ChannelMessageTile extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 

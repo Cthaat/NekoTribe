@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/motion/skeleton.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/responsive.dart';
@@ -101,17 +102,17 @@ class _AccountResourcesScreenState
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              usage.when(
+              SkeletonCrossFade(loading: usage.isLoading, child: usage.when(
                 skipLoadingOnRefresh: false,
                 skipLoadingOnReload: false,
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const ListTileSkeleton(),
                 error: (error, _) => ErrorView(
                   error: error,
                   onRetry: () => ref.invalidate(_usageProvider),
                 ),
                 data: (data) =>
                     data == null ? const SizedBox.shrink() : _UsageCard(data),
-              ),
+              )),
               if (authenticated) ...[
                 const SizedBox(height: 16),
                 Text(

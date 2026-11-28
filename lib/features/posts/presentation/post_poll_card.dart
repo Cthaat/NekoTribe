@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/motion/animated_count.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
@@ -311,10 +312,11 @@ class _PostPollCardState extends ConsumerState<PostPollCard>
                         : 'poll.single_choice',
                   ),
                 ),
-                Text(
-                  l10n
+                AnimatedCount(
+                  count: _poll.totalBallots,
+                  format: (count) => l10n
                       .t('poll.ballots')
-                      .replaceFirst('{count}', '${_poll.totalBallots}'),
+                      .replaceFirst('{count}', '$count'),
                 ),
                 Text(
                   l10n
@@ -353,14 +355,22 @@ class _PostPollCardState extends ConsumerState<PostPollCard>
                   _poll.myOptionIds.contains(option.optionId),
               onTap: canSelect ? () => _toggleOption(option.optionId) : null,
               title: Text(option.text),
-              subtitle: Text(
-                l10n
-                    .t('poll.option_results')
-                    .replaceFirst('{count}', '${option.votesCount}')
-                    .replaceFirst(
-                      '{percent}',
-                      percent.format(option.percent / 100),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(l10n.t('poll.option_results')
+                      .replaceFirst('{count}', '${option.votesCount}')
+                      .replaceFirst('{percent}', percent.format(option.percent / 100))),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(end: option.percent / 100),
+                    duration: AppMotion.resolve(context, AppMotion.base),
+                    curve: AppMotion.standardCurve,
+                    builder: (_, value, _) => LinearProgressIndicator(
+                      value: value.clamp(0, 1),
+                      borderRadius: BorderRadius.circular(3),
                     ),
+                  ),
+                ],
               ),
             ),
           if (canVote)

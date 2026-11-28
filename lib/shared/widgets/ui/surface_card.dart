@@ -1,3 +1,4 @@
+import '../../motion/pressable.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/tokens.dart';
@@ -61,32 +62,21 @@ class SurfaceCard extends StatelessWidget {
             ),
           ];
 
-    Widget body = Padding(padding: padding, child: child);
-    if (onTap != null) {
-      body = Material(
-        type: MaterialType.transparency,
-        shape: shape,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: shape,
-          hoverColor: social.surfaceHover.withValues(alpha: 0.45),
-          splashColor: theme.colorScheme.primary.withValues(alpha: 0.08),
-          highlightColor: Colors.transparent,
-          child: body,
-        ),
-      );
-    }
-
-    return Container(
-      margin: margin,
+    final card = Container(
       decoration: ShapeDecoration(
         color: resolvedColor,
         shape: shape,
         shadows: shadows,
       ),
       clipBehavior: Clip.antiAlias,
-      child: body,
+      child: Padding(padding: padding, child: child),
     );
+    final interactive = onTap == null ? card : Pressable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(radius),
+      hoverColor: theme.colorScheme.primary.withValues(alpha: 0.045),
+      child: card,
+    );
+    return margin == null ? interactive : Padding(padding: margin!, child: interactive);
   }
 }

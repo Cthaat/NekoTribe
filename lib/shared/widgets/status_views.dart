@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/token_store.dart';
 import '../../core/network/api_exception.dart';
 import '../i18n/app_localizations.dart';
+import '../motion/skeleton.dart';
 import '../theme/tokens.dart';
+import 'responsive.dart';
+import 'ui/surface_card.dart';
 
 class ErrorView extends StatelessWidget {
   const ErrorView({super.key, required this.error, this.onRetry});
@@ -255,10 +258,65 @@ class EmptyView extends StatelessWidget {
   }
 }
 
+enum SkeletonLayout { rows, profile, account, conversation, groups }
+
 class LoadingView extends StatelessWidget {
-  const LoadingView({super.key});
+  const LoadingView({super.key, this.layout = SkeletonLayout.rows, this.top = 8, this.bottom = 12, this.singleColumn = false});
+  final SkeletonLayout layout;
+  final double top;
+  final double bottom;
+  final bool singleColumn;
   @override
   Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
+    final inset = EdgeInsets.fromLTRB(16, top, 16, bottom);
+    if (layout == SkeletonLayout.conversation) {
+      return ListView.builder(
+        padding: inset, reverse: true, physics: const NeverScrollableScrollPhysics(),
+        itemCount: 7, itemBuilder: (context, i) => Align(
+          alignment: i.isEven ? Alignment.centerLeft : Alignment.centerRight,
+          child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 460),
+            child: FractionallySizedBox(widthFactor: i.isEven ? .72 : .58,
+              child: Padding(padding: const EdgeInsets.symmetric(vertical: 6),
+                child: ShimmerBox(height: i.isEven ? 64 : 48)))),
+        ),
+      );
+    }
+    if (layout == SkeletonLayout.groups) {
+      return LayoutBuilder(builder: (_, constraints) => GridView.builder(
+        padding: inset,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: singleColumn ? 1 : (constraints.maxWidth / 340).floor().clamp(1, 3),
+          mainAxisExtent: 204, mainAxisSpacing: 12, crossAxisSpacing: 12,
+        ),
+        itemCount: 6,
+        itemBuilder: (_, _) => const SurfaceCard(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [ShimmerBox(height: 68), ListTileSkeleton(), ShimmerBox(height: 12, width: 120)],
+        )),
+      ));
+    }
+    final header = layout == SkeletonLayout.account || layout == SkeletonLayout.profile;
+    return Align(alignment: Alignment.topCenter, child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: AppBreakpoints.contentMaxWidth),
+      child: SingleChildScrollView(
+        padding: inset, physics: const NeverScrollableScrollPhysics(),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (header) const SurfaceCard(child: Column(children: [
+            ShimmerBox(height: 80), ListTileSkeleton(), ShimmerBox(height: 16),
+          ])),
+          if (layout == SkeletonLayout.account)
+            for (var i = 0; i < 2; i++) const Padding(
+              padding: EdgeInsets.only(top: 12), child: Row(children: [
+                Expanded(child: ShimmerBox(height: 84)), SizedBox(width: 12),
+                Expanded(child: ShimmerBox(height: 84)),
+              ]),
+            ),
+          for (var i = 0; i < 5; i++)
+            if (layout == SkeletonLayout.profile) const PostSkeleton()
+            else const ListTileSkeleton(),
+        ]),
+      ),
+    ));
   }
 }
