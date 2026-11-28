@@ -64,8 +64,6 @@ jobs:
       - name: Verify all four checkouts
         working-directory: nuxt
         run: |
-          # Reproduce the exact source bytes recorded by the accepted RC8 receipt.
-          python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
           node scripts/contracts.mjs check --workspace-root ..
           node scripts/parity.mjs check --workspace-root ..
       - name: Record checked commits
@@ -149,6 +147,7 @@ jobs:
     needs:
       - check
       - contracts
+      - gitleaks
     if: github.event_name == 'push'
     strategy:
       fail-fast: false
@@ -222,6 +221,7 @@ jobs:
     needs:
       - check
       - contracts
+      - gitleaks
     if: github.event_name == 'push'
   rolling:
     needs:
@@ -234,3 +234,53 @@ jobs:
     uses: Cthaat/NekoTribe/.github/workflows/publish-rolling.yml@master
     with:
       stack: go
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Gitleaks CLI
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          sums="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error --location --retry 3 -O "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/$asset"
+          curl --fail --silent --show-error --location --retry 3 -O "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/$sums"
+          grep -F " $asset" "$sums" | sha256sum --check
+          tar -xzf "$asset" gitleaks
+      - name: Scan changed commits and reject private env paths
+        env:
+          EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          RC8_BASE: 10572ec7bdec8aba935055d8350ecb5d57828f9c
+        run: |
+          git merge-base --is-ancestor "$RC8_BASE" HEAD
+          base="$RC8_BASE"
+          if [[ "$EVENT_BASE" =~ ^[a-f0-9]{40}$ ]] \
+            && [[ "$EVENT_BASE" != "0000000000000000000000000000000000000000" ]] \
+            && git cat-file -e "$EVENT_BASE^{commit}" 2>/dev/null \
+            && git merge-base --is-ancestor "$RC8_BASE" "$EVENT_BASE" \
+            && git merge-base --is-ancestor "$EVENT_BASE" HEAD; then
+            base="$EVENT_BASE"
+          fi
+          range="$base..HEAD"
+          git ls-files -z > "$RUNNER_TEMP/tracked-paths"
+          git log --diff-filter=AMCR --name-only --format= -z "$range" >> "$RUNNER_TEMP/tracked-paths"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          files = (Path(os.environ["RUNNER_TEMP"]) / "tracked-paths").read_bytes().split(b"\0")
+          for path in files:
+              name = path.rsplit(b"/", 1)[-1].lower()
+              if (name == b".env" or name.startswith(b".env.")) and not name.endswith(b".example"):
+                  raise SystemExit("::error::A tracked private environment file was detected.")
+          PY
+          "$RUNNER_TEMP/gitleaks" git --redact=100 --no-banner --log-opts="$range" .
