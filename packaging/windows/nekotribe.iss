@@ -34,6 +34,7 @@ VersionInfoProductName=NekoTribe
 VersionInfoProductTextVersion={#MyAppVersion}
 OutputBaseFilename={#OutputBaseFilename}
 WizardStyle=modern
+Compression=lzma2/ultra64
 SolidCompression=yes
 
 [Languages]

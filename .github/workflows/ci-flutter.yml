@@ -67,8 +67,6 @@ jobs:
       - name: Verify all four checkouts
         working-directory: nuxt
         run: |
-          # Reproduce the exact source bytes recorded by the accepted RC8 receipt.
-          python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
           node scripts/contracts.mjs check --workspace-root ..
           node scripts/parity.mjs check --workspace-root ..
       - name: Record checked commits
@@ -81,7 +79,7 @@ jobs:
   web:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: [check, contracts]
+    needs: [check, contracts, gitleaks]
     if: github.event_name == 'push'
     env:
       PACKAGE_DIR: .ci-package/flutter-web-latest
@@ -116,7 +114,7 @@ jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 60
-    needs: [check, contracts]
+    needs: [check, contracts, gitleaks]
     if: github.event_name == 'push'
     defaults:
       run:
@@ -162,7 +160,7 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: [check, contracts]
+    needs: [check, contracts, gitleaks]
     if: github.event_name == 'push'
     env:
       PACKAGE_DIR: .ci-package/flutter-android-latest
@@ -204,12 +202,19 @@ jobs:
           fi
           flutter config --jdk-dir "$JAVA_HOME"
           flutter pub get
-          flutter build apk --release --no-pub
+          flutter build apk --release --no-pub --target-platform android-arm64
       - name: Verify APK signature and package the artifact
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           apksigner="$(find "$ANDROID_HOME/build-tools" -mindepth 2 -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
           test -x "$apksigner"
-          "$apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          verify_output="$("$apksigner" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk 2>&1)"
+          printf '%s\n' "$verify_output"
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" ]] || [[ "$verify_output" == *"CN=Android Debug"* ]]; then
+            echo "::warning::Android APK is signed with the debug certificate (ANDROID_KEYSTORE_BASE64 is unset or certificate subject contains CN=Android Debug). Configure release signing secrets before production distribution."
+          fi
+          unset ANDROID_KEYSTORE_BASE64
           mkdir .ci-package
           node scripts/package-android.mjs --version latest --out "$PACKAGE_DIR"
       - name: Archive package and compute SHA-256
@@ -228,3 +233,53 @@ jobs:
     uses: Cthaat/NekoTribe/.github/workflows/publish-rolling.yml@master
     with:
       stack: flutter
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Gitleaks CLI
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          sums="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error --location --retry 3 -O "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/$asset"
+          curl --fail --silent --show-error --location --retry 3 -O "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/$sums"
+          grep -F " $asset" "$sums" | sha256sum --check
+          tar -xzf "$asset" gitleaks
+      - name: Scan changed commits and reject private env paths
+        env:
+          EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          RC8_BASE: 169a347ffb5cd7c5cf3f09555d1bed758c38b0ed
+        run: |
+          git merge-base --is-ancestor "$RC8_BASE" HEAD
+          base="$RC8_BASE"
+          if [[ "$EVENT_BASE" =~ ^[a-f0-9]{40}$ ]] \
+            && [[ "$EVENT_BASE" != "0000000000000000000000000000000000000000" ]] \
+            && git cat-file -e "$EVENT_BASE^{commit}" 2>/dev/null \
+            && git merge-base --is-ancestor "$RC8_BASE" "$EVENT_BASE" \
+            && git merge-base --is-ancestor "$EVENT_BASE" HEAD; then
+            base="$EVENT_BASE"
+          fi
+          range="$base..HEAD"
+          git ls-files -z > "$RUNNER_TEMP/tracked-paths"
+          git log --diff-filter=AMCR --name-only --format= -z "$range" >> "$RUNNER_TEMP/tracked-paths"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          files = (Path(os.environ["RUNNER_TEMP"]) / "tracked-paths").read_bytes().split(b"\0")
+          for path in files:
+              name = path.rsplit(b"/", 1)[-1].lower()
+              if (name == b".env" or name.startswith(b".env.")) and not name.endswith(b".example"):
+                  raise SystemExit("::error::A tracked private environment file was detected.")
+          PY
+          "$RUNNER_TEMP/gitleaks" git --redact=100 --no-banner --log-opts="$range" .

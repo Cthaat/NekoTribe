@@ -1,3 +1,10 @@
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.isl text eol=crlf
+
 # Preserve original generated-file bytes across Windows checkouts.
 /windows/flutter/generated_plugin_registrant.cc text eol=lf
 /windows/flutter/generated_plugin_registrant.h text eol=lf
@@ -5,3 +12,27 @@
 /contracts/*.json text eol=lf
 /scripts/*.sh text eol=lf
 /start-web.cmd text eol=crlf
+
+# Binary assets and archives
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.jar binary
+*.jks binary
+*.keystore binary
+*.apk binary
+*.aab binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.zip binary
+*.gz binary
+*.pdf binary

@@ -1,0 +1,35 @@
+# Exact generic-api-key false positives from the vNext catalog refresh and test fixture.
+# Schema-catalog entries match verified Oracle migration SHA-256 values from master .gitleaksignore.
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/ai-user-provider-schema-catalog.json:generic-api-key:60
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/ai-user-provider-schema-catalog.json:generic-api-key:93
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/direct-message-extras-schema-catalog.json:generic-api-key:60
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/direct-message-extras-schema-catalog.json:generic-api-key:93
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:60
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:93
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:109
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:110
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:111
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:112
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:113
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:114
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/github-oauth-schema-catalog.json:generic-api-key:115
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/passkey-auth-schema-catalog.json:generic-api-key:60
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/passkey-auth-schema-catalog.json:generic-api-key:93
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/passkey-auth-schema-catalog.json:generic-api-key:109
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/passkey-auth-schema-catalog.json:generic-api-key:110
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/passkey-auth-schema-catalog.json:generic-api-key:111
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/passkey-auth-schema-catalog.json:generic-api-key:112
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-drafts-schema-catalog.json:generic-api-key:60
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-drafts-schema-catalog.json:generic-api-key:93
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-drafts-schema-catalog.json:generic-api-key:109
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-drafts-schema-catalog.json:generic-api-key:110
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-drafts-schema-catalog.json:generic-api-key:111
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-drafts-schema-catalog.json:generic-api-key:112
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-markdown-schema-catalog.json:generic-api-key:60
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-markdown-schema-catalog.json:generic-api-key:93
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-polls-schema-catalog.json:generic-api-key:60
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/post-polls-schema-catalog.json:generic-api-key:93
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/profile-pinned-post-schema-catalog.json:generic-api-key:60
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:contracts/requirements/profile-pinned-post-schema-catalog.json:generic-api-key:93
+# Synthetic unit-test JWT placeholder ('e30.eyJ1c2VySWQiOjF9.fixture').
+e6e64ab60dc63f7a0f8ca8c0be6a2ac780319755:test/features/chat_home_screen_test.dart:generic-api-key:31
