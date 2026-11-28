@@ -69,8 +69,8 @@ function formatConversationTime(value: string | undefined): string {
 <template>
   <div class="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
     <ScrollArea class="min-h-0 flex-1">
-      <div class="space-y-1 p-2">
-        <template v-if="isLoading && !hasConversations">
+      <MotionSkeletonSwap class="p-2">
+        <div v-if="isLoading && !hasConversations" aria-busy="true" class="space-y-1">
           <div
             v-for="item in 4"
             :key="item"
@@ -82,7 +82,7 @@ function formatConversationTime(value: string | undefined): string {
               <Skeleton class="h-3 w-40" />
             </div>
           </div>
-        </template>
+        </div>
 
         <div
           v-else-if="!hasConversations"
@@ -102,7 +102,7 @@ function formatConversationTime(value: string | undefined): string {
           </NuxtLink>
         </div>
 
-        <template v-else>
+        <div v-else class="space-y-1">
           <div
             v-for="conversation in conversations"
             :key="conversation.conversation_id"
@@ -190,8 +190,8 @@ function formatConversationTime(value: string | undefined): string {
               </div>
             </div>
           </div>
-        </template>
-      </div>
+        </div>
+      </MotionSkeletonSwap>
     </ScrollArea>
     <div v-if="(page ?? 1) > 1 || hasNext" class="flex shrink-0 flex-wrap justify-center gap-1 px-2 py-1.5">
       <Button v-if="(page ?? 1) > 1" size="sm" variant="ghost" :disabled="isLoading" @click="emit('change-page', (page ?? 1) - 1)">{{ t('chat.directConversations.previousPage') }}</Button>

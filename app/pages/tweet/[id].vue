@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { beginRepost } from '@/utils/optimistic-repost';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type {
   CreatePostFormVM,
@@ -434,7 +435,9 @@ async function handleSubmitRetweet({
 }) {
   const valid = currentPage();
   if (!valid()) return;
+  if (isSubmittingRetweet.value) return;
   isSubmittingRetweet.value = true;
+  const rollback = beginRepost(originalTweetId, patchTweetItem);
   try {
     await v2CreateRetweet(originalTweetId, {
       content,
@@ -445,6 +448,7 @@ async function handleSubmitRetweet({
     await Promise.all([loadTweet(), loadRelatedPosts(true)]);
   } catch (error) {
     if (!valid()) return;
+    rollback();
     const message =
       error instanceof UnconfirmedRetweetError
         ? t('post.feedback.retweetUnconfirmed')
@@ -490,16 +494,16 @@ async function handleLikeTweet(
 
 async function handleBookmarkTweet(
   tweetItem: PostVM,
-  action: 'mark' | 'unmark'
+  action: 'mark' | 'unmark', settle?: (saved?: boolean) => void
 ) {
   const valid = currentPage();
-  if (!valid()) return;
+  if (!valid()) return settle?.();
   try {
     const result =
       action === 'mark'
         ? await v2BookmarkPost(tweetItem.id)
         : await v2UnbookmarkPost(tweetItem.id);
-    if (!valid()) return;
+    if (!valid()) return settle?.();
     patchTweetItem(tweetItem.id, current => ({
       ...current,
       viewer: {
@@ -507,7 +511,9 @@ async function handleBookmarkTweet(
         hasBookmarked: result.isBookmarked
       }
     }));
+    settle?.(result.isBookmarked);
   } catch {
+    settle?.();
     if (valid()) toast.error(t('common.operationFailed'));
   }
 }

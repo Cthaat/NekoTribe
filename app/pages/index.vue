@@ -132,7 +132,8 @@ const showNewPostsPill = computed(() =>
   (newPostsCount.value > 0 || scrollY.value > 360)
 );
 
-function handlePillAction() {
+const refreshingPill = ref(false);
+async function handlePillAction() {
   newPostsCount.value = 0;
   if (typeof window !== 'undefined') {
     window.scrollTo({
@@ -140,7 +141,10 @@ function handlePillAction() {
       behavior: prefersReducedMotion.value ? 'auto' : 'smooth'
     });
   }
-  refresh();
+  if (refreshingPill.value || !mounted.value || !account.isLoggedIn || auth.isIdentityChanging) return;
+  refreshingPill.value = true;
+  try { await active.value.refresh(); }
+  finally { refreshingPill.value = false; }
 }
 
 async function checkForNewPosts() {
@@ -243,7 +247,7 @@ onBeforeUnmount(() => {
 
     <div ref="timeline" class="min-w-0">
       <Transition name="skeleton-crossfade" mode="out-in">
-        <div v-if="!mounted || active.loading" key="loading" class="space-y-3 px-3 py-2 sm:px-0" :aria-busy="true">
+        <div v-if="!mounted || (active.loading && !(refreshingPill && active.posts.length))" key="loading" class="space-y-3 px-3 py-2 sm:px-0" :aria-busy="true">
           <TweetCardSkeleton v-for="index in 5" :key="index" />
         </div>
         <div

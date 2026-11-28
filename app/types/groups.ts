@@ -80,6 +80,7 @@ export interface GroupPost {
   id: number;
   content: string;
   author: GroupOwner & {
+    relation?: string;
     role: GroupRole;
   };
   group?: GroupPostGroup;

@@ -248,6 +248,7 @@ function mapV2PostToGroupPost(
     content: post.content,
     author: {
       ...mapOwner(post.author),
+      relation: post.author.relationship?.relation,
       role: 'member'
     },
     media: post.media_urls.map(rawUrl => {

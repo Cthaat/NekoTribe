@@ -1,0 +1,55 @@
+/* Keep outgoing and incoming states in the same layout cell. */
+.skeleton-swap { display: grid; grid-template-columns: minmax(0, 1fr); }
+.skeleton-swap > * { grid-area: 1 / 1; min-width: 0; }
+.skeleton-swap > .skeleton-crossfade-leave-active { pointer-events: none; }
+.skeleton-crossfade-enter-active, .skeleton-crossfade-leave-active { transition: opacity 180ms ease-out; }
+.w3-list-leave-active { position: absolute; inset-inline: 0; pointer-events: none; }
+.odometer-out, .odometer-in { position: absolute; inset: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .odometer-in { animation: w3-roll-in 210ms ease-out both; }
+  .odometer-out { animation: w3-roll-out 210ms ease-out both; }
+  @keyframes w3-roll-in { from { transform: translateY(var(--roll)); } }
+  @keyframes w3-roll-out { to { transform: translateY(calc(-1 * var(--roll))); } }
+
+  .w3-list-move, .w3-list-enter-active, .w3-list-leave-active {
+    transition: transform 240ms cubic-bezier(.2,.75,.25,1), opacity 180ms ease-out;
+  }
+  .w3-list-enter-from, .w3-list-leave-to { transform: translateY(6px); opacity: 0; }
+  .w3-follow-width { transition: width 220ms cubic-bezier(.2,.8,.25,1); }
+  .w3-follow[aria-pressed=true] svg { stroke-dasharray: 24; animation: w3-check 240ms ease-out; }
+  @keyframes w3-check { from { stroke-dashoffset: 24; } }
+  button:active .w3-repost { transform: rotate(-18deg) scale(.92); }
+  .w3-repost { transition: transform 300ms cubic-bezier(.2,1.6,.4,1); }
+  button .lucide-bookmark-check { transform-origin: 75% 90%; animation: w3-fold 300ms ease-out; }
+  @keyframes w3-fold { 35% { transform: rotate(-14deg) scaleY(.8); } 70% { transform: rotate(5deg) scaleY(1.08); } }
+  .w3-highlight { animation: w3-reply 1100ms ease-out; }
+  @keyframes w3-reply { 20%, 42% { background-color: var(--accent); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .odometer-out { display: none; }
+  .w3-highlight:focus { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .skeleton-crossfade-enter-active, .skeleton-crossfade-leave-active { transition: none; }
+}
+.w3-cursor { display: inline-block; width: .4em; height: 1em; margin-inline-start: .15em; vertical-align: -.1em; background: currentColor; }
+@media (prefers-reduced-motion: no-preference) and (prefers-reduced-transparency: no-preference) {
+  .w3-cursor { animation: w3-breathe 1000ms ease-in-out infinite alternate; }
+  @keyframes w3-breathe { to { opacity: .35; } }
+  .w3-shimmer { position: relative; overflow: hidden; }
+  .w3-shimmer::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(110deg, transparent 20%, color-mix(in srgb, var(--foreground) 9%, transparent) 50%, transparent 80%);
+    animation: w3-sweep 1500ms ease-in-out infinite;
+  }
+  @keyframes w3-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .w3-shimmer { background: var(--secondary); }
+  .skeleton-crossfade-enter-active, .skeleton-crossfade-leave-active { transition: none; }
+  .w3-list-enter-from, .w3-list-leave-to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce), (prefers-reduced-transparency: reduce) {
+  .skeleton-crossfade-enter-from { opacity: 1; }
+  .skeleton-crossfade-leave-active { visibility: hidden; }
+}

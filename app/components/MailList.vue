@@ -166,7 +166,7 @@ function handleRowClick(item: MailItem) {
 
 <template>
   <div>
-    <TransitionGroup name="list" tag="div" class="space-y-2.5 px-3 py-3 sm:px-4">
+    <TransitionGroup name="w3-list" tag="div" class="relative mx-3 space-y-2.5 py-3 sm:mx-4">
       <article
         v-for="item in localItems"
         :key="item.id"
@@ -309,17 +309,3 @@ function handleRowClick(item: MailItem) {
     <div ref="sentinel" class="h-1 w-full" />
   </div>
 </template>
-
-<style scoped>
-.list-move,
-.list-enter-active,
-.list-leave-active {
-  transition: all 0.25s ease;
-}
-
-.list-enter-from,
-.list-leave-to {
-  opacity: 0;
-  transform: translateY(6px);
-}
-</style>

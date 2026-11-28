@@ -980,6 +980,8 @@
       "manualAttachmentFailed": "图片上传失败，请重试。",
       "typePlaceholder": "帖子类型",
       "groupContext": "来自群组",
+      "localBookmark": "本机收藏",
+      "linkPreview": "将此链接发布到动态。私有群仍需成员权限才能查看。",
       "manageable": "可管理",
       "refreshed": "群组帖子已刷新",
       "loadFailed": "加载群组帖子失败",

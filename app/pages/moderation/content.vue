@@ -115,7 +115,7 @@ async function submitBulkAction(): Promise<void> {
     if (!current()) return;
     clearBulkSelection();
     toast.success(t('moderation.bulk.processed', { count: result.processed_count }));
-    await Promise.allSettled([loadStats(), loadContent(true)]);
+    await Promise.allSettled([loadStats(), loadContent(true, true)]);
   } catch (error) {
     if (current()) toast.error(t('moderation.feedback.actionFailed'), {
       description: error instanceof Error ? error.message : undefined
@@ -142,12 +142,12 @@ async function loadStats(): Promise<void> {
   };
 }
 
-async function loadContent(reset = true): Promise<void> {
+async function loadContent(reset = true, keepRows = false): Promise<void> {
   if (!current() || (!reset && loading.value)) return;
   const revision = ++request;
   if (reset) {
     clearBulkSelection();
-    tweets.value = [];
+    if (!keepRows) tweets.value = [];
   }
   loading.value = true;
   try {
@@ -195,7 +195,7 @@ async function applyPostAction(
     if (!current()) return;
     if (action === 'claim' || action === 'release') {
       toast.success(t(`moderation.assignment.${action}Done`));
-      await Promise.allSettled([loadStats(), loadContent(true)]);
+      await Promise.allSettled([loadStats(), loadContent(true, true)]);
       return;
     }
     selectedIds.value.delete(id);

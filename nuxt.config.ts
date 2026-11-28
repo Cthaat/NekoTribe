@@ -94,7 +94,7 @@ export default defineNuxtConfig({
     '@pinia/nuxt'
   ],
 
-  css: ['~/assets/css/tailwind.css'],
+  css: ['~/assets/css/tailwind.css', '~/assets/css/content-motion.css'],
 
   vite: {
     plugins: [tailwindcss()],

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useMessageArrivals } from '@/composables/useMessageArrivals';
 import {
   computed,
   onBeforeUnmount,
@@ -2304,6 +2305,7 @@ onBeforeUnmount(() => {
   syncChatChannel(realtime.serverReady.value, null);
   unsubscribeRealtime?.();
 });
+const directArrivals = useMessageArrivals(() => directMessages.value?.map(m => m.message_id) ?? []);
 </script>
 
 <template>
@@ -2891,13 +2893,7 @@ onBeforeUnmount(() => {
       class="h-full min-h-0 flex-1 min-w-0 overflow-hidden bg-card md:rounded-[20px]"
       :class="isMobileNavigationOpen ? 'hidden md:block' : 'block'"
     >
-      <div
-        v-if="isLoading"
-        class="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground"
-      >
-        <Loader2 class="h-5 w-5 animate-spin" />
-        {{ t('common.loading') }}
-      </div>
+      <MotionMessageSkeleton v-if="isLoading && !activeChannel" />
       <div
         v-else-if="errorMessage"
         class="flex h-full items-center justify-center p-6"
@@ -3011,12 +3007,8 @@ onBeforeUnmount(() => {
                 <Button v-if="hasOlderDirectMessages && !isLoadingDirectMessages" variant="outline" size="sm" class="mb-3" :disabled="loadingOlderDirectMessages" @click="loadOlderDirectMessages">
                   {{ t('chat.directMessage.loadOlder') }}
                 </Button>
-                <div
-                  v-if="isLoadingDirectMessages"
-                  class="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground"
-                >
-                  {{ t('chat.directMessage.loading') }}
-                </div>
+                <MotionSkeletonSwap>
+                <MotionMessageSkeleton v-if="isLoadingDirectMessages && !directMessages?.length" />
 
                 <div
                   v-else-if="!directMessages?.length"
@@ -3030,7 +3022,7 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
 
-                <div v-else ref="standaloneDirectList" class="flex flex-col pb-4">
+                <div v-else data-message-list ref="standaloneDirectList" class="flex flex-col pb-4">
                   <div
                     v-for="(message, index) in directMessages"
                     :key="message.message_id"
@@ -3046,6 +3038,7 @@ onBeforeUnmount(() => {
                     </div>
                     <ChatMessage
                       :message="mapV2DirectMessage(message)"
+                      :animate="!directSearch && directArrivals.has(message.message_id)"
                       :is-own="message.author.user_id === currentUserId"
                       :allow-edit="false"
                       :hide-reply="directSearch !== null"
@@ -3063,6 +3056,7 @@ onBeforeUnmount(() => {
                     </p>
                   </div>
                 </div>
+              </MotionSkeletonSwap>
               </div>
             </ScrollArea>
           </div>

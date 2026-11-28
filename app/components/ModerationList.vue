@@ -81,7 +81,7 @@ const handleViewDetail = (tweet: ModerationTweet) =>
       </Button>
     </div>
 
-    <div v-if="loading" class="space-y-3 p-4">
+    <div v-if="loading && !tweets.length" class="space-y-3 p-4">
       <Skeleton
         v-for="i in 3"
         :key="i"
@@ -118,7 +118,7 @@ const handleViewDetail = (tweet: ModerationTweet) =>
       v-else
       class="h-[max(420px,calc(100dvh-24rem))] max-h-[46rem] w-full max-sm:h-[calc(100dvh-18rem)] max-sm:min-h-[360px]"
     >
-      <div class="space-y-3 p-4">
+      <TransitionGroup name="w3-list" tag="div" class="relative mx-4 space-y-3 py-4">
         <div v-for="tweet in tweets" :key="tweet.id" class="grid gap-1">
           <label v-if="selectedIds" class="flex items-center gap-2 text-sm">
             <input type="checkbox" :checked="selectedIds.has(tweet.id)"
@@ -140,6 +140,7 @@ const handleViewDetail = (tweet: ModerationTweet) =>
           </div>
         </div>
 
+      </TransitionGroup>
         <div v-if="hasNext" class="flex justify-center pt-2">
           <Button
             variant="outline"
@@ -150,7 +151,6 @@ const handleViewDetail = (tweet: ModerationTweet) =>
             {{ t('moderation.actions.loadMore') }}
           </Button>
         </div>
-      </div>
     </ScrollArea>
   </div>
 </template>

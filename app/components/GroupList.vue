@@ -73,15 +73,17 @@ const handleSettings = (id: number) => emit('settings', id);
       </div>
     </div>
 
+    <MotionSkeletonSwap>
     <div
-      v-if="loading"
+      aria-busy="true" v-if="loading && !groups.length"
       class="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3"
     >
-      <Skeleton
-        v-for="i in 6"
-        :key="i"
-        class="h-64 rounded-[20px]"
-      />
+      <div v-for="i in 6" :key="i" class="bento-card space-y-3 p-4">
+        <Skeleton class="ml-auto h-5 w-16 rounded-full" />
+        <div class="flex items-center gap-3"><Skeleton class="size-12 rounded-xl" /><Skeleton class="h-4 w-1/2" /></div>
+        <Skeleton class="h-3 w-4/5" /><Skeleton class="h-3 w-2/3" />
+        <Skeleton class="mt-4 h-8 w-full rounded-full" />
+      </div>
     </div>
 
     <AppEmptyState
@@ -120,6 +122,7 @@ const handleSettings = (id: number) => emit('settings', id);
       />
     </div>
 
+    </MotionSkeletonSwap>
     <div
       v-if="groups.length > 0 && hasNext !== false"
       class="flex justify-center pt-2"

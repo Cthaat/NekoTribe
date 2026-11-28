@@ -1,3 +1,4 @@
+import { beginRepost } from '@/utils/optimistic-repost';
 import { shallowRef, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import type { PostVM } from '@/types/posts';
@@ -45,7 +46,9 @@ export function useTimelinePostActions(feed: PostFeedState, scope: () => string)
 
   async function handleSubmitRetweet({ content, originalTweetId }: { content: string; originalTweetId: number }) {
     const current = scope();
+    if (isSubmittingRetweet.value) return;
     isSubmittingRetweet.value = true;
+    const rollback = beginRepost(originalTweetId, (id, change) => feed.patchPost(id, change));
     try {
       await v2CreateRetweet(originalTweetId, { content, visibility: 'public' });
       if (current !== scope()) return;
@@ -53,6 +56,7 @@ export function useTimelinePostActions(feed: PostFeedState, scope: () => string)
       await feed.refresh();
     } catch (error) {
       if (current !== scope()) return;
+      rollback();
       const message = error instanceof UnconfirmedRetweetError ? t('post.feedback.retweetUnconfirmed') :
         error instanceof Error ? error.message : t('post.feedback.retweetFailed');
       toast.error(message);
@@ -78,13 +82,15 @@ export function useTimelinePostActions(feed: PostFeedState, scope: () => string)
     }
   }
 
-  async function handleBookmarkTweet(tweet: PostVM, action: 'mark' | 'unmark') {
+  async function handleBookmarkTweet(tweet: PostVM, action: 'mark' | 'unmark', settle?: (saved?: boolean) => void) {
     const current = scope();
     try {
       const result = await (action === 'mark' ? v2BookmarkPost(tweet.id) : v2UnbookmarkPost(tweet.id));
-      if (current !== scope()) return;
+      if (current !== scope()) return settle?.();
       feed.patchPost(tweet.id, post => ({ ...post, viewer: { ...post.viewer, hasBookmarked: result.isBookmarked } }));
+      settle?.(result.isBookmarked);
     } catch {
+      settle?.();
       if (current === scope()) toast.error(t('common.operationFailed'));
     }
   }

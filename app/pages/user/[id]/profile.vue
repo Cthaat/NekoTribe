@@ -391,13 +391,15 @@ async function handleLikeTweet(
 
 async function handleBookmarkTweet(
   tweet: PostVM,
-  action: 'mark' | 'unmark'
+  action: 'mark' | 'unmark', settle?: (saved?: boolean) => void
 ) {
+  const id = userId.value, revision = queue.revision;
   try {
     const result =
       action === 'mark'
         ? await v2BookmarkPost(tweet.id)
         : await v2UnbookmarkPost(tweet.id);
+    if (!isCurrent(id, revision)) return settle?.();
     updateProfileTweet(tweet.id,currentTweet => ({
         ...currentTweet,
         viewer: {
@@ -405,8 +407,10 @@ async function handleBookmarkTweet(
           hasBookmarked: result.isBookmarked
         }
     }));
+    settle?.(result.isBookmarked);
   } catch {
-    toast.error(t('common.operationFailed'));
+    settle?.();
+    if (isCurrent(id, revision)) toast.error(t('common.operationFailed'));
   }
 }
 
@@ -519,13 +523,14 @@ async function applyVisibility(target: { id: number; revision: number }, action:
       </div>
     </header>
 
-    <div v-if="profileLoading && !profileReady" class="space-y-3 px-3 pt-2 sm:px-0">
+    <MotionSkeletonSwap>
+    <div aria-busy="true" v-if="profileLoading && !profileReady" class="space-y-3 px-3 pt-2 sm:px-0">
       <div class="overflow-hidden rounded-[20px] bg-card">
-        <div class="h-[116px] animate-pulse bg-secondary" />
+        <div class="h-[116px] w3-shimmer bg-secondary" />
         <div class="space-y-3 px-4 pb-5">
-          <div class="-mt-10 size-20 animate-pulse rounded-full bg-secondary ring-4 ring-card" />
-          <div class="h-5 w-40 animate-pulse rounded-lg bg-secondary" />
-          <div class="h-4 w-28 animate-pulse rounded-lg bg-secondary" />
+          <div class="-mt-10 size-20 w3-shimmer rounded-full bg-secondary ring-4 ring-card" />
+          <div class="h-5 w-40 w3-shimmer rounded-lg bg-secondary" />
+          <div class="h-4 w-28 w3-shimmer rounded-lg bg-secondary" />
         </div>
       </div>
       <div class="space-y-3">
@@ -540,7 +545,7 @@ async function applyVisibility(target: { id: number; revision: number }, action:
       </div>
     </div>
 
-    <template v-else-if="profileReady">
+    <div v-else-if="profileReady">
       <div class="px-3 pt-1 sm:px-0">
         <AccountHeaderCard
           social-mode
@@ -660,6 +665,7 @@ async function applyVisibility(target: { id: number; revision: number }, action:
           </Pagination>
         </div>
       </section>
-    </template>
+    </div>
+    </MotionSkeletonSwap>
   </div>
 </template>

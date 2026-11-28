@@ -35,7 +35,7 @@ import {
 import MailDisplay from '@/components/MailDisplay.vue';
 import MailList from '@/components/MailList.vue';
 import AppEmptyState from '@/components/app/AppEmptyState.vue';
-import TweetCardSkeleton from '@/components/TweetCardSkeleton.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { MailItem } from './mail/types';
 
 type MailView =
@@ -514,8 +514,12 @@ watch(
       </header>
 
       <!-- Stream Content -->
-      <div v-if="props.loading && displayList.length === 0" class="space-y-2.5 px-3 py-3 sm:px-4">
-        <TweetCardSkeleton v-for="i in 4" :key="i" />
+      <MotionSkeletonSwap>
+      <div aria-busy="true" v-if="props.loading && displayList.length === 0" class="space-y-2.5 px-3 py-3 sm:px-4">
+        <div v-for="i in 4" :key="i" class="flex gap-3 rounded-[18px] bg-card px-4 py-3.5">
+          <Skeleton class="size-8 rounded-full" />
+          <div class="flex-1 space-y-2"><Skeleton class="h-4 w-1/3" /><Skeleton class="h-3 w-3/4" /></div>
+        </div>
       </div>
 
       <div
@@ -537,6 +541,8 @@ watch(
         @delete-mail="emit('delete-mail', $event)"
         @restore-mail="emit('restore-mail', $event)"
       />
+
+      </MotionSkeletonSwap>
 
       <!-- Detail Modal -->
       <Dialog v-model:open="isDetailOpen">
