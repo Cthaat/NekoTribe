@@ -192,3 +192,26 @@ test('sync refuses invalid UTF-8 instead of silently rewriting source bytes', (t
   assert.match(run('sync', '--workspace-root', root).stderr, /invalid UTF-8/);
   assert.deepEqual(readFileSync(path), Buffer.from([0x23, 0x20, 0xff, 0x0a]));
 });
+
+test('a missing handler needs an exact reviewed, pending parity operation', t => {
+  const { root, run } = fixture(t);
+  const path = join(root, 'nuxt/doc/v2.openapi.json');
+  const spec = JSON.parse(readFileSync(path));
+  spec.paths['/api/v2/search'] = { get: { operationId: 'search', 'x-contract-first': 'SEARCH',
+    responses: { 200: { description: 'Search results' } } } };
+  writeFileSync(path, JSON.stringify(spec));
+  mkdirSync(join(root, 'nuxt/specifications'));
+  const feature = { id: 'SEARCH', review: 'reviewed', operations: ['GET /api/v2/search'],
+    implementations: { nuxt: { state: 'not-started' } } };
+  const save = () => writeFileSync(join(root, 'nuxt/specifications/parity.json'), JSON.stringify({ features: [feature] }));
+  save();
+  const sync = () => run('sync', '--workspace-root', root);
+  assert.equal(sync().status, 0);
+  feature.operations = ['POST /api/v2/search'];
+  save();
+  assert.match(sync().stderr, /Unregistered contract-first operation/);
+  feature.operations = ['GET /api/v2/search'];
+  feature.implementations.nuxt.state = 'implemented';
+  save();
+  assert.match(sync().stderr, /Unregistered contract-first operation/);
+});

@@ -161,7 +161,23 @@ async function inspect(adapter, step) {
     if (!found.length) return 'missing';
     const cols = await rows(adapter, 'SELECT column_name, descend FROM user_ind_columns WHERE index_name = :name ORDER BY column_position', { name: step.name });
     const expected = describeIndex(step);
-    return found[0].TABLE_NAME === expected.table && found[0].UNIQUENESS === 'NONUNIQUE' && found[0].STATUS === 'VALID' && same(cols.map(c => c.COLUMN_NAME), expected.columns) && cols.every(c => c.DESCEND === 'ASC') ? 'ready' : 'incompatible';
+    const uniqueness = step.sql.startsWith('CREATE UNIQUE INDEX ') ? 'UNIQUE' : 'NONUNIQUE';
+    if (found[0].TABLE_NAME !== expected.table || found[0].UNIQUENESS !== uniqueness ||
+        found[0].STATUS !== 'VALID' || cols.length !== expected.columns.length) return 'incompatible';
+    // Oracle can expose a descending key as a generated SYS_NC column.
+    const expressions = cols.some(c => c.DESCEND === 'DESC' && c.COLUMN_NAME.startsWith('SYS_NC'))
+      ? await rows(adapter, 'SELECT column_position, column_expression FROM user_ind_expressions WHERE index_name = :name', { name: step.name })
+      : [];
+    for (const [i, key] of expected.columns.entries()) {
+      const [column, direction = 'ASC'] = key.split(/\s+/);
+      const actual = cols[i];
+      if (actual.DESCEND !== direction) return 'incompatible';
+      if (actual.COLUMN_NAME === column) continue;
+      if (direction !== 'DESC' || !actual.COLUMN_NAME.startsWith('SYS_NC')) return 'incompatible';
+      const expression = expressions.find(e => Number(e.COLUMN_POSITION) === i + 1)?.COLUMN_EXPRESSION?.trim();
+      if (expression !== `"${column}"` && expression !== `SYS_OP_DESCEND("${column}")`) return 'incompatible';
+    }
+    return 'ready';
   }
   if (step.kind === 'seed') {
     if (!await exists(adapter, 'table', 'N_MODERATION_SETTINGS')) return 'missing';

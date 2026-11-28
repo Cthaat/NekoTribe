@@ -12,8 +12,8 @@ const ddl = calls => calls.filter(c => /^(CREATE|ALTER|DROP)\b/.test(c.sql));
 test('default plan does not read dotenv, load a driver or connect', async () => {
   let loaded = false; const output = [];
   const plan = await migrateDatabase({ root: '\0invalid-directory', env: { ORACLE_PASSWORD: 'do-not-print' }, loadDriver: () => { loaded = true; throw Error('connected'); }, output: s => output.push(s) });
-  assert.equal(loaded, false); assert.equal(plan.length, 19); assert(!output.join('').includes('do-not-print'));
-  assert.equal(plan.flatMap(f => f.steps).length, 64);
+  assert.equal(loaded, false); assert.equal(plan.length, 20); assert(!output.join('').includes('do-not-print'));
+  assert.equal(plan.flatMap(f => f.steps).length, 67);
 });
 test('the baseline prepares feedback and media access scope through explicit idempotent migrations', async () => {
   const db = schemaFixture({ baseline: true });
@@ -86,7 +86,8 @@ test('the baseline prepares feedback and media access scope through explicit ide
   const baseline = readFileSync(new URL('../data/neko_tribe-oracle-v2.sql', import.meta.url), 'utf8');
   for (const f of schemaFeatures) for (const s of f.steps) {
     if (['ai-conversations', 'post-polls', 'post-drafts', 'passkey-auth', 'github-oauth'].includes(f.id)) continue;
-    if (s.kind === 'sequence' || s.kind === 'index') assert(baseline.toUpperCase().includes(`CREATE ${s.kind.toUpperCase()} ${s.name}`), s.name);
+    if (s.kind === 'index') assert(baseline.toUpperCase().includes(s.sql.toUpperCase().split(' ON ')[0]), s.name);
+    if (s.kind === 'sequence') assert(baseline.toUpperCase().includes(`CREATE ${s.kind.toUpperCase()} ${s.name}`), s.name);
     if (s.kind === 'seed') assert(baseline.includes(`VALUES ('${s.setting.key}', '${s.setting.value}', '${s.setting.value_type}'`));
   }
 });
@@ -329,4 +330,18 @@ test('dotenv argument parsing rejects unknown, missing and duplicate options bef
   await migrateDatabase({ args: ['--dotenv', 'missing-file', '--plan'], root: '\0invalid', env: unreadable, loadDriver, output: () => {} });
   assert.equal(loaded, false);
   await assert.rejects(migrateDatabase({ args: ['--check', '--dotenv', 'missing-file'], root: '\0invalid', env: unreadable, loadDriver, output: () => {} }), /does not exist/);
+});
+
+test('history indexes preserve owner uniqueness and the descending timestamp identity', async () => {
+  const db = schemaFixture();
+  const status = async name => (await checkSchema(db, 'global-search')).find(s => s.id === 'b11-' + name.toLowerCase().replaceAll('_', '-')).status;
+  const recent = db.state.indexes.get('IDX_SEARCH_HISTORY_RECENT');
+  recent.columns[1] = { COLUMN_NAME: 'SYS_NC00005$', DESCEND: 'DESC' };
+  recent.expressions = [{ COLUMN_POSITION: 2, COLUMN_EXPRESSION: '"UPDATED_AT"' }];
+  assert.equal(await status(recent.INDEX_NAME), 'ready');
+  recent.expressions[0].COLUMN_EXPRESSION = '"USER_ID"';
+  assert.equal(await status(recent.INDEX_NAME), 'incompatible');
+  const unique = db.state.indexes.get('UK_SEARCH_HISTORY_TERM');
+  unique.UNIQUENESS = 'NONUNIQUE';
+  assert.equal(await status(unique.INDEX_NAME), 'incompatible');
 });

@@ -885,6 +885,35 @@ CONSTRAINT ck_github_oauth_flow_status CHECK (status IN ('pending','checking','v
         "sql": "CREATE INDEX idx_github_oauth_flow_expiry ON n_github_oauth_flows (expires_at)"
       }
     ]
+  },
+  {
+    "id": "global-search",
+    "steps": [
+      {
+        "id": "b11-n-user-search-history",
+        "kind": "table",
+        "name": "N_USER_SEARCH_HISTORY",
+        "sql": `CREATE TABLE n_user_search_history (
+user_id NUMBER(10) NOT NULL,
+normalized_query VARCHAR2(100 CHAR) NOT NULL,
+display_query VARCHAR2(100 CHAR) NOT NULL,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_user_search_history_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE
+)`
+      },
+      {
+        "id": "b11-uk-search-history-term",
+        "kind": "index",
+        "name": "UK_SEARCH_HISTORY_TERM",
+        "sql": `CREATE UNIQUE INDEX uk_search_history_term ON n_user_search_history (user_id, normalized_query)`
+      },
+      {
+        "id": "b11-idx-search-history-recent",
+        "kind": "index",
+        "name": "IDX_SEARCH_HISTORY_RECENT",
+        "sql": `CREATE INDEX idx_search_history_recent ON n_user_search_history (user_id, updated_at DESC)`
+      }
+    ]
   }
 ];
 definitions.find(feature => feature.id === 'moderation').steps.push(...moderationSettings.map(setting => ({

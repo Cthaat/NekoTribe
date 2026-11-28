@@ -351,6 +351,18 @@ COMMENT ON COLUMN n_user_mutes.expires_at IS '过期时间';
 
 COMMENT ON COLUMN n_user_mutes.created_at IS '创建时间';
 
+CREATE TABLE n_user_search_history (
+user_id NUMBER(10) NOT NULL,
+normalized_query VARCHAR2(100 CHAR) NOT NULL,
+display_query VARCHAR2(100 CHAR) NOT NULL,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+CONSTRAINT fk_user_search_history_user FOREIGN KEY (user_id) REFERENCES n_users(user_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX uk_search_history_term ON n_user_search_history (user_id, normalized_query);
+
+CREATE INDEX idx_search_history_recent ON n_user_search_history (user_id, updated_at DESC);
+
 CREATE TABLE n_posts (
     post_id                NUMBER(15)      PRIMARY KEY,
     author_id              NUMBER(10)      NOT NULL,
