@@ -30,6 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import { useSelectionRail } from '@/composables/useSelectionRail';
 import UserAvatar from '@/components/UserAvatar.vue';
 import LanguageTriggerIcon from '@/components/LanguageTriggerIcon.vue';
 import ColorModeIcon from '@/components/ColorModeIcon.vue';
@@ -40,6 +41,7 @@ const localePath = useLocalePath();
 const route = useRoute();
 const { t } = useAppLocale();
 const preferences = usePreferenceStore();
+const { list, style: railStyle } = useSelectionRail('[data-current]');
 const loggingOut = ref(false);
 
 const user = computed(() => preferences.preferences.user);
@@ -68,7 +70,7 @@ const primaryNav = computed(() => [
     to: localePath('/discover'),
     icon: Compass,
     active:
-      route.path.includes('/discover') ||
+      route.path === localePath('/discover') ||
       route.path.includes('/tags/') ||
       route.path.includes('/tweet/search/') ||
       (route.path === localePath('/') && route.query.feed === 'trending')
@@ -166,16 +168,18 @@ async function handleLogout(): Promise<void> {
       </NuxtLink>
 
       <!-- Social primary links -->
-      <nav class="flex flex-col gap-1">
+      <nav ref="list" :style="railStyle" class="selection-rail sidebar-rail relative isolate flex flex-col gap-1">
         <slot name="search" />
         <NuxtLink
           v-for="item in primaryNav"
           :key="item.key"
+          :data-current="item.active || undefined"
+          :aria-label="item.title"
           :to="item.to"
           class="pressable flex h-[42px] items-center justify-center gap-3 rounded-full px-2.5 text-[14.5px] transition-colors lg:justify-start lg:px-3.5"
           :class="
             item.active
-              ? 'bg-[var(--primary-soft)] font-semibold text-primary'
+              ? 'font-semibold text-primary'
               : 'font-medium text-muted-foreground hover:bg-accent/65 hover:text-foreground'
           "
         >
@@ -193,9 +197,11 @@ async function handleLogout(): Promise<void> {
             <button
               type="button"
               class="pressable flex h-[42px] w-full items-center justify-center gap-3 rounded-full px-2.5 text-[14.5px] transition-colors lg:justify-start lg:px-3.5"
+              :data-current="isMoreActive || undefined"
+              :aria-label="t('common.more')"
               :class="
                 isMoreActive
-                  ? 'bg-[var(--primary-soft)] font-semibold text-primary'
+                  ? 'font-semibold text-primary'
                   : 'font-medium text-muted-foreground hover:bg-accent/65 hover:text-foreground'
               "
             >

@@ -15,6 +15,9 @@
 import LiquidGlassFilterDefs from '@/components/glass/LiquidGlassFilterDefs.vue'
 import WebRtcCallDialog from '@/components/WebRtcCallDialog.vue'
 import { Toaster } from "@/components/ui/sonner"
+import '~/assets/css/glass-overlays.css'
+import { useGlassGlint } from '@/composables/useGlassGlint'
+useGlassGlint()
 const { t, locale } = useAppLocale()
 
 useSeoMeta({

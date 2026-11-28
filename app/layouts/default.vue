@@ -30,7 +30,7 @@ const isChatRoute = computed(() => normalizedPath.value.startsWith('/chat'));
   <div class="min-h-dvh w-full bg-[var(--shell-frame)] text-foreground overflow-x-clip">
     <!-- Mobile lightweight translucent top bar -->
     <header
-      class="sticky top-0 z-30 bg-background/70 px-3 backdrop-blur-xl md:hidden"
+      class="glass-bar-scrim sticky top-0 z-30 bg-background/70 px-3 backdrop-blur-xl md:hidden"
     >
       <div class="flex h-[54px] items-center justify-between gap-2">
         <NuxtLink

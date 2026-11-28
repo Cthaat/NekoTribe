@@ -60,7 +60,9 @@ import type { Channel } from './ChatChannelList.vue';
 import type { V2DirectMessage } from '@/types/v2';
 import type { ChatMessageFilters } from '@/api/v2/chat';
 import type { CallMode } from '@/api/v2/webrtc';
+import { useMediaQuery } from '@vueuse/core';
 import { toast } from 'vue-sonner';
+const narrowSheet = useMediaQuery('(max-width: 639px)');
 const { t, locale } = useAppLocale();
 
 const props = defineProps<{
@@ -557,7 +559,7 @@ onBeforeUnmount(() => {
                   <p>{{ t('chat.message.pinnedMessages') }}</p>
                 </TooltipContent>
               </Tooltip>
-              <SheetContent side="right" class="w-full sm:w-80">
+              <SheetContent :side="narrowSheet ? 'bottom' : 'right'" class="w-full sm:w-80">
                 <SheetHeader>
                   <SheetTitle class="text-base font-semibold tracking-tight">
                     {{ t('chat.message.pinnedMessages') }}
@@ -618,7 +620,7 @@ onBeforeUnmount(() => {
                   <p>{{ t('chat.actions.notificationSettings') }}</p>
                 </TooltipContent>
               </Tooltip>
-              <SheetContent side="right" class="w-full p-6 sm:w-80">
+              <SheetContent :side="narrowSheet ? 'bottom' : 'right'" class="w-full p-6 sm:w-80">
                 <SheetHeader>
                   <SheetTitle class="text-base font-semibold tracking-tight">
                     {{ t('chat.notifications.title') }}
@@ -857,7 +859,7 @@ onBeforeUnmount(() => {
     />
 
     <Sheet v-model:open="mobileMemberListOpen">
-      <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-80">
+      <SheetContent :side="narrowSheet ? 'bottom' : 'right'" class="flex w-full flex-col p-0 sm:w-80">
         <SheetHeader class="px-4 py-3">
           <SheetTitle class="text-sm font-semibold tracking-tight">
             {{ t('chat.actions.showMembers') }}
@@ -910,7 +912,7 @@ onBeforeUnmount(() => {
     </Dialog>
 
     <Sheet v-model:open="directMessageOpen">
-      <SheetContent side="right" class="flex w-full flex-col p-0 sm:w-96">
+      <SheetContent :side="narrowSheet ? 'bottom' : 'right'" class="flex w-full flex-col p-0 sm:w-96">
         <div class="border-b border-[var(--divider)] px-5 py-4">
           <div class="flex items-start gap-3 pr-16">
             <button

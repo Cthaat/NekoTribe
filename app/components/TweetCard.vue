@@ -822,7 +822,7 @@ const relatedExcerpt = computed(() => {
 
               <div
                 v-if="mediaItems.length > 4 && index === 3"
-                class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                class="absolute inset-0 flex items-center justify-center bg-black/60"
               >
                 <span class="text-2xl font-semibold text-white">
                   +{{ mediaItems.length - 4 }}

@@ -19,26 +19,27 @@ const resolvedTheme = computed<'light' | 'dark'>(() => {
     v-bind="props"
     :theme="resolvedTheme"
     :toast-options="{
+      class: 'liquid-glass-popover glass-toast',
       style: {
         borderRadius: '16px',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.14)',
+        boxShadow: 'var(--glass-shadow)',
       },
       ...props.toastOptions,
     }"
     :style="{
-      '--normal-bg': 'var(--card)',
+      '--normal-bg': 'var(--glass-popover-bg)',
       '--normal-text': 'var(--foreground)',
       '--normal-border': 'var(--divider)',
-      '--info-bg': 'var(--card)',
+      '--info-bg': 'var(--glass-popover-bg)',
       '--info-text': 'var(--foreground)',
       '--info-border': 'var(--divider)',
-      '--success-bg': 'var(--card)',
+      '--success-bg': 'var(--glass-popover-bg)',
       '--success-text': 'var(--foreground)',
       '--success-border': 'var(--divider)',
-      '--warning-bg': 'var(--card)',
+      '--warning-bg': 'var(--glass-popover-bg)',
       '--warning-text': 'var(--foreground)',
       '--warning-border': 'var(--divider)',
-      '--error-bg': 'var(--card)',
+      '--error-bg': 'var(--glass-popover-bg)',
       '--error-text': 'var(--destructive)',
       '--error-border': 'var(--divider)',
       '--border-radius': '16px',
