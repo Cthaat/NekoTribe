@@ -427,12 +427,13 @@ impl SessionExecutor for Executor {
         &self,
         user: u64,
         verified_hash: String,
-        statement: &'static str,
-        binds: BindMap,
+        write: (&'static str, BindMap),
         expected_factor: Option<EncryptedSecret>,
         prerequisites: Vec<(&'static str, BindMap)>,
-    ) -> StoreFuture<'_, Option<u64>> {
+        fingerprint: Option<String>,
+    ) -> StoreFuture<'_, Option<nekotribe_backend::auth::login::LoginHistory>> {
         assert_eq!(user, 42);
+        let (statement, binds) = write;
         assert_eq!(verified_hash, "synthetic-password-hash");
         Box::pin(async move {
             if let Some(expected) = expected_factor {
@@ -440,7 +441,14 @@ impl SessionExecutor for Executor {
                 assert!(expected.enabled);
             }
             self.calls.lock().unwrap().extend(prerequisites);
-            Ok(Some(self.execute(statement, binds).await?))
+            assert_eq!(
+                fingerprint.is_some(),
+                statement.contains("INSERT INTO n_auth_sessions")
+            );
+            if self.execute(statement, binds).await? != 1 {
+                return Err(SessionStoreError);
+            }
+            Ok(Some(Default::default()))
         })
     }
     fn readiness_snapshot(&self) -> StoreFuture<'_, serde_json::Value> {
@@ -641,7 +649,7 @@ async fn trusted_device_claim_uses_account_and_digest_in_guarded_session_write()
         trusted_device_key: Some("synthetic-digest".into()),
         factor_completion: None,
     };
-    assert!(repo.login_insert_session(&session).await.unwrap());
+    assert!(repo.login_insert_session(&session).await.unwrap().is_some());
     let calls = repo.executor.calls.lock().unwrap();
     let (sql, binds) = &calls[0];
     assert!(sql.starts_with("UPDATE n_user_two_factor_trusted_devices"));
@@ -656,6 +664,7 @@ async fn trusted_device_claim_uses_account_and_digest_in_guarded_session_write()
 }
 
 struct AlertExecutor {
+    email_enabled: bool,
     enabled: bool,
     kind_enabled: bool,
     calls: Mutex<Vec<(&'static str, BindMap)>>,
@@ -678,8 +687,14 @@ impl SessionExecutor for AlertExecutor {
             } else if sql.contains("login_alerts") {
                 DbRow::from([
                     ("LOGIN_ALERTS".into(), DbValue::I64(i64::from(self.enabled))),
-                    ("EMAIL_NOTIFICATION_ENABLED".into(), DbValue::I64(1)),
-                    ("EMAIL".into(), DbValue::String("recipient@example.test".into())),
+                    (
+                        "EMAIL_NOTIFICATION_ENABLED".into(),
+                        DbValue::I64(i64::from(self.email_enabled)),
+                    ),
+                    (
+                        "EMAIL".into(),
+                        DbValue::String("recipient@example.test".into()),
+                    ),
                 ])
             } else if sql.contains("type_enabled") {
                 DbRow::from([
@@ -698,19 +713,21 @@ impl SessionExecutor for AlertExecutor {
 
 #[tokio::test]
 async fn login_alert_honors_device_history_and_both_preference_gates() {
-    for (enabled, kind_enabled, expected_insert) in [
-        (false, true, false),
-        (true, false, false),
+    for (enabled, kind_enabled, email_enabled) in [
+        (false, true, true),
+        (true, false, true),
         (true, true, true),
+        (true, true, false),
     ] {
+        let expected_insert = enabled && kind_enabled;
         let repo = OracleSessions {
             executor: AlertExecutor {
+                email_enabled,
                 enabled,
                 kind_enabled,
                 calls: Mutex::new(vec![]),
             },
         };
-        assert!(!repo.known_login_device(42, "dev").await.unwrap());
         let session = LoginSession {
             id: "sess_1".into(),
             user_id: 42,
@@ -728,8 +745,11 @@ async fn login_alert_honors_device_history_and_both_preference_gates() {
             trusted_device_key: None,
         factor_completion: None,
         };
-        let delivery = repo.record_login_alert(&session).await.unwrap();
-        assert_eq!(delivery.email.as_deref(), enabled.then_some("recipient@example.test"));
+        let delivery = repo.record_login_alert(&session, "新设备").await.unwrap();
+        assert_eq!(
+            delivery.email.as_deref(),
+            (enabled && email_enabled).then_some("recipient@example.test")
+        );
         assert_eq!(delivery.notification_id, expected_insert.then_some(12));
         let calls = repo.executor.calls.lock().unwrap();
         let insert = calls

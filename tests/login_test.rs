@@ -20,6 +20,69 @@ use std::{
 };
 use tower::ServiceExt;
 
+struct BlockedMail {
+    release: tokio::sync::Barrier,
+    deliveries: AtomicUsize,
+}
+
+impl nekotribe_backend::auth::otp::OtpMailer for BlockedMail {
+    fn send<'a>(&'a self, _: &'a str, _: &'a str) -> nekotribe_backend::auth::otp::MailFuture<'a> {
+        panic!("unexpected OTP")
+    }
+
+    fn send_login_alert<'a>(
+        &'a self,
+        to: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+    ) -> nekotribe_backend::auth::otp::MailFuture<'a> {
+        Box::pin(async move {
+            assert_eq!(to, "alerts@example.test");
+            self.deliveries.fetch_add(1, Ordering::SeqCst);
+            self.release.wait().await;
+            Err(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn slow_failed_mail_does_not_delay_a_committed_login() {
+    let store = Arc::new(LoginStore::default());
+    let mail = Arc::new(BlockedMail {
+        release: tokio::sync::Barrier::new(2),
+        deliveries: AtomicUsize::new(0),
+    });
+    let router = nekotribe_backend::auth::sessions::build_native_router_with_mail(
+        TokenCodec::new(b"access", b"refresh").unwrap(),
+        store.clone(),
+        CorsPolicy::default(),
+        Arc::new(|| 1700000000),
+        Default::default(),
+        Default::default(),
+        mail.clone(),
+    );
+    let request = Request::post("/api/v2/auth/tokens")
+        .header("content-type", "application/json")
+        .header("x-device-info", "alert-fixture")
+        .body(Body::from(
+            r#"{"account":"test","password":"correct-password"}"#,
+        ))
+        .unwrap();
+    let timeout = std::time::Duration::from_secs(3);
+    let response = tokio::time::timeout(timeout, router.oneshot(request))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers().get_all("set-cookie").iter().count(), 2);
+    assert_eq!(store.sessions.lock().unwrap().len(), 1);
+    tokio::time::timeout(timeout, mail.release.wait())
+        .await
+        .unwrap();
+    assert_eq!(mail.deliveries.load(Ordering::SeqCst), 1);
+}
+
 struct Unavailable;
 impl SessionRepository for Unavailable {
     fn touch<'a>(&'a self, _: &'a TokenClaims) -> StoreFuture<'a, u64> {
@@ -137,6 +200,7 @@ async fn second_readiness_failure_does_not_create_or_consume_credentials() {
     }
 }
 
+#[derive(Default)]
 struct LoginStore {
     changed_credentials: bool,
     two_factor: bool,
@@ -198,25 +262,28 @@ impl SessionRepository for LoginStore {
             Ok(true)
         })
     }
-    fn login_insert_session<'a>(&'a self, s: &'a LoginSession) -> StoreFuture<'a, bool> {
+    fn login_insert_session<'a>(
+        &'a self,
+        s: &'a LoginSession,
+    ) -> StoreFuture<'a, Option<nekotribe_backend::auth::login::LoginHistory>> {
         Box::pin(async move {
             if self.changed_credentials {
                 assert!(!s.verified_password_hash.is_empty());
-                return Ok(false);
+                return Ok(None);
             }
             if s.trusted_device_key.is_some() && !self.trusted {
-                return Ok(false);
+                return Ok(None);
             }
             if let Some(completion) = &s.factor_completion {
                 let mut consumed = self.consumed.lock().unwrap();
                 if consumed.contains(&completion.challenge_id) {
-                    return Ok(false);
+                    return Ok(None);
                 }
                 if completion.recovery_code_id.is_some() {
                     self.recovery_attempts.fetch_add(1, Ordering::SeqCst);
                     let mut recovery = self.recovery_used.lock().unwrap();
                     if *recovery {
-                        return Ok(false);
+                        return Ok(None);
                     }
                     *recovery = true;
                 }
@@ -229,17 +296,24 @@ impl SessionRepository for LoginStore {
                 .lock()
                 .unwrap()
                 .push((s.id.clone(), s.refresh_hash.clone()));
-            Ok(true)
+            Ok(Some(nekotribe_backend::auth::login::LoginHistory {
+                known_device: false,
+                previous_ip: None,
+            }))
         })
-    }
-    fn known_login_device<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, bool> {
-        Box::pin(async { Ok(false) })
     }
     fn record_login_alert<'a>(
         &'a self,
-        _: &'a LoginSession,
+        session: &'a LoginSession,
+        _: &'static str,
     ) -> StoreFuture<'a, LoginAlertDelivery> {
-        Box::pin(async { Ok(Default::default()) })
+        Box::pin(async move {
+            Ok(LoginAlertDelivery {
+                email: (session.device.info == "alert-fixture")
+                    .then(|| "alerts@example.test".into()),
+                ..Default::default()
+            })
+        })
     }
     fn login_profile<'a>(&'a self, _: u64) -> StoreFuture<'a, Option<serde_json::Value>> {
         Box::pin(async move {

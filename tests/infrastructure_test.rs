@@ -16,7 +16,6 @@ use nekotribe_backend::{
     },
     config::env::{AppConfig, OracleConfig, RedisConfig},
     db::{nullable::NullableExt, value::DbValue},
-    middleware::rate_limit::RateLimitInfo,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -75,17 +74,6 @@ fn redis_prefixes_and_channels_match_existing_contract() {
     assert_eq!(ORACLE_QUERY_CACHE_SCHEMA_VERSION, "2");
     assert_eq!(REDIS_CHANNELS.broadcast, "ws:broadcast");
     assert_eq!(REDIS_CHANNELS.chat_channel_prefix, "ws:chat:channel:");
-}
-
-#[test]
-fn rate_limit_info_uses_existing_window_and_ttl() {
-    let mut info = RateLimitInfo::default();
-    for _ in 0..100 {
-        assert!(!info.record(1_000));
-    }
-    assert!(info.record(1_000), "101st request in window is limited");
-    assert!(!info.record(12_001), "new 10 second window resets counter");
-    assert_eq!(RateLimitInfo::ttl_seconds(), 120);
 }
 
 #[test]

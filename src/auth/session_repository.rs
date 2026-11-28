@@ -299,11 +299,11 @@ pub trait SessionExecutor: Send + Sync {
         &self,
         _user: u64,
         _verified_hash: String,
-        _statement: &'static str,
-        _binds: BindMap,
+        _write: (&'static str, BindMap),
         _expected_factor: Option<crate::auth::login::EncryptedSecret>,
         _prerequisites: Vec<(&'static str, BindMap)>,
-    ) -> StoreFuture<'_, Option<u64>> {
+        _fingerprint: Option<String>,
+    ) -> StoreFuture<'_, Option<crate::auth::login::LoginHistory>> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn respond_group_invite(
@@ -2933,13 +2933,13 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
                 "expires_at".into(),
                 DbValue::String(oracle_time(&c.expires_at)),
             );
-            required_login_write(self.executor.guarded_login_write(c.user_id, c.verified_password_hash.clone(), "INSERT INTO n_auth_two_factor_challenges (challenge_id,user_id,remember_me,device_info,device_fingerprint,ip_address,user_agent,expires_at) VALUES (:challenge_id,:user_id,:remember_me,:device_info,:device_fingerprint,:ip_address,:user_agent,CAST(TO_TIMESTAMP_TZ(:expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP))", b, None, Vec::new()).await?)
+            Ok(self.executor.guarded_login_write(c.user_id, c.verified_password_hash.clone(), ("INSERT INTO n_auth_two_factor_challenges (challenge_id,user_id,remember_me,device_info,device_fingerprint,ip_address,user_agent,expires_at) VALUES (:challenge_id,:user_id,:remember_me,:device_info,:device_fingerprint,:ip_address,:user_agent,CAST(TO_TIMESTAMP_TZ(:expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP))", b), None, Vec::new(), None).await?.is_some())
         })
     }
     fn login_insert_session<'a>(
         &'a self,
         s: &'a crate::auth::login::LoginSession,
-    ) -> StoreFuture<'a, bool> {
+    ) -> StoreFuture<'a, Option<crate::auth::login::LoginHistory>> {
         Box::pin(async move {
             let mut b = device_bind(&s.device, false);
             b.extend(user_bind(s.user_id));
@@ -2993,13 +2993,23 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
                         CAST(TO_TIMESTAMP_TZ(:expires_at,'YYYY-MM-DD\"T\"HH24:MI:SS.FF3TZH:TZM') AT LOCAL AS TIMESTAMP))", binds));
                 }
             }
-            let expected_factor = s.factor_completion.as_ref().map(|completion| completion.verified_secret.clone());
-            if !required_login_write(
-                self.executor
-                    .guarded_login_write(s.user_id, s.verified_password_hash.clone(), statement, b, expected_factor, prerequisites)
-                    .await?,
-            )? {
-                return Ok(false);
+            let expected_factor = s
+                .factor_completion
+                .as_ref()
+                .map(|completion| completion.verified_secret.clone());
+            let history = self
+                .executor
+                .guarded_login_write(
+                    s.user_id,
+                    s.verified_password_hash.clone(),
+                    (statement, b),
+                    expected_factor,
+                    prerequisites,
+                    Some(s.device.fingerprint.clone()),
+                )
+                .await?;
+            if history.is_none() {
+                return Ok(None);
             }
             self.executor
                 .execute(
@@ -3007,24 +3017,13 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
                     user_bind(s.user_id),
                 )
                 .await?;
-            Ok(true)
-        })
-    }
-    fn known_login_device<'a>(&'a self, user: u64, fingerprint: &'a str) -> StoreFuture<'a, bool> {
-        Box::pin(async move {
-            let mut b = user_bind(user);
-            b.insert(
-                "device_fingerprint".into(),
-                DbValue::String(fingerprint.into()),
-            );
-            let rows=self.executor.query("SELECT COUNT(*) AS total FROM n_auth_sessions WHERE user_id=:user_id AND device_fingerprint=:device_fingerprint",b).await?;
-            let row = rows.first().ok_or(SessionStoreError)?;
-            Ok(row_number(row, "TOTAL") > 0)
+            Ok(history)
         })
     }
     fn record_login_alert<'a>(
         &'a self,
         session: &'a crate::auth::login::LoginSession,
+        reason: &'static str,
     ) -> StoreFuture<'a, crate::auth::login::LoginAlertDelivery> {
         Box::pin(async move {
             use crate::auth::login::{LoginAlertDelivery, LOGIN_ALERT_TITLE};
@@ -3043,7 +3042,7 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
             let device = &session.device;
             let metadata=serde_json::json!({"session_id":session.id,"device_info":device.info,"device_fingerprint":device.fingerprint,"ip_address":device.ip,"user_agent":device.user_agent}).to_string();
             let message = format!(
-                "你的账号刚刚通过新设备登录：{}",
+                "你的账号刚刚通过{reason}登录：{}",
                 if device.info.is_empty() {
                     "unknown"
                 } else {
@@ -3062,7 +3061,11 @@ impl<E: SessionExecutor> SessionRepository for OracleSessions<E> {
                     priority: "high",
                     metadata_json: Some(&metadata),
                 })
-                .await?;
+                .await
+                .unwrap_or_else(|_| {
+                    tracing::warn!("login alert notification storage unavailable");
+                    None
+                });
             Ok(LoginAlertDelivery {
                 email,
                 message,
@@ -3304,13 +3307,6 @@ fn session_binds(user: u64, id: &str) -> BindMap {
         ("user_id".into(), DbValue::I64(user as i64)),
         ("session_id".into(), DbValue::String(id.into())),
     ])
-}
-fn required_login_write(result: Option<u64>) -> Result<bool, SessionStoreError> {
-    match result {
-        Some(1) => Ok(true),
-        None => Ok(false),
-        _ => Err(SessionStoreError),
-    }
 }
 
 impl SessionExecutor for OraclePool {
@@ -3585,21 +3581,21 @@ impl SessionExecutor for OraclePool {
         &self,
         user: u64,
         verified_hash: String,
-        statement: &'static str,
-        binds: BindMap,
+        write: (&'static str, BindMap),
         expected_factor: Option<crate::auth::login::EncryptedSecret>,
         prerequisites: Vec<(&'static str, BindMap)>,
-    ) -> StoreFuture<'_, Option<u64>> {
+        fingerprint: Option<String>,
+    ) -> StoreFuture<'_, Option<crate::auth::login::LoginHistory>> {
         Box::pin(async move {
             self.run_blocking(move |connection| {
                 crate::auth::login_write::execute(
                     connection,
                     user,
                     &verified_hash,
-                    statement,
-                    binds,
+                    write,
                     expected_factor,
                     prerequisites,
+                    fingerprint,
                 )
             })
             .await
