@@ -43,7 +43,7 @@ class LiquidGlassSpec {
       aberration,
       shadow,
     ) = switch (preset) {
-      LiquidGlassPreset.navDock => (0.56, 0.36, 12.0, 7.0, 0.8, true),
+      LiquidGlassPreset.navDock => (0.43, 0.32, 16.0, 12.0, 1.5, true),
       LiquidGlassPreset.stickyHeader => (0.64, 0.46, 8.0, 4.0, 0.5, false),
       LiquidGlassPreset.floatingIsland => (0.56, 0.38, 12.0, 7.0, 0.8, true),
       LiquidGlassPreset.iconButton => (0.58, 0.40, 8.0, 5.0, 0.6, true),
@@ -62,7 +62,9 @@ class LiquidGlassSpec {
             isDark ? 0.035 : 0.02,
           )!;
     return LiquidGlassSpec._(
-      blurSigma: sticky
+      blurSigma: preset == LiquidGlassPreset.navDock
+          ? (subtle ? 8 : 3)
+          : sticky
           ? 20
           : subtle
           ? 16
