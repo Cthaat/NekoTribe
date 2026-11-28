@@ -194,7 +194,7 @@ test('active model verification can wait for all instances within one deadline',
     const attempt = (requests.get(path) ?? 0) + 1;
     requests.set(path, attempt);
     const revision = path.startsWith('/loading/') && attempt === 1 ? null
-      : path.startsWith('/stale/') ? 4 : 5;
+      : 5;
     const inference = path.startsWith('/no-status/') ? undefined : {
       knowledge: true,
       group: !path.startsWith('/disabled/') && (!path.startsWith('/readying/') || attempt > 1),
@@ -215,7 +215,12 @@ test('active model verification can wait for all instances within one deadline',
   ]);
   assert.equal(requests.get('/ready/api/v2/ai/availability'), 2);
   assert.equal(requests.get('/loading/api/v2/ai/availability'), 2);
-  await assert.rejects(run(base + '/stale', '--wait-ms', '750'), error => {
+  // Isolate a consistently stale response from loopback scheduling near the shared deadline.
+  const staleTransport = new URL('./helpers/stale-status-fetch.mjs', import.meta.url).href;
+  const staleCheck = runModelConfig(process.execPath, ['--experimental-strip-types', '--import', staleTransport,
+    commandPath, 'verify-active', '5', base + '/stale', '--wait-ms', '750'],
+    { env: { ...process.env, NEKO_AI_STATUS_TOKEN: 'fixture.status.token' } });
+  await assert.rejects(staleCheck, error => {
     assert.equal(error.code, 1);
     assert.deepEqual(JSON.parse(error.stdout).results, [
       { target: 1, ok: false, revision: 4, code: 'REVISION_MISMATCH' },
