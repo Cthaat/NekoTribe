@@ -25,7 +25,7 @@ html5ever = "0.35"
 http = "1"
 ipnet = "2"
 jsonwebtoken = { version = "=10.3.0", default-features = false, features = ["rust_crypto"] }
-lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
+lettre = { version = "=0.11.24", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
 oracle = { version = "0.6.3", features = ["chrono"] }
 redis = { version = "1.2.1", features = ["tokio-rustls-comp", "connection-manager"] }
 futures-util = "0.3"
@@ -46,7 +46,7 @@ uuid = { version = "1", features = ["v4"] }
 url = "2"
 webauthn-rs = { version = "=0.6.2", features = ["conditional-ui", "danger-allow-state-serialisation", "danger-credential-internals"] }
 webauthn-rs-proto = "=0.6.2"
-ryu-js = "=1.0.3"
+ryu-js = "=1.0.4"
 multer = "3"
 tempfile = "3"
 infer = "0.19"
