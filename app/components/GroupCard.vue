@@ -130,7 +130,7 @@ const handleSettings = () => {
       <div class="absolute right-2.5 top-2.5 flex items-center gap-1.5">
         <Badge
           variant="secondary"
-          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur-sm"
+          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
         >
           <component :is="privacyIcon" class="h-3 w-3" />
           {{ privacyText }}
@@ -144,7 +144,7 @@ const handleSettings = () => {
         <Badge
           v-if="group.isOwner"
           variant="secondary"
-          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-foreground backdrop-blur-sm"
+          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-foreground"
         >
           <Crown class="h-3 w-3 text-primary" />
           {{ t('groups.actions.manage') }}
@@ -152,7 +152,7 @@ const handleSettings = () => {
         <Badge
           v-else-if="group.isAdmin"
           variant="secondary"
-          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-foreground backdrop-blur-sm"
+          class="gap-1 border-0 bg-card/88 px-2.5 py-0.5 text-[11px] font-medium text-foreground"
         >
           <ShieldCheck class="h-3 w-3 text-primary" />
           Admin

@@ -304,38 +304,7 @@ async function sendRecommendationFeedback(action: RecommendationAction) {
   }
 }
 
-export interface LightboxOriginRect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
-const isLightboxOpen = ref(false);
-const lightboxStartIndex = ref(0);
-const lightboxOriginRect = ref<LightboxOriginRect | null>(null);
-
-// Capture origin thumbnail rect for FLIP open/close transition
-function openLightbox(index: number, event?: Event) {
-  const target = event?.currentTarget as HTMLElement | null;
-  if (target && typeof target.getBoundingClientRect === 'function') {
-    const rect = target.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      lightboxOriginRect.value = {
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height
-      };
-    } else {
-      lightboxOriginRect.value = null;
-    }
-  } else {
-    lightboxOriginRect.value = null;
-  }
-  lightboxStartIndex.value = index;
-  isLightboxOpen.value = true;
-}
+const gallery = useMediaGallery();
 
 function toTweetDetail(
   tweetId: string,
@@ -797,7 +766,7 @@ const relatedExcerpt = computed(() => {
               'grid-rows-2 h-72 sm:h-80': mediaItems.length >= 4
             }"
           >
-            <div
+            <button type="button"
               v-for="(item, index) in mediaItems.slice(0, 4)"
               :key="item.originalUrl"
               class="group/media relative cursor-pointer overflow-hidden bg-muted"
@@ -805,7 +774,8 @@ const relatedExcerpt = computed(() => {
                 'max-h-[420px]': mediaItems.length === 1,
                 'row-span-2': mediaItems.length === 3 && index === 0
               }"
-              @click.stop="openLightbox(index, $event)"
+              :data-media-url="item.originalUrl"
+              @click.stop="gallery.show(index, $event)"
             >
               <img
                 :src="item.thumbnailUrl"
@@ -822,13 +792,13 @@ const relatedExcerpt = computed(() => {
 
               <div
                 v-if="mediaItems.length > 4 && index === 3"
-                class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                class="absolute inset-0 flex items-center justify-center bg-black/60"
               >
                 <span class="text-2xl font-semibold text-white">
                   +{{ mediaItems.length - 4 }}
                 </span>
               </div>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -995,10 +965,8 @@ const relatedExcerpt = computed(() => {
   </article>
   <Lightbox
     v-if="mediaItems.length > 0"
-    v-model:open="isLightboxOpen"
+    v-model:open="gallery.open" :start-index="gallery.startIndex" :origin-rect="gallery.originRect"
     :items="mediaItems"
-    :start-index="lightboxStartIndex"
-    :origin-rect="lightboxOriginRect"
   />
 
   <Dialog v-model:open="isDeleteDialogOpen">

@@ -65,6 +65,10 @@ const items = computed(() => [
 const activeIndex = computed(() =>
   items.value.findIndex(item => item.match(route.path))
 );
+const { events, pressed, pillStyle, itemStyle } = useLiquidScrub(activeIndex, index => {
+  const item = items.value[index];
+  if (item) void navigateTo(item.to);
+});
 </script>
 
 <template>
@@ -75,22 +79,27 @@ const activeIndex = computed(() =>
     :aria-label="t('nav.main.home')"
   >
     <div
-      class="relative grid h-full w-full items-center"
+      class="liquid-scrub relative grid h-full w-full items-center"
+      :data-pressed="pressed"
+      v-on="events"
       :style="{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }"
     >
       <span
-        v-if="activeIndex >= 0"
+        v-if="activeIndex >= 0 || pressed"
         aria-hidden="true"
-        class="liquid-glass-active-pill pointer-events-none absolute inset-y-0 left-0 rounded-full transition-transform duration-260 ease-[var(--ease-spring)]"
+        class="liquid-glass-active-pill pointer-events-none absolute inset-y-0 left-0 rounded-full scrub-pill"
         :style="{
           width: `${100 / items.length}%`,
-          transform: `translateX(${activeIndex * 100}%)`
+          ...pillStyle
         }"
       />
       <NuxtLink
         v-for="(item, index) in items"
         :key="item.key"
         :to="item.to"
+        data-scrub-item
+        :aria-current="index === activeIndex ? 'page' : undefined"
+        :style="itemStyle(index)"
         class="pressable relative z-10 flex h-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-full px-1 transition-colors"
         :class="
           index === activeIndex

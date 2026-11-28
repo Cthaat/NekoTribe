@@ -58,6 +58,10 @@ const emit = defineEmits<{
   (e: 'share', id: number): void;
 }>();
 
+const gallery = useMediaGallery();
+const mediaItems = computed(() => (props.post.media ?? []).map(media => ({
+  type: media.type, originalUrl: media.url, thumbnailUrl: media.thumbnail || media.url
+})));
 const groupContext = computed(() => props.post.group);
 
 const formatTime = (dateStr: string) => {
@@ -287,7 +291,9 @@ const openAuthorProfile = () => {
           'grid-cols-2': post.media.length >= 2
         }"
       >
-        <div
+        <button type="button"
+          :data-media-url="media.url"
+          @click.stop="gallery.show(index, $event)"
           v-for="(media, index) in post.media.slice(0, 4)"
           :key="index"
           class="group/media relative aspect-video overflow-hidden bg-muted"
@@ -299,7 +305,7 @@ const openAuthorProfile = () => {
           />
           <div
             v-if="media.type === 'video'"
-            class="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+            class="absolute inset-0 flex items-center justify-center bg-black/30"
           >
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-foreground shadow-md"
@@ -307,7 +313,7 @@ const openAuthorProfile = () => {
               <Play class="ml-0.5 h-4 w-4 fill-current" />
             </div>
           </div>
-        </div>
+        </button>
       </div>
     </CardContent>
 
@@ -351,5 +357,6 @@ const openAuthorProfile = () => {
         <Share2 class="h-4 w-4" />
       </Button>
     </CardFooter>
+    <Lightbox v-if="gallery.open" v-model:open="gallery.open" :start-index="gallery.startIndex" :origin-rect="gallery.originRect" :items="mediaItems" />
   </Card>
 </template>

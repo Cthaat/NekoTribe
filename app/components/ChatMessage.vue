@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useMediaGallery } from '@/composables/useMediaGallery';
 import { computed } from 'vue';
 import PrivateMediaDownload from '@/components/PrivateMediaDownload.vue';
 import { isPrivateMediaContent } from '@/utils/private-media';
@@ -103,6 +104,10 @@ const privateAttachments = computed(() =>
 const publicImages = computed(() =>
   props.message.attachments?.filter(asset => asset.type === 'image' && !isPrivateMediaContent(asset.id, asset.url)) ?? []
 );
+const gallery = useMediaGallery();
+const mediaItems = computed(() => publicImages.value.map(asset => ({
+  type: 'image' as const, originalUrl: asset.url, thumbnailUrl: asset.url, altText: asset.name
+})));
 const publicFiles = computed(() =>
   props.message.attachments?.filter(asset => asset.type === 'file' && !isPrivateMediaContent(asset.id, asset.url)) ?? []
 );
@@ -332,13 +337,17 @@ const handleViewProfile = () => {
             v-if="publicImages.length"
             class="mt-1.5 flex flex-wrap gap-1.5"
           >
-            <img
-              v-for="attachment in publicImages"
+            <button type="button"
+              v-for="(attachment, index) in publicImages"
               :key="attachment.id"
-              :src="attachment.url"
-              :alt="attachment.name"
-              class="max-h-64 max-w-xs cursor-pointer rounded-xl object-cover transition-opacity hover:opacity-90"
-            />
+              :data-media-url="attachment.url"
+              @click.stop="gallery.show(index, $event)"
+            >
+              <img
+                :src="attachment.url"
+                :alt="attachment.name"
+                class="max-h-64 max-w-xs cursor-pointer rounded-xl object-cover transition-opacity hover:opacity-90" />
+            </button>
           </div>
 
           <!-- 文件附件 -->
@@ -524,5 +533,6 @@ const handleViewProfile = () => {
         </DropdownMenu>
       </TooltipProvider>
     </div>
+    <Lightbox v-if="gallery.open" v-model:open="gallery.open" :start-index="gallery.startIndex" :origin-rect="gallery.originRect" :items="mediaItems" />
   </div>
 </template>

@@ -53,8 +53,10 @@ export default defineNuxtConfig({
     publicTermsReferences: parseTermsCatalog(publicTermsCatalog).slice()
   },
   compatibilityDate: '2026-04-26',
+  experimental: { viewTransition: true },
   app: {
-    pageTransition: { name: 'page', mode: 'out-in' }
+    pageTransition: { name: 'page' },
+    layoutTransition: { name: 'page' }
   },
   debug: false,
   devtools: {

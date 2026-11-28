@@ -15,6 +15,7 @@
 import LiquidGlassFilterDefs from '@/components/glass/LiquidGlassFilterDefs.vue'
 import WebRtcCallDialog from '@/components/WebRtcCallDialog.vue'
 import { Toaster } from "@/components/ui/sonner"
+if (import.meta.client) onScopeDispose(useTabTransitionDirection(useRouter()))
 const { t, locale } = useAppLocale()
 
 useSeoMeta({

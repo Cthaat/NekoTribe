@@ -38,7 +38,7 @@ const props = defineProps<{
   items: MediaItem[];
   startIndex?: number;
   open: boolean;
-  originRect?: LightboxOriginRect | null;
+  originRect?: LightboxOriginRect | null | ((url: string) => LightboxOriginRect | null);
 }>();
 
 const emit = defineEmits(['update:open']);
@@ -62,6 +62,13 @@ let panStartX = 0;
 let panStartY = 0;
 let activePointerId: number | null = null;
 let flipRaf: number | null = null;
+
+let opening = props.open;
+let closeTimer: ReturnType<typeof setTimeout> | undefined;
+function thumbnailRect() {
+  if (typeof props.originRect === 'function') return props.originRect(props.items[currentIndex.value]?.originalUrl ?? '');
+  return currentIndex.value === (props.startIndex ?? 0) ? props.originRect : null;
+}
 
 function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
@@ -88,18 +95,19 @@ function computeFlipDelta(rect: LightboxOriginRect | null | undefined, el: HTMLE
   const targetCenterY = target.top + target.height / 2;
   const dx = originCenterX - targetCenterX;
   const dy = originCenterY - targetCenterY;
-  const scale = Math.max(0.18, Math.min(0.95, Math.min(rect.width / target.width, rect.height / target.height)));
-  return `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+  return `translate3d(${dx}px, ${dy}px, 0) scale(${rect.width / target.width}, ${rect.height / target.height})`;
 }
 
 async function runOpenFlip(): Promise<void> {
+  if (!opening || !props.open || isClosing.value) return;
+  opening = false;
   if (prefersReducedMotion() || !props.originRect) {
     flipActive.value = false;
     flipTransform.value = '';
     return;
   }
   await nextTick();
-  const initial = computeFlipDelta(props.originRect, stageRef.value);
+  const initial = computeFlipDelta(thumbnailRect(), stageRef.value);
   if (!initial) {
     flipActive.value = false;
     flipTransform.value = '';
@@ -116,6 +124,7 @@ async function runOpenFlip(): Promise<void> {
 }
 
 function cancelFlipAnimation(): void {
+  clearTimeout(closeTimer);
   if (flipRaf !== null) {
     cancelAnimationFrame(flipRaf);
     flipRaf = null;
@@ -128,9 +137,9 @@ watch(
     cancelFlipAnimation();
     resetTransformState();
     isClosing.value = false;
+    opening = isOpen;
     if (isOpen) {
       currentIndex.value = Math.max(0, Math.min(props.startIndex || 0, Math.max(0, props.items.length - 1)));
-      void runOpenFlip();
     } else {
       flipActive.value = false;
       flipTransform.value = '';
@@ -159,11 +168,11 @@ const backdropOpacity = computed(() => {
 });
 
 const mediaSurfaceStyle = computed(() => {
-  if (flipTransform.value && !isDragging.value && zoomScale.value === 1) {
+  if (flipTransform.value && (isClosing.value || (!isDragging.value && zoomScale.value === 1))) {
     return {
       transform: flipTransform.value,
       transition: flipActive.value && !prefersReducedMotion()
-        ? 'transform 260ms var(--ease-spring)'
+        ? 'transform 260ms var(--ease-spring-snappy)'
         : 'none'
     };
   }
@@ -177,22 +186,23 @@ const mediaSurfaceStyle = computed(() => {
     transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${combinedScale})`,
     transition: isDragging.value || isPanning.value || prefersReducedMotion()
       ? 'none'
-      : 'transform 240ms var(--ease-spring)'
+      : 'transform 320ms var(--ease-spring-bouncy)'
   };
 });
 
 function closeLightbox(): void {
   if (isClosing.value) return;
-  if (!prefersReducedMotion() && props.originRect && zoomScale.value === 1) {
-    const targetDelta = computeFlipDelta(props.originRect, stageRef.value);
+  if (!prefersReducedMotion() && props.originRect) {
+    cancelFlipAnimation();
+    const targetDelta = computeFlipDelta(thumbnailRect(), stageRef.value);
     if (targetDelta) {
       isClosing.value = true;
       flipActive.value = true;
       flipTransform.value = targetDelta;
-      setTimeout(() => {
+      closeTimer = setTimeout(() => {
         isClosing.value = false;
         emit('update:open', false);
-      }, 170);
+      }, 260);
       return;
     }
   }
@@ -200,12 +210,12 @@ function closeLightbox(): void {
 }
 
 function next(): void {
-  if (!hasMultiple.value) return;
+  if (!hasMultiple.value || isClosing.value) return;
   currentIndex.value = (currentIndex.value + 1) % props.items.length;
 }
 
 function prev(): void {
-  if (!hasMultiple.value) return;
+  if (!hasMultiple.value || isClosing.value) return;
   currentIndex.value = (currentIndex.value - 1 + props.items.length) % props.items.length;
 }
 
@@ -234,7 +244,8 @@ function onWheel(event: WheelEvent): void {
 }
 
 function onPointerDown(event: PointerEvent): void {
-  if (!isImage.value || event.button !== 0) return;
+  if (!isImage.value || !event.isPrimary || isClosing.value || event.button !== 0) return;
+  cancelFlipAnimation();
   flipTransform.value = '';
   flipActive.value = false;
   activePointerId = event.pointerId;
@@ -261,14 +272,15 @@ function onPointerMove(event: PointerEvent): void {
     const dy = event.clientY - dragStartY;
     const dx = event.clientX - dragStartX;
     if (Math.abs(dy) >= Math.abs(dx) * 0.8 || Math.abs(dragY.value) > 4) {
-      dragY.value = dy;
+      dragY.value = Math.max(0, dy) / (1 + Math.abs(dy) / 560);
     }
   }
 }
 
 function onPointerUp(event: PointerEvent): void {
   if (activePointerId !== event.pointerId) return;
-  (event.currentTarget as HTMLElement | null)?.releasePointerCapture?.(event.pointerId);
+  const target = event.currentTarget as HTMLElement;
+  if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
   activePointerId = null;
   if (isPanning.value) {
     isPanning.value = false;
@@ -277,7 +289,7 @@ function onPointerUp(event: PointerEvent): void {
   if (isDragging.value) {
     const dy = dragY.value;
     isDragging.value = false;
-    if (Math.abs(dy) > 110) {
+    if (event.type === 'pointerup' && dy > 90) {
       closeLightbox();
       return;
     }
@@ -316,11 +328,11 @@ function onKeydown(e: KeyboardEvent): void {
   >
     <DialogPortal>
       <DialogOverlay
-        class="fixed inset-0 z-50 backdrop-blur-md transition-opacity duration-200"
+        class="lightbox-overlay fixed inset-0 z-50 backdrop-blur-md transition-opacity duration-200"
         :style="{ backgroundColor: `rgba(6, 9, 14, ${backdropOpacity})` }"
       />
       <DialogContent
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
+        class="lightbox-content fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
         @keydown="onKeydown"
         @click.self="closeLightbox"
       >
@@ -405,8 +417,8 @@ function onKeydown(e: KeyboardEvent): void {
           class="relative flex h-full w-full items-center justify-center select-none"
           @click.self="closeLightbox"
         >
+          <div ref="stageRef" class="flex items-center justify-center">
           <div
-            ref="stageRef"
             class="relative flex max-h-[86vh] max-w-[92vw] touch-none items-center justify-center will-change-transform"
             :class="zoomScale > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'"
             :style="mediaSurfaceStyle"
@@ -416,12 +428,14 @@ function onKeydown(e: KeyboardEvent): void {
             @pointermove="onPointerMove"
             @pointerup="onPointerUp"
             @pointercancel="onPointerUp"
+            @lostpointercapture="onPointerUp"
           >
             <Transition name="lightbox-fade" mode="out-in">
               <template v-if="currentItem">
                 <img
                   v-if="currentItem.type === 'image'"
                   :key="`image-${currentItem.originalUrl}`"
+                  @load="runOpenFlip"
                   :src="currentItem.originalUrl"
                   draggable="false"
                   class="block max-h-[86vh] max-w-[92vw] rounded-[18px] object-contain shadow-2xl select-none"
@@ -432,12 +446,15 @@ function onKeydown(e: KeyboardEvent): void {
                   :key="`video-${currentItem.originalUrl}`"
                   :src="currentItem.originalUrl"
                   class="block max-h-[86vh] max-w-[92vw] rounded-[18px] object-contain shadow-2xl"
+                  @loadedmetadata="runOpenFlip"
                   controls
                   autoplay
                   loop
                 />
               </template>
             </Transition>
+          </div>
+
           </div>
 
           <!-- Caption -->

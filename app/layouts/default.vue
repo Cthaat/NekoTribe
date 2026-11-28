@@ -82,7 +82,7 @@ const isChatRoute = computed(() => normalizedPath.value.startsWith('/chat'));
         </template>
       </AppSidebar>
 
-      <main
+      <main data-page-content
         class="min-w-0 flex-1 bg-background pb-24 md:my-2 md:mr-2 md:min-h-[calc(100dvh-16px)] md:rounded-[28px] md:pb-8 md:overflow-x-clip"
       >
         <div
