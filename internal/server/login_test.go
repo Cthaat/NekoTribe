@@ -20,6 +20,7 @@ type loginFixtureStore struct {
 	exists, twoFactor, profileOK, insertFail, profileFail, schemaFail bool
 	inserted                                                          []LoginSession
 	updateCount                                                       int
+	previousIP                                                        string
 	known, alertFail                                                  bool
 	alertCount                                                        int
 	alertDelivery                                                     LoginAlertDelivery
@@ -39,15 +40,15 @@ func (s *loginFixtureStore) CheckTwoFactorSchema(context.Context) error {
 	}
 	return nil
 }
-func (s *loginFixtureStore) InsertLoginSession(_ context.Context, v LoginSession) error {
+func (s *loginFixtureStore) InsertLoginSession(_ context.Context, v LoginSession) (loginHistory, error) {
 	if s.changedCredentials && v.verifiedPasswordHash != "" {
-		return errLoginCredentialsChanged
+		return loginHistory{}, errLoginCredentialsChanged
 	}
 	if s.insertFail {
-		return errSessionStore
+		return loginHistory{}, errSessionStore
 	}
 	s.inserted = append(s.inserted, v)
-	return nil
+	return loginHistory{s.known, s.previousIP}, nil
 }
 
 func TestChangedPasswordBeforeLoginIssuanceReturnsNoCredentials(t *testing.T) {
@@ -68,9 +69,6 @@ func (s *loginFixtureStore) SelfProfile(context.Context, int64) (SelfUser, bool,
 		return SelfUser{}, false, errSessionStore
 	}
 	return SelfUser{UserID: s.account.UserID, Username: s.account.Username, AvatarURL: s.avatar}, s.profileOK, nil
-}
-func (s *loginFixtureStore) KnownLoginDevice(context.Context, int64, string) (bool, error) {
-	return s.known, nil
 }
 func (s *loginFixtureStore) RecordLoginAlert(context.Context, LoginSession) (LoginAlertDelivery, error) {
 	s.alertCount++
@@ -180,6 +178,9 @@ func TestLoginRejectsInvalidAndFailsClosedForTwoFactor(t *testing.T) {
 			if w.Code != tc.status || len(w.Result().Cookies()) != 0 {
 				t.Fatalf("status=%d cookies=%d", w.Code, len(w.Result().Cookies()))
 			}
+			if s.alertCount != 0 {
+				t.Fatal("failed login scheduled an alert")
+			}
 			if tc.name == "profile fails" && len(s.inserted) != 1 {
 				t.Fatal("session may already be committed")
 			}
@@ -215,7 +216,8 @@ func TestLoginAlertIsBestEffortAndOnlyForNewDevice(t *testing.T) {
 }
 
 type loginAlertMailFixture struct {
-	recipient string
+	sent    chan string
+	release chan struct{}
 }
 
 func (*loginAlertMailFixture) SendOTP(context.Context, string, string) error {
@@ -223,7 +225,10 @@ func (*loginAlertMailFixture) SendOTP(context.Context, string, string) error {
 }
 
 func (m *loginAlertMailFixture) SendLoginAlert(_ context.Context, to, _, _, _ string) error {
-	m.recipient = to
+	m.sent <- to
+	if m.release != nil {
+		<-m.release
+	}
 	return errMailDelivery
 }
 
@@ -231,17 +236,33 @@ func TestLoginAlertPushFailureStillAttemptsEmail(t *testing.T) {
 	store, _, codec := newLoginFixture(t)
 	store.alertDelivery = LoginAlertDelivery{Email: "recipient@example.test", NotificationID: 44}
 	publisher := &likePublisher{fail: true}
-	mailer := &loginAlertMailFixture{}
+	mailer := &loginAlertMailFixture{sent: make(chan string, 1), release: make(chan struct{})}
+	defer close(mailer.release)
 	handler := NewHandlerWithConfig(codec, store, CorsPolicy{}, RefreshConfig{
 		AccessSeconds: 900, RefreshSeconds: 3600, NotificationPublisher: publisher, otpMailer: mailer,
 		clock: func() time.Time { return time.Unix(1700000000, 123000000) },
 	})
-	response := loginRequest(handler, `{"account":"tester","password":"synthetic-password"}`)
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- loginRequest(handler, `{"account":"tester","password":"synthetic-password"}`) }()
+	var response *httptest.ResponseRecorder
+	select {
+	case response = <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("SMTP blocked the login response")
+	}
 	if response.Code != 200 || len(response.Result().Cookies()) != 2 {
 		t.Fatal("delivery failures changed the login result")
 	}
+	select {
+	case to := <-mailer.sent:
+		if to != store.alertDelivery.Email {
+			t.Fatal("wrong recipient")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("mail was not scheduled")
+	}
 	if publisher.calls != 1 || publisher.user != 42 || publisher.kind != "notification_created" ||
-		publisher.data["notification_type"] != "login_alert" || mailer.recipient != store.alertDelivery.Email {
+		publisher.data["notification_type"] != "login_alert" {
 		t.Fatal("expected recipient-scoped notification and email attempts")
 	}
 }

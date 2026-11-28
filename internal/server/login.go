@@ -31,6 +31,7 @@ type LoginSession struct {
 	UserID                                                                                 int64
 	SessionID, AccessJTI, RefreshHash, DeviceInfo, DeviceFingerprint, IPAddress, UserAgent string
 	AccessExpiresAt, RefreshExpiresAt                                                      time.Time
+	regionChanged                                                                          bool
 	verifiedPasswordHash                                                                   string
 	trustedDeviceKey                                                                       string
 	factorCompletion                                                                       *factorCompletion
@@ -73,10 +74,9 @@ type LoginRepository interface {
 	LookupLogin(context.Context, string) (LoginAccount, bool, error)
 	CheckTwoFactorSchema(context.Context) error
 	TwoFactorEnabled(context.Context, int64) (bool, error)
-	InsertLoginSession(context.Context, LoginSession) error
+	InsertLoginSession(context.Context, LoginSession) (loginHistory, error)
 	UpdateLastLogin(context.Context, int64) error
 	SelfProfile(context.Context, int64) (SelfUser, bool, error)
-	KnownLoginDevice(context.Context, int64, string) (bool, error)
 	RecordLoginAlert(context.Context, LoginSession) (LoginAlertDelivery, error)
 	NotificationByID(context.Context, int64, int64) (NotificationItem, bool, error)
 }
@@ -293,12 +293,12 @@ func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 	session.verifiedPasswordHash = user.PasswordHash
 	session.trustedDeviceKey = options.requiredKey
 	session.factorCompletion = options.completion
-	known, err := store.KnownLoginDevice(r.Context(), user.UserID, session.DeviceFingerprint)
+	history, err := store.InsertLoginSession(r.Context(), session)
 	if err != nil {
-		respond(w, 500, 50001, "服务器内部错误", nil)
-		return true
-	}
-	if err = store.InsertLoginSession(r.Context(), session); err != nil {
+		if errors.Is(err, errLoginHistoryUnavailable) {
+			respond(w, 503, 50301, "服务暂不可用，请稍后重试。", nil)
+			return true
+		}
 		if errors.Is(err, errTrustedDeviceUnavailable) {
 			return false
 		}
@@ -312,9 +312,6 @@ func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 	if err = store.UpdateLastLogin(r.Context(), user.UserID); err != nil {
 		respond(w, 500, 50001, "服务器内部错误", nil)
 		return true
-	}
-	if !known {
-		deliverLoginAlert(r.Context(), store, config, session)
 	}
 	profile, found, err := store.SelfProfile(r.Context(), user.UserID)
 	if err != nil {
@@ -338,6 +335,10 @@ func issueLogin(w http.ResponseWriter, r *http.Request, codec *auth.TokenManager
 	}
 	if options.issuedProof != "" {
 		http.SetCookie(w, &http.Cookie{Name: trustedDeviceCookie, Value: options.issuedProof, Path: "/", MaxAge: int(trustedDeviceLifetime / time.Second), HttpOnly: true, Secure: config.CookieSecure, SameSite: http.SameSiteLaxMode})
+	}
+	session.regionChanged = config.loginRegions.changed(history.previousIP, session.IPAddress)
+	if !history.knownDevice || session.regionChanged {
+		deliverLoginAlert(r.Context(), store, config, session)
 	}
 	const iso = "2006-01-02T15:04:05.000Z"
 	options.success.send(w, "login success", map[string]interface{}{"two_factor_required": false, "user": profile, "tokens": map[string]string{"session_id": id, "access_token": access, "refresh_token": refresh, "access_token_expires_at": session.AccessExpiresAt.Format(iso), "refresh_token_expires_at": session.RefreshExpiresAt.Format(iso)}})

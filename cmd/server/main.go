@@ -97,6 +97,7 @@ func run() (err error) {
 		return e
 	}
 	defer otpLimiter.Close()
+	config.Refresh.Admission = otpLimiter
 	config.Refresh.OTPSendLimiter = otpLimiter
 	config.Refresh.OTPAttemptLimiter = otpLimiter
 	aiQuota, e := server.NewRedisAIModelQuota(os.LookupEnv)

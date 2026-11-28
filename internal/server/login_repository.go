@@ -123,8 +123,9 @@ func (s OracleSessions) TwoFactorEnabled(ctx context.Context, user int64) (bool,
 	}
 	return enabled != 0 && at.Valid, nil
 }
-func (s OracleSessions) InsertLoginSession(ctx context.Context, v LoginSession) error {
-	return s.withLoginCredential(ctx, v.UserID, v.verifiedPasswordHash, func(tx *sql.Tx) error {
+func (s OracleSessions) InsertLoginSession(ctx context.Context, v LoginSession) (loginHistory, error) {
+	var history loginHistory
+	err := s.withLoginCredential(ctx, v.UserID, v.verifiedPasswordHash, func(tx *sql.Tx) error {
 		if v.trustedDeviceKey != "" {
 			result, err := tx.ExecContext(ctx, claimTrustedDeviceSQL, sql.Named("user_id", v.UserID),
 				sql.Named("device_fingerprint", v.trustedDeviceKey), sql.Named("device_info", truncateDevice(v.DeviceInfo)),
@@ -145,8 +146,17 @@ func (s OracleSessions) InsertLoginSession(ctx context.Context, v LoginSession) 
 				return err
 			}
 		}
+		var err error
+		history, err = readLoginHistory(ctx, tx, v)
+		if err != nil {
+			return err
+		}
 		return execLoginWrite(ctx, tx, insertLoginSessionSQL, sql.Named("session_id", v.SessionID), sql.Named("user_id", v.UserID), sql.Named("access_jti", v.AccessJTI), sql.Named("refresh_token_hash", v.RefreshHash), sql.Named("device_info", v.DeviceInfo), sql.Named("device_fingerprint", v.DeviceFingerprint), sql.Named("ip_address", v.IPAddress), sql.Named("user_agent", v.UserAgent), sql.Named("access_token_expires_at", oracleTimestampValue(v.AccessExpiresAt)), sql.Named("refresh_token_expires_at", oracleTimestampValue(v.RefreshExpiresAt)))
 	})
+	if err != nil {
+		return loginHistory{}, err
+	}
+	return history, nil
 }
 func (s OracleSessions) UpdateLastLogin(ctx context.Context, user int64) error {
 	n, err := s.execute(ctx, updateLastLoginSQL, sql.Named("user_id", user))

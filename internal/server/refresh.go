@@ -28,6 +28,8 @@ type RefreshRepository interface {
 }
 
 type RefreshConfig struct {
+	Admission                     admissionStore
+	loginRegions                  loginRegionMap
 	AccessSeconds, RefreshSeconds int
 	CookieSecure                  bool
 	TrustProxy                    bool

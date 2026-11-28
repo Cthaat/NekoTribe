@@ -27,21 +27,22 @@ type factorFixture struct {
 	codes                           []RecoveryCode
 }
 
-func (s *factorFixture) InsertLoginSession(ctx context.Context, session LoginSession) error {
+func (s *factorFixture) InsertLoginSession(ctx context.Context, session LoginSession) (loginHistory, error) {
 	if session.trustedDeviceKey != "" && (!s.trusted || s.trustedKey != session.trustedDeviceKey) {
-		return errTrustedDeviceUnavailable
+		return loginHistory{}, errTrustedDeviceUnavailable
 	}
 	completion := session.factorCompletion
 	if completion != nil {
 		if s.consumed || s.challenge.ID != completion.challenge.ID || (completion.recoveryCodeID != nil && s.recoveryUsed) {
-			return errFactorCompletionUnavailable
+			return loginHistory{}, errFactorCompletionUnavailable
 		}
 		if completion.trustedKey != "" && s.resetBeforeTrust {
-			return errLoginCredentialsChanged
+			return loginHistory{}, errLoginCredentialsChanged
 		}
 	}
-	if err := s.loginFixtureStore.InsertLoginSession(ctx, session); err != nil {
-		return err
+	history, err := s.loginFixtureStore.InsertLoginSession(ctx, session)
+	if err != nil {
+		return loginHistory{}, err
 	}
 	if completion != nil {
 		s.consumed = true
@@ -51,7 +52,7 @@ func (s *factorFixture) InsertLoginSession(ctx context.Context, session LoginSes
 			s.trustedKey = completion.trustedKey
 		}
 	}
-	return nil
+	return history, nil
 }
 func (s *factorFixture) CreateLoginChallenge(_ context.Context, c LoginChallenge) error {
 	s.challenge = c
