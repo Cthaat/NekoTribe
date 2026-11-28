@@ -1,2 +1,22 @@
+* text=auto eol=lf
+
 *.sh text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
 contracts/*.json text eol=lf
+
+*.der binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.zip binary
+*.gz binary
+*.pdf binary
