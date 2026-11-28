@@ -17,7 +17,7 @@ post = dict(post_id=181,author=user,location='',language='zh',content='清晨的
 group = dict(post_id=182,group_id=9,group_name='Studio',author=user,content='色彩练习',media_urls=[x['public_url'] for x in media],created_at=stamp)
 def fixture(route):
     path = urlsplit(route.request.url).path
-    data = [post] if path in ['/api/v2/posts','/api/v2/posts/trending'] else [group] if path=='/api/v2/feed/groups' else post if path=='/api/v2/posts/181' else []
+    data = [post] if path in ['/api/v2/posts','/api/v2/posts/trending'] else [group] if path=='/api/v2/feed/groups' else post if path==f"/api/v2/posts/{post['post_id']}" else []
     if path=='/api/v2/chat/groups':
         data=[dict(group_id=9,name='Studio',membership={'can_manage':False},unread_count=0,channel_count=1)]
     elif path=='/api/v2/chat/groups/9/channels':
@@ -35,9 +35,7 @@ def setup(browser,mobile,theme,glass,motion,trans,fallback=False):
     def img(route):
         color='#417e85' if '1.png' in route.request.url else '#e7a564'
         route.fulfill(content_type='image/svg+xml',body=f'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="440"><rect width="800" height="440" fill="{color}"/><circle cx="420" cy="200" r="142" fill="#f6dfba"/><path d="M0 440 L240 270 L440 400 L650 290 L800 380 V440Z" fill="#314b60"/></svg>')
-    ctx.route('**/w1-image-*.png',img)
-    ctx.route('**/storage/default-avatar.png',img)
-    ctx.route('**/avatars/avatar1.png',img)
+    ctx.route(re.compile(r'/(?:w1-image-\d+|storage/default-avatar|avatars/avatar1)\.png$'),img)
     page=ctx.new_page()
     cdp=ctx.new_cdp_session(page)
     cdp.send('Emulation.setEmulatedMedia',{'features':[{'name':'prefers-reduced-motion','value':'reduce' if motion else 'no-preference'},{'name':'prefers-reduced-transparency','value':'reduce' if trans else 'no-preference'},{'name':'prefers-color-scheme','value':theme}]})
@@ -54,14 +52,27 @@ def setup(browser,mobile,theme,glass,motion,trans,fallback=False):
 def center(el):
     r=el.bounding_box()
     return r['x']+r['width']/2,r['y']+r['height']/2
+def settled_scale(page, index, scale=1):
+    return page.wait_for_function("""([path, scale]) => {
+        const img = document.querySelector('.lightbox-content img');
+        if (!img?.naturalWidth || new URL(img.currentSrc).pathname !== path) return false;
+        const stage = img.parentElement;
+        const m = new DOMMatrix(getComputedStyle(stage).transform);
+        return !img.getAnimations().length && !stage.getAnimations().length && Math.abs(m.a - scale) < .01 &&
+          Math.abs(m.d - scale) < .01 && Math.abs(m.m41) < .5 && Math.abs(m.m42) < .5 && m.a;
+    }""", arg=[media[index]['public_url'],scale],timeout=10000).json_value()
+
+def open_image(page, thumb):
+    thumb.click()
+    settled_scale(page, 0)
+    return page.locator('.lightbox-content img')
+
 def run(browser,mobile,theme,glass,motion,trans):
     label='w1-{}-{}-{}-m{}t{}'.format('mobile' if mobile else 'desktop',theme,glass,int(motion),int(trans))
     ctx,p,errors=setup(browser,mobile,theme,glass,motion,trans)
     try:
         seg=p.locator('[role=tablist].liquid-scrub')
-        seg.wait_for()
         thumbs=p.locator('button[data-media-url]')
-        thumbs.first.wait_for()
         seg.locator('[role=tab]').nth(0).focus()
         p.keyboard.press('ArrowRight')
         expect(seg.locator('[role=tab]').nth(1)).to_have_attribute('aria-selected','true')
@@ -80,24 +91,15 @@ def run(browser,mobile,theme,glass,motion,trans):
         pressed=seg.locator('.scrub-pill').evaluate("""e=>{const m=new DOMMatrix(getComputedStyle(e).transform);return {sx:m.a,sy:m.d,glint:getComputedStyle(e).backgroundImage}}""")
         assert abs(pressed['sx']*pressed['sy']-(1 if motion else 1.08**2))<.02,pressed
         p.mouse.up()
-        p.wait_for_timeout(100)
         expect(seg.locator('button').nth(1)).to_have_attribute('aria-selected','true')
         seg.locator('button').nth(0).click()
-        thumbs.first.click()
-        dialog=p.locator('[role=dialog].lightbox-content')
-        dialog.wait_for()
-        image=dialog.locator('img').first
-        image.wait_for()
-        p.wait_for_timeout(320)
+        image=open_image(p,thumbs.first)
         image.dblclick()
-        p.wait_for_timeout(350 if not motion else 30)
-        scale=image.evaluate('e=>new DOMMatrix(getComputedStyle(e.closest("[class*=will-change]")).transform).a')
-        assert abs(scale-2)<.01,scale
+        scale=settled_scale(p,0,2)
         p.keyboard.press('ArrowRight')
-        p.wait_for_timeout(350)
-        assert image.get_attribute('src').endswith('2.png')
+        settled_scale(p,1)
         p.keyboard.press('Escape')
-        dialog.wait_for(state='hidden')
+        image.wait_for(state='hidden')
         assert not errors,errors
         return dict(case=label,**state,pressed=pressed,zoom=scale,pageErrors=errors)
     except Exception:
@@ -108,7 +110,6 @@ def run(browser,mobile,theme,glass,motion,trans):
 
 def route_case(browser,fallback):
     ctx,p,errors=setup(browser,True,'light','standard',False,False,fallback)
-    p.locator('nav.liquid-glass-dock:visible [data-scrub-item]').first.wait_for()
     p.evaluate("""() => {window.framesSeen=[];function record(){if(document.querySelector('.page-leave-active')&&document.querySelector('.page-enter-active'))framesSeen.push({direction:document.documentElement.dataset.tabDirection,layout:document.querySelectorAll('[data-page-content]').length});requestAnimationFrame(record)}record()}""")
     dock=p.locator('nav.liquid-glass-dock')
     cdp=ctx.new_cdp_session(p)
@@ -120,20 +121,15 @@ def route_case(browser,fallback):
         cdp.send('Input.dispatchTouchEvent',dict(type=kind,touchPoints=points))
     assert a.get_attribute('aria-selected')=='true'
     assert seg.get_attribute('data-pressed')=='false'
-    p.locator('button[data-media-url]').first.click()
-    dialog=p.locator('.lightbox-content')
-    image=dialog.locator('img')
-    image.wait_for()
-    p.wait_for_timeout(350)
+    image=open_image(p,p.locator('button[data-media-url]').first)
     for ending in ['touchCancel','touchEnd']:
         x,y=center(image)
         for kind,py in [('touchStart',y),('touchMove',y+70),('touchMove',y+160),(ending,None)]:
             cdp.send('Input.dispatchTouchEvent',dict(type=kind,touchPoints=[] if py is None else [dict(x=x,y=py)]))
         if ending=='touchCancel':
-            p.wait_for_timeout(375)
-            assert dialog.is_visible()
+            settled_scale(p,0)
         else:
-            dialog.wait_for(state='hidden')
+            image.wait_for(state='hidden')
     dirs=[]
     for idx,path,direction in [(1,'/groups/discover','forward'),(3,'/chat','forward'),(1,'/groups/discover','back'),(0,'/','back')]:
         item=dock.locator('a').nth(idx)
@@ -164,45 +160,40 @@ def route_case(browser,fallback):
     ctx.close()
     return {'fallback':fallback,'directions':dirs,'overlapFrames':frames,'native':native}
 
-def gallery(page,origin):
-    thumb=page.locator('button[data-media-url]:visible')
-    thumb.first.wait_for()
-    thumb.nth(0).click()
-    dlg=page.locator('[role=dialog].lightbox-content')
-    img=dlg.locator('img')
-    img.wait_for()
-    page.wait_for_timeout(320)
-    point=img.evaluate("e=>{const r=e.getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]}")
-    x,y=point
-    page.mouse.move(x,y);page.mouse.down();page.mouse.move(x,y+55,steps=5);page.mouse.up()
-    page.wait_for_timeout(360)
-    assert dlg.is_visible()
-    stage=img.locator('xpath=ancestor::*[contains(@class,"will-change")][1]')
-    assert abs(stage.evaluate("e=>new DOMMatrix(getComputedStyle(e).transform).m42"))<.5
+def gallery(page,origin,scope):
+    img=open_image(page,scope.locator(f'button[data-media-url$="{media[0]["public_url"]}"]'))
+    stage=img.locator('..')
+    x,y=center(img)
+    page.mouse.move(x,y);page.mouse.down();page.mouse.move(x,y+55,steps=5)
+    page.wait_for_function("() => new DOMMatrix(getComputedStyle(document.querySelector('.lightbox-content img').parentElement).transform).m42 > 20",timeout=10000)
+    page.mouse.up()
+    settled_scale(page,0)
     page.keyboard.press('ArrowRight')
-    page.wait_for_timeout(360)
+    settled_scale(page,1)
     # The thumbnail can move between opening and closing (viewport, reflow, or scroll).
-    page.evaluate("document.querySelectorAll('button[data-media-url]')[1].style.translate='18px 0px'")
-    r=thumb.nth(1).bounding_box()
+    current=scope.locator(f'button[data-media-url$="{media[1]["public_url"]}"]')
+    current.evaluate("e=>e.style.translate='18px 0px'")
+    r=current.bounding_box()
     dst=stage.locator('..').bounding_box()
+    handle=stage.element_handle()
     page.keyboard.press('Escape')
-    result=stage.evaluate("e=>e.style.transform")
-    assert 'scale(' in result,result
-    vals=[float(n) for n in re.findall(r'-?\d+(?:\.\d+)?',result.replace('translate3d','translate'))]
-    assert abs(vals[0]-(r['x']+r['width']/2-dst['x']-dst['width']/2))<1,(result,r,dst)
-    assert abs(vals[3]-(r['width']/dst['width']))<.02,(vals,r,dst)
-    dlg.wait_for(state='hidden')
+    result=page.wait_for_function("""e => { const m=new DOMMatrix(e.style.transform);
+        return !m.isIdentity && [m.m41,m.m42,m.a,m.d]; }""",arg=handle,timeout=10000).json_value()
+    for axis,size,shift,ratio in [('x','width',result[0],result[2]),('y','height',result[1],result[3])]:
+        assert abs(shift-(r[axis]+r[size]/2-dst[axis]-dst[size]/2))<1,(result,r,dst)
+        assert abs(ratio-r[size]/dst[size])<.02,(result,r,dst)
+    img.wait_for(state='hidden')
     return dict(surface=origin,closeTransform=result,liveThumb=r,layoutRect=dst)
 def check_galleries(b):
     ctx,p,errors=setup(b,False,'dark','subtle',False,False)
-    results=[gallery(p,'feed')]
+    main=p.locator('main[data-page-content]')
+    results=[gallery(p,'feed',main.locator('article.bento-card').first)]
     p.locator('[role=tablist].liquid-scrub button').last.click()
-    p.locator('[class~="group/post"] button[data-media-url]').first.wait_for()
-    results.append(gallery(p,'group post'))
-    p.goto(base+'/zh/tweet/181',wait_until='domcontentloaded')
-    results.append(gallery(p,'post detail'))
+    results.append(gallery(p,'group post',main.locator('[class~="group/post"]').first))
+    p.goto(f"{base}/zh/tweet/{post['post_id']}",wait_until='domcontentloaded')
+    results.append(gallery(p,'post detail',main.locator('article.bento-card').first))
     p.goto(base+'/zh/chat',wait_until='domcontentloaded')
-    results.append(gallery(p,'chat'))
+    results.append(gallery(p,'chat',main.locator('[data-chat-content-panel]')))
     assert not errors,errors
     (root/'w1-galleries.json').write_text(json.dumps(results,indent=2))
     ctx.close()
