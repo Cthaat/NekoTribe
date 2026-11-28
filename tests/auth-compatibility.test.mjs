@@ -2,7 +2,7 @@
 // Only Oracle, Redis/cache, logging, mail and profile/notification boundaries are isolated.
 import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
-import { createServer } from 'node:http';
+import { createServer, ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rmdir } from 'node:fs/promises';
@@ -13,7 +13,7 @@ import crypto from 'node:crypto';
 import { build } from 'esbuild';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { createApp, createError, createRouter, defineEventHandler, setResponseHeader, toNodeListener } from 'h3';
+import { createApp, createError, createEvent, createRouter, defineEventHandler, setResponseHeader, toNodeListener } from 'h3';
 import { schemaFixture } from './helpers/schema-fixture.mjs';
 import { listenForFetch } from './helpers/loopback-listener.mjs';
 
@@ -39,10 +39,12 @@ const compiled = await build({
   stdin: { contents: `
     export {default as cors} from './server/middleware/00-cors';
     export {default as auth} from './server/middleware/auth';
+    export {default as admission} from './server/middleware/01-v2-admission';
     export {default as login} from './server/api/v2/auth/tokens.post';
     export {default as refresh} from './server/api/v2/auth/tokens/current.patch';
     export {default as logout} from './server/api/v2/auth/tokens/current.delete';
     export {default as twoFactor} from './server/api/v2/auth/two-factor/challenges.post';
+    export {default as factorPath} from './server/api/v2/auth/two-factor/challenges/[id].post';
     export {default as verifyOtp} from './server/api/v2/auth/otp/verification.post';
     export {default as createOtp} from './server/api/v2/auth/otp.post';
     export {default as register} from './server/api/v2/auth/registration.post';
@@ -86,7 +88,7 @@ const compiled = await build({
     export {default as followers} from './server/api/v2/users/[id]/followers.get';
     export {default as following} from './server/api/v2/users/[id]/following.get';
     export {default as mutualFollowing} from './server/api/v2/users/[id]/mutual-following.get';
-    export {v2ListSessions} from './server/services/v2/auth';
+    export {v2ListSessions, v2LoginAfterVerifiedCredential} from './server/services/v2/auth';
   `, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm',
   plugins: [{ name: 'isolated-boundaries', setup(builder) {
@@ -729,10 +731,19 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
         db.factorLoginUndo?.push(() => trustedDevices.delete(binds.device_fingerprint));
         return {rowsAffected: 1};
       }
+      if (sql === 'SELECT user_id, username, password_hash, status, is_active FROM n_users WHERE user_id = :user_id')
+        return rows([{USER_ID:1, USERNAME:'verified', PASSWORD_HASH:passwordHash, STATUS:'active', IS_ACTIVE:1}]);
       if (sql.includes('WHERE email = :account')) return rows([{USER_ID: 1, USERNAME: 'test', PASSWORD_HASH: db.loginPasswordHash ?? passwordHash, STATUS: 'active', IS_ACTIVE: 1}]);
       if (sql.includes('AS two_factor_enabled')) return rows([{TWO_FACTOR_ENABLED: Number(twoFactor), ENABLED_AT: twoFactor ? new Date() : null}]);
+      if (sql.includes('AS prior_ip')) {
+        if (db.historyMissing) throw Object.assign(Error('private column'), {code:'ORA-00904'});
+        assert.match(sql, /ORDER BY created_at DESC, session_id ASC/);
+        assert.match(sql, /FROM n_auth_sessions WHERE user_id = :user_id/);
+        assert.doesNotMatch(sql, /revoked_at|expires_at/);
+        return rows([{TOTAL: newDevice ? 0 : 1, PRIOR_IP: db.priorIp}]);
+      }
       if (sql.startsWith('SELECT COUNT')) return rows([{TOTAL: newDevice ? 0 : 1}]);
-      if (sql.includes('AS login_alerts')) return rows([{EMAIL: 'fixture@example.test', LOGIN_ALERTS: 1, EMAIL_NOTIFICATION_ENABLED: 1}]);
+      if (sql.includes('AS login_alerts')) return rows([{EMAIL: 'fixture@example.test', LOGIN_ALERTS: db.loginAlerts ?? 1, EMAIL_NOTIFICATION_ENABLED: db.emailAlerts ?? 1}]);
       if (sql.startsWith('INSERT INTO n_auth_sessions')) {
         if (db.failFactorSession) throw Error('session-insert-fixture');
         sessions.set(binds.session_id, {...binds, revoked: false});
@@ -818,8 +829,11 @@ function database({twoFactor = false, concurrentRefresh = false, concurrentChall
 
 async function fixture(options) {
   const db = database(options);
+  db.background = [];
   const app = createApp();
   app.use(defineEventHandler(event => {
+    event.waitUntil = task => db.background.push(task);
+    if (options?.admission) event.context.aiQuotaRedis = options.admission;
     event.context.getOracleConnection = async () => db;
     event.context.redis = { eval: async (_script, keys) => {
       if (keys === 2) {
@@ -836,12 +850,14 @@ async function fixture(options) {
     setResponseHeader(event, 'Vary', 'Accept-Encoding');
   }));
   app.use(routes.cors);
+  if (options?.admission) app.use(routes.admission);
   app.use(routes.auth);
   const router = createRouter();
   router.post('/api/v2/auth/tokens', routes.login);
   router.patch('/api/v2/auth/tokens/current', routes.refresh);
   router.delete('/api/v2/auth/tokens/current', routes.logout);
   router.post('/api/v2/auth/two-factor/challenges', routes.twoFactor);
+  router.post('/api/v2/auth/two-factor/challenges/:id', routes.factorPath);
   router.post('/api/v2/auth/otp/verification', routes.verifyOtp);
   router.post('/api/v2/auth/otp', routes.createOtp);
   router.post('/api/v2/auth/registration', routes.register);
@@ -1981,6 +1997,146 @@ test('reset before the factor login transaction rejects the in-flight completion
     assert.equal(f.db.sessions.size, 0);
     assert.equal(f.db.trustedDevices.size, 0);
   } finally { await f.close(); }
+});
+
+const admissionCases = JSON.parse(readFileSync(path.join(root, 'specifications/scenarios/b0-1-rate-limit.json'))).cases;
+
+for (const {id, input, expect} of admissionCases.filter(v => Object.hasOwn(v.input, 'knownFingerprint') && v.input.completedLogin)) {
+  test('B0.1 login history and asynchronous SMTP: ' + id, {timeout:5000}, async t => {
+    const f = await fixture({newDevice: !input.knownFingerprint});
+    t.after(f.close);
+    const priorMap = process.env.NEKO_LOGIN_REGION_MAP;
+    const map = {'192.0.2.8': input.priorRegion, '127.0.0.1': input.currentRegion};
+    process.env.NEKO_LOGIN_REGION_MAP = JSON.stringify(map);
+    t.after(() => { if (priorMap === undefined) delete process.env.NEKO_LOGIN_REGION_MAP; else process.env.NEKO_LOGIN_REGION_MAP = priorMap; });
+    f.db.priorIp = '192.0.2.8';
+    const messages = [];
+    let release;
+    const blocked = new Promise(resolve => { release = resolve; });
+    globalThis.__otpTestMail = async (_, message) => {
+      messages.push(message);
+      await blocked;
+      throw Error('isolated SMTP failure');
+    };
+    t.after(() => { release(); delete globalThis.__otpTestMail; });
+    const response = await f.request('/api/v2/auth/tokens', 'POST', {account:'test',password:'test-password'},
+      {'x-device-info':'<isolated>', 'x-region':'never-trusted'});
+    assert.equal(response.status, expect.status);
+    assert.ok(response.headers.getSetCookie().length);
+    assert.equal(f.db.sessions.size, 1);
+    assert.equal(f.db.background.length, expect.emailSchedules);
+    release();
+    await Promise.all(f.db.background);
+    assert.equal(messages.length, expect.emailSchedules);
+    for (const mail of messages) {
+      assert.equal(mail.to, 'fixture@example.test');
+      assert.match(mail.html, /&lt;isolated&gt;/);
+      assert.doesNotMatch(mail.html, /<isolated>|never-trusted/);
+    }
+  });
+}
+
+test('B0.1 mail preferences and notification failure are independent', async t => {
+  const {input, expect} = admissionCases.find(v => v.id === 'mail-preferences');
+  let sends = 0;
+  globalThis.__otpTestMail = async () => { sends++; };
+  globalThis.__loginAlertError = Error('isolated notification failure');
+  t.after(() => { delete globalThis.__otpTestMail; delete globalThis.__loginAlertError; });
+  for (const [i, preferences] of input.independentPreferences.entries()) {
+    const f = await fixture({newDevice:true});
+    try {
+      f.db.loginAlerts = Number(preferences.loginAlerts);
+      f.db.emailAlerts = Number(preferences.email);
+      const before = sends;
+      assert.equal((await f.login()).status, 200);
+      await Promise.all(f.db.background);
+      assert.equal(sends - before, expect.emailSchedules[i]);
+    } finally { await f.close(); }
+  }
+});
+
+test('B0.1 alerts follow session commit for both factor routes and trusted devices', async t => {
+  const f = await fixture({twoFactor:true, newDevice:true});
+  t.after(f.close);
+  const mails = [];
+  globalThis.__otpTestMail = async (_, message) => mails.push(message);
+  t.after(() => { delete globalThis.__otpTestMail; });
+  const headers = {'x-device-fingerprint':'known-test-device'};
+  const password = {account:'test', password:'test-password', remember_me:true};
+  const login = extra => f.request('/api/v2/auth/tokens', 'POST', password, {...headers, ...extra});
+  for (const usePath of [false, true]) {
+    const before = f.db.background.length;
+    const {data:challenge} = await (await login()).json();
+    assert.equal(f.db.background.length, before);
+    const url = '/api/v2/auth/two-factor/challenges' + (usePath ? '/' + challenge.challenge_id : '');
+    const body = {code:f.db.totp(), ...(!usePath && {challenge_id:challenge.challenge_id})};
+    f.db.failFactorSession = true;
+    f.db.factorLoginUndo = [];
+    assert.equal((await f.request(url, 'POST', body, headers)).status, 500);
+    assert.equal(f.db.background.length, before);
+    f.db.failFactorSession = false;
+    const issued = await f.request(url, 'POST', body, headers);
+    assert.equal(issued.status, 200);
+    assert.equal((await f.request(url, 'POST', body, headers)).status, 401);
+    assert.equal(f.db.background.length, before + 1);
+    const cookie = issued.headers.getSetCookie().find(c => c.startsWith('nekotribe_trusted_device=')).split(';')[0];
+    const trusted = await login({cookie});
+    const tokens = (await trusted.json()).data.tokens;
+    assert.ok(tokens.access_token);
+    assert.equal((await f.refreshForm(tokens.refresh_token)).status, 200);
+    await Promise.all(f.db.background);
+    assert.equal(mails.length, before + 2);
+  }
+});
+
+test('B0.1 missing session history returns sanitized 503 before issuance', async t => {
+  const f = await fixture({newDevice:true});
+  t.after(f.close);
+  f.db.historyMissing = true;
+  const response = await f.login();
+  assert.equal(response.status, 503);
+  const body = await response.json();
+  assert.equal(body.data.code, 50301);
+  assert.doesNotMatch(JSON.stringify(body), /private column|ORA-00904/);
+  assert.equal(f.db.sessions.size, 0);
+  assert.equal(f.db.background.length, 0);
+});
+
+test('B0.1 admitted OTP keeps its independent business cooldown and rejected OTP never reserves', async t => {
+  const vector = admissionCases.find(v => v.id === 'otp-domain-quota');
+  let exhaust = false;
+  const f = await fixture({admission:{eval:async () => exhaust ? [0,0,1001] : [1,9,60000]}});
+  t.after(f.close);
+  f.db.otpCreateFault = 'limited';
+  const send = () => f.request('/api/v2/auth/otp','POST',{type:'register',channel:'email',account:'fake@example.test'});
+  const admitted = await send();
+  assert.equal(admitted.status, vector.expect.status);
+  assert.equal((await admitted.json()).data.code, vector.expect.bodyCode);
+  assert.equal(admitted.headers.get('retry-after'), String(vector.expect.retryAfter));
+  assert.equal(admitted.headers.get('ratelimit-remaining'), '9');
+  exhaust = true;
+  f.db.otpCreateFault = 'unavailable';
+  const denied = await send();
+  assert.equal(denied.status, 429);
+  assert.equal(denied.headers.get('retry-after'), '2');
+  assert.equal(f.db.otpCreated, undefined);
+});
+
+test('B0.1 session issuer shared by verified passkey and GitHub completions schedules post-commit mail', async t => {
+  const db = database({newDevice:true});
+  const background = [];
+  let mails = 0;
+  globalThis.__otpTestMail = async () => { mails++; };
+  t.after(() => { delete globalThis.__otpTestMail; });
+  const request = {method:'POST', headers:{}, socket:{remoteAddress:'127.0.0.1'}};
+  const event = createEvent(request, new ServerResponse(request));
+  event.context.getOracleConnection = async () => db;
+  event.waitUntil = task => background.push(task);
+  const completed = await routes.v2LoginAfterVerifiedCredential(event, db, 1, false);
+  assert.ok(completed.data.tokens.access_token);
+  await Promise.all(background);
+  assert.equal(db.sessions.size, 1);
+  assert.equal(mails, 1);
 });
 
 test('new-device alert failures do not leak raw errors or block login', async () => {

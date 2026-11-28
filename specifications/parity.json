@@ -1593,12 +1593,16 @@
         "sha256": "8db0de5ced423c205ef4d15f2877a90becfcae7bd8149459c033879f7dfa7b07"
       },
       {
+        "path": "server/middleware/01-v2-admission.ts",
+        "sha256": "2ebc10f8ac0fff4f9853aea632d87c247393f96e2ed7fc028f7dfc825e9e7f8e"
+      },
+      {
         "path": "server/middleware/auth.ts",
         "sha256": "03a3dbe047e67d5a6e6677f092bfb14f0b3e5eb6514eb33c8639ca92f700c414"
       },
       {
         "path": "server/middleware/rate-limit.ts",
-        "sha256": "67f9d9c45279af2197283e25f01c83d2abc012368842b88a2369552766b87f7a"
+        "sha256": "b2ffae6cac3797f3be02fde51d5aa43250f31c0bfc7b4bc185f512bf9817c2cd"
       },
       {
         "path": "server/models/v2.ts",
@@ -1834,7 +1838,7 @@
       },
       {
         "path": "server/services/v2/auth.ts",
-        "sha256": "885c9d75adb4ce098623ed6d44806cd6d25068d3db5d69385e55e908c6f9ad7a"
+        "sha256": "d45baa9ce4e589c4969803dc9a7b76f6a1e9f855c86b046f460329baf25deaec"
       },
       {
         "path": "server/services/v2/chat-message-search.ts",
@@ -2054,7 +2058,7 @@
       },
       {
         "path": "server/utils/auth/mailer.ts",
-        "sha256": "cfa20b46f775a5503e47435b68442828192ceee0a17de166ba44a53ec8289d66"
+        "sha256": "b235da7c836043147093152211c2130e94bcc2753b2dd822dd55c21de2bf5e24"
       },
       {
         "path": "server/utils/auth/verifyCode.ts",
@@ -2078,7 +2082,7 @@
       },
       {
         "path": "server/utils/client-ip.ts",
-        "sha256": "4f007231205df64c0215d07a864c9787bc5b437d3bd0634a7d8b4afd570dfaf2"
+        "sha256": "6269aa19d59a95b37fe8e6b7b45b330ea7451afe70838e263d33da998e931a7a"
       },
       {
         "path": "server/utils/cors.test.ts",
@@ -2086,7 +2090,7 @@
       },
       {
         "path": "server/utils/cors.ts",
-        "sha256": "aeba947eca3c591879f9917702d7acca377cd06a88179e1408c265ad9fb1e897"
+        "sha256": "e931254481cf8709269ff2d2324191b7c1b925492a5f037efab83102e8a7aec9"
       },
       {
         "path": "server/utils/jwt.ts",
@@ -2095,6 +2099,10 @@
       {
         "path": "server/utils/logging.ts",
         "sha256": "cadb3666d45b8f9faf02d167ed90f2951bfa017449c1085dae5311157eee0355"
+      },
+      {
+        "path": "server/utils/login-region.ts",
+        "sha256": "3a130a0ae2e06993e6abd5998650484937ecd0af2339814e30c2a884cd83b620"
       },
       {
         "path": "server/utils/media/upload-media-check.ts",
@@ -20689,7 +20697,10 @@
         "server/middleware/rate-limit.ts",
         "server/utils/client-ip.ts",
         "server/services/v2/auth.ts",
-        "server/utils/auth/mailer.ts"
+        "server/utils/auth/mailer.ts",
+        "server/middleware/01-v2-admission.ts",
+        "server/utils/cors.ts",
+        "server/utils/login-region.ts"
       ],
       "operations": [],
       "scenarios": [
@@ -20700,12 +20711,22 @@
       ],
       "implementations": {
         "nuxt": {
-          "state": "not-started",
+          "state": "in-progress",
           "targetRevision": 1,
           "tasks": [
-            "Implement the shared admission window and post-commit alerts; run all vectors against isolated Redis, Oracle and SMTP."
+            "Run cross-backend acceptance with shared Redis, Oracle and SMTP on the dedicated test server."
           ],
-          "sourceFiles": [],
+          "sourceFiles": [
+            "server/middleware/01-v2-admission.ts",
+            "server/middleware/rate-limit.ts",
+            "server/services/v2/auth.ts",
+            "server/utils/auth/mailer.ts",
+            "server/utils/client-ip.ts",
+            "server/utils/cors.ts",
+            "server/utils/login-region.ts",
+            "tests/b0-1-admission.test.mjs",
+            "tests/auth-compatibility.test.mjs"
+          ],
           "evidence": []
         },
         "go": {
