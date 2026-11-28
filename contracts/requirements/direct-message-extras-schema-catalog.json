@@ -5,11 +5,11 @@
   "sources": [
     {
       "path": "server/database/schema-definition.mjs",
-      "sha256": "8be8b718042247e6a2bc76f60f13446b0aeedb5de7a09946e2b44cb797f12dde"
+      "sha256": "6529488bbe9daf2cd25219680c3192ac6dc0a61c8decb0db25e9811af38c5d02"
     },
     {
       "path": "server/database/schema.mjs",
-      "sha256": "a6836cbae5bb2d19d7373c718a1f28e46ec2c138dc3baff0159d2ecaa90b2df2"
+      "sha256": "5d5339e77aabf1f90de8b7e7a11c5752496665ba38ba0a6bf9ff121faf119161"
     }
   ],
   "ledger": {
@@ -105,7 +105,17 @@
     "t23-post-draft-owner-index": "c41826509033ab08c333b838abda10e66b2af3f12a862a9f5f0f15f92eef6ed3",
     "t23-post-draft-due-index": "dcdf484a7a8aec60e8111ca2b4ce7fb048d0ab5e3c4ea70b19874f7478737576",
     "t24-profile-pinned-post": "74c2aedcddccda09e6a3d72833c55084d7d66cef919b5c8d17becee69c85ac7c",
-    "t25-post-markdown": "b746114576988ee06adf63a83ea26717534f7a0954ac81fbb666c43f40d04eb4"
+    "t25-post-markdown": "b746114576988ee06adf63a83ea26717534f7a0954ac81fbb666c43f40d04eb4",
+    "t26-webauthn-credentials": "59770d8d4d7d521e25d599462c83dae882b95c34977f7d93506e57d16d8cbba5",
+    "t26-webauthn-credentials-owner": "8199630245b312298b114fccdc8c75f2a5df12a2897a4c7c34b863c2107603dd",
+    "t26-webauthn-challenges": "2a3454b1f7b9ee4fe057001c64381bca93b427ee05671d5dc399087f1c11a5c0",
+    "t26-webauthn-challenges-expiry": "7f623d7fc91375688c8c99a0bf19c14d351f152b6fbe460ee0200faa5867eceb",
+    "t27-github-oauth-links": "5c216d51ce65f0071c34280a49bd05eb19407dabd339eab9bb0fb32301b6ac94",
+    "t27-github-oauth-flows": "c0e4534627681f6dd92605b2e2735a6beb8df1ff4472171467e9bdd9292e6375",
+    "t27-github-oauth-expiry": "b9636d7d9d5f5ac70f4fceed44053398c3ea0f96462d89a28cea640f84dcb621",
+    "b11-n-user-search-history": "8b51ac0de0ea3011d55ef879cde9b6bab1f8f7ea602741fffcc87608f414e124",
+    "b11-uk-search-history-term": "a33f00d4d0c799425424bd7f89871b6fb68e5484f5310bd0bf8e9112feb24530",
+    "b11-idx-search-history-recent": "41c2943dfe87f6166ceefa7ed7b481da1b152cbcb60cec9a96bf25653293f14c"
   },
   "feature": {
     "id": "direct-message-extras",
