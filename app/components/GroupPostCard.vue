@@ -38,6 +38,7 @@ export type { GroupPost } from '@/types/groups';
 const { t, locale } = useAppLocale();
 const localePath = useLocalePath();
 
+const viewer = usePreferenceStore();
 const props = defineProps<{
   post: GroupPost;
   canManage?: boolean;
@@ -219,6 +220,7 @@ const openAuthorProfile = () => {
           </div>
         </button>
 
+        <MotionAuthorFollow v-if="!readOnly && !isAuthor" :key="post.author.id" :author-id="post.author.id" :relation="post.author.relation" />
         <DropdownMenu v-if="!hideMenu">
           <DropdownMenuTrigger as-child>
             <Button
@@ -232,7 +234,7 @@ const openAuthorProfile = () => {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-48">
             <DropdownMenuItem @click="handleShare">
-              <Share2 class="h-4 w-4" />
+              <Share2 class="w3-repost h-4 w-4" />
               {{ t('groups.post.actions.share') }}
             </DropdownMenuItem>
             <DropdownMenuSeparator v-if="!readOnly && (canManage || isAuthor)" />
@@ -299,7 +301,7 @@ const openAuthorProfile = () => {
           />
           <div
             v-if="media.type === 'video'"
-            class="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+            class="absolute inset-0 flex items-center justify-center bg-black/30"
           >
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-foreground shadow-md"
@@ -327,7 +329,7 @@ const openAuthorProfile = () => {
           :class="{ 'fill-rose-600 dark:fill-rose-400': post.isLiked }"
         />
         <span class="tabular-nums text-xs font-medium">
-          {{ post.likeCount }}
+          <MotionAnimatedNumber :value="post.likeCount" />
         </span>
       </Button>
       <Button
@@ -338,9 +340,11 @@ const openAuthorProfile = () => {
       >
         <MessageCircle class="h-4 w-4" />
         <span class="tabular-nums text-xs font-medium">
-          {{ post.commentCount }}
+          <MotionAnimatedNumber :value="post.commentCount" />
         </span>
       </Button>
+      <MotionGroupPostActions v-if="viewer.isLoggedIn && post.groupId" :key="`${viewer.preferences.user.id}:${post.groupId}:${post.id}`"
+        :actor="viewer.preferences.user.id" :group-id="post.groupId" :post-id="post.id" />
       <Button
         variant="ghost"
         size="sm"
@@ -348,7 +352,7 @@ const openAuthorProfile = () => {
         :aria-label="t('groups.post.actions.share')"
         @click="handleShare"
       >
-        <Share2 class="h-4 w-4" />
+        <Share2 class="w3-repost h-4 w-4" />
       </Button>
     </CardFooter>
   </Card>

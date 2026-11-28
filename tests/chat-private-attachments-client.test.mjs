@@ -19,6 +19,9 @@ async function compileComponent(path) {
     platform: 'node',
     format: 'esm',
     plugins: [{ name: 'channel-fixture', setup(builder) {
+      builder.onResolve({ filter: /^@\/composables\/useMessageArrivals$/ }, () => ({
+        path: fileURLToPath(new URL('../app/composables/useMessageArrivals.ts', import.meta.url))
+      }));
       builder.onResolve({ filter: /^file:/ }, args => ({ path: args.path, external: true }));
       builder.onResolve({ filter: /^@\/utils\/private-media$/ }, () => ({
         path: fileURLToPath(new URL('../app/utils/private-media.ts', import.meta.url))

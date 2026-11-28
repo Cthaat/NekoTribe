@@ -46,32 +46,30 @@ function handleLikeTweet(
 
 function handleBookmarkTweet(
   tweet: PostVM,
-  action: 'mark' | 'unmark'
+  action: 'mark' | 'unmark', settle: (saved?: boolean) => void
 ) {
-  emit('bookmark-tweet', tweet, action);
+  emit('bookmark-tweet', tweet, action, settle);
 }
 </script>
 
 <template>
-  <TransitionGroup name="feed" tag="div" class="space-y-3 px-3 py-2 sm:px-0">
-    <TweetCard
-      v-for="(tweet, index) in props.tweets"
-      :key="tweet.id"
-      :class="index < 8 ? 'stagger-item' : undefined"
-      :style="index < 8 ? { '--stagger-index': String(index) } : undefined"
-      @delete-tweet="handleDeleteTweet"
-      @reply-tweet="handleReplyTweet"
-      @retweet-tweet="handleRetweetTweet"
-      @like-tweet="handleLikeTweet"
-      @bookmark-tweet="handleBookmarkTweet"
-      @toggle-profile-pin="emit('toggle-profile-pin',$event)"
-      :tweet="tweet"
-      :show-relation-context="showRelationContext"
-      :pinned-on-profile="tweet.id === pinnedPostId"
-      :can-manage-profile-pin="canManageProfilePin"
-      :profile-pin-pending="profilePinPending"
-      :keyboard-navigation="keyboardNavigation"
-    />
+  <TransitionGroup name="w3-list" tag="div" class="relative mx-3 space-y-3 py-2 sm:mx-0">
+    <div v-for="tweet in props.tweets" :key="tweet.id">
+      <TweetCard
+        @delete-tweet="handleDeleteTweet"
+        @reply-tweet="handleReplyTweet"
+        @retweet-tweet="handleRetweetTweet"
+        @like-tweet="handleLikeTweet"
+        @bookmark-tweet="handleBookmarkTweet"
+        @toggle-profile-pin="emit('toggle-profile-pin',$event)"
+        :tweet="tweet"
+        :show-relation-context="showRelationContext"
+        :pinned-on-profile="tweet.id === pinnedPostId"
+        :can-manage-profile-pin="canManageProfilePin"
+        :profile-pin-pending="profilePinPending"
+        :keyboard-navigation="keyboardNavigation"
+      />
+    </div>
   </TransitionGroup>
 </template>
 

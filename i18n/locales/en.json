@@ -980,6 +980,8 @@
       "manualAttachmentFailed": "Could not upload the image. Try again.",
       "typePlaceholder": "Post type",
       "groupContext": "From group",
+      "localBookmark": "Save on device",
+      "linkPreview": "Publish this link to your timeline. Private groups still require membership.",
       "manageable": "Manageable",
       "refreshed": "Group posts refreshed",
       "loadFailed": "Failed to load group posts",

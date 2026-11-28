@@ -165,9 +165,8 @@ watch(
   }
 );
 
-const localIsBookmarked = ref(
-  props.tweet.viewer.hasBookmarked
-);
+const bookmarkIntent = ref<boolean>();
+const localIsBookmarked = computed(() => bookmarkIntent.value ?? props.tweet.viewer.hasBookmarked);
 const isDeleteDialogOpen = ref(false);
 const isReportDialogOpen = ref(false);
 const isSubmittingReport = ref(false);
@@ -185,16 +184,6 @@ const reportReasons: V2ModerationReportReason[] = [
   'other'
 ];
 
-// 【修改二：添加 watch 来同步 prop 和本地 ref】
-// 当父组件的数据更新后，prop 会变化。我们需要监听这个变化，
-watch(
-  () => props.tweet.viewer.hasBookmarked,
-  newValue => {
-    localIsBookmarked.value = newValue;
-  }
-);
-
-// 处理交互事件的函数（此处为示例）
 function handleReply() {
   emit('reply-tweet', props.tweet);
 }
@@ -246,17 +235,13 @@ async function handleShare(): Promise<void> {
 }
 
 function handleBookmark() {
-  localIsBookmarked.value = !localIsBookmarked.value;
-  toast.success(
-    localIsBookmarked.value
-      ? t('post.feedback.bookmarked')
-      : t('post.feedback.unbookmarked')
-  );
-  emit(
-    'bookmark-tweet',
-    props.tweet,
-    localIsBookmarked.value ? 'mark' : 'unmark'
-  );
+  if (bookmarkIntent.value !== undefined) return;
+  bookmarkIntent.value = !localIsBookmarked.value;
+  emit('bookmark-tweet', props.tweet, bookmarkIntent.value ? 'mark' : 'unmark', async (saved?: boolean) => {
+    await nextTick();
+    bookmarkIntent.value = undefined;
+    if (saved !== undefined) toast.success(t(saved ? 'post.feedback.bookmarked' : 'post.feedback.unbookmarked'));
+  });
 }
 
 async function submitReport() {
@@ -560,6 +545,8 @@ const relatedExcerpt = computed(() => {
           </time>
         </div>
 
+          <div class="ml-auto flex shrink-0 items-center gap-1">
+          <MotionAuthorFollow :author-id="tweet.author.id" :relation="tweet.author.relation" />
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
@@ -575,7 +562,8 @@ const relatedExcerpt = computed(() => {
             <DropdownMenuContent align="end" class="w-52 rounded-2xl p-1.5">
               <DropdownMenuItem
                 v-if="!localIsBookmarked"
-                @click.stop="handleBookmark"
+                :disabled="bookmarkIntent !== undefined"
+              @click.stop="handleBookmark"
               >
                 <BookmarkPlus class="mr-2 h-4 w-4" />
                 <span>{{ t('post.actions.addBookmark') }}</span>
@@ -583,7 +571,8 @@ const relatedExcerpt = computed(() => {
 
               <DropdownMenuItem
                 v-else
-                @click.stop="handleBookmark"
+                :disabled="bookmarkIntent !== undefined"
+              @click.stop="handleBookmark"
               >
                 <BookmarkCheck class="mr-2 h-4 w-4 text-primary" />
                 <span>{{ t('post.actions.removeBookmark') }}</span>
@@ -642,6 +631,7 @@ const relatedExcerpt = computed(() => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
 
       <!-- Content + Actions (indented under header in feed; full-width when focused) -->
@@ -822,7 +812,7 @@ const relatedExcerpt = computed(() => {
 
               <div
                 v-if="mediaItems.length > 4 && index === 3"
-                class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                class="absolute inset-0 flex items-center justify-center bg-black/60"
               >
                 <span class="text-2xl font-semibold text-white">
                   +{{ mediaItems.length - 4 }}
@@ -879,8 +869,8 @@ const relatedExcerpt = computed(() => {
               :aria-label="t('post.retweet.submit')"
               @click.stop="handleRetweet"
             >
-              <Repeat
-                class="size-5"
+              <Repeat :key="tweet.counts.retweets"
+                class="w3-repost size-5"
                 :stroke-width="1.75"
               />
             </button>
@@ -898,12 +888,13 @@ const relatedExcerpt = computed(() => {
               class="group/btn pressable inline-flex size-10 items-center justify-center rounded-full transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               :class="localIsBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-primary'"
               :aria-label="t(localIsBookmarked ? 'post.actions.removeBookmark' : 'post.actions.addBookmark')"
+              :disabled="bookmarkIntent !== undefined"
               @click.stop="handleBookmark"
             >
               <component
                 :is="localIsBookmarked ? BookmarkCheck : Bookmark"
                 class="size-5 transition-transform duration-150"
-                :class="{ 'scale-110 fill-primary/15': localIsBookmarked }"
+                :class="{ 'w3-fold fill-primary/15': localIsBookmarked }"
                 :stroke-width="1.75"
               />
             </button>
@@ -944,8 +935,8 @@ const relatedExcerpt = computed(() => {
             @click.stop="handleRetweet"
           >
             <span class="inline-flex size-8 items-center justify-center rounded-full transition-colors group-hover/btn:bg-[var(--repost)]/10">
-              <Repeat
-                class="size-[18px]"
+              <Repeat :key="tweet.counts.retweets"
+                class="w3-repost size-[18px]"
                 :stroke-width="1.75"
               />
             </span>
@@ -966,13 +957,14 @@ const relatedExcerpt = computed(() => {
               :class="localIsBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-primary'"
               :aria-label="t(localIsBookmarked ? 'post.actions.removeBookmark' : 'post.actions.addBookmark')"
               data-timeline-action="bookmark"
+              :disabled="bookmarkIntent !== undefined"
               @click.stop="handleBookmark"
             >
               <span class="inline-flex size-8 items-center justify-center rounded-full transition-colors group-hover/btn:bg-primary/10">
                 <component
                   :is="localIsBookmarked ? BookmarkCheck : Bookmark"
                   class="size-[18px] transition-transform duration-150"
-                  :class="{ 'fill-primary/15': localIsBookmarked }"
+                  :class="{ 'w3-fold fill-primary/15': localIsBookmarked }"
                   :stroke-width="1.75"
                 />
               </span>

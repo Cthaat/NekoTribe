@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useMessageArrivals } from '@/composables/useMessageArrivals';
 import {
   type ComponentPublicInstance,
   ref,
@@ -457,6 +458,8 @@ onBeforeUnmount(() => {
     handleScroll
   );
 });
+const channelArrivals = useMessageArrivals(() => props.messages.map(m => m.id));
+const directArrivals = useMessageArrivals(() => props.directMessages?.map(m => m.message_id) ?? []);
 </script>
 
 <template>
@@ -728,21 +731,16 @@ onBeforeUnmount(() => {
           ref="messagesScrollAreaRef"
           class="h-full"
         >
-          <div class="min-h-full">
+          <MotionSkeletonSwap class="min-h-full">
             <!-- 加载中 -->
-            <div
-              v-if="isLoading"
-              class="flex justify-center py-6"
-            >
-              <div class="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-            </div>
+            <MotionMessageSkeleton v-if="isLoading && !messages.length" />
             <div v-else-if="messageLoadFailed" class="flex items-center justify-center gap-3 px-3 py-3">
               <p class="text-sm text-destructive" role="alert">{{ t('chat.feedback.loadMessagesFailed') }}</p>
               <Button size="sm" variant="outline" @click="emit('retry-history')">{{ t('common.retry') }}</Button>
             </div>
 
             <!-- 消息列表 -->
-            <div class="py-3">
+            <div v-else-if="messages.length" data-message-list class="py-3">
               <template
                 v-for="(message, index) in messages"
                 :key="message.id"
@@ -757,6 +755,7 @@ onBeforeUnmount(() => {
                 </div>
                 <ChatMessage
                   :message="message"
+                  :animate="!channelSearchActive && channelArrivals.has(message.id)"
                   :is-own="isOwnMessage(message)"
                   :allow-edit="!channelSearchActive"
                   :hide-reply="channelSearchActive"
@@ -779,7 +778,7 @@ onBeforeUnmount(() => {
 
             <!-- 空状态 -->
             <div
-              v-if="messages.length === 0 && !isLoading && !messageLoadFailed"
+              v-else
               class="flex min-h-[calc(100vh-14rem)] flex-col items-center justify-center px-6 text-center"
             >
               <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60">
@@ -796,7 +795,7 @@ onBeforeUnmount(() => {
                 {{ t('chat.message.emptyDescription') }}
               </p>
             </div>
-          </div>
+          </MotionSkeletonSwap>
         </ScrollArea>
 
         <!-- 新消息提示 -->
@@ -984,10 +983,8 @@ onBeforeUnmount(() => {
               <Button v-if="hasOlderDirectMessages && !isLoadingDirectMessages" variant="outline" size="sm" :disabled="loadingOlderDirectMessages" @click="emit('load-older-direct-messages')">
                 {{ t('chat.directMessage.loadOlder') }}
               </Button>
-              <div v-if="isLoadingDirectMessages" class="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
-                <div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                <span class="ml-2">{{ t('chat.directMessage.loading') }}</span>
-              </div>
+              <MotionSkeletonSwap>
+              <MotionMessageSkeleton v-if="isLoadingDirectMessages && !directMessages?.length" />
 
               <div v-else-if="!directMessages?.length" class="flex min-h-40 flex-col items-center justify-center px-4 text-center">
                 <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 ring-1 ring-border/60">
@@ -1001,7 +998,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div v-else ref="directList" class="flex flex-col">
+              <div v-else data-message-list ref="directList" class="flex flex-col">
                 <div
                   v-for="(message, index) in directMessages"
                   :key="message.message_id"
@@ -1017,6 +1014,7 @@ onBeforeUnmount(() => {
                   </div>
                   <ChatMessage
                     :message="mapV2DirectMessage(message)"
+                    :animate="!directSearchActive && directArrivals.has(message.message_id)"
                     :is-own="message.author.user_id === currentUserId"
                     :allow-edit="false"
                     :hide-reply="directSearchActive"
@@ -1034,6 +1032,7 @@ onBeforeUnmount(() => {
                   </p>
                 </div>
               </div>
+              </MotionSkeletonSwap>
             </div>
           </ScrollArea>
 

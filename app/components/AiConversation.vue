@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, useId, watch } fro
 import { Bot, Copy, Hash, History, Loader2, Plus, Send, Trash2 } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -240,12 +241,18 @@ async function submit() {
         <Button v-if="state.hasOlderMessages" variant="ghost" size="sm" class="w-full rounded-full text-xs text-muted-foreground" :disabled="state.busy || state.savedReplyPending" @click="controller.loadOlderMessages()">
           {{ t('chat.directMessage.loadOlder') }}
         </Button>
-        <div v-if="!state.messages.length && !state.preview" class="py-2 md:py-6">
+        <MotionSkeletonSwap v-if="!state.messages.length && !state.preview">
+          <div v-if="purpose === 'knowledge' && (state.availability === 'loading' || state.busy)" aria-busy="true" class="grid justify-items-center gap-3 py-6 md:py-10">
+            <Skeleton class="size-12 rounded-full sm:size-16" />
+            <Skeleton class="h-4 w-44 rounded-full" />
+          </div>
+        <div v-else class="py-2 md:py-6">
           <AppEmptyState
             :title="label('empty')"
             class="bg-transparent! shadow-none! max-sm:py-2 max-sm:[&>div:first-child]:mb-2 max-sm:[&>div:first-child]:size-12 max-sm:[&_svg]:size-8"
           />
         </div>
+        </MotionSkeletonSwap>
         <div v-for="message in state.messages" :key="message.message_id" class="flex gap-3" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
           <div v-if="message.role !== 'user'" class="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Bot class="size-4" />
@@ -292,7 +299,7 @@ async function submit() {
           </div>
         </div>
       </div>
-      <p v-if="state.preview" class="max-h-40 overflow-y-auto whitespace-pre-wrap break-words bg-secondary/40 px-4 py-3 text-sm leading-relaxed sm:px-6">{{ state.preview }}</p>
+      <p v-if="state.preview" class="max-h-40 overflow-y-auto whitespace-pre-wrap break-words bg-secondary/40 px-4 py-3 text-sm leading-relaxed sm:px-6">{{ state.preview }}<span aria-hidden="true" class="w3-cursor" /></p>
       <div class="shrink-0 p-4 sm:p-5">
         <p v-if="state.insufficientEvidence" role="status" class="mb-3 text-sm text-muted-foreground">{{ label('insufficientEvidence') }}</p>
         <p v-if="state.error === 'generation-stopped'" role="status" class="mb-3 text-sm text-muted-foreground">{{ errorText }}</p>

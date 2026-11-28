@@ -202,6 +202,16 @@ const handleCopy = () => {
 const handleViewProfile = () => {
   emit('view-profile', props.message.author.id);
 };
+function jumpToReply(event: MouseEvent, id: number) {
+  const list = (event.currentTarget as HTMLElement).closest('[data-message-list]');
+  const target = list?.querySelector<HTMLElement>(`[data-message-id="${id}"]`);
+  if (!target) return;
+  target.focus({ preventScroll: true });
+  target.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  target.classList.remove('w3-highlight');
+  void target.offsetWidth;
+  target.classList.add('w3-highlight');
+}
 </script>
 
 <template>
@@ -222,6 +232,7 @@ const handleViewProfile = () => {
   <!-- 普通消息 (Telegram / iMessage Bubble) -->
   <div
     v-else
+    :data-message-id="message.id" tabindex="-1"
     class="group/msg relative px-3 sm:px-4"
     :class="[
       isFirstInGroup ? 'mt-2.5' : 'mt-0.5',
@@ -297,8 +308,8 @@ const handleViewProfile = () => {
           </div>
 
           <!-- 回复引用 -->
-          <div
-            v-if="message.replyTo"
+          <button
+            v-if="message.replyTo" type="button" @click="jumpToReply($event, message.replyTo.id)"
             class="mb-1.5 flex items-center gap-1.5 rounded-lg border-l-2 px-2.5 py-1 text-xs"
             :class="isOwn ? 'border-primary-foreground/60 bg-black/15 text-primary-foreground/95 dark:border-primary/60 dark:bg-background/50 dark:text-foreground' : 'border-primary/50 bg-background/60 text-foreground'"
           >
@@ -309,7 +320,7 @@ const handleViewProfile = () => {
             <span class="min-w-0 truncate opacity-85">
               {{ message.replyTo.content }}
             </span>
-          </div>
+          </button>
 
           <!-- 消息内容 -->
           <div

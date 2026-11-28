@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { beginRepost } from '@/utils/optimistic-repost';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   AlertTriangle,
@@ -136,6 +137,7 @@ async function handleSubmitRetweet({
   const revision = auth.revision;
   if (!current(revision) || isSubmittingRetweet.value) return;
   isSubmittingRetweet.value = true;
+  const rollback = beginRepost(originalTweetId, (id, change) => feed.patchPost(id, change));
   try {
     await v2CreateRetweet(originalTweetId, {
       content,
@@ -146,6 +148,7 @@ async function handleSubmitRetweet({
     await feed.refresh();
   } catch (error) {
     if (!current(revision)) return;
+    rollback();
     toast.error(
       error instanceof UnconfirmedRetweetError
         ? t('post.feedback.retweetUnconfirmed')
@@ -195,17 +198,18 @@ async function handleLikeTweet(
 
 async function handleBookmarkTweet(
   tweet: PostVM,
-  action: 'mark' | 'unmark'
+  action: 'mark' | 'unmark', settle?: (saved?: boolean) => void
 ): Promise<void> {
   const revision = auth.revision;
-  if (!current(revision)) return;
+  if (!current(revision)) return settle?.();
   try {
     const result =
       action === 'mark'
         ? await v2BookmarkPost(tweet.id)
         : await v2UnbookmarkPost(tweet.id);
-    if (!current(revision)) return;
+    if (!current(revision)) return settle?.();
     if (props.kind === 'bookmarks' && !result.isBookmarked) {
+      settle?.(result.isBookmarked);
       refreshFirstPage();
       return;
     }
@@ -216,7 +220,9 @@ async function handleBookmarkTweet(
         hasBookmarked: result.isBookmarked
       }
     }));
+    settle?.(result.isBookmarked);
   } catch {
+    settle?.();
     if (current(revision)) toast.error(t('post.feedback.bookmarkFailed'));
   }
 }
