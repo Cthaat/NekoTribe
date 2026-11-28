@@ -5,11 +5,11 @@
   "sources": [
     {
       "path": "server/database/schema-definition.mjs",
-      "sha256": "2627ffbd2cc22ee2f798823a675e10454c1b8a59998e3c117875b65d1ecc25a8"
+      "sha256": "6529488bbe9daf2cd25219680c3192ac6dc0a61c8decb0db25e9811af38c5d02"
     },
     {
       "path": "server/database/schema.mjs",
-      "sha256": "9335ded9fb0293c43e44976d36be79b266851e7082f64939666f95e480c7bd3a"
+      "sha256": "5d5339e77aabf1f90de8b7e7a11c5752496665ba38ba0a6bf9ff121faf119161"
     }
   ],
   "ledger": {
@@ -112,7 +112,10 @@
     "t26-webauthn-challenges-expiry": "7f623d7fc91375688c8c99a0bf19c14d351f152b6fbe460ee0200faa5867eceb",
     "t27-github-oauth-links": "5c216d51ce65f0071c34280a49bd05eb19407dabd339eab9bb0fb32301b6ac94",
     "t27-github-oauth-flows": "c0e4534627681f6dd92605b2e2735a6beb8df1ff4472171467e9bdd9292e6375",
-    "t27-github-oauth-expiry": "b9636d7d9d5f5ac70f4fceed44053398c3ea0f96462d89a28cea640f84dcb621"
+    "t27-github-oauth-expiry": "b9636d7d9d5f5ac70f4fceed44053398c3ea0f96462d89a28cea640f84dcb621",
+    "b11-n-user-search-history": "8b51ac0de0ea3011d55ef879cde9b6bab1f8f7ea602741fffcc87608f414e124",
+    "b11-uk-search-history-term": "a33f00d4d0c799425424bd7f89871b6fb68e5484f5310bd0bf8e9112feb24530",
+    "b11-idx-search-history-recent": "41c2943dfe87f6166ceefa7ed7b481da1b152cbcb60cec9a96bf25653293f14c"
   },
   "feature": {
     "id": "ai-skills",
