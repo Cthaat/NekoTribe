@@ -2054,7 +2054,7 @@
       },
       {
         "path": "server/utils/auth/mailer.ts",
-        "sha256": "cfa20b46f775a5503e47435b68442828192ceee0a17de166ba44a53ec8289d66"
+        "sha256": "c5ec35c651a217f4e326e9079c5ae191d948168c6bb0ce04ccf84051f9f6052a"
       },
       {
         "path": "server/utils/auth/verifyCode.ts",
