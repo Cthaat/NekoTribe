@@ -54,6 +54,15 @@ func newHTTPRoutes(codec *auth.TokenManager, repository SessionRepository, cors 
 		if preflight(w, r, cors) {
 			return
 		}
+		if handleRetiredSentiment(w, r) {
+			return
+		}
+		if path, ok := strings.CutPrefix(r.URL.EscapedPath(), "/api/v2/"); ok {
+			w.Header().Set("Cache-Control", "private, no-store")
+			if rejectAtAdmission(w, r, refresh, path) {
+				return
+			}
+		}
 		if privateMedia {
 			switch r.Method {
 			case http.MethodGet, http.MethodHead:
@@ -64,7 +73,7 @@ func newHTTPRoutes(codec *auth.TokenManager, repository SessionRepository, cors 
 			}
 			return
 		}
-		if path := r.URL.EscapedPath(); path == "/api/v2" || strings.HasPrefix(path, "/api/v2/") {
+		if r.URL.EscapedPath() == "/api/v2" {
 			w.Header().Set("Cache-Control", "private, no-store")
 		}
 		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/storage/") {
@@ -72,9 +81,6 @@ func newHTTPRoutes(codec *auth.TokenManager, repository SessionRepository, cors 
 			return
 		}
 		if retiredStorageRoute(w, r) {
-			return
-		}
-		if handleRetiredSentiment(w, r) {
 			return
 		}
 		if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/health" {
@@ -522,6 +528,9 @@ func preflight(w http.ResponseWriter, r *http.Request, p CorsPolicy) bool {
 	methods, headersAllowed := allowedMethods, allowedHeaders
 	exposedHeaders := "content-length,content-type,Retry-After," + observabilityPolicy.RequestIDHeader
 	path := r.URL.EscapedPath()
+	if strings.HasPrefix(path, "/api/v2/") {
+		exposedHeaders += ",RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset"
+	}
 	_, privateMedia := privateMediaContentSegment(path)
 	publicStorage := strings.HasPrefix(path, "/storage/") && len(path) > len("/storage/")
 	if privateMedia || publicStorage {

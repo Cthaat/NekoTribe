@@ -77,7 +77,7 @@ func (s smtpConfig) SendLoginAlert(ctx context.Context, to, message, ip, agent s
 	text := message + "\r\nIP: " + ip + "\r\nUser-Agent: " + agent + "\r\n" + advice
 	body := "<p>" + html.EscapeString(message) + "</p><p><strong>IP:</strong> " +
 		html.EscapeString(ip) + "</p><p><strong>User-Agent:</strong> " + html.EscapeString(agent) + "</p><p>" + advice + "</p>"
-	return s.sendMail(ctx, to, loginAlertTitle, text, body)
+	return s.sendMail(ctx, to, "账号登录安全提醒", text, body)
 }
 
 func (s smtpConfig) sendMail(ctx context.Context, to, subject, text, htmlBody string) error {

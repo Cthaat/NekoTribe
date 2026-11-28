@@ -6,9 +6,22 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"time"
 )
 
-const knownLoginDeviceSQL = `SELECT COUNT(*) FROM n_auth_sessions WHERE user_id=:user_id AND device_fingerprint=:device_fingerprint`
+// Read under the same per-account lock as the subsequent session INSERT.
+const loginHistorySQL = `SELECT
+  (SELECT COUNT(*) FROM n_auth_sessions WHERE user_id=:user_id AND NVL(device_fingerprint,'unknown')=:device_fingerprint),
+  (SELECT ip_address FROM n_auth_sessions WHERE user_id=:user_id ORDER BY created_at DESC, session_id ASC FETCH FIRST 1 ROW ONLY)
+FROM dual`
+
+type loginHistory struct {
+	knownDevice bool
+	previousIP  string
+}
+
+var errLoginHistoryUnavailable = errors.New("login history unavailable")
+
 const loginAlertSettingsSQL = `SELECT NVL(us.login_alerts,1),NVL(us.email_notification_enabled,1),u.email FROM n_users u LEFT JOIN n_user_settings us ON us.user_id=u.user_id WHERE u.user_id=:user_id AND u.is_active=1`
 const loginAlertTitle = "新设备登录提醒"
 
@@ -36,19 +49,27 @@ func deliverLoginAlert(ctx context.Context, store LoginRepository, config Refres
 	}
 	if delivery.Email != "" {
 		mailer, ok := config.otpMailer.(loginAlertMailer)
-		if !ok || mailer.SendLoginAlert(ctx, delivery.Email, delivery.Message, session.IPAddress, session.UserAgent) != nil {
+		if !ok {
 			log.Print("login alert email unavailable")
+			return
 		}
+		go func() {
+			mailCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			defer cancel()
+			if mailer.SendLoginAlert(mailCtx, delivery.Email, delivery.Message, session.IPAddress, session.UserAgent) != nil {
+				log.Print("login alert email unavailable")
+			}
+		}()
 	}
 }
 
-func (s OracleSessions) KnownLoginDevice(ctx context.Context, user int64, fingerprint string) (bool, error) {
-	var n int64
-	err := s.DB.QueryRowContext(ctx, knownLoginDeviceSQL, sql.Named("user_id", user), sql.Named("device_fingerprint", fingerprint)).Scan(&n)
-	if err != nil {
-		return false, errSessionStore
+func readLoginHistory(ctx context.Context, tx *sql.Tx, v LoginSession) (loginHistory, error) {
+	var known int64
+	var prior sql.NullString
+	if err := tx.QueryRowContext(ctx, loginHistorySQL, sql.Named("user_id", v.UserID), sql.Named("device_fingerprint", v.DeviceFingerprint)).Scan(&known, &prior); err != nil {
+		return loginHistory{}, errLoginHistoryUnavailable
 	}
-	return n > 0, nil
+	return loginHistory{known > 0, prior.String}, nil
 }
 
 func (s OracleSessions) RecordLoginAlert(ctx context.Context, v LoginSession) (LoginAlertDelivery, error) {
@@ -72,11 +93,16 @@ func (s OracleSessions) RecordLoginAlert(ctx context.Context, v LoginSession) (L
 		device = "unknown"
 	}
 	delivery := LoginAlertDelivery{Message: "你的账号刚刚通过新设备登录：" + device}
+	title := loginAlertTitle
+	if v.regionChanged {
+		title = "异地登录提醒"
+		delivery.Message = "你的账号刚刚在不同地区登录：" + device
+	}
 	if emailEnabled != 0 {
 		delivery.Email = email.String
 	}
 	resourceType := "auth_session"
-	stored, err := s.storeNotification(ctx, notificationInput{UserID: v.UserID, Type: "login_alert", Title: loginAlertTitle, Message: delivery.Message, ResourceType: &resourceType, Priority: "high", MetadataJSON: string(metadata)})
+	stored, err := s.storeNotification(ctx, notificationInput{UserID: v.UserID, Type: "login_alert", Title: title, Message: delivery.Message, ResourceType: &resourceType, Priority: "high", MetadataJSON: string(metadata)})
 	if err != nil {
 		return LoginAlertDelivery{}, err
 	}

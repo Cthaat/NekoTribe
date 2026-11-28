@@ -32,8 +32,8 @@ func (c *alertConn) QueryContext(_ context.Context, q string, args []driver.Name
 	c.state.sql = q
 	c.state.args = args
 	switch {
-	case strings.Contains(q, "SELECT COUNT(*)"):
-		return &alertRows{values: []driver.Value{c.state.known}}, nil
+	case q == loginHistorySQL:
+		return &alertRows{values: []driver.Value{c.state.known, "192.0.2.4"}}, nil
 	case strings.Contains(q, "NVL(us.login_alerts"):
 		if c.state.inactive {
 			return &alertRows{}, nil
@@ -113,11 +113,16 @@ func TestKnownLoginDeviceIsScopedByUserAndFingerprint(t *testing.T) {
 	state := &alertState{known: 1}
 	db := sql.OpenDB(alertConnector{state})
 	defer db.Close()
-	known, err := (OracleSessions{db}).KnownLoginDevice(context.Background(), 42, "device")
-	if err != nil || !known {
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	prior, err := readLoginHistory(context.Background(), tx, LoginSession{UserID: 42, DeviceFingerprint: "device"})
+	if err != nil || !prior.knownDevice || prior.previousIP != "192.0.2.4" {
 		t.Fatal("known device not detected")
 	}
-	if !strings.Contains(state.sql, "user_id=:user_id") || !strings.Contains(state.sql, "device_fingerprint=:device_fingerprint") || len(state.args) != 2 {
+	if !strings.Contains(state.sql, "user_id=:user_id") || !strings.Contains(state.sql, "=:device_fingerprint") || !strings.Contains(state.sql, "ORDER BY created_at DESC, session_id ASC") || len(state.args) != 2 {
 		t.Fatal("missing identity binds")
 	}
 }

@@ -62,6 +62,9 @@ func (c *testConn) QueryContext(_ context.Context, q string, args []driver.Named
 	if c.state.fail == "query" {
 		return nil, errors.New("private detail")
 	}
+	if q == loginHistorySQL {
+		return &alertRows{values: []driver.Value{int64(0), nil}}, nil
+	}
 	if value, found := c.state.queryRows[q]; found {
 		return &loginGuardRow{value: value}, nil
 	}

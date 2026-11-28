@@ -38,7 +38,7 @@ func TestLoginOracleCredentialGuard(t *testing.T) {
 			defer db.Close()
 			repo := OracleSessions{db}
 			hash := "accepted-hash"
-			err := repo.InsertLoginSession(context.Background(), LoginSession{
+			_, err := repo.InsertLoginSession(context.Background(), LoginSession{
 				UserID: 42, verifiedPasswordHash: hash,
 			})
 			if current == hash {
@@ -60,7 +60,7 @@ func TestLoginOracleUnusableDeviceRollsBackBeforeSession(t *testing.T) {
 	}
 	db := sql.OpenDB(testConnector{state})
 	defer db.Close()
-	err := (OracleSessions{db}).InsertLoginSession(context.Background(), LoginSession{
+	_, err := (OracleSessions{db}).InsertLoginSession(context.Background(), LoginSession{
 		UserID: 42, verifiedPasswordHash: "accepted-hash", trustedDeviceKey: "stored-digest",
 	})
 	if !errors.Is(err, errTrustedDeviceUnavailable) || state.sql != claimTrustedDeviceSQL ||
@@ -80,7 +80,7 @@ func TestLoginOracleFactorCompletionRollsBackWhenSessionWriteFails(t *testing.T)
 	db := sql.OpenDB(testConnector{state})
 	defer db.Close()
 	recoveryID := int64(23)
-	err := (OracleSessions{db}).InsertLoginSession(context.Background(), LoginSession{
+	_, err := (OracleSessions{db}).InsertLoginSession(context.Background(), LoginSession{
 		UserID: 42, verifiedPasswordHash: "accepted-hash",
 		factorCompletion: &factorCompletion{
 			challenge: LoginChallenge{ID: "existing-challenge"}, recoveryCodeID: &recoveryID,
@@ -103,7 +103,7 @@ func TestLoginOracleFactorChangedBeforeCompletion(t *testing.T) {
 		UserID: 42, verifiedPasswordHash: "accepted-hash",
 		factorCompletion: &factorCompletion{verifiedSecret: FactorSecret{Encrypted: "verified-fixture"}},
 	}
-	err := (OracleSessions{db}).InsertLoginSession(context.Background(), session)
+	_, err := (OracleSessions{db}).InsertLoginSession(context.Background(), session)
 	if !errors.Is(err, errFactorCompletionUnavailable) || state.sql != currentLoginFactorSQL ||
 		state.commits != 0 || state.rollbacks != 1 {
 		t.Fatalf("changed factor did not stop the login: %v", err)
@@ -123,7 +123,8 @@ func TestLoginOracleWritesUseBoundValuesAndCommit(t *testing.T) {
 		expected       map[string]interface{}
 	}{
 		{"session", "INSERT INTO n_auth_sessions", func() error {
-			return repo.InsertLoginSession(ctx, LoginSession{UserID: 42, verifiedPasswordHash: "synthetic-hash", SessionID: "sess-opaque';--", AccessJTI: "jti", RefreshHash: "hash", DeviceInfo: "device", DeviceFingerprint: "fp", IPAddress: "ip", UserAgent: "agent", AccessExpiresAt: now, RefreshExpiresAt: now.Add(time.Hour)})
+			_, err := repo.InsertLoginSession(ctx, LoginSession{UserID: 42, verifiedPasswordHash: "synthetic-hash", SessionID: "sess-opaque';--", AccessJTI: "jti", RefreshHash: "hash", DeviceInfo: "device", DeviceFingerprint: "fp", IPAddress: "ip", UserAgent: "agent", AccessExpiresAt: now, RefreshExpiresAt: now.Add(time.Hour)})
+			return err
 		}, map[string]interface{}{"session_id": "sess-opaque';--", "user_id": int64(42), "access_jti": "jti", "refresh_token_hash": "hash", "device_info": "device", "device_fingerprint": "fp", "ip_address": "ip", "user_agent": "agent", "access_token_expires_at": "2023-11-14T22:13:20.000+00:00", "refresh_token_expires_at": "2023-11-14T23:13:20.000+00:00"}},
 		{"last-login", "UPDATE n_users", func() error { return repo.UpdateLastLogin(ctx, 42) }, map[string]interface{}{"user_id": int64(42)}},
 		{"challenge", "INSERT INTO n_auth_two_factor_challenges", func() error {

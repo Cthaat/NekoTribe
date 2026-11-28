@@ -100,6 +100,7 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 		}
 		return value, nil
 	}
+	c.Refresh.loginRegions = parseLoginRegions(get("NEKO_LOGIN_REGION_MAP"))
 	c.Refresh.otpMailer = smtpFromLookup(lookup)
 	switch strings.ToLower(strings.TrimSpace(get("TRUST_PROXY"))) {
 	case "1", "true", "yes", "on":

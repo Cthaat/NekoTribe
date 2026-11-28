@@ -18,7 +18,7 @@ type challengeRace struct {
 	release chan struct{}
 }
 
-func (s *challengeRace) InsertLoginSession(ctx context.Context, session LoginSession) error {
+func (s *challengeRace) InsertLoginSession(ctx context.Context, session LoginSession) (loginHistory, error) {
 	s.arrived <- struct{}{}
 	<-s.release
 	s.mu.Lock()
@@ -42,21 +42,22 @@ func (s *recoveryRace) FindLoginChallenge(_ context.Context, id string) (LoginCh
 func (s *recoveryRace) FindRecoveryCodes(context.Context, int64) ([]RecoveryCode, error) {
 	return s.codes, nil
 }
-func (s *recoveryRace) InsertLoginSession(ctx context.Context, session LoginSession) error {
+func (s *recoveryRace) InsertLoginSession(ctx context.Context, session LoginSession) (loginHistory, error) {
 	s.arrived <- struct{}{}
 	<-s.release
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := session.factorCompletion.challenge.ID
 	if s.recoveryUsed || s.consumedIDs[id] {
-		return errFactorCompletionUnavailable
+		return loginHistory{}, errFactorCompletionUnavailable
 	}
-	if err := s.loginFixtureStore.InsertLoginSession(ctx, session); err != nil {
-		return err
+	history, err := s.loginFixtureStore.InsertLoginSession(ctx, session)
+	if err != nil {
+		return loginHistory{}, err
 	}
 	s.recoveryUsed = true
 	s.consumedIDs[id] = true
-	return nil
+	return history, nil
 }
 func runFactorRace(t *testing.T, h http.Handler, bodies []string, arrived chan struct{}, release chan struct{}) []*httptest.ResponseRecorder {
 	t.Helper()
