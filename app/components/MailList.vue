@@ -151,9 +151,8 @@ onBeforeUnmount(() => {
 function handleRowClick(item: MailItem) {
   const mailId = String(item.id);
   selectedMail.value = mailId;
-  const target = localItems.value.find(m => String(m.id) === mailId);
-  if (target) target.read = true;
   if (!item.read) {
+    item.read = true;
     emit('read-mail', mailId);
   }
   if (item.href && !props.isTrashView) {
@@ -166,10 +165,11 @@ function handleRowClick(item: MailItem) {
 
 <template>
   <div>
-    <TransitionGroup name="w3-list" tag="div" class="relative mx-3 space-y-2.5 py-3 sm:mx-4">
+    <TransitionGroup name="w3-list" tag="div" class="relative mx-3 space-y-2.5 py-3 [overflow-anchor:none] sm:mx-4">
       <article
         v-for="item in localItems"
         :key="item.id"
+        :data-mail-id="item.id"
         class="group relative flex cursor-pointer items-start gap-3 rounded-[18px] bg-card px-4 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] transition-colors duration-150 hover:bg-[var(--hover)] dark:shadow-none"
         :class="[
           !item.read ? 'bg-primary/[0.04] dark:bg-primary/[0.08]' : ''

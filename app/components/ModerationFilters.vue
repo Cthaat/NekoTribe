@@ -212,7 +212,7 @@ const getOptionLabel = (
         :model-value="localFilters.status"
         @update:model-value="updateStatus"
       >
-        <SelectTrigger class="h-8 w-full min-w-0 rounded-full border-0 bg-secondary/75 text-xs shadow-none">
+        <SelectTrigger :aria-label="t('moderation.filters.statusPlaceholder')" class="h-8 w-full min-w-0 rounded-full border-0 bg-secondary/75 text-xs shadow-none">
           <SelectValue
             :placeholder="
               t('moderation.filters.statusPlaceholder')

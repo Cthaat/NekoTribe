@@ -65,3 +65,39 @@ test('content cards and reduced effects retain an opaque, static reading surface
   assert.match(css, /prefers-reduced-transparency: reduce[^}]+\.w3-shimmer\s*\{ background: var\(--secondary\)/s);
   assert.match(css, /prefers-reduced-motion: no-preference\) and \(prefers-reduced-transparency: no-preference\)[\s\S]+@keyframes w3-sweep/);
 });
+
+test('media fade covers already decoded images and later sources exactly once', () => {
+  const calls = [];
+  class Image {
+    complete = true;
+    currentSrc = '/first.png';
+    naturalWidth = 100;
+    animate(frames, timing) { calls.push({ frames, timing }); }
+  }
+  const image = new Image();
+  const preference = { matches: false };
+  let loaded;
+  const document = {
+    images: [image],
+    addEventListener(name, listener, capture) {
+      assert.equal(name, 'load');
+      assert.equal(capture, true);
+      loaded = listener;
+    }
+  };
+  const { code } = transformSync(read('app/plugins/media-fade.client.ts'), {
+    loader: 'ts', format: 'cjs', define: { 'import.meta.hot': 'false' }
+  });
+  new Function('module', 'defineNuxtPlugin', 'HTMLImageElement', 'matchMedia', 'document', code)(
+    { exports: {} }, setup => setup(), Image, () => preference, document
+  );
+  loaded({ target: image });
+  assert.deepEqual(calls, [{ frames: [{ opacity: 0 }, { opacity: 1 }], timing: { duration: 180, easing: 'ease-out' } }]);
+  image.currentSrc = '/second.png';
+  preference.matches = true;
+  loaded({ target: image });
+  assert.equal(calls.length, 1);
+  preference.matches = false;
+  loaded({ target: image });
+  assert.equal(calls.length, 2);
+});
