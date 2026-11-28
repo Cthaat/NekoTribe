@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,28 +14,12 @@ import '../widgets/glass/liquid_glass_surface.dart';
 import '../widgets/glass/liquid_glass_tokens.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/responsive.dart';
+import 'tab_transition.dart';
 
 class AppShell extends ConsumerStatefulWidget {
-  const AppShell({super.key, required this.child});
+  const AppShell({super.key, required this.child, this.tabTracker});
   final Widget child;
-
-  static const _primaryTabs = [
-    ('/feed', Icons.home_outlined, Icons.home_rounded, 'tab.home'),
-    ('/groups', Icons.groups_outlined, Icons.groups_rounded, 'group.title'),
-    (
-      '/notifications',
-      Icons.notifications_outlined,
-      Icons.notifications_rounded,
-      'tab.notifications',
-    ),
-    (
-      '/chat',
-      Icons.chat_bubble_outline_rounded,
-      Icons.chat_bubble_rounded,
-      'tab.messages',
-    ),
-    ('/me', Icons.person_outline_rounded, Icons.person_rounded, 'tab.profile'),
-  ];
+  final TabTransitionTracker? tabTracker;
 
   static const _desktopPrimaryTabs = [
     ('/feed', Icons.home_outlined, Icons.home_rounded, 'tab.home'),
@@ -74,7 +57,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   var _didStartRealtime = false;
-  bool _dockVisible = true;
+  bool _dockExpanded = true;
   String _lastMobileLocation = '';
   RealtimeService? _realtime;
   RealtimeListener? _onRealtimeEvent;
@@ -199,19 +182,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
   }
 
-  bool _isMobilePrimaryLocation(String location) {
-    if (location == '/feed' ||
-        location == '/notifications' ||
-        location == '/chat' ||
-        location == '/me') {
-      return true;
-    }
-    return location == '/groups' ||
-        location == '/groups/discover' ||
-        location == '/groups/my' ||
-        location == '/groups/invites';
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -288,53 +258,41 @@ class _AppShellState extends ConsumerState<AppShell> {
       );
     }
 
-    const mobileTabs = AppShell._primaryTabs;
-    final currentIndex = _indexFor(location, mobileTabs);
-    final hideBottomNav = !_isMobilePrimaryLocation(location);
+    final currentIndex = mobilePrimaryTabIndexOf(location);
+    final hideBottomNav = currentIndex == null;
     final reduced = AppMotion.reduced(context);
     if (_lastMobileLocation != location) {
       _lastMobileLocation = location;
-      _dockVisible = true;
+      _dockExpanded = true;
     }
 
-    final innerBody = reduced
-        ? widget.child
-        : TweenAnimationBuilder<double>(
-            key: ValueKey(
-              hideBottomNav
-                  ? 'mobile-discover-$location'
-                  : 'mobile-$currentIndex',
-            ),
-            tween: Tween(begin: 0.0, end: 1.0),
-            duration: AppMotion.fast,
-            curve: AppMotion.curve,
-            builder: (context, value, child) =>
-                Opacity(opacity: 0.8 + 0.2 * value, child: child),
-            child: widget.child,
-          );
-
-    final bodyContent = NotificationListener<UserScrollNotification>(
+    final bodyContent = NotificationListener<ScrollUpdateNotification>(
       onNotification: (notification) {
-        if (hideBottomNav || reduced || notification.metrics.axis != Axis.vertical) {
+        final metrics = notification.metrics;
+        if (hideBottomNav ||
+            reduced ||
+            notification.depth != 0 ||
+            metrics.axis != Axis.vertical) {
           return false;
         }
-        if (notification.metrics.maxScrollExtent <= 48 ||
-            notification.metrics.pixels <= 24) {
-          if (!_dockVisible) setState(() => _dockVisible = true);
-          return false;
+        final delta = notification.scrollDelta ?? 0;
+        var expanded = _dockExpanded;
+        if (metrics.extentBefore <= 24 ||
+            metrics.extentAfter <= 24 ||
+            delta < 0) {
+          expanded = true;
+        } else if (metrics.extentBefore > 48 && delta > 0) {
+          expanded = false;
         }
-        if (notification.direction == ScrollDirection.reverse &&
-            notification.metrics.pixels > 48) {
-          if (_dockVisible) setState(() => _dockVisible = false);
-        } else if (notification.direction == ScrollDirection.forward) {
-          if (!_dockVisible) setState(() => _dockVisible = true);
+        if (expanded != _dockExpanded) {
+          setState(() => _dockExpanded = expanded);
         }
         return false;
       },
-      child: innerBody,
+      child: widget.child,
     );
 
-    final showDock = reduced || _dockVisible;
+    final dockExpanded = reduced || _dockExpanded;
 
     return Scaffold(
       backgroundColor: social.surfaceBase,
@@ -342,33 +300,35 @@ class _AppShellState extends ConsumerState<AppShell> {
       body: bodyContent,
       bottomNavigationBar: hideBottomNav
           ? null
-          : IgnorePointer(
-              ignoring: !showDock,
-              child: AnimatedSlide(
-                offset: showDock ? Offset.zero : const Offset(0, 1.35),
-                duration: AppMotion.resolve(context, AppMotion.glide),
-                curve: AppMotion.glideCurve,
-                child: AnimatedOpacity(
-                  opacity: showDock ? 1.0 : 0.0,
-                  duration: AppMotion.resolve(context, AppMotion.fast),
-                  curve: AppMotion.standardCurve,
-                  child: SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: LiquidGlassNavDock(
-                        selectedIndex: currentIndex,
-                        onSelected: (i) => context.go(mobileTabs[i].$1),
-                        items: [
-                          for (final t in mobileTabs)
-                            LiquidGlassNavItem(
-                              icon: t.$2,
-                              selectedIcon: t.$3,
-                              label: l10n.t(t.$4),
-                              badgeCount: t.$1 == '/notifications' ? unread : 0,
-                            ),
-                        ],
-                      ),
+          : SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+                child: AnimatedSlide(
+                  offset: dockExpanded ? Offset.zero : const Offset(0, .08),
+                  duration: AppMotion.resolve(context, AppMotion.glide),
+                  curve: AppMotion.glideCurve,
+                  child: AnimatedScale(
+                    scale: dockExpanded ? 1 : .96,
+                    alignment: Alignment.bottomCenter,
+                    duration: AppMotion.resolve(context, AppMotion.glide),
+                    curve: AppMotion.glideCurve,
+                    child: LiquidGlassNavDock(
+                      selectedIndex: currentIndex,
+                      onSelected: (i) {
+                        final path = mobilePrimaryTabs[i].$1;
+                        widget.tabTracker?.prepare(path);
+                        context.go(path);
+                      },
+                      items: [
+                        for (final t in mobilePrimaryTabs)
+                          LiquidGlassNavItem(
+                            icon: t.$2,
+                            selectedIcon: t.$3,
+                            label: l10n.t(t.$4),
+                            badgeCount: t.$1 == '/notifications' ? unread : 0,
+                          ),
+                      ],
                     ),
                   ),
                 ),
