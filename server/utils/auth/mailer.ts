@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import type { SentMessageInfo } from 'nodemailer';
+import type { SentMessageInfo, Transporter } from 'nodemailer';
 import type { EmailOptions } from '../type';
 
 const runtimeConfig = useRuntimeConfig();
@@ -7,10 +7,10 @@ const runtimeConfig = useRuntimeConfig();
 // 定义一个用于发送邮件的类
 class Mailer {
   // 私有静态属性，用于存储 nodemailer 的 Transporter 实例
-  private static transporter: nodemailer.Transporter;
+  private static transporter: Transporter;
 
   // 私有静态方法，用于获取或创建 nodemailer 的 Transporter 实例
-  private static getTransporter(): nodemailer.Transporter {
+  private static getTransporter(): Transporter {
     if (!Mailer.transporter) {
       Mailer.transporter = nodemailer.createTransport({
         host: runtimeConfig.smtpHost,
