@@ -25,7 +25,7 @@ import {
   v2Body,
   v2Boolean,
   v2Conflict,
-  v2Count,
+  v2Connection,
   v2DateString,
   v2Execute,
   v2Forbidden,
@@ -50,8 +50,11 @@ import {
 import { buildV2TokenData } from '~/server/utils/auth-token-response';
 import { readRefreshCredential } from '../../utils/auth-refresh-request';
 import { v2RequireSelfUser } from '~/server/models/v2';
+import Mailer from '../../utils/auth/mailer';
+import { changedLoginRegion } from '../../utils/login-region';
 import { v2CreateNotification } from './notifications';
 import { reserveOtpSend } from '~/server/utils/otp-send-limit';
+import { v2ServiceUnavailable } from '../../utils/auth-entry-errors';
 import { requireOtpAttempt } from '~/server/utils/otp-attempt-limit';
 
 const OTP_EXPIRES_SECONDS = 300;
@@ -111,62 +114,65 @@ function v2EscapeHtml(value: string): string {
 
 async function v2SendLoginAlert(
   event: H3Event,
-  connection: oracledb.Connection,
   userId: number,
   sessionId: string,
   deviceInfo: string,
   deviceFingerprint: string,
-  isNewDevice: boolean
+  isNewDevice: boolean,
+  changedRegion: boolean
 ): Promise<void> {
-  if (!isNewDevice) return;
-
-  const row = await v2One(
-    connection,
-    `
-    SELECT
-      u.email,
-      NVL(us.login_alerts, 1) AS login_alerts,
-      NVL(us.email_notification_enabled, 1) AS email_notification_enabled
-    FROM n_users u
-    LEFT JOIN n_user_settings us ON us.user_id = u.user_id
-    WHERE u.user_id = :user_id
-      AND u.is_active = 1
-    `,
-    { user_id: userId }
-  );
-  if (!row || !v2Boolean(row.LOGIN_ALERTS ?? 1)) return;
-
   const ipAddress = v2RequestIp(event);
   const userAgent = v2UserAgent(event);
-  const title = '新设备登录提醒';
-  const message = `你的账号刚刚通过新设备登录：${deviceInfo || 'unknown'}`;
-
-  await v2CreateNotification(connection, {
-    userId,
-    actorId: null,
-    type: 'login_alert',
-    title,
-    message,
-    resourceType: 'auth_session',
-    resourceId: null,
-    priority: 'high',
-    metadata: {
-      session_id: sessionId,
-      device_info: deviceInfo,
-      device_fingerprint: deviceFingerprint,
-      ip_address: ipAddress,
-      user_agent: userAgent
+  const reasons = [isNewDevice && '新设备', changedRegion && '异地'].filter(Boolean).join('、');
+  const title = `${reasons}登录提醒`;
+  const message = `你的账号刚刚通过${deviceInfo}登录，触发${reasons}提醒。`;
+  let email = '';
+  // Delivery outlives the HTTP handler and owns its connection.
+  const connection = await v2Connection(event);
+  try {
+    const row = await v2One(
+      connection,
+      `
+      SELECT
+        u.email,
+        NVL(us.login_alerts, 1) AS login_alerts,
+        NVL(us.email_notification_enabled, 1) AS email_notification_enabled
+      FROM n_users u
+      LEFT JOIN n_user_settings us ON us.user_id = u.user_id
+      WHERE u.user_id = :user_id
+        AND u.is_active = 1
+      `,
+      { user_id: userId }
+    );
+    if (!row || !v2Boolean(row.LOGIN_ALERTS ?? 1)) return;
+    if (v2Boolean(row.EMAIL_NOTIFICATION_ENABLED ?? 1)) email = v2String(row.EMAIL);
+    try {
+      await v2CreateNotification(connection, {
+        userId,
+        actorId: null,
+        type: 'login_alert',
+        title,
+        message,
+        resourceType: 'auth_session',
+        resourceId: null,
+        priority: 'high',
+        metadata: {
+          session_id: sessionId,
+          device_info: deviceInfo,
+          device_fingerprint: deviceFingerprint,
+          ip_address: ipAddress,
+          user_agent: userAgent
+        }
+      });
+    } catch {
+      console.error('[auth] login notification failed');
     }
-  });
-
-  if (!v2Boolean(row?.EMAIL_NOTIFICATION_ENABLED ?? 1)) {
-    return;
+  } finally {
+    await connection.close();
   }
-
-  const email = v2String(row?.EMAIL);
   if (!email) return;
 
-  await v2SendMail({
+  await Mailer.sendMail({
     to: email,
     subject: title,
     text: `${message}\nIP: ${ipAddress}\nUser-Agent: ${userAgent}`,
@@ -918,6 +924,9 @@ async function v2WithVerifiedPassword<T>(
     return result;
   } catch (error) {
     await connection.rollback();
+    if (typeof error === 'object' && error !== null &&
+        (('code' in error && (error.code === 'ORA-00904' || error.code === 'ORA-00942')) ||
+         ('errorNum' in error && (error.errorNum === 904 || error.errorNum === 942)))) v2ServiceUnavailable();
     throw error;
   }
 }
@@ -1022,28 +1031,11 @@ async function v2IssueLoginSession(
     accessJti
   );
   const refreshToken = v2SignRefreshToken(tokenPayload);
-  const deviceInfo = v2String(
-    getHeader(event, 'x-device-info'),
-    'unknown'
-  );
-  const deviceFingerprint = v2String(
-    getHeader(event, 'x-device-fingerprint'),
-    'unknown'
-  );
-  const knownDeviceCount = await v2Count(
-    connection,
-    `
-    SELECT COUNT(*) AS total
-    FROM n_auth_sessions
-    WHERE user_id = :user_id
-      AND device_fingerprint = :device_fingerprint
-    `,
-    {
-      user_id: userId,
-      device_fingerprint: deviceFingerprint
-    }
-  );
-
+  const deviceInfo = v2RequestDeviceInfo(event);
+  const deviceFingerprint = v2RequestDeviceFingerprint(event);
+  const ipAddress = v2RequestIp(event);
+  let isNewDevice = false;
+  let regionChanged = false;
   await v2CommitLoginWrite(
     connection,
     userId,
@@ -1080,13 +1072,23 @@ async function v2IssueLoginSession(
       refresh_token_hash: v2HashToken(refreshToken),
       device_info: deviceInfo,
       device_fingerprint: deviceFingerprint,
-      ip_address: v2RequestIp(event),
+      ip_address: ipAddress,
       user_agent: v2UserAgent(event),
       access_token_expires_at: accessExpiresAt,
       refresh_token_expires_at: refreshExpiresAt
     },
     options.staleMessage,
-    options.beforeSession
+    async () => {
+      await options.beforeSession?.();
+      // Capture committed history under the account lock before inserting this session.
+      const history = await v2One(connection, `
+        SELECT COUNT(CASE WHEN NVL(device_fingerprint, 'unknown') = :device_fingerprint THEN 1 END) AS total,
+          MAX(ip_address) KEEP (DENSE_RANK FIRST ORDER BY created_at DESC, session_id ASC) AS prior_ip
+        FROM n_auth_sessions WHERE user_id = :user_id
+      `, { user_id: userId, device_fingerprint: deviceFingerprint });
+      isNewDevice = v2Number(history?.TOTAL) === 0;
+      regionChanged = changedLoginRegion(v2String(history?.PRIOR_IP), ipAddress);
+    }
   );
 
   await v2Execute(
@@ -1099,22 +1101,13 @@ async function v2IssueLoginSession(
     { user_id: userId }
   );
 
-  try {
-    await v2SendLoginAlert(
-      event,
-      connection,
-      userId,
-      sessionId,
-      deviceInfo,
-      deviceFingerprint,
-      knownDeviceCount === 0
-    );
-  } catch {
-    console.error('[auth] login alert failed');
-  }
-
   const user = await v2RequireSelfUser(connection, userId);
   v2SetAuthCookies(event, accessToken, refreshToken);
+  if (isNewDevice || regionChanged) {
+    const delivery = v2SendLoginAlert(event, userId, sessionId, deviceInfo, deviceFingerprint,
+      isNewDevice, regionChanged).catch(() => console.error('[auth] login alert failed'));
+    event.waitUntil?.(delivery);
+  }
 
   return {
     two_factor_required: false,
