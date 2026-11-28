@@ -4,7 +4,21 @@
     "title": "v2",
     "description": "NekoTribe v2 final API contract for Apifox import.\nT11 source audit: explicit Nuxt routes and finite observed SentimentFlow proxy calls are inventoried. New operations marked x-schema-audit-status intentionally omit unaudited payload schemas. This document is not a claim that every implementation has passed integration acceptance.",
     "version": "2.0.0",
-    "x-contract-revision": "2026-11-21-ai-knowledge-scope"
+    "x-contract-revision": "2026-11-28-b0-1",
+    "x-rate-limit-policy": {
+      "requirement": "specifications/requirements/b0-1-rate-limit.md",
+      "scope": "/api/v2/** except the retired /api/v2/integrations/sentiment-flow/** prefix",
+      "algorithm": "shared fixed window per tier and trusted client IP",
+      "precedence": ["Auth/OTP", "AI", "Export/Upload", "Write", "Read"],
+      "defaults": {
+        "Auth/OTP": [10, 60],
+        "AI": [10, 60],
+        "Export/Upload": [10, 60],
+        "Write": [40, 10],
+        "Read": [100, 10]
+      },
+      "units": ["admissions", "seconds"]
+    }
   },
   "tags": [
     {
@@ -188,10 +202,10 @@
             "description": "资源不存在"
           },
           "429": {
-            "description": "验证码发送超出共享额度",
+            "description": "验证码发送超出共享额度。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "type": "object",
                   "properties": {
                     "code": {
@@ -224,7 +238,7 @@
                     "data",
                     "meta"
                   ]
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "验证码发送过于频繁，请稍后重试",
@@ -234,6 +248,9 @@
               }
             },
             "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
               "Retry-After": {
                 "schema": {
                   "type": "integer",
@@ -440,10 +457,10 @@
             "description": "资源不存在"
           },
           "429": {
-            "description": "验证码比对额度耗尽，需要获取新验证码",
+            "description": "验证码比对额度耗尽，需要获取新验证码。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "type": "object",
                   "properties": {
                     "code": {
@@ -476,7 +493,7 @@
                     "data",
                     "meta"
                   ]
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "验证码尝试次数已用完，请重新获取验证码",
@@ -484,6 +501,12 @@
                   "meta": null
                 }
               }
+            },
+            "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
+              "Retry-After": {"description":"Required on tier rejection. Delay in seconds before retrying. Equals RateLimit-Reset on tier rejection.","schema":{"type":"integer","minimum":1}}
             }
           },
           "500": {
@@ -673,6 +696,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -953,7 +977,10 @@
           },
           "required": true
         },
+        "x-login-alert": "On session issuance apply B0.1 post-commit device and region checks.",
         "responses": {
+          "503": {"description":"Missing required authentication schema. Read-only check, no session or cookies.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/V2HttpErrorTransport"}}}},
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -1217,6 +1244,7 @@
         ],
         "parameters": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "Session refreshed; replacement token strings returned and access_token/refresh_token HttpOnly cookies set.",
             "content": {
@@ -1328,6 +1356,7 @@
         ],
         "parameters": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -1583,10 +1612,10 @@
             }
           },
           "429": {
-            "description": "验证码比对额度耗尽，需要获取新验证码",
+            "description": "验证码比对额度耗尽，需要获取新验证码。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "type": "object",
                   "properties": {
                     "code": {
@@ -1619,7 +1648,7 @@
                     "data",
                     "meta"
                   ]
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "验证码尝试次数已用完，请重新获取验证码",
@@ -1627,6 +1656,12 @@
                   "meta": null
                 }
               }
+            },
+            "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
+              "Retry-After": {"description":"Required on tier rejection. Delay in seconds before retrying. Equals RateLimit-Reset on tier rejection.","schema":{"type":"integer","minimum":1}}
             }
           },
           "500": {
@@ -1708,6 +1743,7 @@
         ],
         "parameters": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -1856,6 +1892,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -1935,6 +1972,7 @@
         ],
         "parameters": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -2020,6 +2058,7 @@
         ],
         "parameters": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -2405,6 +2444,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -2729,6 +2769,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "v2Ok success envelope.",
             "content": {
@@ -2895,6 +2936,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -3202,10 +3244,10 @@
             }
           },
           "429": {
-            "description": "验证码比对额度耗尽，需要获取新验证码",
+            "description": "验证码比对额度耗尽，需要获取新验证码。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "type": "object",
                   "properties": {
                     "code": {
@@ -3238,7 +3280,7 @@
                     "data",
                     "meta"
                   ]
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "验证码尝试次数已用完，请重新获取验证码",
@@ -3246,6 +3288,12 @@
                   "meta": null
                 }
               }
+            },
+            "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
+              "Retry-After": {"description":"Required on tier rejection. Delay in seconds before retrying. Equals RateLimit-Reset on tier rejection.","schema":{"type":"integer","minimum":1}}
             }
           },
           "500": {
@@ -3344,6 +3392,7 @@
         ],
         "parameters": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -3653,6 +3702,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -3961,6 +4011,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "Current account usage",
             "headers": {
@@ -4109,6 +4160,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "UTF-8 account data attachment",
             "headers": {
@@ -4273,6 +4325,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -4456,6 +4509,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -4582,6 +4636,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -4739,6 +4794,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -4949,6 +5005,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -5146,6 +5203,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -5435,6 +5493,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -5626,6 +5685,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -5775,6 +5835,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -6505,6 +6566,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -7195,6 +7257,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -7329,6 +7392,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -7453,6 +7517,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -7702,6 +7767,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -7951,6 +8017,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -8190,6 +8257,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -8419,6 +8487,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -8535,6 +8604,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -8646,6 +8716,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -8904,6 +8975,7 @@
           "required": false
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -9027,6 +9099,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -9168,6 +9241,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -9936,6 +10010,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -10425,6 +10500,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -11118,6 +11194,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -11791,6 +11868,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -11890,6 +11968,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "Successful source-defined response.",
             "content": {
@@ -12021,6 +12100,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "Successful source-defined response.",
             "content": {
@@ -12198,6 +12278,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -12359,6 +12440,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -12491,6 +12573,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -12931,6 +13014,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -13142,6 +13226,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -13246,6 +13331,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -13352,6 +13438,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -13451,6 +13538,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -13596,6 +13684,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -13922,6 +14011,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -14204,6 +14294,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -14342,6 +14433,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -14438,6 +14530,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -14544,6 +14637,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -14694,6 +14788,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -14891,6 +14986,7 @@
           }
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "$ref": "#/paths/~1api~1v2~1media/post/responses/200"
           },
@@ -14943,6 +15039,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -15076,6 +15173,7 @@
           }
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -15181,6 +15279,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "完整附件",
             "headers": {
@@ -15334,6 +15433,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimitedHead"},
           "200": {
             "description": "完整附件元数据。忽略 Range，无响应体。",
             "headers": {
@@ -15423,6 +15523,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -15592,6 +15693,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -15706,6 +15808,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -15816,6 +15919,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -16024,6 +16128,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -16167,6 +16272,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -16518,6 +16624,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -16651,6 +16758,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -16752,6 +16860,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -16847,6 +16956,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -16999,6 +17109,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -17412,6 +17523,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -17745,6 +17857,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -18195,6 +18308,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -18580,6 +18694,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -18898,6 +19013,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -19311,6 +19427,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -19617,6 +19734,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -19736,6 +19854,7 @@
           "required": false
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -19861,6 +19980,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -20016,6 +20136,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -20330,6 +20451,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -20480,6 +20602,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -20623,6 +20746,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -20779,6 +20903,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -20909,6 +21034,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -21048,6 +21174,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -21198,6 +21325,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -21548,6 +21676,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -21842,6 +21971,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -22150,6 +22280,7 @@
           "required": false
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -22284,6 +22415,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -22406,6 +22538,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -22527,6 +22660,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -22698,6 +22832,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -23029,6 +23164,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -23311,6 +23447,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -23434,6 +23571,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -23567,6 +23705,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -23726,6 +23865,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -23893,6 +24033,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -24354,6 +24495,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -24842,6 +24984,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -25021,6 +25164,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -25323,6 +25467,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功响应",
             "content": {
@@ -25404,6 +25549,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功响应",
             "content": {
@@ -25498,6 +25644,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "data 为 V2ChatChannel",
             "content": {
@@ -25578,6 +25725,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "data 为 V2ChatChannel",
             "content": {
@@ -25641,6 +25789,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "频道已删除",
             "content": {
@@ -25712,6 +25861,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功响应",
             "content": {
@@ -25860,6 +26010,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功响应",
             "content": {
@@ -25937,6 +26088,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "data 为 V2ChatMessage",
             "content": {
@@ -26019,6 +26171,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "data 为更新后的 V2ChatMessage",
             "content": {
@@ -26086,6 +26239,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "消息已删除",
             "content": {
@@ -26174,6 +26328,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "data 为更新后的 V2ChatMessage",
             "content": {
@@ -26256,6 +26411,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "data 为更新后的 V2ChatMessage",
             "content": {
@@ -26332,6 +26488,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "data 为更新后的 V2ChatMessage",
             "content": {
@@ -26410,6 +26567,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "已读状态已更新",
             "content": {
@@ -26498,6 +26656,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "静音状态已更新",
             "content": {
@@ -26894,6 +27053,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功响应",
             "content": {
@@ -26994,6 +27154,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "会话已存在或创建成功",
             "content": {
@@ -27182,6 +27343,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功响应",
             "content": {
@@ -27301,6 +27463,7 @@
           "required": true
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "发送成功",
             "content": {
@@ -27395,6 +27558,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "v2Ok success envelope.",
             "content": {
@@ -27573,6 +27737,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "Successful source-defined response.",
             "content": {
@@ -27682,6 +27847,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "Successful source-defined response.",
             "content": {
@@ -28002,16 +28168,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -28251,16 +28408,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -28443,16 +28591,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -28563,16 +28702,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -28691,16 +28821,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -28819,16 +28940,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -28990,16 +29102,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -29081,6 +29184,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "v2Ok success envelope.",
             "content": {
@@ -29210,6 +29314,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -29909,6 +30014,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "v2Ok success envelope.",
             "content": {
@@ -29990,6 +30096,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -30233,16 +30340,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -30392,16 +30490,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -30473,7 +30562,9 @@
           }
         ],
         "security": [],
+        "x-login-alert": "On session issuance apply B0.1 post-commit device and region checks.",
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "v2Ok success envelope.",
             "content": {
@@ -30592,7 +30683,9 @@
           }
         ],
         "security": [],
+        "x-login-alert": "On session issuance apply B0.1 post-commit device and region checks.",
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "v2Ok success envelope.",
             "content": {
@@ -30773,16 +30866,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -30943,16 +31027,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -31113,16 +31188,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limiter may reject over 100 requests in a 10-second window; when Redis is missing/fails, limiter does not reject.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -31271,16 +31337,7 @@
               }
             }
           },
-          "429": {
-            "description": "Global Redis/IP rate limit may reject more than 100 requests in 10 seconds.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditedModerationHttpError"
-                }
-              }
-            }
-          },
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "503": {
             "description": "A dependent feature schema is missing/incompatible or its read-only readiness check cannot complete. Requests do not run DDL; operators use the explicit migration tool.",
             "content": {
@@ -31341,6 +31398,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "v2Ok success envelope.",
             "content": {
@@ -31486,6 +31544,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "v2Ok success envelope.",
             "content": {
@@ -32557,6 +32616,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -32796,6 +32856,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -32915,6 +32976,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -33043,6 +33105,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "删除成功",
             "content": {
@@ -33103,6 +33166,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -33556,6 +33620,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -33820,8 +33885,11 @@
             "description": "会话内容已变化"
           },
           "429": {
-            "description": "AI 请求额度已用完",
+            "description": "AI 请求额度已用完。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
               "Retry-After": {
                 "schema": {
                   "type": "integer",
@@ -33833,9 +33901,9 @@
             },
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "$ref": "#/components/schemas/V2ErrorResponse"
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "AI 请求额度已用完，请稍后重试",
@@ -33986,8 +34054,11 @@
             "description": "会话内容已变化"
           },
           "429": {
-            "description": "AI 请求额度已用完",
+            "description": "AI 请求额度已用完。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
               "Retry-After": {
                 "schema": {
                   "type": "integer",
@@ -33999,9 +34070,9 @@
             },
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "$ref": "#/components/schemas/V2ErrorResponse"
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "AI 请求额度已用完，请稍后重试",
@@ -34032,6 +34103,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "配置状态",
             "content": {
@@ -34340,8 +34412,11 @@
             "description": "会话内容已变化"
           },
           "429": {
-            "description": "AI 请求额度已用完",
+            "description": "AI 请求额度已用完。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
               "Retry-After": {
                 "schema": {
                   "type": "integer",
@@ -34353,9 +34428,9 @@
             },
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "$ref": "#/components/schemas/V2ErrorResponse"
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "AI 请求额度已用完，请稍后重试",
@@ -34549,8 +34624,11 @@
             "description": "会话内容已变化"
           },
           "429": {
-            "description": "AI 请求额度已用完",
+            "description": "AI 请求额度已用完。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
               "Retry-After": {
                 "schema": {
                   "type": "integer",
@@ -34562,9 +34640,9 @@
             },
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "$ref": "#/components/schemas/V2ErrorResponse"
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "AI 请求额度已用完，请稍后重试",
@@ -34639,6 +34717,7 @@
           }
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "审核反馈已保存",
             "content": {
@@ -34747,6 +34826,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "私信已删除",
             "content": {
@@ -34834,6 +34914,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -34877,6 +34958,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "Current operations and model feedback",
             "content": {
@@ -35658,8 +35740,11 @@
             "description": "会话不存在"
           },
           "429": {
-            "description": "AI 请求额度已用完",
+            "description": "AI 请求额度已用完。公共限流另可返回带四个限流头的 TierRateLimitHttpError；业务限额沿用原有响应和重试规则。",
             "headers": {
+              "RateLimit-Limit": {"description":"Required on tier rejection. Maximum admissions in the selected fixed window.","schema":{"type":"integer","minimum":1}},
+              "RateLimit-Remaining": {"description":"Required on tier rejection. Admissions left in that window. Zero on rejection.","schema":{"type":"integer","minimum":0,"maximum":0}},
+              "RateLimit-Reset": {"description":"Required on tier rejection. Whole seconds until this window expires, rounded up.","schema":{"type":"integer","minimum":1}},
               "Retry-After": {
                 "schema": {
                   "type": "integer",
@@ -35671,9 +35756,9 @@
             },
             "content": {
               "application/json": {
-                "schema": {
+                "schema": { "oneOf": [{
                   "$ref": "#/components/schemas/V2ErrorResponse"
-                },
+                }, {"$ref":"#/components/schemas/TierRateLimitHttpError"}] },
                 "example": {
                   "code": 42901,
                   "message": "AI 请求额度已用完，请稍后重试",
@@ -35706,6 +35791,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -35842,6 +35928,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -36025,6 +36112,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -36085,6 +36173,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -36182,6 +36271,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -36268,6 +36358,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -36341,6 +36432,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "当前私信已读状态",
             "headers": {
@@ -36413,6 +36505,7 @@
           }
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "当前私信已读状态",
             "headers": {
@@ -36464,6 +36557,7 @@
         ],
         "deprecated": false,
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "当前 ICE 配置",
             "headers": {
@@ -36523,6 +36617,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "当前投票状态",
             "headers": {
@@ -36602,6 +36697,7 @@
           }
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "当前投票状态",
             "headers": {
@@ -36685,6 +36781,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "当前投票状态",
             "headers": {
@@ -36772,6 +36869,7 @@
           }
         },
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "当前投票状态",
             "headers": {
@@ -36862,6 +36960,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -36905,6 +37004,7 @@
         ],
         "parameters": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -36971,6 +37071,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -37042,6 +37143,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -37126,6 +37228,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -37215,6 +37318,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -37278,6 +37382,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -37337,6 +37442,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -37396,6 +37502,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -37466,6 +37573,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -37552,6 +37660,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功，无法解析元数据时 preview 为 null",
             "headers": {
@@ -37611,6 +37720,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -37916,6 +38026,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -38002,6 +38113,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -38107,6 +38219,7 @@
         ],
         "security": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -38185,7 +38298,9 @@
           "Auth"
         ],
         "security": [],
+        "x-login-alert": "On session issuance apply B0.1 post-commit device and region checks.",
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -38480,6 +38595,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -38563,6 +38679,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "content": {
@@ -38647,6 +38764,7 @@
         ],
         "security": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -38735,7 +38853,9 @@
           "Auth"
         ],
         "security": [],
+        "x-login-alert": "On session issuance apply B0.1 post-commit device and region checks.",
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -39025,6 +39145,7 @@
         ],
         "security": [],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "返回应用的固定页面",
             "headers": {
@@ -39166,6 +39287,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -39262,6 +39384,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -39402,6 +39525,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -39500,6 +39624,7 @@
           }
         ],
         "responses": {
+          "429": {"$ref":"#/components/responses/TierRateLimited"},
           "200": {
             "description": "成功",
             "headers": {
@@ -42239,7 +42364,7 @@
           }
         },
         "additionalProperties": true,
-        "description": "Nitro 2.13.3 default JSON error transport, statically read from installed prod/dev runtime. Application v2Throw/auth errors put V2ErrorResponse inside data, not at the top level. Rate limiter uses the legacy-shaped data alternative. data may be omitted for parser/unhandled errors; stack is dev-only. Nuxt 4.4.2 requests explicitly accepting text/html can receive an HTML error page in development or production; request Accept:application/json for this transport. No runtime acceptance is asserted."
+        "description": "Nitro 2.13.3 default JSON error transport, statically read from installed prod/dev runtime. Application v2Throw/auth errors put V2ErrorResponse inside data, not at the top level. The legacy-shaped data alternative describes older deployments; current tier rejections use TierRateLimitHttpError. data may be omitted for parser/unhandled errors; stack is dev-only. Nuxt 4.4.2 requests explicitly accepting text/html can receive an HTML error page in development or production; request Accept:application/json for this transport. No runtime acceptance is asserted."
       },
       "AuditedModerationCreateReportInput": {
         "type": "object",
@@ -47769,6 +47894,45 @@
             "format": "date-time"
           }
         }
+      },
+      "TierRateLimitHttpError": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2HttpErrorTransport"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "statusCode": {
+                "type": "integer",
+                "enum": [
+                  429
+                ]
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "enum": [
+                      42901
+                    ]
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "responses": {
@@ -47983,6 +48147,47 @@
             }
           }
         }
+      },
+      "TierRateLimited": {
+        "description": "Shared v2 tier exhausted before dispatch. JSON error body for Accept: application/json.",
+        "headers": {
+          "RateLimit-Limit": {
+            "$ref": "#/components/headers/RateLimit-Limit"
+          },
+          "RateLimit-Remaining": {
+            "$ref": "#/components/headers/RateLimit-Remaining"
+          },
+          "RateLimit-Reset": {
+            "$ref": "#/components/headers/RateLimit-Reset"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TierRateLimitHttpError"
+            }
+          }
+        }
+      },
+      "TierRateLimitedHead": {
+        "description": "HEAD returns the same status and quota headers with an empty body.",
+        "headers": {
+          "RateLimit-Limit": {
+            "$ref": "#/components/headers/RateLimit-Limit"
+          },
+          "RateLimit-Remaining": {
+            "$ref": "#/components/headers/RateLimit-Remaining"
+          },
+          "RateLimit-Reset": {
+            "$ref": "#/components/headers/RateLimit-Reset"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -48006,6 +48211,41 @@
         "type": "http",
         "scheme": "bearer",
         "description": "Internal METRICS_TOKEN configured on the individual backend."
+      }
+    },
+    "headers": {
+      "RateLimit-Limit": {
+        "required": true,
+        "description": "Maximum admissions in the selected fixed window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "RateLimit-Remaining": {
+        "required": true,
+        "description": "Admissions left in that window. Zero on rejection.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 0
+        }
+      },
+      "RateLimit-Reset": {
+        "required": true,
+        "description": "Whole seconds until this window expires, rounded up.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "Retry-After": {
+        "required": true,
+        "description": "Delay in seconds before retrying. Equals RateLimit-Reset on tier rejection.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     }
   },
