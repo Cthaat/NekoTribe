@@ -3,6 +3,7 @@ import { computed, ref, useId, watch } from 'vue';
 import { useEventListener } from '@vueuse/core';
 import { ArrowUpRight, Search } from 'lucide-vue-next';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { useSelectionRail } from '@/composables/useSelectionRail';
 import { useCommandChatSearch } from '@/composables/useCommandChatSearch';
 import { authQueueFor } from '@/services/auth-request-queue';
 import { usePreferenceStore } from '@/stores/user';
@@ -22,6 +23,7 @@ const colorMode = useColorMode();
 const preferences = usePreferenceStore();
 const auth = authQueueFor(useNuxtApp());
 const chatSearch = useCommandChatSearch();
+const { list, style: railStyle } = useSelectionRail('[aria-selected="true"]');
 const field = ref<HTMLInputElement>();
 const query = ref('');
 const selected = ref(0);
@@ -134,7 +136,7 @@ function restoreFocus(event: Event) {
 <template>
   <Dialog v-model:open="open">
     <DialogContent
-      class="gap-2 sm:max-w-xl"
+      class="glass-command gap-2 sm:max-w-xl"
       @open-auto-focus.prevent="field?.focus()"
       @close-auto-focus="restoreFocus"
     >
@@ -159,7 +161,7 @@ function restoreFocus(event: Event) {
           @keydown="navigateOptions"
         >
       </div>
-      <ul :id="listId" role="listbox" :aria-label="t('commandPalette.title')" class="max-h-[50dvh] space-y-1 overflow-y-auto">
+      <ul ref="list" :style="railStyle" :id="listId" role="listbox" :aria-label="t('commandPalette.title')" class="selection-rail relative isolate max-h-[50dvh] space-y-1 overflow-y-auto">
         <li
           v-for="(item, index) in commands"
           :id="optionId(item)"
@@ -167,7 +169,7 @@ function restoreFocus(event: Event) {
           role="option"
           :aria-selected="selected === index"
           class="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm"
-          :class="selected === index ? 'bg-accent text-accent-foreground' : undefined"
+          :class="selected === index ? 'text-accent-foreground' : undefined"
           @mousedown.prevent
           @click="execute(item)"
           @pointermove="selected = index"

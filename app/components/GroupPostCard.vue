@@ -299,7 +299,7 @@ const openAuthorProfile = () => {
           />
           <div
             v-if="media.type === 'video'"
-            class="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+            class="absolute inset-0 flex items-center justify-center bg-black/30"
           >
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-foreground shadow-md"

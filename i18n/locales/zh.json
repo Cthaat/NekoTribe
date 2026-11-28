@@ -1188,8 +1188,11 @@
       "account": "用户 {id}",
       "accept": "接听",
       "reject": "拒接",
+      "openForCallback": "拒接并前往聊天回拨",
       "hangup": "挂断",
       "playAudio": "播放通话声音",
+      "minimize": "最小化通话",
+      "restore": "还原通话",
       "peerVideo": "对方视频",
       "localVideo": "本机预览",
       "phase": {

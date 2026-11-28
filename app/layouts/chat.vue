@@ -9,7 +9,7 @@ const { t } = useAppLocale();
 
 <template>
   <div class="flex h-dvh min-h-dvh w-full flex-col overflow-hidden bg-[var(--shell-frame)] text-foreground">
-    <header class="flex h-[54px] shrink-0 items-center justify-between bg-background/70 px-4 backdrop-blur-xl md:hidden">
+    <header class="glass-bar-scrim flex h-[54px] shrink-0 items-center justify-between bg-background/70 px-4 backdrop-blur-xl md:hidden">
       <h1 class="text-base font-semibold tracking-tight">{{ t('nav.main.chat') }}</h1>
       <div class="flex items-center gap-1.5">
         <LanguageTriggerIcon />

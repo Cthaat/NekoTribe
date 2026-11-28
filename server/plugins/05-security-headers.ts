@@ -1,7 +1,11 @@
-import { setResponseHeader } from 'h3';
+import { getRequestURL, getResponseHeader, getResponseStatus, setResponseHeader } from 'h3';
+import { isChatPath } from '#shared/utils/chat-document';
 
 export default defineNitroPlugin(nitroApp => {
   nitroApp.hooks.hook('beforeResponse', event => {
+    const chatDocument = isChatPath(getRequestURL(event).pathname) &&
+      getResponseStatus(event) === 200 && getResponseHeader(event, 'x-powered-by') === 'Nuxt' &&
+      /^text\/html(?:;|$)/i.test(String(getResponseHeader(event, 'content-type')));
     setResponseHeader(
       event,
       'X-Content-Type-Options',
@@ -16,7 +20,7 @@ export default defineNitroPlugin(nitroApp => {
     setResponseHeader(
       event,
       'Permissions-Policy',
-      'camera=(), microphone=(), geolocation=()'
+      chatDocument ? 'camera=(self), microphone=(self), geolocation=()' : 'camera=(), microphone=(), geolocation=()'
     );
 
     if (process.env.COOKIE_SECURE === 'true') {

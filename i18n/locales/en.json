@@ -1187,9 +1187,12 @@
       "member": "Choose a member",
       "account": "User {id}",
       "accept": "Answer",
+      "openForCallback": "Decline and open chat to call back",
       "reject": "Decline",
       "hangup": "Hang up",
       "playAudio": "Play call audio",
+      "minimize": "Minimize call",
+      "restore": "Restore call",
       "peerVideo": "Remote video",
       "localVideo": "Local preview",
       "phase": {
