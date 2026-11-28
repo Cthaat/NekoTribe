@@ -49,6 +49,9 @@ function devViteServerConfig(): ViteServerConfig | undefined {
 const viteServerConfig = devViteServerConfig();
 
 export default defineNuxtConfig({
+  ...(process.env.NUXT_DISABLE_SOURCEMAP === '1' && {
+    sourcemap: { client: false, server: false }
+  }),
   appConfig: {
     publicTermsReferences: parseTermsCatalog(publicTermsCatalog).slice()
   },

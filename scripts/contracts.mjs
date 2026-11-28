@@ -153,7 +153,7 @@ function makeManifest(projectRoot, spec, bytes) {
     contractVersion: spec.info.version,
     revision: spec.info['x-contract-revision'] ?? spec.info.version,
     normalization: 'UTF-8 without BOM; LF. SHA-256 and Git blob identify exact snapshot bytes.',
-    source: { project: 'nuxt', branch: git(projectRoot, 'branch', '--show-current').toString().trim(), commit },
+    source: { project: 'nuxt', branch: git(projectRoot, 'branch', '--show-current').toString().trim() || 'HEAD', commit },
     files: sources.map((sourcePath, i) => {
       const committed = git(projectRoot, 'show', `${commit}:${sourcePath}`);
       return {
@@ -224,7 +224,7 @@ function run() {
       const destination = resolve(workspaceRoot, project, path);
       if (command === 'sync') {
         mkdirSync(dirname(destination), { recursive: true });
-        writeFileSync(destination, content);
+        writeFileSync(destination, path.endsWith('.cmd') ? content.toString('utf8').replaceAll('\n', '\r\n') : content);
       } else {
         requireThat(read(destination, true).equals(content), `${project}/${path}: launcher script drift from Nuxt source`);
       }

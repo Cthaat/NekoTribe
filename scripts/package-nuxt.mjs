@@ -16,7 +16,11 @@ const migrationFiles = ['scripts/migrate-db.mjs','server/database/schema.mjs','s
 const endpointCheck = 'scripts/check-deployment-endpoints.mjs';
 const schemaBaseline = 'data/nekotribe-schema-only.sql';
 const schemaInitializer = 'scripts/init-db.mjs';
-const packageVersion = 6;
+const maintenanceFiles = ['scripts/build-ai-public-terms.mjs','scripts/lib/ai-public-terms-build.mjs',
+  'scripts/ai-public-terms-maintenance.mjs','scripts/ai-skill-config-maintenance.mjs',
+  'specifications/requirements/ai-public-terms-catalog.json'];
+const maintenanceBundle = '.output/server/ai-terms-maintenance.cjs';
+const packageVersion = 7;
 
 function filesForVersion(version) {
   return [
@@ -26,6 +30,7 @@ function filesForVersion(version) {
     ...(version >= 4 ? [endpointCheck] : []),
     ...(version >= 5 ? [schemaBaseline] : []),
     ...(version >= 6 ? [schemaInitializer] : []),
+    ...(version >= 7 ? maintenanceFiles : []),
   ];
 }
 
@@ -69,6 +74,7 @@ async function fileHash(path) {
 
 async function hashes(directory, outputFiles, version) {
   if (!outputFiles.includes('.output/server/index.mjs')) throw Error('BUILD_ENTRY_MISSING');
+  if (version >= 7 && !outputFiles.includes(maintenanceBundle)) throw Error('MAINTENANCE_BUNDLE_MISSING');
   const files = {};
   for (const path of [...filesForVersion(version),...outputFiles.sort()]) files[path] = await fileHash(join(directory,path));
   return files;
@@ -78,6 +84,7 @@ export function buildEnvironment(inherited) {
   const keep = new Set(['PATH','PATHEXT','SYSTEMROOT','WINDIR','COMSPEC','OS','TMP','TEMP','TMPDIR',
     'HOME','USERPROFILE','LOCALAPPDATA','APPDATA','LANG','LC_ALL']);
   const env = Object.fromEntries(Object.entries(inherited).filter(([key]) => keep.has(key.toUpperCase())));
+  if (inherited.NUXT_DISABLE_SOURCEMAP === '1') env.NUXT_DISABLE_SOURCEMAP = '1';
   return {...env,NODE_ENV:'production',NUXT_TELEMETRY_DISABLED:'1'};
 }
 
@@ -93,12 +100,12 @@ export async function copyNuxtOutput(project, output) {
   validateLinks(items.links,items);
   for (const name of items.dirs) await mkdir(join(output,name));
   for (const name of items.files) await copyFile(join(project,name),join(output,name));
-  for (const name of [...supportFiles,...migrationFiles,endpointCheck,schemaBaseline,schemaInitializer]) {
+  for (const name of filesForVersion(packageVersion)) {
+    const source = launchers.includes(name) ? join(project,'scripts','release','nuxt',name) : join(project,name);
     const target = join(output,name);
     await mkdir(dirname(target),{recursive:true});
-    await copyFile(join(project,name),target);
+    await copyFile(source,target);
   }
-  for (const name of launchers) await copyFile(join(project,'scripts','release','nuxt',name),join(output,name));
   const manifest = {version:packageVersion,platform:process.platform,arch:process.arch,
     files:await hashes(output,items.files,packageVersion),links:items.links};
   await writeFile(join(output,manifestName),`${JSON.stringify(manifest,null,2)}\n`,{flag:'wx'});
@@ -110,7 +117,8 @@ export async function verifyNuxt(output, prepare = false) {
   const info = await lstat(path);
   if (!info.isFile() || info.size > 16*1024*1024) throw Error('INVALID_NUXT_PACKAGE');
   const manifest = JSON.parse(await readFile(path,'utf8'));
-  if (![1,2,3,4,5,6].includes(manifest?.version) || typeof manifest.platform !== 'string' || typeof manifest.arch !== 'string') {
+  if (!Number.isInteger(manifest?.version) || manifest.version < 1 || manifest.version > packageVersion ||
+      typeof manifest.platform !== 'string' || typeof manifest.arch !== 'string') {
     throw Error('INVALID_NUXT_PACKAGE');
   }
   const items = await inventory(output);
@@ -140,6 +148,10 @@ async function packageNuxt(output) {
     cwd:root,env:buildEnvironment(process.env),stdio:'inherit',shell:false,
   });
   if (build.error || build.status !== 0) throw Error('NUXT_BUILD_FAILED');
+  const bundle = spawnSync(process.execPath,['scripts/build-ai-public-terms.mjs'],{
+    cwd:root,env:buildEnvironment(process.env),stdio:'inherit',shell:false,
+  });
+  if (bundle.error || bundle.status !== 0) throw Error('MAINTENANCE_BUILD_FAILED');
   return copyNuxtOutput(root,output);
 }
 

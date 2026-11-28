@@ -232,12 +232,11 @@ function checkReceipt(projectRoot, workspaceRoot, feature, backend, implementati
   const requiredSources = backend === 'nuxt' ? [...feature.sourceFiles, ...implementation.sourceFiles] : implementation.sourceFiles;
   ensure(requiredSources.every(source => receipt.sources.some(recorded => recorded.path === source)),
     `${feature.id}/${backend}: evidence source coverage is incomplete`);
-  for (const source of receipt.sources) checksum(componentRoot, source, `${feature.id}/${backend}: source checksum mismatch`);
+  for (const source of receipt.sources) checksum(componentRoot, source, `${feature.id}/${backend}: source checksum mismatch`, true);
 }
 
 function checkRequirementEvidence(projectRoot, feature, receipt, label) {
-  ensure(nonempty(feature.definition) && digest(file(projectRoot, feature.definition)) === receipt.requirementsSha256,
-    `${label}: requirement checksum mismatch`);
+  checksum(projectRoot, { path: feature.definition, sha256: receipt.requirementsSha256 }, `${label}: requirement checksum mismatch`, true);
   ensure(Array.isArray(receipt.scenarios), `${label}: evidence scenarios required`);
   unique(receipt.scenarios.map(scenario => scenario.id), 'Evidence scenarios');
   const expected = feature.scenarios.map(scenario => scenario.id).sort();
@@ -245,7 +244,7 @@ function checkRequirementEvidence(projectRoot, feature, receipt, label) {
     `${label}: evidence must cover all current scenarios`);
   for (const scenario of feature.scenarios) {
     const recorded = receipt.scenarios.find(item => item.id === scenario.id);
-    ensure(recorded.sha256 === digest(file(projectRoot, scenario.file)), `${label}: scenario checksum mismatch`);
+    checksum(projectRoot, { path: scenario.file, sha256: recorded.sha256 }, `${label}: scenario checksum mismatch`, true);
   }
   const dependencies = feature.sharedDependencies ?? [];
   if (dependencies.length || receipt.dependencies !== undefined) {
@@ -254,7 +253,7 @@ function checkRequirementEvidence(projectRoot, feature, receipt, label) {
     ensure(JSON.stringify(receipt.dependencies.map(item => item.path).sort()) === JSON.stringify([...dependencies].sort()),
       `${label}: dependency evidence must cover every shared dependency`);
     for (const dependency of receipt.dependencies) checksum(projectRoot, dependency,
-      `${label}: dependency evidence checksum mismatch`);
+      `${label}: dependency evidence checksum mismatch`, true);
   }
 }
 
@@ -295,7 +294,7 @@ function checkClientReceipt(root, workspaceRoot, feature, client, implementation
   const prefixes = client === 'nuxtWeb' ? ['app/', 'i18n/', 'tests/', 'e2e/'] : ['lib/', 'test/', 'integration_test/'];
   for (const source of receipt.sources) {
     clientPath(component, source.path, prefixes, label);
-    checksum(component, source, `${label}: client source checksum mismatch`);
+    checksum(component, source, `${label}: client source checksum mismatch`, true);
   }
 }
 

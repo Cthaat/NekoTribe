@@ -10,6 +10,7 @@ import { launcherEnvironment } from './helpers/launcher-env.mjs';
 test('release build passes through system paths and excludes runtime settings', () => {
   assert.deepEqual(buildEnvironment({PATH:'fixture',ORACLE_PASSWORD:'fixture',NUXT_PUBLIC_API_BASE:'fixture'}),
     {PATH:'fixture',NODE_ENV:'production',NUXT_TELEMETRY_DISABLED:'1'});
+  assert.equal(buildEnvironment({NUXT_DISABLE_SOURCEMAP:'1'}).NUXT_DISABLE_SOURCEMAP,'1');
 });
 
 test('release build heap accepts a bounded override', () => {
@@ -32,14 +33,17 @@ test('Nuxt deployment copy is independent and detects damaged output', async t =
   const endpointCheck = 'scripts/check-deployment-endpoints.mjs';
   const baseline = 'data/nekotribe-schema-only.sql';
   const initializer = 'scripts/init-db.mjs';
+  const maintenance = ['scripts/build-ai-public-terms.mjs','scripts/lib/ai-public-terms-build.mjs',
+    'scripts/ai-public-terms-maintenance.mjs','scripts/ai-skill-config-maintenance.mjs',
+    'specifications/requirements/ai-public-terms-catalog.json','.output/server/ai-terms-maintenance.cjs'];
   const templates = launchers.map(name => `scripts/release/nuxt/${name}`);
   const files = ['.output/server/index.mjs','.output/public/index.html','.env.example','doc/runtime-addresses.md',
-    'scripts/run-nuxt.mjs','scripts/runtime-env.mjs','scripts/package-nuxt.mjs',endpointCheck,baseline,initializer,...migration,`${dependency}/marker.txt`];
+    'scripts/run-nuxt.mjs','scripts/runtime-env.mjs','scripts/package-nuxt.mjs',endpointCheck,baseline,initializer,...migration,...maintenance,`${dependency}/marker.txt`];
   t.after(async () => {
     for (const [directory,paths] of [[source,[...files,...templates,'.env']],[output,[...files,...launchers,'nuxt-package.json','.env.runtime']]]) {
       await unlink(join(directory,alias)).catch(error => { if (error.code !== 'ENOENT') throw error; });
       for (const path of paths) await rm(join(directory,path),{force:true});
-      for (const path of [dependency,`${modules}/.nitro`,modules,'.output/server','.output/public','.output','scripts/release/nuxt','scripts/release','scripts','server/database','server','data','doc','']) {
+      for (const path of [dependency,`${modules}/.nitro`,modules,'.output/server','.output/public','.output','scripts/release/nuxt','scripts/release','scripts/lib','scripts','specifications/requirements','specifications','server/database','server','data','doc','']) {
         await rmdir(join(directory,path)).catch(error => { if (error.code !== 'ENOENT') throw error; });
       }
     }
@@ -60,7 +64,7 @@ test('Nuxt deployment copy is independent and detects damaged output', async t =
   await symlink(join(source,dependency),join(source,alias),process.platform === 'win32' ? 'junction' : 'dir');
   await mkdir(output);
   const result = await copyNuxtOutput(source,output);
-  assert.equal(result.version,6);
+  assert.equal(result.version,7);
   assert.deepEqual(await verifyNuxt(output),result);
   assert.deepEqual(Object.keys(result.files).sort(),[...files,...launchers].sort());
   assert.deepEqual(result.links,{[alias]:dependency});

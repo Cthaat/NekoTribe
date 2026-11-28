@@ -14,6 +14,10 @@ on:
         description: 发布为预发行版本
         default: false
         type: boolean
+      REQUIRE_ANDROID_RELEASE_SIGNING:
+        description: Require a non-debug Android signing certificate
+        default: false
+        type: boolean
       nuxt_ref:
         description: Nuxt 分支、标签或 commit SHA
         default: master
@@ -110,8 +114,6 @@ jobs:
       - name: Verify all four checkouts
         working-directory: nuxt
         run: |
-          # Reproduce the exact source bytes recorded by the accepted RC8 receipt.
-          python -c 'from pathlib import Path; p = Path("server/middleware/rate-limit.ts"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))'
           node scripts/contracts.mjs check --workspace-root ..
           node scripts/parity.mjs check --workspace-root ..
       - name: Record checked commits
@@ -226,16 +228,9 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=6144
           NEKO_NUXT_BUILD_HEAP_MB: "6144"
+          NUXT_DISABLE_SOURCEMAP: "1"
         run: |
           yarn install --frozen-lockfile
-          node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs';
-          const path = 'nuxt.config.ts';
-          const source = readFileSync(path, 'utf8');
-          const config = source.replace('defineNuxtConfig({', 'defineNuxtConfig({\n  sourcemap: { server: false, client: false },');
-          if (config === source) throw new Error('Could not configure Nuxt sourcemaps');
-          writeFileSync(path, config);
-          NODE
           node scripts/package-nuxt.mjs --out "$PACKAGE_DIR"
           node scripts/package-nuxt.mjs --verify "$PACKAGE_DIR"
       - name: Build and verify Go
@@ -274,7 +269,7 @@ jobs:
         run: |
           $setup = Join-Path $env:PACKAGE_DIR "NekoTribe-$env:VERSION-windows-x64-setup.exe"
           $installed = Join-Path $env:RUNNER_TEMP 'nekotribe-install-smoke'
-          $result = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$installed`"") -Wait -PassThru -WindowStyle Hidden
+          $result = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LANG=chinesesimplified", "/DIR=`"$installed`"") -Wait -PassThru -WindowStyle Hidden
           if ($result.ExitCode -ne 0 -or !(Test-Path -LiteralPath (Join-Path $installed 'nekotribe.exe') -PathType Leaf)) {
             throw "The Windows installer smoke test failed (exit code $($result.ExitCode))."
           }
@@ -285,20 +280,36 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          REQUIRE_ANDROID_RELEASE_SIGNING: ${{ inputs.REQUIRE_ANDROID_RELEASE_SIGNING || vars.REQUIRE_ANDROID_RELEASE_SIGNING || 'false' }}
         run: |
           if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
+            REQUIRE_ANDROID_RELEASE_SIGNING=true
             umask 077
             export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/nekotribe-release.jks"
             trap 'rm -f -- "$ANDROID_KEYSTORE_PATH"' EXIT
             printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          else
+            unset ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
+            warning='Android release keystore is missing. The Android build will use debug signing. Configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD in GitHub Secrets.'
+            echo "::warning::$warning"
+            printf '### ⚠️ Android release signing\n\n%s\n' "$warning" >> "$GITHUB_STEP_SUMMARY"
           fi
           unset ANDROID_KEYSTORE_BASE64
           build_name="${VERSION#v}"
+          flutter config --jdk-dir "$JAVA_HOME"
           flutter pub get
-          flutter build apk --release --no-pub --build-name "${build_name%%-*}"
+          flutter build apk --release --no-pub --target-platform android-arm64 --build-name "${build_name%%-*}"
           apksigner="$(find "$ANDROID_HOME/build-tools" -mindepth 2 -maxdepth 2 -name apksigner -type f | sort -V | tail -n1)"
           test -x "$apksigner"
-          "$apksigner" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          "$apksigner" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk > "$RUNNER_TEMP/apk-certs.txt"
+          cat "$RUNNER_TEMP/apk-certs.txt"
+          if [[ "$REQUIRE_ANDROID_RELEASE_SIGNING" == true ]]; then
+            if ! grep -Eq '^Signer #[0-9]+ certificate DN: .+' "$RUNNER_TEMP/apk-certs.txt" ||
+               grep -Ei '^Signer #[0-9]+ certificate DN:.*CN[[:space:]]*=[[:space:]]*Android Debug([[:space:]]*[,;+]|[[:space:]]*$)' "$RUNNER_TEMP/apk-certs.txt"; then
+              echo "::error::Android release signing requires an identifiable non-debug signer."
+              exit 1
+            fi
+          fi
           node scripts/package-android.mjs --version "$VERSION" --out "$PACKAGE_DIR"
       - name: Archive package and compute SHA-256
         env:
@@ -389,11 +400,6 @@ jobs:
             fi
             echo 'TAGS'
           } >> "$GITHUB_OUTPUT"
-      - name: Configure Nuxt Docker build memory
-        if: matrix.stack == 'nuxt'
-        run: |
-          sed -i 's/defineNuxtConfig({/defineNuxtConfig({\n  sourcemap: { server: false, client: false },/' nuxt.config.ts
-          sed -i 's/max-old-space-size=4096/max-old-space-size=6144/g; s/^RUN yarn build$/RUN node --max-old-space-size=6144 node_modules\/nuxt\/bin\/nuxt.mjs build/' Dockerfile
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -405,6 +411,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
+          build-args: ${{ matrix.stack == 'nuxt' && 'NODE_MAX_OLD_SPACE_SIZE=6144' || '' }}
           push: true
           tags: ${{ steps.tags.outputs.images }}
           cache-from: type=gha,scope=${{ matrix.stack }}
