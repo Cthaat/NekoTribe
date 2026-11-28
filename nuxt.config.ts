@@ -98,6 +98,8 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [tailwindcss()],
+    // Nuxt imports unctx both by package name and by its resolved transform-helper path.
+    ssr: { noExternal: ['unctx'] },
     ...(viteServerConfig ? { server: viteServerConfig } : {})
   },
 
