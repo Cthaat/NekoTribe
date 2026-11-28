@@ -39,9 +39,7 @@
     "@vue/server-renderer": "3.5.46",
     "@vue/shared": "3.5.46",
     "@intlify/core-base": "10.0.8",
-    "vue-i18n": "10.0.8",
-    "**/ipx/sharp": "^0.35.5",
-    "**/ipx/listhen": "^1.10.1"
+    "vue-i18n": "10.0.8"
   },
   "dependencies": {
     "@intlify/core": "10.0.8",
@@ -49,7 +47,7 @@
     "@intlify/shared": "10.0.8",
     "@nuxt/fonts": "0.11.4",
     "@nuxt/icon": "1.15.0",
-    "@nuxt/image": "1.11.2",
+    "@nuxt/image": "2.2.1",
     "@nuxt/ui": "3.3.7",
     "@nuxtjs/i18n": "9.5.6",
     "@pinia/nuxt": "^0.11.1",
