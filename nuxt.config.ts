@@ -153,12 +153,11 @@ export default defineNuxtConfig({
       }
     ],
     defaultLocale: 'zh',
-    lazy: true,
     langDir: 'locales',
     detectBrowserLanguage: {
       useCookie: true,
       cookieKey: 'nekotribe_locale',
-      redirectOn: 'root',
+      redirectOn: 'no prefix',
       fallbackLocale: 'zh'
     }
   },
