@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/glass/liquid_glass_overlays.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/status_views.dart';
@@ -15,12 +16,12 @@ Future<void> showReportDialog(
   final descController = TextEditingController();
   String? selectedReason = 'spam';
   final l10n = AppLocalizations.of(context);
-  final saved = await showDialog<bool>(
+  final saved = await showLiquidGlassDialog<bool>(
     context: context,
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setLocal) {
-          return AlertDialog(
+          return LiquidGlassAlertContent(
             title: Text(l10n.t('common.report')),
             content: SingleChildScrollView(
               child: Column(
@@ -110,9 +111,7 @@ Future<void> showReportDialog(
     },
   );
   if (saved == true && context.mounted) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(l10n.t('report.submitted'))));
+    ScaffoldMessenger.of(context).showSnackBar(liquidGlassSnackBar(context, l10n.t('report.submitted')));
   }
   reasonController.dispose();
   descController.dispose();

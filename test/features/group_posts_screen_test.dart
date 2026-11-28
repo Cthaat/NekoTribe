@@ -16,6 +16,8 @@ import 'package:nekotribe/features/posts/data/posts_api.dart';
 import 'package:nekotribe/features/users/domain/user_models.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 
+import '../support/media_preview_flight.dart';
+
 void main() {
   List<Override> authOverrides({
     required GroupsApi groupsApi,
@@ -263,6 +265,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await checkMediaFlight(tester);
     await tester.tap(find.byTooltip('打开媒体').first);
     await tester.pumpAndSettle();
 

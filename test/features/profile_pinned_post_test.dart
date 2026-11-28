@@ -20,6 +20,8 @@ import 'package:nekotribe/features/users/presentation/user_posts_screen.dart';
 import 'package:nekotribe/shared/providers/providers.dart';
 import 'package:nekotribe/shared/widgets/glass/liquid_glass_bars.dart';
 
+import '../support/media_preview_flight.dart';
+
 void main() {
   test('profile pin requests bind the expected paths and receipts', () async {
     final client = _client(_TestTokens());
@@ -73,6 +75,13 @@ void main() {
       ('PUT', '/api/v2/users/me/pinned-post'),
       ('DELETE', '/api/v2/users/me/pinned-post'),
     ]);
+  });
+
+  testWidgets('profile avatar shares its Hero with the preview', (tester) async {
+    final tokens = _TestTokens();
+    await tester.pumpWidget(_app(tokens, _UsersApi(tokens), _PostsApi(tokens), const ProfileScreen(userId: 1)));
+    await tester.pumpAndSettle();
+    await checkMediaFlight(tester);
   });
 
   testWidgets(
@@ -294,6 +303,7 @@ Map<String, Object?> _userJson(int userId) => {
   'user_id': userId,
   'username': 'profile$userId',
   'display_name': 'Profile $userId',
+  'avatar_url': '/avatars/$userId.png',
   'posts_count': 173,
   'relationship': {'is_self': userId == 1},
 };

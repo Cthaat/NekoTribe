@@ -153,12 +153,14 @@ class AppMediaImage extends ConsumerWidget {
     this.height,
     this.borderRadius,
     this.fit = BoxFit.cover,
+    this.heroTag,
   });
 
   final String url;
   final double? width;
   final double? height;
   final BorderRadius? borderRadius;
+  final Object? heroTag;
   final BoxFit fit;
 
   @override
@@ -166,9 +168,10 @@ class AppMediaImage extends ConsumerWidget {
     final resolver = ref.watch(assetUrlResolverProvider);
     final resolved = resolver.resolve(url);
     final radius = borderRadius ?? BorderRadius.circular(AppRadius.inner);
-    return ClipRRect(
+    final image = ClipRRect(
       borderRadius: radius,
       child: CachedNetworkImage(
+        fadeInDuration: AppMotion.resolve(context, const Duration(milliseconds: 180)),
         imageUrl: resolved,
         width: width,
         height: height,
@@ -186,5 +189,6 @@ class AppMediaImage extends ConsumerWidget {
         ),
       ),
     );
+    return heroTag == null || AppMotion.reduced(context) ? image : Hero(tag: heroTag!, child: image);
   }
 }

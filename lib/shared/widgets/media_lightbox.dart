@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 
 import '../i18n/app_localizations.dart';
@@ -8,8 +9,9 @@ import '../theme/tokens.dart';
 import 'app_avatar.dart';
 
 class MediaLightboxItem {
-  const MediaLightboxItem({required this.url, this.altText, this.description});
+  const MediaLightboxItem({required this.url, this.altText, this.description, this.heroTag});
 
+  final Object? heroTag;
   final String url;
   final String? altText;
   final String? description;
@@ -22,35 +24,19 @@ Future<void> showMediaLightbox({
 }) {
   if (items.isEmpty) return Future.value();
   final reduced = AppMotion.reduced(context);
-  return showGeneralDialog<void>(
-    context: context,
+  final duration = reduced ? Duration.zero : const Duration(milliseconds: 280);
+  return Navigator.of(context).push(PageRouteBuilder<void>(
+    opaque: false,
     barrierDismissible: true,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: Colors.transparent,
-    transitionDuration: reduced
-        ? const Duration(milliseconds: 120)
-        : const Duration(milliseconds: 240),
+    transitionDuration: duration,
+    reverseTransitionDuration: duration,
     pageBuilder: (_, _, _) => _MediaLightboxOverlay(
       items: items,
       initialIndex: initialIndex.clamp(0, items.length - 1),
     ),
-    transitionBuilder: (_, animation, _, child) {
-      if (reduced) {
-        return FadeTransition(opacity: animation, child: child);
-      }
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: AppMotion.glideCurve,
-      );
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
+    transitionsBuilder: (_, animation, _, child) => FadeTransition(opacity: animation, child: child),
+  ));
 }
 
 class _MediaLightboxOverlay extends StatefulWidget {
@@ -67,28 +53,31 @@ class _MediaLightboxOverlay extends StatefulWidget {
 }
 
 class _MediaLightboxOverlayState extends State<_MediaLightboxOverlay>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late int _index = widget.initialIndex;
   late final PageController _pageController = PageController(
     initialPage: widget.initialIndex,
   );
   final Map<int, TransformationController> _zoomControllers = {};
   late final AnimationController _dragResetController;
-  double _dragY = 0;
-  double _currentScale = 1.0;
+  late final AnimationController _zoomSpring;
 
   @override
   void initState() {
     super.initState();
-    _dragResetController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
-    );
+    _dragResetController = AnimationController.unbounded(vsync: this)
+      ..addListener(() => setState(() => _dragY = _dragResetController.value));
+    _zoomSpring = AnimationController.unbounded(vsync: this)..addListener(_applyZoom);
   }
+  Matrix4Tween? _zoomTween;
+  Offset _zoomFocus = Offset.zero;
+  double _dragY = 0;
+  double _currentScale = 1;
 
   @override
   void dispose() {
     _pageController.dispose();
+    _zoomSpring.dispose();
     _dragResetController.dispose();
     for (final controller in _zoomControllers.values) {
       controller.dispose();
@@ -101,6 +90,7 @@ class _MediaLightboxOverlayState extends State<_MediaLightboxOverlay>
   }
 
   void _resetCurrentZoom() {
+    _zoomSpring.stop();
     _zoomControllers[_index]?.value = Matrix4.identity();
     if (_currentScale != 1.0) {
       setState(() => _currentScale = 1.0);
@@ -111,7 +101,9 @@ class _MediaLightboxOverlayState extends State<_MediaLightboxOverlay>
     final next = (_index + delta).clamp(0, widget.items.length - 1);
     if (next == _index) return;
     _resetCurrentZoom();
-    if (_pageController.hasClients) {
+    if (_pageController.hasClients && AppMotion.reduced(context)) {
+      _pageController.jumpToPage(next);
+    } else if (_pageController.hasClients) {
       _pageController.animateToPage(
         next,
         duration: AppMotion.resolve(context, AppMotion.base),
@@ -124,41 +116,31 @@ class _MediaLightboxOverlayState extends State<_MediaLightboxOverlay>
 
   void _toggleDoubleTapZoom(int index) {
     final controller = _controllerFor(index);
-    final current = controller.value.getMaxScaleOnAxis();
-    setState(() {
-      if (current > 1.05) {
-        controller.value = Matrix4.identity();
-        _currentScale = 1.0;
-      } else {
-        controller.value = Matrix4.diagonal3Values(2.2, 2.2, 1.0);
-        _currentScale = 2.2;
-      }
-    });
+    final target = controller.value.getMaxScaleOnAxis() > 1.05
+        ? Matrix4.identity()
+        : (Matrix4.diagonal3Values(2.2, 2.2, 1)
+            ..setTranslationRaw(-1.2 * _zoomFocus.dx, -1.2 * _zoomFocus.dy, 0));
+    _zoomTween = Matrix4Tween(begin: controller.value.clone(), end: target);
+    if (AppMotion.reduced(context)) {
+      _zoomSpring.value = 1;
+    } else {
+      _zoomSpring.animateWith(SpringSimulation(AppMotion.liquidLensSpring, 0, 1, 0, snapToEnd: true));
+    }
+  }
+
+  void _applyZoom() {
+    final matrix = _zoomTween?.lerp(_zoomSpring.value);
+    if (matrix == null) return;
+    _controllerFor(_index).value = matrix;
+    setState(() => _currentScale = matrix.getMaxScaleOnAxis());
   }
 
   void _animateDragBack() {
-    final start = _dragY;
     if (AppMotion.reduced(context)) {
       setState(() => _dragY = 0);
-      return;
+    } else {
+      _dragResetController.animateWith(SpringSimulation(AppMotion.liquidSnapSpring, _dragY, 0, 0, snapToEnd: true));
     }
-    final tween = Tween<double>(begin: start, end: 0).animate(
-      CurvedAnimation(
-        parent: _dragResetController,
-        curve: AppMotion.glideCurve,
-      ),
-    );
-    void listener() {
-      if (mounted) setState(() => _dragY = tween.value);
-    }
-
-    _dragResetController
-      ..reset()
-      ..removeListener(listener)
-      ..addListener(listener);
-    _dragResetController.forward().whenComplete(() {
-      _dragResetController.removeListener(listener);
-    });
   }
 
   @override
@@ -202,6 +184,7 @@ class _MediaLightboxOverlayState extends State<_MediaLightboxOverlay>
                   scale: dragScale,
                   child: GestureDetector(
                     behavior: HitTestBehavior.translucent,
+                    onVerticalDragStart: _currentScale > 1.05 ? null : (_) => _dragResetController.stop(),
                     onVerticalDragUpdate: _currentScale > 1.05
                         ? null
                         : (details) {
@@ -238,11 +221,14 @@ class _MediaLightboxOverlayState extends State<_MediaLightboxOverlay>
                               vertical: 72,
                             ),
                             child: GestureDetector(
+                              onDoubleTapDown: (tap) => _zoomFocus = tap.localPosition,
                               onDoubleTap: () => _toggleDoubleTapZoom(index),
                               child: InteractiveViewer(
                                 transformationController: controller,
                                 minScale: 1,
                                 maxScale: 3.5,
+                                panEnabled: _currentScale > 1.05,
+                                onInteractionStart: (_) => _zoomSpring.stop(),
                                 onInteractionEnd: (_) {
                                   final scale = controller.value
                                       .getMaxScaleOnAxis();
@@ -253,6 +239,7 @@ class _MediaLightboxOverlayState extends State<_MediaLightboxOverlay>
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(18),
                                   child: AppMediaImage(
+                                    heroTag: entry.heroTag,
                                     url: entry.url,
                                     fit: BoxFit.contain,
                                     borderRadius: BorderRadius.zero,

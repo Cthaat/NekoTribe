@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/widgets/glass/liquid_glass_overlays.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/motion/skeleton.dart';
 import '../../../shared/providers/providers.dart';
@@ -341,11 +342,8 @@ class _ChatHomeScreenState extends ConsumerState<ChatHomeScreen>
       // Managers can open the picker empty and create the first channel.
     }
 
-    final selected = await showModalBottomSheet<V2ChatChannel>(
+    final selected = await showLiquidGlassBottomSheet<V2ChatChannel>(
       context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      isScrollControlled: true,
       builder: (_) => _GroupChannelPicker(
         group: group,
         channels: channels,

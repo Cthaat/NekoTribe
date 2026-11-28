@@ -50,6 +50,7 @@ import '../../features/users/presentation/statements_screen.dart';
 import '../../features/users/presentation/user_posts_screen.dart';
 import '../providers/providers.dart';
 import 'app_shell.dart';
+import 'detail_page.dart';
 import 'tab_transition.dart';
 
 const productionRoutePaths = <String>{
@@ -178,6 +179,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       builder(context, state),
     ),
   );
+  GoRoute detailRoute(String path, GoRouterWidgetBuilder builder) => GoRoute(
+    path: path,
+    pageBuilder: (context, state) => DetailPage(key: state.pageKey, name: state.name ?? state.path,
+      restorationId: state.pageKey.value, arguments: {...state.pathParameters, ...state.uri.queryParameters}, child: builder(context, state)),
+  );
   final router = GoRouter(
     initialLocation: '/feed',
     debugLogDiagnostics: false,
@@ -296,7 +302,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(path: '/sentiment', redirect: (_, __) => '/ai/knowledge'),
           GoRoute(path: '/about', builder: (_, __) => const AboutScreen()),
-          GoRoute(path: '/posts/:postId', builder: _postDetail),
+          detailRoute('/posts/:postId', _postDetail),
       GoRoute(
         path: '/posts/:postId/edit',
         builder: (_, state) {
@@ -464,9 +470,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
-        path: '/groups/:slug',
-        builder: (_, state) {
+      detailRoute('/groups/:slug', (_, state) {
           final slug = state.pathParameters['slug'] ?? '';
           return GroupDetailScreen(slug: slug);
         },
@@ -501,17 +505,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
-        path: '/chat/conversation/:id',
-        builder: (_, state) {
+      detailRoute('/chat/conversation/:id', (_, state) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
           final title = _routeExtraString(state.extra, const ['title', 'name']);
           return ConversationScreen(conversationId: id, title: title);
         },
       ),
-      GoRoute(
-        path: '/chat/groups/:groupId/channels/:channelId',
-        builder: (_, state) {
+      detailRoute('/chat/groups/:groupId/channels/:channelId', (_, state) {
           final groupId =
               int.tryParse(state.pathParameters['groupId'] ?? '') ?? 0;
           final channelId =

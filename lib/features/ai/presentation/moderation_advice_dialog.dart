@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/utils/group_post_link.dart';
+import '../../../shared/widgets/glass/liquid_glass_overlays.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../data/ai_moderation_advice_api.dart';
@@ -29,7 +30,7 @@ class ModerationAdviceButton extends StatelessWidget {
     if (target == null) return const SizedBox.shrink();
     final router = GoRouter.maybeOf(context);
     return OutlinedButton(
-      onPressed: () => showDialog<void>(
+      onPressed: () => showLiquidGlassDialog<void>(
         context: context,
         builder: (_) => _ModerationAdviceDialog(target: target, router: router),
       ),
@@ -392,8 +393,7 @@ class _ModerationAdviceDialogState
     final confirmation = _deleteConfirm;
     final historicalConversations = <String>{};
     final availability = _availability;
-    return AlertDialog(
-      scrollable: true,
+    return LiquidGlassAlertContent(
       title: Text(label('title')),
       content: Column(
         mainAxisSize: MainAxisSize.min,

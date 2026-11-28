@@ -10,6 +10,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/api_response.dart';
 import '../../../core/utils/ai_conversation_link.dart';
 import '../../../core/utils/group_post_link.dart';
+import '../../../shared/widgets/glass/liquid_glass_overlays.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/motion/entrance.dart';
 import '../../../shared/motion/skeleton.dart';
@@ -226,15 +227,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
   void _showRecommendedInfo() {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    showModalBottomSheet<void>(
+    showLiquidGlassBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => LiquidGlassSurface(
-        preset: LiquidGlassPreset.popover,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppRadius.canvas),
-        ),
-        child: SafeArea(
+      builder: (context) => SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
             child: Column(
@@ -258,7 +253,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
               ],
             ),
           ),
-        ),
       ),
     );
   }
@@ -400,47 +394,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen>
                   scale: _fabVisible ? 1.0 : 0.72,
                   duration: AppMotion.resolve(context, AppMotion.glide),
                   curve: AppMotion.curve,
-                  child: Tooltip(
-                    message: l10n.t('common.post'),
-                    excludeFromSemantics: true,
-                    child: Semantics(
-                      button: true,
-                      label: l10n.t('common.post'),
-                      child: SizedBox.square(
-                        dimension: 50,
-                        child: LiquidGlassSurface(
-                          preset: LiquidGlassPreset.iconButton,
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
-                          interactive: true,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: scheme.primary.withValues(
-                                alpha: theme.brightness == Brightness.dark
-                                    ? 0.24
-                                    : 0.86,
-                              ),
-                            ),
-                            child: Material(
-                              type: MaterialType.transparency,
-                              child: InkWell(
-                                customBorder: const CircleBorder(),
-                                onTap: _compose,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.edit_rounded,
-                                    size: 22,
-                                    color: theme.brightness == Brightness.dark
-                                        ? scheme.primary
-                                        : scheme.onPrimary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  child: LiquidGlassFab(
+                    label: l10n.t('common.post'),
+                    icon: Icons.edit_rounded,
+                    onPressed: _compose,
                   ),
                 ),
               ),

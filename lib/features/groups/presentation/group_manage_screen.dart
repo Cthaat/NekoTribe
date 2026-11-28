@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/widgets/glass/liquid_glass_overlays.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../../shared/widgets/app_avatar.dart';
@@ -476,9 +477,9 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       final l10n = AppLocalizations.of(context);
       final code = invite.inviteCode?.trim();
       if (code != null && code.isNotEmpty) {
-        await showDialog<void>(
+        await showLiquidGlassDialog<void>(
           context: context,
-          builder: (dialogContext) => AlertDialog(
+          builder: (dialogContext) => LiquidGlassAlertContent(
             title: Text(l10n.t('group.invite_created')),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -538,7 +539,7 @@ class _GroupManageScreenState extends ConsumerState<GroupManageScreen> {
       );
       return;
     }
-    final sent = await showDialog<bool>(
+    final sent = await showLiquidGlassDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => GroupInviteRecipientDialog(

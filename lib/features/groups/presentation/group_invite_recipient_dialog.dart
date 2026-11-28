@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../shared/widgets/glass/liquid_glass_overlays.dart';
 import '../../../shared/i18n/app_localizations.dart';
 import '../../../shared/providers/providers.dart';
 import '../../users/domain/user_models.dart';
@@ -174,8 +175,7 @@ class _GroupInviteRecipientDialogState
     final l10n = AppLocalizations.of(context);
     String label(String key) => l10n.t('group.invite_recipient.$key');
     final canEdit = !_expired && !_sending && !_unknown;
-    return AlertDialog(
-      scrollable: true,
+    return LiquidGlassAlertContent(
       title: Text(label('title')),
       content: SizedBox(
         width: 420,

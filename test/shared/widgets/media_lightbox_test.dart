@@ -78,6 +78,44 @@ void main() {
     expect(find.text('2 / 2'), findsNothing);
   });
 
+  testWidgets('tagged thumbnail flies to preview, drag returns and zoom springs', (tester) async {
+    const photo = MediaLightboxItem(url: 'https://example.invalid/one.png', heroTag: 'photo');
+    await tester.pumpWidget(harness(Builder(builder: (context) => Center(
+      child: GestureDetector(onTap: () => showMediaLightbox(context: context, items: [photo]),
+        child: const Hero(tag: 'photo', child: SizedBox.square(dimension: 40, child: Icon(Icons.image))))))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.image));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 70));
+    final heroes = find.byWidgetPredicate((w) => w is Hero && w.tag == 'photo', skipOffstage: false);
+    expect(heroes, findsNWidgets(2));
+    expect(find.descendant(of: heroes, matching: find.byType(Offstage), skipOffstage: false), findsWidgets);
+    await tester.pumpAndSettle();
+    final viewer = find.byType(InteractiveViewer);
+    final center = tester.getCenter(viewer);
+    final drag = await tester.startGesture(center);
+    await drag.moveBy(const Offset(0, 24));
+    await drag.moveBy(const Offset(0, 44));
+    await tester.pump();
+    expect(tester.getCenter(viewer).dy, greaterThan(center.dy));
+    await tester.pump(const Duration(milliseconds: 180));
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(viewer), center);
+    await tester.tapAt(center);
+    await tester.pump(const Duration(milliseconds: 70));
+    await tester.tapAt(center);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 30));
+    final zoom = tester.widget<InteractiveViewer>(viewer).transformationController!;
+    expect(zoom.value.getMaxScaleOnAxis(), inExclusiveRange(1, 2.2));
+    await tester.pumpAndSettle();
+    expect(zoom.value.getMaxScaleOnAxis(), closeTo(2.2, 0.001));
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.image), findsOneWidget);
+  });
+
   testWidgets('showMediaLightbox handles Escape key and reduced animations', (
     tester,
   ) async {
