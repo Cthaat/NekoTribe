@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs';
+import {existsSync,readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -11,7 +11,7 @@ const knownErrors=new Set(['TERMS_AUTHORITY_CONFLICT','TERMS_AUTHORITY_COMMIT_UN
 
 // Source checkouts build in memory; release images load their build-time bundle.
 export async function loadMaintenanceRuntime() {
-  if(process.env.NEKO_TERMS_PACKAGED==='1') {
+  if(process.env.NEKO_TERMS_PACKAGED==='1' || existsSync(resolve(root,'nuxt-package.json'))) {
     const bundle=resolve(root,'.output/server/ai-terms-maintenance.cjs');
     return createRequire(bundle)(bundle);
   }

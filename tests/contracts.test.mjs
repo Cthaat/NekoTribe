@@ -51,6 +51,25 @@ test('sync is explicit and check works offline with only the Nuxt checkout', (t)
   assert.notEqual(run('check', '--workspace-root', root).status, 0);
 });
 
+test('detached sync records provenance and preserves launcher line endings', t => {
+  const { root, run, git } = fixture(t);
+  git('checkout', '--detach', 'HEAD');
+  const result = run('sync', '--workspace-root', root);
+  assert.equal(result.status, 0, result.stderr);
+  const { source } = JSON.parse(readFileSync(join(root, 'nuxt/doc/contracts.manifest.json')));
+  assert.equal(source.branch, 'HEAD');
+  assert.equal(source.commit, git('rev-parse', 'HEAD').toString().trim());
+  for (const project of ['rust', 'go']) {
+    for (const prefix of ['', 'scripts/release/native/']) {
+      const cmd = readFileSync(join(root, project, prefix + 'start.cmd'), 'utf8');
+      assert.match(cmd, /\r\n/);
+      assert.doesNotMatch(cmd.replaceAll('\r\n', ''), /[\r\n]/);
+      assert.doesNotMatch(readFileSync(join(root, project, prefix + 'start.sh'), 'utf8'), /\r/);
+    }
+  }
+  assert.equal(run('check', '--workspace-root', root).status, 0);
+});
+
 test('workspace root lookup accepts alternate Windows path casing', {skip:process.platform !== 'win32'}, (t) => {
   const { root, run } = fixture(t);
   const alias = root.toUpperCase();

@@ -165,8 +165,8 @@ test('release check fails when implementations or requirements remain incomplete
 function accept(context) {
   const { root, workspace, write, ledger, save } = context;
   const feature = ledger.features[0];
-  write('specifications/requirements/example.md', 'Example behavior must be identical.');
-  write('specifications/scenarios/example-case.json', { id: 'EXAMPLE-OK', cases: [{ action: 'get', expected: 200 }] });
+  write('specifications/requirements/example.md', 'Example behavior must be identical.\n');
+  write('specifications/scenarios/example-case.json', JSON.stringify({ id: 'EXAMPLE-OK', cases: [{ action: 'get', expected: 200 }] }) + '\n');
   feature.review = 'reviewed'; feature.definition = 'specifications/requirements/example.md';
   feature.scenarios = [{ id: 'EXAMPLE-OK', file: 'specifications/scenarios/example-case.json' }];
   ledger.sharedFiles = [feature.definition, feature.scenarios[0].file].map(path => {
@@ -182,7 +182,7 @@ function accept(context) {
   for (const backend of ['nuxt', 'rust', 'go']) {
     const component = join(workspace, backend);
     mkdirSync(join(component, 'src'), { recursive: true });
-    writeFileSync(join(component, 'src/example.txt'), `${backend} fixture code`);
+    writeFileSync(join(component, 'src/example.txt'), `${backend} fixture code\n`);
     const receiptPath = `specifications/evidence/${backend}.json`;
     const sourcePaths = backend === 'nuxt' ? ['src/example.txt', ...feature.sourceFiles] : ['src/example.txt'];
     feature.implementations[backend].sourceFiles = sourcePaths;
@@ -444,6 +444,18 @@ function acceptClients(context) {
   context.save();
 }
 
+test('accepted backend and client receipts survive a CRLF checkout', () => fixture(context => {
+  acceptClients(context);
+  const feature = context.ledger.features[0];
+  for (const path of [join(context.root, feature.definition), join(context.root, feature.scenarios[0].file),
+    join(context.root, 'src/example.txt'), join(context.workspace, 'flutter/lib/example.dart')]) {
+    const text = readFileSync(path, 'utf8');
+    assert.match(text, /\n/);
+    writeFileSync(path, text.replaceAll('\n', '\r\n'));
+  }
+  assert.equal(checkParity({projectRoot: context.root, workspaceRoot: context.workspace, release: true}).ready, true);
+}));
+
 test('client tracking version and scope cannot be omitted', () => fixture(context => {
   delete context.ledger.clientTrackingVersion; context.save();
   assert.throws(() => checkParity({projectRoot: context.root}), /client.*tracking/i);
@@ -547,7 +559,7 @@ test('standalone checks cannot accept Flutter without its actual worktree', () =
 test('client receipts bind every shared dependency', () => fixture(context => {
   acceptClients(context);
   const feature=context.ledger.features[0], path='specifications/requirements/client-policy.md';
-  const content='Synthetic client policy'; context.write(path,content);
+  const content='Synthetic client policy\n'; context.write(path,content.replaceAll('\n','\r\n'));
   const copy='contracts/requirements/client-policy.md';
   for(const backend of ['rust','go'])writeFileSync(join(context.workspace,backend,copy),content);
   context.ledger.sharedFiles.push({source:{path,sha256:sha(content)},copies:{rust:copy,go:copy}});
