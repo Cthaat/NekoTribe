@@ -457,7 +457,7 @@
     ],
     "openapi": {
       "path": "doc/v2.openapi.json",
-      "sha256": "d308c3cfb30e45b26a73b15c26fe1238ca248b0890fd6c591519a31b1dc36128"
+      "sha256": "89129e18441d6fb580d6ddf675389d172c7635edd086385c7bf66c4c1f799dac"
     },
     "sources": [
       {
@@ -20678,6 +20678,85 @@
         "state": "not-required",
         "reason": "The tool is run through an operations CLI."
       }
+    },
+    {
+      "id": "B0.1-RATE-LIMIT-LOGIN-ALERT",
+      "title": "Shared v2 rate limits and asynchronous login security mail",
+      "revision": 1,
+      "review": "reviewed",
+      "definition": "specifications/requirements/b0-1-rate-limit.md",
+      "sourceFiles": [
+        "server/middleware/rate-limit.ts",
+        "server/utils/client-ip.ts",
+        "server/services/v2/auth.ts",
+        "server/utils/auth/mailer.ts"
+      ],
+      "operations": [],
+      "scenarios": [
+        {
+          "id": "B0.1-RATE-LIMIT",
+          "file": "specifications/scenarios/b0-1-rate-limit.json"
+        }
+      ],
+      "implementations": {
+        "nuxt": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "Implement the shared admission window and post-commit alerts; run all vectors against isolated Redis, Oracle and SMTP."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "go": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "Implement the shared admission window and post-commit alerts; run all vectors against isolated Redis, Oracle and SMTP."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        },
+        "rust": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "Implement the shared admission window and post-commit alerts; run all vectors against isolated Redis, Oracle and SMTP."
+          ],
+          "sourceFiles": [],
+          "evidence": []
+        }
+      },
+      "sharedDependencies": [
+        "specifications/requirements/b0-1-rate-limit.md",
+        "specifications/scenarios/b0-1-rate-limit.json"
+      ],
+      "clientScope": {
+        "state": "required",
+        "reason": "Web and Flutter both consume 429 and Retry-After across backend switches."
+      },
+      "clients": {
+        "nuxtWeb": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "Exercise tier, OTP and AI rejections without renewing credentials or silently replaying writes."
+          ],
+          "sourceFiles": [],
+          "evidence": [],
+          "testFiles": []
+        },
+        "flutter": {
+          "state": "not-started",
+          "targetRevision": 1,
+          "tasks": [
+            "Exercise the same three error paths and honor Retry-After on all backends."
+          ],
+          "sourceFiles": [],
+          "evidence": [],
+          "testFiles": []
+        }
+      }
     }
   ],
   "sourceAudits": [
@@ -21220,9 +21299,11 @@
     {
       "id": "SOURCE-server-middleware-rate-limit.ts",
       "source": "server/middleware/rate-limit.ts",
-      "disposition": "unreviewed",
-      "featureIds": [],
-      "reason": ""
+      "disposition": "feature",
+      "featureIds": [
+        "B0.1-RATE-LIMIT-LOGIN-ALERT"
+      ],
+      "reason": "B0.1 covers the common admission or post-login alert boundary."
     },
     {
       "id": "SOURCE-server-models-v2.ts",
@@ -21310,9 +21391,11 @@
     {
       "id": "SOURCE-server-services-v2-auth.ts",
       "source": "server/services/v2/auth.ts",
-      "disposition": "unreviewed",
-      "featureIds": [],
-      "reason": ""
+      "disposition": "feature",
+      "featureIds": [
+        "B0.1-RATE-LIMIT-LOGIN-ALERT"
+      ],
+      "reason": "B0.1 covers the common admission or post-login alert boundary."
     },
     {
       "id": "SOURCE-server-services-v2-chat.ts",
@@ -21491,9 +21574,11 @@
     {
       "id": "SOURCE-server-utils-auth-mailer.ts",
       "source": "server/utils/auth/mailer.ts",
-      "disposition": "unreviewed",
-      "featureIds": [],
-      "reason": ""
+      "disposition": "feature",
+      "featureIds": [
+        "B0.1-RATE-LIMIT-LOGIN-ALERT"
+      ],
+      "reason": "B0.1 covers the common admission or post-login alert boundary."
     },
     {
       "id": "SOURCE-server-utils-auth-verifyCode.ts",
@@ -21505,9 +21590,11 @@
     {
       "id": "SOURCE-server-utils-client-ip.ts",
       "source": "server/utils/client-ip.ts",
-      "disposition": "unreviewed",
-      "featureIds": [],
-      "reason": ""
+      "disposition": "feature",
+      "featureIds": [
+        "B0.1-RATE-LIMIT-LOGIN-ALERT"
+      ],
+      "reason": "B0.1 covers the common admission or post-login alert boundary."
     },
     {
       "id": "SOURCE-server-utils-cors.test.ts",
@@ -25997,6 +26084,28 @@
         "go": "contracts/scenarios/backend-comparison.json",
         "rust": "contracts/scenarios/backend-comparison.json",
         "flutter": "contracts/scenarios/backend-comparison.json"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/requirements/b0-1-rate-limit.md",
+        "sha256": "733b34b440269d3a7992050bc67dc92fb408b741e9609cc782041fc259c1bce0"
+      },
+      "copies": {
+        "go": "contracts/requirements/b0-1-rate-limit.md",
+        "rust": "contracts/requirements/b0-1-rate-limit.md",
+        "flutter": "contracts/requirements/b0-1-rate-limit.md"
+      }
+    },
+    {
+      "source": {
+        "path": "specifications/scenarios/b0-1-rate-limit.json",
+        "sha256": "0cce7ff92618c09fe09440e409f7c2689ae313724c0808ee5f8691e81318ffb2"
+      },
+      "copies": {
+        "go": "contracts/scenarios/b0-1-rate-limit.json",
+        "rust": "contracts/scenarios/b0-1-rate-limit.json",
+        "flutter": "contracts/scenarios/b0-1-rate-limit.json"
       }
     }
   ],
