@@ -1,10 +1,10 @@
 {
-  "version": "v2.2.0",
-  "previous": "v2.1.0",
+  "version": "v2.3.0",
+  "previous": "v2.2.0",
   "sources": {
-    "Nuxt": "24f8cd4c8f2c843897930472ddae0b64cf00d96b",
-    "Go": "9354e246d1db62e83137e2001bccb20aa601d0b9",
-    "Rust": "2cd4d260fd8e495853cb63fd09a44cda39b1c651",
-    "Flutter": "1a2115e291fde1d18c725f08905758426378957e"
+    "Nuxt": "16e463b172312d1980406ffba4d94562a9c6155a",
+    "Go": "6fcfe153dbf301b5723863d37d0744dd28da36bf",
+    "Rust": "6129365b51cace9fe8fed0e07afedc2b84444419",
+    "Flutter": "91648270955e94d9072c9240dfbe8f71693573ca"
   }
 }
