@@ -33,19 +33,37 @@ function selectItem(item: LiquidGlassSegmentOption): void {
   if (item.disabled || item.value === props.modelValue) return;
   emit('update:modelValue', item.value);
 }
+const { events, pressed, pillStyle, itemStyle } = useLiquidScrub(activeIndex, index => {
+  const item = props.items[index];
+  if (item) selectItem(item);
+});
+const tabStop = computed(() => props.items.findIndex(item => item.value === props.modelValue && !item.disabled));
+function onKeydown(event: KeyboardEvent, index: number) {
+  const buttons = Array.from((event.currentTarget as HTMLElement).parentElement!
+    .querySelectorAll<HTMLButtonElement>('button:enabled'));
+  const offset = buttons.indexOf(event.currentTarget as HTMLButtonElement);
+  const next = { Home: 0, End: buttons.length - 1, ArrowLeft: (offset - 1 + buttons.length) % buttons.length,
+    ArrowRight: (offset + 1) % buttons.length }[event.key];
+  if (next === undefined || props.items[index]?.disabled) return;
+  event.preventDefault();
+  buttons[next]?.focus();
+  buttons[next]?.click();
+}
 </script>
 
 <template>
   <div
     role="tablist"
     :aria-label="ariaLabel"
-    class="relative grid flex-1 rounded-full bg-secondary p-1"
+    v-on="events"
+    :data-pressed="pressed"
+    class="liquid-scrub relative grid flex-1 rounded-full bg-secondary p-1"
     :style="{ gridTemplateColumns: `repeat(${Math.max(1, items.length)}, minmax(0, 1fr))` }"
   >
     <span
       v-if="items.length > 0"
       aria-hidden="true"
-      class="pointer-events-none absolute top-1 bottom-1 left-1 rounded-full transition-transform duration-220 ease-[var(--ease-spring)]"
+      class="pointer-events-none absolute top-1 bottom-1 left-1 rounded-full liquid-glass-active-pill scrub-pill"
       :class="
         tone === 'primary'
           ? 'bg-primary shadow-[0_2px_8px_rgba(0,122,255,0.28)] dark:shadow-none'
@@ -53,11 +71,15 @@ function selectItem(item: LiquidGlassSegmentOption): void {
       "
       :style="{
         width: `calc((100% - 8px) / ${items.length})`,
-        transform: `translateX(${activeIndex * 100}%)`
+        ...pillStyle
       }"
     />
     <button
-      v-for="item in items"
+      v-for="(item, index) in items"
+      data-scrub-item
+      :tabindex="index === (tabStop >= 0 ? tabStop : items.findIndex(option => !option.disabled)) ? 0 : -1"
+      :style="[itemStyle(index), { '--scrub-color': tone === 'primary' ? 'var(--primary-foreground)' : 'var(--foreground)' }]"
+      @keydown="onKeydown($event, index)"
       :key="item.value"
       role="tab"
       type="button"

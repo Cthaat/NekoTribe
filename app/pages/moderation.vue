@@ -122,13 +122,13 @@ watch(currentPath, newPath => {
           @update:model-value="handleTabChange"
           class="w-full overflow-x-auto sm:w-auto"
         >
-          <TabsList class="grid w-full grid-cols-5 rounded-full bg-background/85 p-1 sm:inline-flex sm:w-auto sm:min-w-0 dark:bg-background/80">
+          <TabsList class="[--tab-inset:4px] [--tab-fill:var(--card)] dark:[--tab-fill:var(--accent)] grid w-full grid-cols-5 rounded-full bg-background/85 p-1 sm:inline-flex sm:w-auto sm:min-w-0 dark:bg-background/80">
             <TabsTrigger
               v-for="tab in tabs"
               :key="tab.value"
               :value="tab.value"
               :aria-label="t(tab.labelKey)"
-              class="shrink-0 gap-2 rounded-full border-0 data-[state=active]:bg-card data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-xs dark:data-[state=active]:bg-accent dark:data-[state=active]:text-foreground"
+              class="shrink-0 gap-2 rounded-full border-0 data-[state=active]:font-semibold data-[state=active]:text-foreground dark:data-[state=active]:text-foreground"
             >
               <component :is="tab.icon" class="h-4 w-4" />
               <span class="hidden sm:inline">{{ t(tab.labelKey) }}</span>

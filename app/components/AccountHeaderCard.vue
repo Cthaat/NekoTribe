@@ -913,12 +913,12 @@ function followUser() {
     class="mt-3 w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain py-1"
     @update:model-value="handleTabChange"
   >
-    <TabsList class="inline-flex h-auto min-w-full justify-start gap-1 rounded-full bg-secondary p-1 sm:min-w-0">
+    <TabsList class="inline-flex h-auto min-w-full justify-start gap-1 rounded-full bg-secondary p-1 [--tab-inset:4px] [--tab-fill:var(--primary)] sm:min-w-0">
       <TabsTrigger
         v-for="tab in accountTabs"
         :key="tab.to"
         :value="tab.name"
-        class="flex-none rounded-full border-0 px-3.5 py-1.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:font-semibold data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_2px_8px_rgba(0,122,255,0.28)] dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:shadow-none"
+        class="flex-none rounded-full border-0 px-3.5 py-1.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[state=active]:font-semibold data-[state=active]:text-primary-foreground dark:data-[state=active]:border-transparent dark:data-[state=active]:text-primary-foreground"
       >
         {{ tab.name }}
       </TabsTrigger>

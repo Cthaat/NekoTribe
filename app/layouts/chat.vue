@@ -19,7 +19,7 @@ const { t } = useAppLocale();
     <div class="flex min-h-0 w-full flex-1">
       <AppSidebar class="hidden h-dvh shrink-0 md:flex" />
 
-      <main class="min-h-0 min-w-0 flex-1 overflow-hidden bg-background pb-20 md:my-2 md:mr-2 md:h-[calc(100dvh-16px)] md:rounded-[28px] md:p-3">
+      <main data-page-content class="min-h-0 min-w-0 flex-1 overflow-hidden bg-background pb-20 md:my-2 md:mr-2 md:h-[calc(100dvh-16px)] md:rounded-[28px] md:p-3">
         <slot />
       </main>
     </div>
