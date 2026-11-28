@@ -19,6 +19,10 @@
 - [Oracle 显式结构迁移规范](https://github.com/Cthaat/NekoTribe/blob/master/docs/architecture/schema-migrations.md)
 - [三后端与双客户端共同需求及进度台账](https://github.com/Cthaat/NekoTribe/blob/master/specifications/README.md)
 
+## B0.1 实现状态
+
+Rust 已接入共享 Redis 分级限流和会话提交后的登录提醒。离线验收使用 [共享向量](../contracts/scenarios/b0-1-rate-limit.json)、独立 Redis 和邮件 stub。真实三后端对拍待验收。
+
 ## 其他活跃分支文档入口
 
 - `master`（Nuxt 4 全栈 & 文档契约中心）：[README](https://github.com/Cthaat/NekoTribe/blob/master/README.md) · [文档总索引](https://github.com/Cthaat/NekoTribe/blob/master/docs/README.md)

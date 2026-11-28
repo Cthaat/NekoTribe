@@ -99,6 +99,7 @@ fn native_router(
         &config.redis, &|key| std::env::var(key).ok(),
     ).map_err(|_| SessionStoreError)?;
     let redis = redis::Client::open(config.redis.connection_url()).map_err(|_| SessionStoreError)?;
+    let admission = crate::middleware::rate_limit::Admission::new(redis.clone())?;
     let readiness = super::readiness::native_route(pool.clone(), redis);
     let realtime = Arc::new(
         crate::local_presence::LocalPresenceEvents::new(Some(source), Some(publisher))
@@ -127,6 +128,7 @@ fn native_router(
     .layer(axum::Extension(options.local_storage.clone()))
     .layer(axum::Extension(crate::auth::otp_send_limit::OtpSendLimit(otp_limiter.clone())))
     .layer(axum::Extension(crate::auth::otp_attempt_limit::OtpAttemptLimit(otp_limiter)))
+    .layer(axum::Extension(admission))
     .layer(axum::Extension(ai_quota))
     .layer(axum::Extension(options.ai_moderation.clone()))
     .layer(axum::Extension(options.ai_writing.clone()))

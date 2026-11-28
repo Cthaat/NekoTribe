@@ -204,10 +204,18 @@ async fn native_router_correlates_preflight_errors_and_well_formed_headers() {
     assert_eq!(callback.status(), StatusCode::BAD_REQUEST);
     assert_eq!(callback.headers()["x-request-id"], "trace:Client-4.5");
     assert_eq!(callback.headers()["referrer-policy"], "no-referrer");
-    assert!(callback.headers()["access-control-expose-headers"]
+    let exposed = callback.headers()["access-control-expose-headers"]
         .to_str()
-        .unwrap()
-        .contains("x-request-id"));
+        .unwrap();
+    for header in [
+        "x-request-id",
+        "Retry-After",
+        "RateLimit-Limit",
+        "RateLimit-Remaining",
+        "RateLimit-Reset",
+    ] {
+        assert!(exposed.split(',').any(|h| h.eq_ignore_ascii_case(header)));
+    }
     let preflight = call(
         &app,
         Method::OPTIONS,

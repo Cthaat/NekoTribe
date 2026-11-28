@@ -36,16 +36,16 @@ impl SessionRepository for Store {
     fn login_two_factor(&self, _: u64) -> StoreFuture<'_, bool> {
         Box::pin(async { Ok(false) })
     }
-    fn known_login_device<'a>(&'a self, _: u64, _: &'a str) -> StoreFuture<'a, bool> {
-        Box::pin(async { Ok(true) })
-    }
     fn login_insert_session<'a>(
         &'a self,
         _: &'a nekotribe_backend::auth::login::LoginSession,
-    ) -> StoreFuture<'a, bool> {
+    ) -> StoreFuture<'a, Option<nekotribe_backend::auth::login::LoginHistory>> {
         Box::pin(async move {
             self.writes.lock().unwrap().0 += 1;
-            Ok(true)
+            Ok(Some(nekotribe_backend::auth::login::LoginHistory {
+                known_device: true,
+                previous_ip: None,
+            }))
         })
     }
     fn touch<'a>(&'a self, _: &'a TokenClaims) -> StoreFuture<'a, u64> {

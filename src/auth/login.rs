@@ -23,7 +23,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
-pub(crate) const LOGIN_ALERT_TITLE: &str = "新设备登录提醒";
+pub(crate) const LOGIN_ALERT_TITLE: &str = "登录安全提醒";
 const TRUSTED_DEVICE_COOKIE: &str = "nekotribe_trusted_device";
 const TRUSTED_DEVICE_SECONDS: u64 = 30 * 24 * 60 * 60;
 
@@ -45,6 +45,45 @@ pub struct LoginAlertDelivery {
     pub email: Option<String>,
     pub message: String,
     pub notification_id: Option<u64>,
+}
+
+#[derive(Default)]
+pub struct LoginHistory {
+    pub known_device: bool,
+    pub previous_ip: Option<String>,
+}
+
+type RegionMap = std::collections::HashMap<std::net::IpAddr, String>;
+static REGIONS: std::sync::LazyLock<RegionMap> = std::sync::LazyLock::new(|| {
+    std::env::var("NEKO_LOGIN_REGION_MAP")
+        .ok()
+        .and_then(|json| serde_json::from_str::<RegionMap>(&json).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(ip, region)| (ip.to_canonical(), region))
+        .collect()
+});
+
+impl LoginHistory {
+    fn alert(&self, current: &str, regions: &RegionMap) -> Option<&'static str> {
+        let region = |ip: &str| {
+            regions
+                .get(&ip.parse::<std::net::IpAddr>().ok()?.to_canonical())
+                .filter(|id| !id.trim().is_empty())
+        };
+        let changed = self
+            .previous_ip
+            .as_deref()
+            .and_then(region)
+            .zip(region(current))
+            .is_some_and(|(a, b)| a != b);
+        match (!self.known_device, changed) {
+            (true, true) => Some("新设备及异地"),
+            (true, false) => Some("新设备"),
+            (false, true) => Some("异地"),
+            (false, false) => None,
+        }
+    }
 }
 
 pub struct LoginAccount {
@@ -118,8 +157,8 @@ impl LoginResponse {
     }
 }
 
-async fn deliver_login_alert(state: &NativeState, session: &LoginSession) {
-    let Ok(delivery) = state.repository.record_login_alert(session).await else {
+async fn deliver_login_alert(state: NativeState, session: LoginSession, reason: &'static str) {
+    let Ok(delivery) = state.repository.record_login_alert(&session, reason).await else {
         eprintln!("login alert storage unavailable");
         return;
     };
@@ -215,27 +254,35 @@ fn device_header(headers: &HeaderMap, name: &str) -> String {
         .unwrap_or("unknown")
         .to_owned()
 }
-fn client_ip(headers: &HeaderMap, extensions: &http::Extensions) -> String {
+pub(crate) fn client_ip(headers: &HeaderMap, extensions: &http::Extensions) -> String {
     let trusted = std::env::var("TRUST_PROXY").ok().is_some_and(|v| {
         matches!(
             v.trim().to_lowercase().as_str(),
             "1" | "true" | "yes" | "on"
         )
     });
+    resolve_ip(headers, extensions, trusted)
+}
+
+pub(crate) fn resolve_ip(
+    headers: &HeaderMap,
+    extensions: &http::Extensions,
+    trusted: bool,
+) -> String {
     if trusted {
         if let Some(value) = headers
             .get("x-forwarded-for")
             .and_then(|h| h.to_str().ok())
             .and_then(|s| s.split(',').next())
             .map(str::trim)
-            .filter(|s| !s.is_empty())
+            .and_then(|s| s.parse::<std::net::IpAddr>().ok())
         {
-            return value.to_owned();
+            return value.to_canonical().to_string();
         }
     }
     extensions
         .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-        .map(|c| c.0.ip().to_string())
+        .map(|c| c.0.ip().to_canonical().to_string())
         .unwrap_or_else(|| "unknown".to_owned())
 }
 fn server_error() -> ApiError {
@@ -707,25 +754,17 @@ async fn issue_session(
         trusted_device_key: options.trusted_device_key,
         factor_completion: options.factor_completion,
     };
-    let known = state
-        .repository
-        .known_login_device(user_id, &session.device.fingerprint)
-        .await
-        .map_err(|_| server_error())?;
-    if !state
+    let Some(history) = state
         .repository
         .login_insert_session(&session)
         .await
         .map_err(|_| server_error())?
-    {
+    else {
         if session.trusted_device_key.is_some() {
             return Ok(None);
         }
         return Err(ApiError::unauthorized(stale_message));
-    }
-    if !known {
-        deliver_login_alert(state, &session).await;
-    }
+    };
     let mut profile = state
         .repository
         .login_profile(user_id)
@@ -767,12 +806,43 @@ async fn issue_session(
             HeaderValue::from_str(&value).map_err(|_| server_error())?,
         );
     }
+    if let Some(reason) = history.alert(&session.device.ip, &REGIONS) {
+        tokio::spawn(deliver_login_alert(state.clone(), session, reason));
+    }
     Ok(Some(response))
 }
 
 #[cfg(test)]
 mod crypto_tests {
     use super::*;
+    #[test]
+    fn shared_login_alert_vectors() {
+        let vectors = include_str!("../../contracts/scenarios/b0-1-rate-limit.json");
+        let vectors: Value = serde_json::from_str(vectors).unwrap();
+        let regions: RegionMap =
+            serde_json::from_str(r#"{"192.0.2.1":"A","192.0.2.2":"B"}"#).unwrap();
+        for case in vectors["cases"].as_array().unwrap() {
+            let input = &case["input"];
+            if input["completedLogin"] != true {
+                continue;
+            }
+            let known_device = input["knownFingerprint"].as_bool().unwrap();
+            let ip = |region: &Value| match region.as_str() {
+                Some("A") => "192.0.2.1",
+                Some("B") => "192.0.2.2",
+                _ => "unknown",
+            };
+            let history = LoginHistory {
+                known_device,
+                previous_ip: Some(ip(&input["priorRegion"]).into()),
+            };
+            let reason = history.alert(ip(&input["currentRegion"]), &regions);
+            assert_eq!(case["expect"]["emailSchedules"], u8::from(reason.is_some()));
+            if case["id"] == "both-reasons" {
+                assert_eq!(reason, Some("新设备及异地"));
+            }
+        }
+    }
     #[test]
     fn decrypts_shared_node_aes_gcm_vectors_and_rejects_tampering() {
         let vectors: Value = serde_json::from_str(include_str!(

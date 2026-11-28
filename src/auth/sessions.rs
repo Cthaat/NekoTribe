@@ -764,19 +764,13 @@ pub trait SessionRepository: Send + Sync {
     fn login_insert_session<'a>(
         &'a self,
         _session: &'a crate::auth::login::LoginSession,
-    ) -> StoreFuture<'a, bool> {
-        Box::pin(async { Err(SessionStoreError) })
-    }
-    fn known_login_device<'a>(
-        &'a self,
-        _user: u64,
-        _fingerprint: &'a str,
-    ) -> StoreFuture<'a, bool> {
+    ) -> StoreFuture<'a, Option<crate::auth::login::LoginHistory>> {
         Box::pin(async { Err(SessionStoreError) })
     }
     fn record_login_alert<'a>(
         &'a self,
         _session: &'a crate::auth::login::LoginSession,
+        _reason: &'static str,
     ) -> StoreFuture<'a, crate::auth::login::LoginAlertDelivery> {
         Box::pin(async { Err(SessionStoreError) })
     }
@@ -1673,6 +1667,7 @@ pub fn build_native_router_with_realtime_and_publisher(
             "/api/v2/users/me/two-factor",
             delete(crate::auth::factor_management::disable),
         )
+        .route_layer(middleware::from_fn(crate::middleware::rate_limit::admit))
         .fallback(|| async { ApiError::route_not_found() })
         .layer(middleware::from_fn(crate::middleware::cache::api_no_store))
         .layer(middleware::from_fn_with_state(
@@ -2133,11 +2128,11 @@ pub(crate) async fn cors_middleware(
             (
                 "access-control-expose-headers",
                 if private_media {
-                    "content-length,content-type,Retry-After,content-range,accept-ranges,content-disposition,x-request-id"
+                    "content-length,content-type,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset,Retry-After,content-range,accept-ranges,content-disposition,x-request-id"
                 } else if public_storage {
-                    "content-length,content-type,Retry-After,content-range,accept-ranges,x-request-id"
+                    "content-length,content-type,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset,Retry-After,content-range,accept-ranges,x-request-id"
                 } else {
-                    "content-length,content-type,Retry-After,x-request-id"
+                    "content-length,content-type,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset,Retry-After,x-request-id"
                 }
                 .into(),
             ),
