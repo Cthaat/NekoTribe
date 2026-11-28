@@ -66,10 +66,6 @@ impl Tier {
     }
 }
 
-#[cfg(test)]
-#[path = "admission_tests.rs"]
-mod tests;
-
 const WINDOW: &str = r#"
 local ttl = redis.call('PTTL', KEYS[1])
 if ttl == -2 then
@@ -195,3 +191,7 @@ fn rejection(method: &Method, path: &str) -> Response {
     });
     (status, Json(body)).into_response()
 }
+
+#[cfg(test)]
+#[path = "admission_tests.rs"]
+mod tests;

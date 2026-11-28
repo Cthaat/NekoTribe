@@ -93,7 +93,7 @@ async fn rejection_matches_wire_vectors() {
         let outer: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(outer["url"], path);
         assert_eq!(outer["statusCode"], 429);
-        assert_eq!(outer["error"], true);
+        assert_eq!(outer["error"].as_bool(), Some(true));
         let data = &outer["data"];
         assert_eq!(data["code"], 42901);
         assert!(!data["message"].as_str().unwrap().is_empty());
